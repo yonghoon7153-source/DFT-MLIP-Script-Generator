@@ -50,6 +50,23 @@ end
 """
 
 
+
+def _ring_atoms(rings):
+    """manifest 의 rings → 고리 원자 인덱스 집합 (H·에테르 O 제외).
+
+    ⚠ 형식이 dict({이름: [idx...]} 또는 {이름: {"ring": [...]}}) 일 수도, list 일 수도 있다.
+      **모르는 형식이면 빈 집합을 준다** — 조용히 일부만 세지 않는다.
+    """
+    out = set()
+    it = rings.values() if isinstance(rings, dict) else (rings or [])
+    for v in it:
+        if isinstance(v, dict):
+            v = v.get("ring") or v.get("atoms") or []
+        if isinstance(v, (list, tuple)):
+            out |= {int(x) for x in v if isinstance(x, (int, float))}
+    return out
+
+
 def build(pilot, out, opt, nprocs, maxcore):
     """pilot 산출물에서 기하·그룹을 가져와 n=6 잡을 만든다. **새로 만들지 않는다** —
     pilot 이 이미 봉인한 것을 쓴다(같은 구조를 두 번 정의하면 갈라진다)."""
@@ -77,10 +94,21 @@ def build(pilot, out, opt, nprocs, maxcore):
                    nprocs=nprocs, maxcore=maxcore))
     # 그룹: manifest 의 D 프레임을 그대로 옮긴다 (0-based → 그대로 쓴다)
     D = amf["D"]
-    groups = {"backbone_strict": D["derived"]["backbone_strict"],
+    # ⛔⛔ 7월(n=1·2·3)의 backbone 정의는 **티오펜 고리 원자만**이다
+    #   (`build_v7c_dimer.py`: ring = [rS] + alphas + betas — 고리 H 도, 에테르 O 도 없다).
+    #   pilot 의 `backbone_strict` 는 거기에 **고리 H 를 더한다**(bb_core = ring_atoms | ring_H).
+    #   두 정의를 한 표에 올리면 이 세션에서 반복된 그 실수다. 7월과 **글자 그대로 같은**
+    #   분할을 따로 만들어서, n=1→6 을 같은 자로 잰다.
+    rings = D.get("rings") or {}
+    july = sorted(_ring_atoms(rings))
+    groups = {"backbone_july": july,                       # ← n-시리즈 비교는 이걸로
+              "backbone_strict": D["derived"]["backbone_strict"],
               "backbone_extended": D["derived"]["backbone_extended"],
               "sulfonate": sorted(D["components"].get("sulfonate", [])),
-              "rings": D.get("rings", {})}
+              "rings": rings}
+    if not july:
+        sys.exit("⛔ manifest 의 rings 에서 고리 원자를 못 뽑았다 — 7월 정의를 재현할 수 없다. "
+                 "구조를 확인하기 전에는 n-시리즈에 값을 얹지 않는다")
     json.dump({"groups": groups, "n_atoms": D["n_atoms"],
                "source_manifest": os.path.abspath(os.path.join(pilot, "MANIFEST_PILOT.json")),
                "source_xyz": os.path.abspath(src),
@@ -133,7 +161,7 @@ def analyze(d):
         print("  ⚠ 1.0 에서 멀다 — 스핀 오염이나 다른 해로 갔을 수 있다")
     gr = g["groups"]
     res = {}
-    for name in ("sulfonate", "backbone_strict", "backbone_extended"):
+    for name in ("sulfonate", "backbone_july", "backbone_strict", "backbone_extended"):
         idx = gr.get(name) or []
         res[name] = 100.0 * sum(sp.get(i, 0.0) for i in idx) / tot if tot else 0.0
         print(f"  {name:20s} {res[name]:6.1f} %  ({len(idx)}원자)")
@@ -150,8 +178,11 @@ def analyze(d):
     print(f"    n=2        SO3 {JULY[2]['so3']:.1f} / 백본 {JULY[2]['bb']:.1f}")
     print(f"    n=3 end    SO3 {JULY['3end']['so3']:.1f} / 백본 {JULY['3end']['bb']:.1f}")
     print(f"    n=3 mid    SO3 {JULY['3mid']['so3']:.1f} / 백본 {JULY['3mid']['bb']:.1f}  ← 크로스오버")
-    print(f"    n=6        SO3 {res['sulfonate']:.1f} / 백본 {res['backbone_strict']:.1f} "
-          f"(extended {res['backbone_extended']:.1f})   ← 이번")
+    print(f"    n=6        SO3 {res['sulfonate']:.1f} / 백본 {res['backbone_july']:.1f}"
+          f"   ← 이번 (7월과 같은 분할: 고리 원자만)")
+    print(f"      참고    같은 계를 다른 분할로: strict(+고리H) {res['backbone_strict']:.1f} · "
+          f"extended(+에테르O) {res['backbone_extended']:.1f}")
+    print("      ⛔ 위 표에 올리는 것은 **backbone_july 뿐이다** — 다른 분할을 7월 값 옆에 놓지 않는다")
     print()
     print(f"  ⚠ 이번 실행은 **{g['run']}** 이다. {g['⚠']}")
     print("  ⛔ 이 값은 '자가도핑이 일어난다' 의 증거가 아니다 — 산화된 상태를 **주고**")
