@@ -64,7 +64,8 @@ echo
 IFS='|' read -r ST NOTE <<< "$(n6_state "$F")"
 SZ=$([ -f "$F" ] && stat -c %s "$F" || echo 0)
 AGE=$([ -f "$F" ] && echo $(( ( $(date +%s) - $(stat -c %Y "$F") ) / 60 )) || echo -)
-CYC=$([ -f "$F" ] && grep -ac "GEOMETRY OPTIMIZATION CYCLE" "$F" || echo 0)
+CYC=0; [ -f "$F" ] && CYC=$(grep -ac "GEOMETRY OPTIMIZATION CYCLE" "$F" 2>/dev/null || true)
+CYC=${CYC:-0}
 
 printf "  상태    %s  %s\n" "$ST" "$NOTE"
 printf "  사이클  %s        출력 %s B · 무갱신 %s분\n" "$CYC" "$SZ" "$AGE"
@@ -82,7 +83,12 @@ if [ -f "$F" ]; then
 fi
 
 echo
-echo "  프로세스: $(pgrep -c -f 'orca.*n6_doped' 2>/dev/null || echo 0)개 · load$(uptime | sed 's/.*load average//')"
+NP=$(pgrep -c -f "n6_doped" 2>/dev/null || true); NP=${NP:-0}
+echo "  프로세스: ${NP}개 · load$(uptime | sed 's/.*load average//')"
+if [ "$NP" = 0 ] && [ "$ST" = "▶ 도는중" ]; then
+  echo "  ⛔ 프로세스가 없는데 상태가 '도는중' 이다 — **죽었다.** .out 꼬리를 본다:"
+  tail -12 "$F" 2>/dev/null | sed "s/^/     /"
+fi
 echo "  RAM: $(free -g | awk '/^Mem/{print $3"/"$2" GB 사용"}')  GPU: $(nvidia-smi --query-gpu=memory.used --format=csv,noheader 2>/dev/null | head -1)"
 echo
 echo "  ⛔ 스핀 분포는 여기서 판정하지 않는다. 끝나면:"
