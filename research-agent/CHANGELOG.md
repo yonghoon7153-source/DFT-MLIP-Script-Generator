@@ -1,6 +1,44 @@
 # CHANGELOG
 
 
+## [0.1.12] — 2026-09-06 · 수신 (Claude Code 측)
+### Added — `[RA-NEWS]` 주간 뉴스 아카이브 **수신 쪽**
+`cowork/PROPOSAL_v018_news.md` 의 **A안**을 붙였다. 9/11 17:00 KST 부터 오는 메일을 받는다.
+발신은 Cowork, 수신은 이쪽 — 두 판 연속 저쪽 다음-단계 표에서도 이 칸이었다.
+
+- **`research_agent/news.py` 신규** — `build_news` / `render_week` / `import_news` /
+  `sync_news_from_mail`. `vault/News/<금요일>.md` + `data/news.jsonl`(`source` URL 기준 중복 없음).
+- **`ra news`** — 인자 없이 아카이브 현황, `--sync` 로 메일 걷기, `--import-file` 로 메일 없이
+  payload 하나 주입(시험·복구), `--force` · `--lookback` · `--no-commit`.
+  ⚠ `ra sync`(논문)와 **일부러 분리**했다 — 뉴스 IMAP 이 실패해도 논문 동기화가 멈추면 안 된다.
+- **축소 덮어쓰기 거부** — 같은 주가 더 적은 항목으로 다시 오면 안 쓰고 이유를 찍는다.
+  덮어쓸 때(`--force`, 또는 항목이 늘었을 때)는 `.backup/` 에 남긴다. `Vault.write_digest` 와 같은 처방.
+- **선점 경보를 노트 맨 위 callout 으로** 올린다 (`scooping: true`). 판정은 보낸 쪽이 했고
+  이쪽은 눈에 띄게 둘 뿐이다.
+- 남은 두 질문에 답했다: **wikilink 안 건다**(`news.wikilinks: false`) · **`ra news` 로 따로 돈다**.
+  본문에 원래 `[[` 가 있으면 내용이라 그대로 두되 `wikilinks_passed_through` 로 세어 돌려준다.
+
+### Changed — IMAP 걷기를 한 벌로 (`handoff.fetch_tagged_json`)
+`sync_from_mail` 안에 있던 IMAP 순회를 꺼내 handoff·news 가 **같은 함수**를 쓴다. 두 벌이면
+한쪽만 고쳐지는 순간(dedupe·lookback·인코딩) 나머지가 조용히 뒤처진다. 메일에서 payload 를
+꺼내는 부분은 `payloads_from_message` 로 **순수 함수** 분리 — 남의 바이트를 파싱하는 자리라
+메일함 없이 시험할 수 있어야 한다. 동작은 그대로(`[RA-HANDOFF]` 경로 무변경).
+
+### Tests — `tests/test_news.py` 20건 (대부분 음성)
+첫 메일이 9/11 에나 오는 코드라 "되면 이렇게 된다"는 실물이 알려 준다. 지금 잠글 것은
+**조용히 망가지는 쪽**이다: 논문 payload 거부 · 날짜 못 읽으면 `News/None.md` 안 만들기 ·
+축소 덮어쓰기 거부 · `source` 없는 항목 안 버리기 · 우리가 wikilink 안 만들기 ·
+헤드라인의 `:`·따옴표가 frontmatter 안 깨기 · 뉴스가 논문 DB 로 안 새기 · 두 태그가 실제로 다른지.
+
+뮤테이션으로 확인했다 — 보호 5개를 하나씩 빼면 해당 시험이 **전부 죽는다**.
+
+⚠ 픽스처 교훈: `message_from_string` 으로 만든 메일은 `get_payload(decode=True)` 가
+한글 첨부를 깨뜨린다(raw-unicode-escape). 실물 경로는 `message_from_bytes` + base64 라
+그런 일이 없다 — **픽스처가 실물보다 험하면 없는 버그를 쫓게 된다.** bytes 왕복으로 고쳤다.
+
+92 passed (+20).
+
+
 ## [0.1.11] — 2026-09-06
 ### Fixed — ⛔ 검증기가 **올바른 전달에 경보**를 냈다 (false NO-GO)
 v0.1.10 의 `--verify` 는 멀쩡한 전달에서 항상 최소 2건 MISSING 을 냈다.

@@ -40,7 +40,13 @@ FORCED_D = re.compile(r"(?:msd|MSD)[^\n=]{0,20}/\s*\(?\s*6(?:\.0)?\s*\*", re.I)
 FREE_FIT = re.compile(r"polyfit\([^)]*,\s*1\s*\)")
 #: MSD 창 — 이름에 window 가 든 **변수 대입**만 본다.
 #  (본문 아무 데나 있는 2-튜플을 잡으면 set_xlim(1.3, 2.1) 같은 게 걸려 오탐이 된다)
-WINDOW_ASSIGN = re.compile(r"^\s*\w*[Ww][Ii][Nn][Dd][Oo][Ww]\w*\s*(?::[^=]+)?=\s*(.+)$")
+WINDOW_ASSIGN = re.compile(r"^\s*(\w*[Ww][Ii][Nn][Dd][Oo][Ww]\w*)\s*(?::[^=]+)?=\s*(.+)$")
+#: 창 이름이 **단위를 스스로 밝히면** MSD 시간창(ps) 규약과 무관하다.
+#:   실물: `tools/xrd/phase_fingerprint.py` 의 `window_2theta=(8.0, 11.0)` 은 도(°)다.
+#:   이런 오탐을 EXEMPT 로 덮으면 그 파일의 **진짜** 위반까지 같이 눈이 먼다 —
+#:   그래서 파일을 면제하지 않고 판정을 고친다. (2026-09-06)
+WINDOW_NON_TIME = re.compile(
+    r"(?i)_(2theta|theta|deg|degrees?|ang|angstrom|nm|ev|kev|cm|wavenumber|q|k|bin|px)$")
 TUPLE2 = re.compile(r"\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\)")
 KB_HIT = re.compile(r"8\.617[0-9]*e-0?5")
 CANON_WINDOW = (2.0, 50.0)
@@ -99,8 +105,8 @@ def scan(path: Path):
         if FORCED_D.search(line) and not FREE_FIT.search(line):
             viol.append((rel, i, "원점강제 D 추출 — 자유절편(MSD=c+6Dt)이 정본", line.strip()))
         m = WINDOW_ASSIGN.match(line)
-        if m:
-            for a, b in TUPLE2.findall(m.group(1)):
+        if m and not WINDOW_NON_TIME.search(m.group(1)):
+            for a, b in TUPLE2.findall(m.group(2)):
                 w = (float(a), float(b))
                 if w != CANON_WINDOW:
                     viol.append((rel, i, f"MSD 창 {w} — 정본은 {CANON_WINDOW} ps",
@@ -262,11 +268,22 @@ def selftest():
         # 오탐 회귀: 'window' 단어가 라벨에 든 plot 호출은 창 대입이 아니다
         (t / "plotlabel.py").write_text(
             'ax.set_xlabel("stable window")\nax.set_xlim(1.3, 2.1)\n')
+        # 오탐 회귀 (2026-09-06): 이름이 단위를 밝힌 창은 시간창이 아니다 (XRD 2θ · Å · eV)
+        (t / "unitwindow.py").write_text(
+            "window_2theta = (8.0, 11.0)\n"
+            "WINDOW_EV = (0.5, 3.0)\n"
+            "bond_window_ang = (1.60, 2.40)\n")
+        # ⛔ 그렇다고 다 통과시키면 안 된다 — 단위를 안 밝힌 창은 여전히 잡아야 한다
+        (t / "unitwindow_bad.py").write_text(
+            "fit_window = (10.0, 100.0)\n"
+            "window_ps = (10.0, 100.0)\n")
 
         for name, want_v, want_w, label in [
                 ("bad.py", 2, 1, "위반 검출"), ("good.py", 0, 0, "오탐 없음"),
                 ("comment.py", 0, 0, "주석 무시"),
-                ("plotlabel.py", 0, 0, "plot 라벨 오탐 없음")]:
+                ("plotlabel.py", 0, 0, "plot 라벨 오탐 없음"),
+                ("unitwindow.py", 0, 0, "단위 밝힌 창(2θ/eV/Å) 오탐 없음"),
+                ("unitwindow_bad.py", 2, 0, "⛔음성: 단위 안 밝힌 창은 그대로 잡는다")]:
             v, w = scan(t / name)
             # scan 은 REPO 기준 상대경로를 쓰므로 임시경로엔 rglob 대신 직접 호출
             got = (len(v), len(w))

@@ -80,22 +80,59 @@ def import_handoff(cfg: Config, db: PaperDB, payload: dict, apply_triage_fn=None
     return {"new": n_new, "updated": n_upd, "analyses": n_an, "digest": bool(digest)}
 
 
-def sync_from_mail(cfg: Config, db: PaperDB, lookback_days: int = 7) -> list[dict]:
-    """Fetch [RA-HANDOFF] self-mails via IMAP and import their JSON attachments (idempotent)."""
+def payloads_from_message(msg) -> list[dict]:
+    """Pull JSON payloads out of one mail: `.json` attachments first, then inline body.
+
+    Pure — no IMAP, no DB. That is deliberate: this is the part that actually parses
+    someone else's bytes, so it has to be testable without a mailbox.
+
+    ⛔ 못 하는 것
+      · payload 의 내용을 검사하지 않는다. `protocol` 판정은 부르는 쪽 몫이다
+        (뉴스 payload 가 논문 경로로 들어가면 papers=0 으로 **조용히** 소비된다).
+      · 압축 첨부(.json.gz)는 못 읽는다 — 조용히 건너뛴다.
+    """
+    payloads: list[dict] = []
+    for part in msg.walk():
+        fn = part.get_filename() or ""
+        if fn.endswith(".json"):
+            try:
+                payloads.append(json.loads(part.get_payload(decode=True).decode("utf-8")))
+            except Exception:
+                continue
+    if not payloads:
+        # body-inline JSON fallback
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                try:
+                    txt = part.get_payload(decode=True).decode("utf-8", "replace")
+                    s, e = txt.find("{"), txt.rfind("}")
+                    if s != -1 and e > s:
+                        payloads.append(json.loads(txt[s:e + 1]))
+                except Exception:
+                    pass
+    return payloads
+
+
+def fetch_tagged_json(cfg: Config, db: PaperDB, tag: str, kind: str, lookback_days: int = 7):
+    """Yield `(message_id, subject, raw_path, payloads)` for **unseen** `[<tag>]` self-mails.
+
+    Shared by `[RA-HANDOFF]` (papers) and `[RA-NEWS]` (weekly news) — one IMAP walk, two
+    protocols. Recording the mail as seen is the **caller's** job: a mail marked seen before
+    its payload is handled can never be re-collected.
+    """
     imap = cfg.get("sources.scholar_email.imap", {})
     host, port, user, pw = imap.get("host"), int(imap.get("port", 993)), imap.get("user"), imap.get("password")
     if not (host and user and pw):
-        raise RuntimeError("IMAP 설정(EMAIL_ADDRESS/EMAIL_PASSWORD)이 없어 handoff 동기화를 건너뜀")
+        raise RuntimeError(f"IMAP 설정(EMAIL_ADDRESS/EMAIL_PASSWORD)이 없어 {kind} 동기화를 건너뜀")
     since = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%d-%b-%Y")
-    results = []
-    raw_dir = cfg.path("storage.raw_inbox") / "handoff"
+    raw_dir = cfg.path("storage.raw_inbox") / kind
     raw_dir.mkdir(parents=True, exist_ok=True)
     with imaplib.IMAP4_SSL(host, port) as M:
         M.login(user, pw)
         M.select(imap.get("folder", "INBOX"), readonly=True)
-        typ, data = M.uid("search", None, "SUBJECT", f'"{SUBJECT_TAG}"', "SINCE", since)
+        typ, data = M.uid("search", None, "SUBJECT", f'"{tag}"', "SINCE", since)
         if typ != "OK":
-            return results
+            return
         for uid in data[0].split():
             typ, md = M.uid("fetch", uid, "(BODY.PEEK[])")
             if typ != "OK" or not md or md[0] is None:
@@ -104,34 +141,26 @@ def sync_from_mail(cfg: Config, db: PaperDB, lookback_days: int = 7) -> list[dic
             mid = (msg.get("Message-ID") or f"uid:{uid.decode()}").strip()
             if db.alert_seen(mid):
                 continue
-            payloads = []
-            for part in msg.walk():
-                fn = part.get_filename() or ""
-                if fn.endswith(".json"):
-                    try:
-                        payloads.append(json.loads(part.get_payload(decode=True).decode("utf-8")))
-                    except Exception:
-                        continue
-            if not payloads:
-                # body-inline JSON fallback
-                for part in msg.walk():
-                    if part.get_content_type() == "text/plain":
-                        try:
-                            txt = part.get_payload(decode=True).decode("utf-8", "replace")
-                            s, e = txt.find("{"), txt.rfind("}")
-                            if s != -1 and e > s:
-                                payloads.append(json.loads(txt[s:e + 1]))
-                        except Exception:
-                            pass
-            summary = {"message_id": mid, "subject": msg.get("Subject", ""), "imported": []}
-            for pl in payloads:
-                (raw_dir / f"{uid.decode()}.json").write_text(json.dumps(pl, ensure_ascii=False, indent=1), encoding="utf-8")
-                try:
-                    summary["imported"].append(import_handoff(cfg, db, pl))
-                except Exception as e:  # keep going; record error
-                    summary["imported"].append({"error": str(e)})
-            db.record_alert(Alert(message_id=mid, keyword="__handoff__", received_at=now_iso(),
-                                  subject=msg.get("Subject", ""), n_items=len(payloads),
-                                  raw_path=str(raw_dir / f"{uid.decode()}.json")))
-            results.append(summary)
+            payloads = payloads_from_message(msg)
+            raw_path = raw_dir / f"{uid.decode()}.json"
+            if payloads:
+                raw_path.write_text(
+                    json.dumps(payloads[0] if len(payloads) == 1 else payloads, ensure_ascii=False, indent=1),
+                    encoding="utf-8")
+            yield mid, msg.get("Subject", ""), raw_path, payloads
+
+
+def sync_from_mail(cfg: Config, db: PaperDB, lookback_days: int = 7) -> list[dict]:
+    """Fetch [RA-HANDOFF] self-mails via IMAP and import their JSON attachments (idempotent)."""
+    results = []
+    for mid, subject, raw_path, payloads in fetch_tagged_json(cfg, db, SUBJECT_TAG, "handoff", lookback_days):
+        summary = {"message_id": mid, "subject": subject, "imported": []}
+        for pl in payloads:
+            try:
+                summary["imported"].append(import_handoff(cfg, db, pl))
+            except Exception as e:  # keep going; record error
+                summary["imported"].append({"error": str(e)})
+        db.record_alert(Alert(message_id=mid, keyword="__handoff__", received_at=now_iso(),
+                              subject=subject, n_items=len(payloads), raw_path=str(raw_path)))
+        results.append(summary)
     return results

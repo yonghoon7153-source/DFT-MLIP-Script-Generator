@@ -500,6 +500,41 @@ def cmd_sync(cfg: Config, args) -> int:
     return 0
 
 
+def cmd_news(cfg: Config, args) -> int:
+    """주간 뉴스 아카이브. `[RA-NEWS]` 메일 → `vault/News/<금요일>.md` + `data/news.jsonl`.
+
+    ⚠ `ra sync`(논문)와 **일부러 분리**돼 있다 — 뉴스 IMAP 이 실패해도 논문 동기화가
+    멈추면 안 된다. 뉴스는 늦게 걷어도 메일함에 남아 있어 잃는 게 없다.
+    """
+    from . import news as nw
+    db = _db(cfg)
+    if args.import_file:
+        payload = json.loads(Path(args.import_file).read_text(encoding="utf-8"))
+        res = nw.import_news(cfg, payload, force=args.force)
+        _log(f"news: {res['week']} — {res['n_items']}건 · "
+             f"{'기록' if res['written'] else '건너뜀'} · jsonl +{res['jsonl_added']}"
+             + (f" · {res['why']}" if res["why"] else ""))
+        return 0
+    if args.sync:
+        res = nw.sync_news_from_mail(cfg, db, int(args.lookback or cfg.get("news.lookback_days", 21)),
+                                     force=args.force)
+        n_weeks = sum(len(r["imported"]) for r in res)
+        _log(f"news sync: 메일 {len(res)}통 · 주 {n_weeks}건 → {json.dumps(res, ensure_ascii=False)[:400]}")
+        if res and not args.no_commit:
+            _git_commit(cfg, f"ra: news {today_str(cfg)} ({len(res)} mails)")
+        return 0
+    d = nw.news_dir(cfg)
+    notes = sorted(d.glob("*.md")) if d.exists() else []
+    jp = nw.news_jsonl(cfg)
+    n_rows = sum(1 for _ in jp.open(encoding="utf-8")) if jp.exists() else 0
+    _log(f"뉴스 아카이브: 주 {len(notes)}개 · 항목 {n_rows}건 · {d}")
+    for p in notes[-5:]:
+        print(f"  {p.name}")
+    if not notes:
+        print(f"  (아직 없다 — `{nw.SUBJECT_TAG}` 메일은 9/11 17:00 KST 부터 온다. `ra news --sync`)")
+    return 0
+
+
 def cmd_feedback(cfg: Config, args) -> int:
     """노트의 체크박스를 걷어 보정 보고서를 쓴다. 점수 자체는 여기서 바꾸지 않는다."""
     from . import feedback as fb
@@ -568,6 +603,11 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("morning"); s.add_argument("--date"); s.add_argument("--dry-run", action="store_true")
     s.add_argument("--force", action="store_true", help="더 적은 편수로도 기존 디제스트를 덮어쓴다")
     sub.add_parser("sync")
+    s = sub.add_parser("news"); s.add_argument("--sync", action="store_true", help="[RA-NEWS] 메일을 걷어 아카이브")
+    s.add_argument("--import-file", help="메일 없이 payload JSON 파일 하나를 넣는다 (시험·복구용)")
+    s.add_argument("--lookback", type=int, help="며칠치 메일을 볼지 (기본 21 — handoff 보다 길다)")
+    s.add_argument("--force", action="store_true", help="항목이 더 적어도 기존 주 노트를 덮어쓴다")
+    s.add_argument("--no-commit", action="store_true")
     s = sub.add_parser("feedback"); s.add_argument("--show", action="store_true", help="보고서를 화면에도 출력")
     s.add_argument("--dry-run", action="store_true", help="수집만 하고 보고서 파일은 쓰지 않는다")
     s.add_argument("--min-samples", type=int, help="이 건수 미만이면 보정값을 만들지 않는다 (기본 8)")
@@ -579,7 +619,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(Path(args.root) if args.root else None)
     fn = {"status": cmd_status, "ingest": cmd_ingest, "triage": cmd_triage, "analyze": cmd_analyze, "vault": cmd_vault,
           "litdb": cmd_litdb, "digest": cmd_digest, "noon": cmd_noon, "morning": cmd_morning, "sync": cmd_sync,
-          "feedback": cmd_feedback, "handoff": cmd_handoff, "schedule": cmd_schedule}[args.cmd]
+          "news": cmd_news, "feedback": cmd_feedback, "handoff": cmd_handoff, "schedule": cmd_schedule}[args.cmd]
     return fn(cfg, args)
 
 
