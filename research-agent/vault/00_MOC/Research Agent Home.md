@@ -1,13 +1,13 @@
 ---
 title: Research Agent Home
 tags: [moc, research-agent]
-updated: 2026-09-06 02:23
+updated: 2026-09-06 10:13
 ---
 
 # Research Agent Home
 
-> [!summary] 상태 (2026-09-06 02:23 KST)
-> 누적 6편 · 분석 완료 5편 · triage 대기 0편 · 제외 1편 · research-agent v0.1.8
+> [!summary] 상태 (2026-09-06 10:13 KST)
+> 누적 6편 · 분석 완료 5편 · triage 대기 0편 · 제외 1편 · research-agent v0.1.9
 
 ## 키워드 MOC
 - [[dem battery]] — DEM(discrete element method) 기반 전극/복합양극 시뮬레이션

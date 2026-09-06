@@ -1,6 +1,38 @@
 # CHANGELOG
 
 
+## [0.1.9] — 2026-09-06
+### Changed — 전달 규약 §7 폐기, 매니페스트를 **기계로** 뽑는다
+§7("CHANGELOG 파일 목록과 첨부를 1:1 대조")은 **두 번 연속 안 걸렸다** — v0.1.6 `feedback.py`,
+v0.1.8 `cli.py`. 두 번 다 회신문에 "대조했다"고 적혀 있었다. 목록도 사람이 쓰고 대조도
+사람이 하면 같은 순간에 두 번 실수해서 안 걸린다.
+
+- **`scripts/make_manifest.py` (신규)** — 실제 파일에서 경로·줄수·바이트·sha256[:16] 표를
+  생성한다. 보내는 쪽에 파일이 없으면 표 아래 `⛔` 로 **전달 전에** 드러난다.
+- **받는 쪽 검증** `--verify MANIFEST_<ver>.md` → `MISSING`/`MISMATCH`.
+  하나라도 걸리면 병합하지 않는다.
+- ★ 받는 쪽 검증이 결정적인 이유: **v0.1.8 의 `cli.py` 는 실제로 Cowork 의 전송 목록에
+  있었다.** 유실은 Cowork 의 시야 밖 구간에서 났다. 보내는 쪽 점검을 아무리 강화해도
+  그 구간은 못 덮는다 — 받는 쪽이 도착한 파일로 해시를 맞춰 봐야 잡힌다.
+
+### Changed — 버그 수정의 일부인 인자에 기본값을 두지 않는다
+`borderline_sample(..., has_answer_slot)` 을 **기본값 없는 키워드 전용**으로 바꿨다.
+`=None` 이면 호출자(`cli.py`)가 유실됐을 때 조용히 옛 동작(쿨다운 무조건 적용)으로 돌아간다.
+v0.1.6 은 `ModuleNotFoundError` 로 즉사해 바로 걸렸지만 v0.1.8 은 **안 죽어서** VERSION 만
+0.1.8 이 된 채 안 고쳐질 뻔했다. **안 죽는 쪽이 더 나쁘다.**
+회귀 1건(`test_has_answer_slot_has_no_default`) — 시그니처에 기본값이 생기면 실패한다.
+
+### 파일 (7개)
+```
+research_agent/feedback.py     ← has_answer_slot 기본값 제거 (키워드 전용·필수)
+tests/test_feedback.py         ← 호출부 갱신 + 시그니처 회귀 1건
+scripts/make_manifest.py       ← 신규
+cowork/DELIVERY_PROTOCOL.md    ← §7 폐기, 7'·8'·9' 신설
+VERSION · pyproject.toml · research_agent/__init__.py
+```
+Cowork 트리 **48 passed**.
+
+
 ## [0.1.8] — 2026-09-05
 ### Fixed — ⚠ P1: 물어봤다는 기록이 답할 자리보다 먼저 확정되고 있었다
 `cmd_morning` 의 순서가 이랬다:

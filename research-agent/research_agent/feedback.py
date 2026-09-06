@@ -265,12 +265,17 @@ def enabled(cfg) -> bool:
 
 # --------------------------------------------------------------------------- 경계선 표본
 def borderline_sample(db, n: int = 2, band: float = 0.10, threshold: float = 0.35,
-                      cooldown_days: int = 30, has_answer_slot=None) -> list[Paper]:
+                      cooldown_days: int = 30, *, has_answer_slot) -> list[Paper]:
     """threshold 바로 아래에서 걸러진 논문을 n편 뽑는다 — 오탈락률을 재기 위한 표본.
 
     vault 만 보면 "골라낸 것 중 몇 개가 좋았나"만 알 수 있고 "버린 것 중 좋은 게 있었나"는
     영영 안 보인다. 5년짜리 시스템에서 이건 조용히 읽는 범위를 좁힌다. 그래서 가끔 물어본다.
     이미 판정을 준 논문과 최근에 물어본 논문은 다시 뽑지 않는다.
+
+    `has_answer_slot` 은 **기본값이 없다.** 이 인자는 P1 수정의 일부라, 안전한 기본값을 두면
+    호출자가 빠졌을 때 조용히 옛 동작(쿨다운 무조건 적용)으로 돌아간다 — v0.1.8 전달에서
+    `cli.py` 가 유실됐을 때 실제로 그럴 뻔했다. 없으면 `TypeError` 로 즉사하는 편이
+    **전달 순간에 드러나서** 낫다. (2026-09-06 Claude Code 제안)
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=cooldown_days)).isoformat(timespec="seconds")
     cands = []

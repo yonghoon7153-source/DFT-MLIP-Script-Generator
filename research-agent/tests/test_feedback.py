@@ -174,7 +174,7 @@ def test_borderline_sample_picks_just_below_threshold(sandbox):
     db.upsert(_paper(1, status="rejected", relevance=0.30, tier=""))   # 경계선
     db.upsert(_paper(2, status="rejected", relevance=0.05, tier=""))   # 한참 아래 — 뽑히면 안 됨
     db.upsert(_paper(3, status="analyzed", relevance=0.80))            # 통과한 것 — 뽑히면 안 됨
-    got = fb.borderline_sample(db, n=2, band=0.10, threshold=0.35)
+    got = fb.borderline_sample(db, n=2, band=0.10, threshold=0.35, has_answer_slot=lambda x: True)
     assert [p.id for p in got] == ["doi:10.1/x1"]
 
 
@@ -185,7 +185,7 @@ def test_borderline_skips_already_answered_and_recently_asked(sandbox):
     asked = _paper(2, status="rejected", relevance=0.31, tier="")
     asked.extra = {"borderline_asked_at": now_iso()}
     db.upsert(answered); db.upsert(asked)
-    assert fb.borderline_sample(db, n=2, threshold=0.35) == []
+    assert fb.borderline_sample(db, n=2, threshold=0.35, has_answer_slot=lambda x: True) == []
 
 
 def test_borderline_not_added_to_an_empty_digest(sandbox):
@@ -382,7 +382,8 @@ def test_asked_without_a_slot_ignores_the_cooldown(sandbox):
     db.upsert(p)
     v = Vault(cfg)
 
-    assert fb.borderline_sample(db, n=2, threshold=0.35) == [], "노트 유무를 안 보면 쿨다운에 걸린다"
+    assert fb.borderline_sample(db, n=2, threshold=0.35,
+                                has_answer_slot=lambda x: True) == [], "노트 유무를 안 보면 쿨다운에 걸린다"
     got = fb.borderline_sample(db, n=2, threshold=0.35,
                                has_answer_slot=lambda x: v.borderline_path(x).exists())
     assert [x.id for x in got] == [p.id], "★ 답할 자리가 없는데 쿨다운이 적용됐다"
@@ -414,3 +415,18 @@ def test_dry_run_creates_no_borderline_stub(sandbox):
     _build_digest(cfg, db, "2026-09-05", None, dry_run=True)
     assert not Vault(cfg).borderline_path(b).exists()
     assert (db.get(b.id).extra or {}).get("borderline_asked_at") is None
+
+
+def test_has_answer_slot_has_no_default(sandbox):
+    """★ 버그 수정의 일부인 인자는 안전한 기본값을 두지 않는다 (2026-09-06 Claude Code 제안).
+
+    v0.1.8 전달에서 `cli.py` 가 유실됐을 때, 이 인자에 기본값이 있어서 **조용히 옛 동작**으로
+    돌아갈 뻔했다. import 에서 죽는 v0.1.6 사고보다 나쁘다 — 안 죽으니 아무도 모른다.
+    """
+    import inspect
+    sig = inspect.signature(fb.borderline_sample)
+    prm = sig.parameters["has_answer_slot"]
+    assert prm.default is inspect.Parameter.empty, "기본값이 생기면 호출자 누락이 조용해진다"
+    assert prm.kind is inspect.Parameter.KEYWORD_ONLY
+    with pytest.raises(TypeError):
+        fb.borderline_sample(sandbox[1], n=2)

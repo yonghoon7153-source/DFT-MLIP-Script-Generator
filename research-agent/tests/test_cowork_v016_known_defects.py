@@ -93,7 +93,8 @@ def test_borderline_papers_have_somewhere_to_answer(sandbox):
     """
     cfg, db = sandbox
     db.save(_borderline())
-    picked = fb.borderline_sample(db, n=2, threshold=0.35)
+    picked = fb.borderline_sample(db, n=2, threshold=0.35,
+                                 has_answer_slot=lambda p: False)
     assert picked, "전제: 경계선 표본으로 실제로 뽑힌다"
     fb.mark_asked(db, picked)
     _vault_sync(cfg, db)
@@ -111,7 +112,8 @@ def test_borderline_verdict_reaches_the_db(sandbox):
     cfg, db = sandbox
     b = _borderline()
     db.save(b)
-    fb.mark_asked(db, fb.borderline_sample(db, n=2, threshold=0.35))
+    fb.mark_asked(db, fb.borderline_sample(db, n=2, threshold=0.35,
+                                           has_answer_slot=lambda p: False))
     _vault_sync(cfg, db)
     stub = next(p for p in cfg.path("vault.root").rglob("*.md") if "Borderline" in p.name)
     stub.write_text(stub.read_text(encoding="utf-8")
