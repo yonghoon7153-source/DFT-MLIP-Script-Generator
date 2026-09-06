@@ -53,6 +53,41 @@ end
 * xyzfile {charge} {mult} {xyz}
 """
 
+#: 실행 스크립트. 입력만 주면 부르는 쪽이 **처방을 빠뜨린다** — 2026-09-06 이 잡이 그렇게 죽었다.
+#: ⚠ 이 템플릿도 `.format()` 이라 셸의 `${{...}}` 는 중괄호를 두 번 쓴다 (위 `%%` 사고와 같은 부류).
+RUN_SH = """#!/usr/bin/env bash
+# n=6 doped 실행. `nseries_n6.py --opt` 가 만들었다 — 손으로 고치지 말고 다시 만든다.
+#   bash run.sh            # 앞에서 돈다
+#   nohup bash run.sh > run.log 2>&1 &
+set -uo pipefail
+cd "$(dirname "$0")"
+
+# ⛔ MPI 전송층 처방 (정본 한 벌). 이게 없으면 단일노드인데 TCP BTL 로 통신하다
+#   LEANSCF 에서 끊긴다 — gs3 두 번(09-05) · n6_doped 한 번(09-06) 실측.
+# shellcheck disable=SC1090
+. "{repo}/tools/sdcp/orca_mpi_env.sh"
+orca_mpi_env_apply
+echo "OMPI_MCA_btl=${{OMPI_MCA_btl:-<unset>}}  · $MPI_BTL_NOTE"
+
+# ⛔ `%pal` 을 쓰면 ORCA 는 **전체 경로**로 불러야 한다 (이름으로 부르면 즉사한다 — Li 잡 4개 실물).
+ORCA_BIN=${{ORCA:-$(command -v orca)}}
+case "$ORCA_BIN" in
+  /*) : ;;
+  *)  echo "⛔ ORCA 절대경로를 못 찾았다: '${{ORCA_BIN:-<없음>}}' — ORCA=/path/to/orca 로 준다"; exit 2 ;;
+esac
+[ -x "$ORCA_BIN" ] || {{ echo "⛔ 실행할 수 없다: $ORCA_BIN"; exit 2; }}
+
+# 옛 출력은 지우지 않고 밀어 둔다 — 재구성 이력이 증거다
+n=0; while [ -e "n6_doped.out.$(printf %03d $n)" ]; do n=$((n+1)); done
+[ -f n6_doped.out ] && mv n6_doped.out "n6_doped.out.$(printf %03d $n)"
+
+echo "▶ $ORCA_BIN n6_doped.inp  ($(date '+%m-%d %H:%M:%S'))"
+"$ORCA_BIN" n6_doped.inp > n6_doped.out 2>&1
+rc=$?
+echo "종료코드 $rc  ($(date '+%m-%d %H:%M:%S'))"
+grep -aq HURRAY n6_doped.out && echo "✅ 이완수렴" || echo "⚠ HURRAY 없음 — watch_n6.sh 로 이유를 본다"
+exit $rc
+"""
 
 
 def _xyz_symbols(path):
@@ -144,7 +179,14 @@ def build(pilot, out, opt, nprocs, maxcore):
                "⚠": ("7월 n=1·2·3 은 **Opt** 였다. SP 로 돌린 값과 섞어 인용하지 말 것 — "
                      "폴라론은 격자 완화와 얽혀 있어 SP 는 국재화를 과소평가한다.")},
               open(os.path.join(out, "groups.json"), "w"), ensure_ascii=False, indent=1)
-    print(f"→ {out}/  n6_doped.inp ({run}) · n6_doped.xyz ({D['n_atoms']}원자) · groups.json")
+    # ⛔⛔ 2026-09-06 실물 — 이 잡이 **LEANSCF 에서 MPI 로 죽었다** (SCF 는 수렴까지 갔다).
+    #   같은 고장이 하루 전 gs3 을 두 번 죽였고 처방(`orca_mpi_env.sh`)도 이미 있었는데,
+    #   이 러너가 새 파일이라 **물려받지 못했다.** 그래서 입력만 뱉지 말고 **실행 스크립트를
+    #   같이** 뱉는다 — 처방이 잡을 따라다니게. `%pal` 은 ORCA 를 전체 경로로 요구한다.
+    open(os.path.join(out, "run.sh"), "w").write(RUN_SH.format(
+        repo=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))))
+    os.chmod(os.path.join(out, "run.sh"), 0o755)
+    print(f"→ {out}/  n6_doped.inp ({run}) · n6_doped.xyz ({D['n_atoms']}원자) · groups.json · run.sh")
     print(f"   기하 출처: {src}")
     print(f"   backbone_july {len(july)} (7월 정의 · 고리원자만) · "
           f"strict {len(groups['backbone_strict'])} (+고리H) · "
@@ -252,6 +294,23 @@ def selftest():
     chk("nprocs 8" in txt and "%maxcore 2500" in txt and "0 2 x.xyz" in txt,
         "인자가 실제로 꽂힌다 (전하 0 · 다중도 2 = doublet)")
     chk("{" not in txt and "}" not in txt, "⛔음성: 안 채워진 자리표시자가 남지 않는다")
+    # ── run.sh (2026-09-06 실물: 처방을 안 물려받아 LEANSCF 에서 MPI 로 죽었다) ──
+    sh = RUN_SH.format(repo="/REPO")
+    chk("orca_mpi_env.sh" in sh and "orca_mpi_env_apply" in sh,
+        "⛔음성: 실행 스크립트가 **MPI 처방을 달고 나온다** (입력만 주면 부르는 쪽이 빠뜨린다)")
+    # ⚠ 이 시험의 v1 은 `"{" not in sh` 였다 — **틀렸다.** 셸의 `${...}` 는 남아야 맞다.
+    #   INP 쪽 규칙(자리표시자가 안 남아야 한다)을 생각 없이 옮긴 것이다.
+    #   봐야 할 것은 셋: 이스케이프가 풀렸나 · 이중중괄호가 새 나갔나 · 안 채운 자리가 있나.
+    chk("${OMPI_MCA_btl" in sh, "셸 변수 확장이 살아남는다 (`{{}}` 이스케이프가 풀렸다)")
+    chk("{{" not in sh and "}}" not in sh, "⛔음성: 이중중괄호가 그대로 새 나가지 않는다")
+    chk("{repo}" not in sh and "/REPO/tools/sdcp/orca_mpi_env.sh" in sh,
+        "⛔음성: 안 채운 자리표시자가 남지 않는다 (repo 경로가 실제로 꽂힌다)")
+    chk("command -v orca" in sh and "exit 2" in sh,
+        "⛔음성: ORCA 를 **절대경로로 못 찾으면 돌리지 않고 멈춘다** (%pal 은 full pathname 요구)")
+    chk("n6_doped.out." in sh, "옛 .out 을 지우지 않고 밀어 둔다 (재구성 이력이 증거다)")
+    import subprocess as _sp
+    chk(_sp.run(["bash", "-n", "-c", sh], capture_output=True).returncode == 0,
+        "⛔음성: 생성된 run.sh 가 **문법으로 성립한다** (bash -n — 돌려 봐야 아는 건 너무 늦다)")
     # ── rings 판독 (2026-09-06 실물: core 는 고리원자 ∪ 고리H 다) ──
     R = {"ring0": {"core": [0, 1, 2, 3], "ether_O": [9]},
          "ring1": {"core": [4, 5, 6], "ether_O": []}}

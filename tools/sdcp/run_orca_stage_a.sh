@@ -55,17 +55,12 @@ MAXCORE=${MAXCORE:-6000}
 #   ⚠ 판본을 못 읽으면 **아무것도 강제하지 않는다** (기본 동작 유지 · fail-open 이지만
 #     여기서는 그게 맞다 — 잘못된 BTL 을 강제하면 위처럼 즉사한다).
 #   손으로 지정: `STAGEA_MPI_BTL=self,vader` · 끄기: `STAGEA_MPI_BTL=` (빈 값)
-btl_for_ompi(){   # $1 = "4.1.6" 등 · → 공유메모리 BTL 목록 (모르면 빈 문자열)
-  case "${1%%.*}" in
-    ""|*[!0-9]*) echo "" ;;                # 판독 실패 → 강제하지 않는다
-    1|2|3|4)     echo "self,vader" ;;
-    *)           echo "self,sm" ;;         # 5.x 이상
-  esac
-}
-_ompi_ver=$(mpirun --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-_btl_use=${STAGEA_MPI_BTL-$(btl_for_ompi "$_ompi_ver")}
-[ -n "$_btl_use" ] && export OMPI_MCA_btl="$_btl_use"
-MPI_BTL_NOTE="${_btl_use:-<unset>} (OpenMPI ${_ompi_ver:-미상})"
+# ⚠ 2026-09-07 — 이 로직이 여기 **사본**으로 있었고, 그래서 n=6 doped 러너가 물려받지
+#   못한 채 같은 자리(LEANSCF)에서 죽었다. 정본을 `orca_mpi_env.sh` 로 옮기고 여기서 부른다.
+#   위 주석 블록은 그 사고들의 근거라 남긴다 — 규칙은 한 벌, 이유는 읽는 자리에.
+# shellcheck disable=SC1090
+. "$(dirname "${BASH_SOURCE[0]}")/orca_mpi_env.sh"
+orca_mpi_env_apply
 
 ts(){ echo "[$(date +%H:%M:%S)] $*"; }
 sha(){ sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
