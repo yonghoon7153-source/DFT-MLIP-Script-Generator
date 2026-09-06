@@ -55,19 +55,39 @@ end
 
 
 
-def _ring_atoms(rings):
-    """manifest 의 rings → 고리 원자 인덱스 집합 (H·에테르 O 제외).
+def _xyz_symbols(path):
+    """xyz → [원소기호]. 못 읽으면 빈 리스트 (조용히 추측하지 않는다)."""
+    try:
+        ln = open(path, encoding="utf-8").read().splitlines()
+        n = int(ln[0].split()[0])
+        return [x.split()[0] for x in ln[2:2 + n] if x.split()]
+    except Exception:
+        return []
 
-    ⚠ 형식이 dict({이름: [idx...]} 또는 {이름: {"ring": [...]}}) 일 수도, list 일 수도 있다.
-      **모르는 형식이면 빈 집합을 준다** — 조용히 일부만 세지 않는다.
+
+def _ring_atoms(rings, symbols):
+    """manifest 의 rings → **7월 정의**의 고리 원자 (H 제외 · 에테르 O 제외).
+
+    실제 형식 (`pilot_components`)::
+
+        rings["ring0"] = {"core": [고리원자 ∪ 고리H], "ether_O": [...]}
+
+    ⛔ **`core` 를 그대로 쓰면 안 된다** — 고리 H 가 섞여 있다. 7월
+      (`build_v7c_dimer.py`: ring = [rS] + alphas + betas)은 H 를 안 넣었다.
+      그래서 xyz 의 원소로 H 를 걸러낸다.
+
+    ⛔ 못 하는 것: `symbols` 가 없거나 길이가 안 맞으면 **빈 집합**을 준다.
+      H 를 못 가른 채로 "7월 정의" 라고 부르지 않는다.
     """
+    if not symbols or not isinstance(rings, dict):
+        return set()
     out = set()
-    it = rings.values() if isinstance(rings, dict) else (rings or [])
-    for v in it:
-        if isinstance(v, dict):
-            v = v.get("ring") or v.get("atoms") or []
-        if isinstance(v, (list, tuple)):
-            out |= {int(x) for x in v if isinstance(x, (int, float))}
+    for v in rings.values():
+        core = (v.get("core") if isinstance(v, dict) else v) or []
+        for i in core:
+            i = int(i)
+            if 0 <= i < len(symbols) and symbols[i].upper() != "H":
+                out.add(i)
     return out
 
 
@@ -104,7 +124,11 @@ def build(pilot, out, opt, nprocs, maxcore):
     #   두 정의를 한 표에 올리면 이 세션에서 반복된 그 실수다. 7월과 **글자 그대로 같은**
     #   분할을 따로 만들어서, n=1→6 을 같은 자로 잰다.
     rings = D.get("rings") or {}
-    july = sorted(_ring_atoms(rings))
+    syms = _xyz_symbols(os.path.join(out, xyz))
+    if len(syms) != D["n_atoms"]:
+        sys.exit(f"⛔ xyz 원자수({len(syms)}) 가 manifest({D['n_atoms']}) 와 다르다 — "
+                 f"기하가 D 프레임이 아니다")
+    july = sorted(_ring_atoms(rings, syms))
     groups = {"backbone_july": july,                       # ← n-시리즈 비교는 이걸로
               "backbone_strict": D["derived"]["backbone_strict"],
               "backbone_extended": D["derived"]["backbone_extended"],
@@ -122,8 +146,10 @@ def build(pilot, out, opt, nprocs, maxcore):
               open(os.path.join(out, "groups.json"), "w"), ensure_ascii=False, indent=1)
     print(f"→ {out}/  n6_doped.inp ({run}) · n6_doped.xyz ({D['n_atoms']}원자) · groups.json")
     print(f"   기하 출처: {src}")
-    print(f"   backbone_strict {len(groups['backbone_strict'])} · "
-          f"extended {len(groups['backbone_extended'])} · sulfonate {len(groups['sulfonate'])}")
+    print(f"   backbone_july {len(july)} (7월 정의 · 고리원자만) · "
+          f"strict {len(groups['backbone_strict'])} (+고리H) · "
+          f"extended {len(groups['backbone_extended'])} (+에테르O) · "
+          f"sulfonate {len(groups['sulfonate'])}")
     print(f"   실행:  cd {out} && $ORCA n6_doped.inp > n6_doped.out")
     if not opt:
         print("   ⚠ SP 다 — 7월(Opt)과 섞어 인용하지 말 것. Opt 는 --opt")
@@ -226,6 +252,18 @@ def selftest():
     chk("nprocs 8" in txt and "%maxcore 2500" in txt and "0 2 x.xyz" in txt,
         "인자가 실제로 꽂힌다 (전하 0 · 다중도 2 = doublet)")
     chk("{" not in txt and "}" not in txt, "⛔음성: 안 채워진 자리표시자가 남지 않는다")
+    # ── rings 판독 (2026-09-06 실물: core 는 고리원자 ∪ 고리H 다) ──
+    R = {"ring0": {"core": [0, 1, 2, 3], "ether_O": [9]},
+         "ring1": {"core": [4, 5, 6], "ether_O": []}}
+    SY = ["S", "C", "C", "H", "S", "C", "H", "X", "X", "O"]
+    chk(_ring_atoms(R, SY) == {0, 1, 2, 4, 5},
+        "⛔음성: core 에서 **고리 H 를 뺀다** (그냥 쓰면 7월 정의가 아니다)")
+    chk(_ring_atoms(R, []) == set(),
+        "⛔음성: 원소를 모르면 빈 집합 — H 를 못 가른 채 '7월 정의' 라 부르지 않는다")
+    chk(_ring_atoms({"r": [0, 1, 3]}, SY) == {0, 1},
+        "core 키가 없는 옛 형식도 받는다")
+    chk(_ring_atoms(R, SY).isdisjoint({9}),
+        "⛔음성: 에테르 O 를 고리에 넣지 않는다")
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
