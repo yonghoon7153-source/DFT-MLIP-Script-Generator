@@ -35,6 +35,16 @@ n6_state() {   # $1 = .out 경로 → "상태|비고"
   echo "▶ 도는중|"
 }
 
+# 상태가 이러면 **이유를 바로 찍는다.** 상태 한 줄만 보고 다시 물어보게 만들면
+# 그 왕복 동안 GPU 가 논다 (2026-09-06: 죽은 잡을 18.7시간 방치한 실물).
+# ⚠ 반대로 정상 진행 중에 매번 꼬리를 찍으면 5분마다 20줄이라 아무도 안 본다.
+n6_needs_tail() {   # $1 = 상태 문자열 → 0 이면 꼬리를 찍는다
+  case "$1" in
+    "☠"*|"⚠ 종료"*) return 0 ;;
+    *)              return 1 ;;
+  esac
+}
+
 if [ "${1:-}" = "--selftest" ]; then
   T=$(mktemp -d); ok=0; bad=0
   chk(){ if [ "$1" = 1 ]; then echo "  ⭕ $2"; ok=$((ok+1)); else echo "  ⛔ $2"; bad=$((bad+1)); fi; }
@@ -54,6 +64,13 @@ aborting the run"
   chk "$([ "$(n6_state "$T/err.out"    | cut -d'|' -f1)" = "☠ 오류"       ] && echo 1 || echo 0)" "오류 종료를 가른다"
   chk "$([ "$(n6_state "$T/live.out"   | cut -d'|' -f1)" = "▶ 도는중"      ] && echo 1 || echo 0)" "도는 중"
   chk "$([ "$(n6_state "$T/nope.out"   | cut -d'|' -f1)" = "없음"         ] && echo 1 || echo 0)" "⛔음성: 파일이 없으면 '없음' — 도는중으로 안 읽는다"
+  # ── 꼬리 판정 (2026-09-06: 죽은 잡을 18.7시간 방치한 뒤 추가) ──────────────
+  chk "$(n6_needs_tail "☠ 오류"        && echo 1 || echo 0)" "오류면 이유를 바로 찍는다"
+  chk "$(n6_needs_tail "☠ 즉사"        && echo 1 || echo 0)" "즉사도 찍는다"
+  chk "$(n6_needs_tail "⚠ 종료(미수렴)" && echo 1 || echo 0)" "미수렴 종료도 찍는다 (이어달리기가 필요하다)"
+  chk "$(n6_needs_tail "▶ 도는중"      && echo 0 || echo 1)" \
+      "⛔음성: **도는 중에는 안 찍는다** — 5분마다 20줄이면 아무도 안 본다"
+  chk "$(n6_needs_tail "✅ 이완수렴"    && echo 0 || echo 1)" "⛔음성: 수렴했는데 오류 꼬리를 찍지 않는다"
   rm -rf "$T"; echo "  selftest: ⭕ $ok · ⛔ $bad"; [ "$bad" = 0 ] || exit 1; exit 0
 fi
 
@@ -88,6 +105,15 @@ echo "  프로세스: ${NP}개 · load$(uptime | sed 's/.*load average//')"
 if [ "$NP" = 0 ] && [ "$ST" = "▶ 도는중" ]; then
   echo "  ⛔ 프로세스가 없는데 상태가 '도는중' 이다 — **죽었다.** .out 꼬리를 본다:"
   tail -12 "$F" 2>/dev/null | sed "s/^/     /"
+fi
+if n6_needs_tail "$ST"; then
+  echo
+  echo "  ⛔ 정상 진행이 아니다 — 여기서 이유를 찍는다 (다시 물어보지 않게):"
+  echo "  · 오류 후보:"
+  grep -an "aborting the run\|ORCA finished by error\|not enough memory\|insufficient memory\|Killed\|SIGKILL\|MPI_ABORT" \
+      "$F" 2>/dev/null | tail -5 | sed 's/^/     /'
+  echo "  · .out 꼬리 20줄:"
+  tail -20 "$F" 2>/dev/null | sed 's/^/     /'
 fi
 echo "  RAM: $(free -g | awk '/^Mem/{print $3"/"$2" GB 사용"}')  GPU: $(nvidia-smi --query-gpu=memory.used --format=csv,noheader 2>/dev/null | head -1)"
 echo

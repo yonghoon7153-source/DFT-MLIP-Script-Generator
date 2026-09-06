@@ -131,6 +131,21 @@ _read_out() {
   fi
 }
 
+# ── 잡 폴더인가 ─────────────────────────────────────────────────────────────
+# ⛔ 2026-09-06 실물 — `_control_structures`(구조 보관 폴더)에 옛 `.out` 이 하나 남아 있어서
+#   매 화면마다 "☠ QE 오류 · opening input file" 로 찍히고 **죽음/오류 개수에까지 들어갔다**
+#   (12477분 = 8.7일째). 늑대가 왔다고 매번 외치면 진짜 죽은 잡이 그 옆에 묻힌다.
+#   `restart_qe_relax.sh` 에 같은 처방을 이미 했는데 **watch 쪽을 안 고쳤다** — 같은 병을
+#   두 도구가 나눠 갖고 있었다.
+# ⚠ 숨기지는 않는다. 안 보이면 "이게 잡이었는데 사라진 건가" 를 다시 물어야 한다.
+#   행은 남기되 `· 잡 아님` 으로 갈라 **개수에서 뺀다.**
+# ⚠ `ls "$d"/*.in` 로 쓰면 안 된다 — `shopt -s nullglob` 이면 매치가 없을 때 glob 이
+#   **사라지고** `ls` 가 인자 없이 현재 디렉터리를 찍으며 **성공**한다 (restart 쪽 selftest 가 잡은 실물).
+qe_is_job_dir() {   # $1 = 폴더 → 0 이면 잡 폴더다
+  [ -n "$(find "$1" -maxdepth 1 \( -name '*.in' -o -name '*.neb' -o -name '*.path' \) \
+          -type f 2>/dev/null | head -1)" ]
+}
+
 # ── selftest ────────────────────────────────────────────────────────────────
 if [ "${1:-}" = "--selftest" ]; then
   T=$(mktemp -d); ok=0; bad=0
@@ -168,6 +183,15 @@ if [ "${1:-}" = "--selftest" ]; then
   printf '     activation energy (->) =   0.080578 eV\n     activation energy (<-) =   0.080600 eV\n     neb: convergence achieved in  12 iterations\n     JOB DONE.\n' > "$R/restart_neb/neb.out"
   printf '     Total force =     0.000016     Total SCF correction = 0.0\n!    total energy = -14652.03 Ry\n     bfgs converged in  40 scf cycles and  1 bfgs steps\n     JOB DONE.\n' > "$R/restart_relax/00_relax.out"
   touch -d '200 minutes ago' "$R/restart_neb/neb.out" "$R/restart_relax/00_relax.out"
+  # ⚠ 2026-09-06 — 여기까지의 픽스처엔 **입력 파일이 없었다.** 실물 잡 폴더엔 항상 있다.
+  #   픽스처가 실물과 다르면 없는 버그를 쫓거나(반대로) 있는 버그를 놓친다.
+  for _jd in "$R"/*/; do touch "${_jd}pw.in"; done
+  # ⛔ 실물(2026-09-06): 구조 보관 폴더. 입력이 없고 옛 .out 만 있다 — 8.7일째 "☠ QE 오류" 로
+  #   찍히며 죽음/오류 개수를 부풀리고 있었다. **잡이 아니면 잡이 아니라고 말한다.**
+  mkdir -p "$R/_control_structures"
+  printf '     Error in routine  read_input_file (1):\n     opening input file\n' \
+      > "$R/_control_structures/00_relax.out"
+
   # 가짜 QE 프로세스 — cwd 가 근거이므로 그 폴더에서 띄운다
   cp /bin/sleep "$T/qefake" && chmod +x "$T/qefake"
   ( cd "$R/live"  && exec "$T/qefake" 300 ) & _p1=$!
@@ -178,6 +202,15 @@ if [ "${1:-}" = "--selftest" ]; then
   OUT=$(QE_PROC_NAMES=qefake STALL_MIN=45 bash "$0" "$R" 2>&1)
   kill "$_p1" "$_p2" "$_p3" "$_p4" 2>/dev/null
 
+  chk "$(echo "$OUT" | grep -E '^  _control_structures' | grep -q '잡 아님' && echo 1 || echo 0)" \
+      "⓪ ⛔음성(실물 8.7일): 입력 없는 보관 폴더를 '☠ QE 오류' 로 안 읽는다"
+  chk "$(echo "$OUT" | grep -E '^  _control_structures' | grep -q '☠' && echo 0 || echo 1)" \
+      "⓪-b ⛔음성: 그 행이 죽음/오류 표시를 달지 않는다 (개수가 부풀면 진짜 죽은 잡이 묻힌다)"
+  chk "$(echo "$OUT" | grep -q '_control_structures' && echo 1 || echo 0)" \
+      "⓪-c ⛔음성: 그렇다고 **숨기지도 않는다** — 안 보이면 사라진 건지 다시 물어야 한다"
+  chk "$(qe_is_job_dir "$R/live" && echo 1 || echo 0)" "⓪-d .in 이 있으면 잡 폴더다"
+  chk "$(qe_is_job_dir "$R/_control_structures" && echo 0 || echo 1)" \
+      "⓪-e ⛔음성: nullglob 함정 — .in 이 없으면 **거짓**이어야 한다 (ls 로 쓰면 성공해 버린다)"
   chk "$(echo "$OUT" | grep -E '^  live' | grep -qE 'run' && echo 1 || echo 0)" \
       "① 양성: 프로세스가 살아있고 .out 이 최근이면 run"
   chk "$(echo "$OUT" | grep -E '^  dead' | grep -q '죽음' && echo 1 || echo 0)" \
@@ -274,6 +307,11 @@ for r in $ROOTS; do
     _nout=$(find "$d" -maxdepth 1 -name '*.out' -not -name '*_run.out' 2>/dev/null | wc -l)
     label=$(basename "$d")
     if [ "${_nout:-1}" -gt 1 ]; then _fb=$(basename "$f"); label="$label/${_fb%.out}"; fi
+    if ! qe_is_job_dir "$d"; then
+      printf "  %-40s %-14s %6s %5s %9s %-16s %s\n" "$label" "· 잡 아님" "-" "-" "-" "-" \
+        "입력(.in/.neb/.path)이 없다 — 구조/보관 폴더다. 남은 .out 은 옛 실행 흔적이라 세지 않는다"
+      continue
+    fi
     _read_out "$f"
     pid=$(_pid_for_dir "$d")
     # ⛔ 2026-09-03 kgy 실물 — **restart 를 감지하지 못했다.** li_metal CI 2단계가 돌고 있는데
