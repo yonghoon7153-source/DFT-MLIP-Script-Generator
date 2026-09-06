@@ -45,7 +45,18 @@ while [ $# -gt 0 ]; do
 done
 
 # ── 판정 (watch_qe_relax.sh 와 같은 문자열) ─────────────────────────────────
-#   → conv | exhaust | oom | error | running | none
+#   → conv | exhaust | oom | error | no_marker | none
+#
+# ⛔⛔ 2026-09-07 실물 — 여기 마지막 갈래가 `running` 이었다. **파일에 종료마커가 없다**는
+#   것을 **돌고 있다**로 읽은 것이다. 프로세스를 보지도 않고서.
+#   그날 화면 둘이 같은 잡을 두고 다른 말을 했다:
+#       watch_qe_relax  li3nd…r2  ☠ 죽음 (프로세스 없음 · 1148분)
+#       restart_qe_relax li3nd…r2  ▶ 도는 중 — 건드리지 않는다
+#   watch 는 커널 cwd 로 생사를 봤고 여기는 안 봤다. 헤더에 "watch 와 같은 판정을 쓴다"
+#   고 적어 뒀지만 같았던 건 **문자열**뿐이고 **생사 규칙**은 안 같았다.
+#   ⇒ **마커 없이 죽은 잡은 영영 안 걸린다.** 이 도구가 존재하는 바로 그 경우다 (fail-open).
+#   고침: 파일 판정과 생사 판정을 **분리**한다. 파일은 `no_marker` 까지만 말하고,
+#         돌고 있는지는 `qe_alive_in_dir` 가 커널 cwd 로 정한다 (watch 와 같은 근거).
 classify() {
   local f="$1"
   [ -f "$f" ] || { echo none; return; }
@@ -54,11 +65,28 @@ classify() {
   elif grep -aqi "CUDA_ERROR_OUT_OF_MEMORY\|Accelerator Fatal Error" "$f"; then echo oom
   elif grep -aq "Error in routine" "$f" 2>/dev/null;                       then echo error
   elif grep -aq "JOB DONE" "$f" 2>/dev/null;                               then echo conv
-  else echo running; fi
+  else echo no_marker; fi
+}
+
+# 이 폴더에서 **지금 돌고 있는** QE 프로세스가 있나. 근거는 커널의 cwd 다 —
+# lock 파일도 출력 파일도 죽은 뒤에 남는다 (watch_qe_relax.sh `_scan_procs` 와 같은 근거).
+QE_PROC_NAMES=${QE_PROC_NAMES:-"pw.x neb.x"}
+qe_alive_in_dir() {   # $1 = 폴더 → 0 이면 살아있다
+  local n p c d; d=$(cd "$1" 2>/dev/null && pwd -P) || return 1
+  for n in $QE_PROC_NAMES; do
+    for p in $(pgrep -x "$n" 2>/dev/null); do
+      c=$(readlink "/proc/$p/cwd" 2>/dev/null) || continue
+      [ "$c" = "$d" ] && return 0
+    done
+  done
+  return 1
 }
 
 # 재시작 방식: 이어달릴 save 가 실제로 있나로 정한다 (판정만으로는 못 정한다).
 #   ⛔ nstep 소진인데 save 가 없으면 `restart` 는 즉사한다 — 그때는 from_scratch 다.
+#   ⚠ `dead`(마커 없이 죽음)는 save 가 있어도 **from_scratch** 다. 마커를 못 남기고 죽은
+#     잡은 쓰다 만 save 를 남겼을 가능성이 제일 높은 경우다 — 이어달리면 조용히 틀린 데서
+#     출발한다. 몇 시간을 다시 쓰는 것이 못 믿을 지점에서 잇는 것보다 싸다.
 restart_mode_for() {
   local dir="$1" kind="$2"
   local sv; sv=$(find "$dir" -maxdepth 3 -name "*.save" -type d 2>/dev/null | head -1)
@@ -110,10 +138,25 @@ if [ "$SELFTEST" = 1 ]; then
   mk run     "     Total force =     0.0400"
   mkdir -p "$T/none"
   for c in conv exhaust oom err run none; do
-    case "$c" in conv) w=conv;; exhaust) w=exhaust;; oom) w=oom;; err) w=error;; run) w=running;; none) w=none;; esac
+    case "$c" in conv) w=conv;; exhaust) w=exhaust;; oom) w=oom;; err) w=error;; run) w=no_marker;; none) w=none;; esac
     g=$(classify "$T/$c/00_control_relax.out")
     chk "$([ "$g" = "$w" ] && echo 1 || echo 0)" "판정 $c → $g (기대 $w)"
   done
+  # ── 생사 (2026-09-07 실물: watch 는 '죽음', 여기는 '도는 중' 이라 했다) ──────
+  chk "$([ "$(classify "$T/run/00_control_relax.out")" = no_marker ] && echo 1 || echo 0)" \
+      "⛔음성: 종료마커가 없는 것을 **'도는 중' 이라 부르지 않는다** (파일은 생사를 모른다)"
+  chk "$(qe_alive_in_dir "$T/run" && echo 0 || echo 1)" \
+      "⛔음성: 프로세스가 없으면 살아있다고 하지 않는다 — 이게 fail-open 이면 죽은 잡이 영영 안 걸린다"
+  cp /bin/sleep "$T/qefake" 2>/dev/null && chmod +x "$T/qefake"
+  ( cd "$T/run" && exec "$T/qefake" 20 ) & _fp=$!
+  sleep 1
+  chk "$(QE_PROC_NAMES=qefake qe_alive_in_dir "$T/run" && echo 1 || echo 0)" \
+      "양성: 그 폴더가 cwd 인 프로세스가 있으면 살아있다 (근거는 커널 cwd — lock·파일이 아니다)"
+  chk "$(QE_PROC_NAMES=qefake qe_alive_in_dir "$T/conv" && echo 0 || echo 1)" \
+      "⛔음성: **다른** 폴더에서 도는 프로세스를 이 폴더 것으로 세지 않는다"
+  kill "$_fp" 2>/dev/null
+  chk "$([ "$(restart_mode_for "$T/run" dead)" = from_scratch ] && echo 1 || echo 0)" \
+      "⛔음성: 마커 없이 죽은 잡은 save 가 있어도 처음부터 (쓰다 만 save 를 못 믿는다)"
   # ⛔음성: nstep 소진은 JOB DONE 을 **찍는다** — 완주로 읽으면 안 된다
   chk "$([ "$(classify "$T/exhaust/00_control_relax.out")" = exhaust ] && echo 1 || echo 0)" \
       "⛔음성: JOB DONE 이 있어도 nstep 소진을 완주로 세지 않는다"
@@ -171,10 +214,16 @@ for d in "${DIRS[@]}"; do
   fi
   f=$(ls -1 "$d"/*.out 2>/dev/null | head -1)
   k=$(classify "${f:-/dev/null}")
+  # 종료마커가 없다 ≠ 돌고 있다. **커널 cwd 로 생사를 갈라야** 마커 없이 죽은 잡이 걸린다.
+  if [ "$k" = no_marker ]; then
+    if qe_alive_in_dir "$d"; then k=running; else k=dead; fi
+  fi
   m=$(restart_mode_for "$d" "$k")
   case "$k" in
     conv)    printf "  ✅ %-42s 수렴 — 건드리지 않는다\n" "$(basename "$d")" ;;
-    running) printf "  ▶ %-42s 도는 중 — 건드리지 않는다\n" "$(basename "$d")" ;;
+    running) printf "  ▶ %-42s 도는 중 — 건드리지 않는다 (pw.x/neb.x 가 이 폴더에 살아있다)\n" "$(basename "$d")" ;;
+    dead)    printf "  ☠ %-42s 죽음(종료마커 없음 · 프로세스 없음) → %s\n" "$(basename "$d")" "$m"
+             TODO+=("$d"); MODES+=("$m") ;;
     none)    printf "  · %-42s .out 없음 — 건너뛴다\n" "$(basename "$d")" ;;
     exhaust) printf "  ⛔ %-42s nstep소진 → nstep %s · %s\n" "$(basename "$d")" "$NSTEP" "$m"
              TODO+=("$d"); MODES+=("$m") ;;
