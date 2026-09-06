@@ -135,6 +135,11 @@ if [ "$SELFTEST" = 1 ]; then
   printf "&CONTROL\n  calculation = 'relax'\n/\n" > "$T/b.in"
   patch_in "$T/b.in" "$T/b.out.in" from_scratch 120 >/dev/null
   chk "$(grep -q "nstep = 120" "$T/b.out.in" && echo 1 || echo 0)" "패치: 키가 없어도 넣는다"
+  # ⛔음성: .in 없는 폴더는 잡이 아니다 (구조 보관 폴더를 오류로 세지 않는다)
+  mkdir -p "$T/stash"; : > "$T/stash/x.vasp"; printf 'Error in routine read_input (1):\n' > "$T/stash/y.out"
+  _o=$(QE_RESTART_ROOTS="$T" bash "$0" 2>/dev/null | grep -c "잡 아님" || true)
+  chk "$([ "${_o:-0}" -ge 1 ] && echo 1 || echo 0)" \
+      "⛔음성: .in 없는 폴더를 '잡 아님' 으로 가른다 (_control_structures 실물)"
   rm -rf "$T"
   echo "  selftest: ⭕ $ok · ⛔ $bad"; [ "$bad" = 0 ] || exit 1; exit 0
 fi
@@ -153,6 +158,17 @@ fi
 echo "════ QE relax 재시작 — 판정 ════"
 TODO=(); MODES=()
 for d in "${DIRS[@]}"; do
+  # ⛔ 2026-09-06 실물 — `_control_structures` 는 **잡이 아니라 구조 보관 폴더**다
+  #   (.vasp 4개 + 남의 CRASH). 그런데 매번 "☠ QE 오류" 로 찍혀서 7.5일 방치처럼 보였다.
+  #   경보가 틀리면 사람이 목록 전체를 안 믿게 된다 (Cowork 검증기 false NO-GO 와 같은 부류).
+  #   ⇒ **입력(.in)이 없으면 잡이 아니다.** 조용히 넘기지 않고 그렇게 말한다.
+  # ⚠ `ls "$d"/*.in` 로 쓰면 안 된다 — `shopt -s nullglob` 이 켜져 있어 매치가 없으면
+  #   glob 이 **사라지고** `ls` 가 인자 없이 현재 디렉터리를 찍으며 **성공**한다.
+  #   (selftest 가 이걸 잡았다.) find 로 명시한다.
+  if [ -z "$(find "$d" -maxdepth 1 -name '*.in' -type f 2>/dev/null | head -1)" ]; then
+    printf "  · %-42s 잡 아님 — .in 이 없다 (구조/보관 폴더)\n" "$(basename "$d")"
+    continue
+  fi
   f=$(ls -1 "$d"/*.out 2>/dev/null | head -1)
   k=$(classify "${f:-/dev/null}")
   m=$(restart_mode_for "$d" "$k")
