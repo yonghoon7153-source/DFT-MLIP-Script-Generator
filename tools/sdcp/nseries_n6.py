@@ -40,12 +40,16 @@ import sys
 JULY = {1: {"so3": 65.0, "bb": 35.0}, 2: {"so3": 62.3, "bb": 32.6},
         "3end": {"so3": 54.6, "bb": 39.8}, "3mid": {"so3": 42.3, "bb": 50.1}}
 
+#: ⛔ 2026-09-06 실물 — 여기 `%%` 를 쓰면 **입력에 그대로 `%%` 가 들어간다.**
+#:   `%%` escape 는 %-포맷용이고 이 템플릿은 `.format()` 이다. ORCA 가
+#:   `expected an identifier after '%'` 로 즉사했다(잡 하나 날림).
+#:   selftest 가 생성물에 `%%` 가 없는지 본다 — 눈으로 안 보이는 종류라 기계가 봐야 한다.
 INP = """! UKS r2SCAN-3c {run} TightSCF
-%%output
+%output
   Print[P_Loewdin] 1
 end
-%%maxcore {maxcore}
-%%pal nprocs {nprocs} end
+%maxcore {maxcore}
+%pal nprocs {nprocs} end
 * xyzfile {charge} {mult} {xyz}
 """
 
@@ -214,6 +218,14 @@ def selftest():
     # 전하 열을 스핀으로 잘못 읽으면 안 된다 — 음수 전하가 그대로 나오면 실패
     chk(all(v >= 0 for v in (parse_loewdin(good) or {}).values()),
         "⛔음성: 2번째 열(전하)을 스핀으로 읽지 않는다")
+    # ── 입력 생성 (2026-09-06 실물 버그: `%%` 가 그대로 남아 ORCA 즉사) ──
+    txt = INP.format(run="Opt", charge=0, mult=2, xyz="x.xyz", nprocs=8, maxcore=2500)
+    chk("%%" not in txt, "⛔음성: 생성된 입력에 `%%` 가 남지 않는다 (ORCA 가 즉사한다)")
+    chk(txt.count("%pal") == 1 and txt.count("%maxcore") == 1 and txt.count("%output") == 1,
+        "블록 셋이 각각 한 번씩 들어간다")
+    chk("nprocs 8" in txt and "%maxcore 2500" in txt and "0 2 x.xyz" in txt,
+        "인자가 실제로 꽂힌다 (전하 0 · 다중도 2 = doublet)")
+    chk("{" not in txt and "}" not in txt, "⛔음성: 안 채워진 자리표시자가 남지 않는다")
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
