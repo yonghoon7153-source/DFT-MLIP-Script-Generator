@@ -68,6 +68,29 @@ v0.1.6 에서 9개 중 5개만 도착했고, **빠진 쪽에 신규 모듈 `feed
    목록에 있다" 를 받는 쪽이 손으로 맞춰야 하고, **개수 대조가 다시 사람 일**이 된다.
    매니페스트 자신도 자동 포함되며 자기 참조라 해시는 `—`, 존재만 확인한다.
 
+11'. **`kind: transient` — 전달 전용 파일은 repo 기준 검증에서 뺀다.** (2026-09-06)
+   `CHANGELOG_<ver>.md`(받는 쪽이 splice 하고 버린다)와 `MANIFEST_<ver>.md` 는 repo 에
+   그 이름으로 남지 않는다. v0.1.10 의 검증기는 이걸 몰라서 **올바른 전달에 항상 최소 2건
+   MISSING** 을 냈다.
+   > **늑대가 왔다고 매번 외치는 검사는 두세 판 안에 아무도 안 본다** — 그러면 진짜 유실이
+   > 묻힌다. 거짓 경보는 도구를 무력화하는 버그이지 사소한 흠이 아니다.
+
+   ⚠ 다만 **"⛔ 가 뜨면 병합하지 말 것" 이라는 지시는 절대 약하게 하지 않는다.**
+   고칠 것은 경보이지 지시가 아니다.
+
+12'. **`--from <묶음 디렉터리>` 로 복사 전에 확인한다.**
+   ```bash
+   python scripts/make_manifest.py --verify MANIFEST_<ver>.md --from .   # 묶음에서 (복사 전)
+   python scripts/make_manifest.py --verify MANIFEST_<ver>.md            # 병합 후 repo 에서
+   ```
+   묶음 모드는 basename 으로 대조하고 `transient` 까지 전부 검사한다.
+   v0.1.10 은 `ROOT` 를 스크립트 위치에서 유도해 **이미 복사한 뒤에만** 작동했다 —
+   정작 쓰고 싶은 자리(복사 전 확인)에서 못 쓰는 도구였다.
+
+13'. **검증 도구 자체에 시험을 붙인다** (`tests/test_manifest.py`).
+   제일 중요한 시험은 "잡는다" 가 아니라 **"멀쩡한 전달에서 조용하다"** 이다.
+   검사 도구는 거짓 경보 하나가 참 경보 열보다 비싸다.
+
 ## Claude Code 정본 목록 (Cowork 가 절대 건드리지 않는다)
 - `config/research_profile.md` — 브랜치 전수조사 결과. 내용이 바뀌면 Claude Code 가 Cowork 에 통보하고
   Cowork 는 메모리 `/areas/research-profile.md` 만 갱신한다
