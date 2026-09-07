@@ -88,6 +88,8 @@ scripts/patch_kit_quasistatic.py	--selftest	fast	none	claude	초록 0.1s (실측
 scripts/pellet_rve_sigma.py	--selftest	fast	none	claude	초록 10.1s (실측)
 scripts/perf_reduced_order.py	--selftest	fast	none	claude	초록 0.1s (실측)
 scripts/plan_se_curve_targets.py	--selftest	fast	none	claude	초록 0.3s (실측)
+scripts/phase_a_order_verdict.py	--selftest	fast	none	claude	초록 0.4s (실측) — 순수 판정 논리, 외부 데이터 불요
+scripts/phase_a_plan.py	--selftest	fast	none	claude	초록 0.4s (실측) — 계획 생성만, 실행 없음
 scripts/phase_a_precompute.py	--selftest	fast	none	claude	초록 0.5s (실측) — 순수 산술, 외부 데이터 불요
 scripts/plot_cbd_contacts.py	--selftest	fast	both	claude	초록 2.2s (실측)
 scripts/plot_sigma_e_bars.py	--selftest	fast	both	claude	초록 1.6s (실측)

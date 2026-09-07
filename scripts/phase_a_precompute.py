@@ -52,8 +52,34 @@ DH_GATE = 3.5                                  # CLAUDE.md 실용 규칙 (MPM SE
 TOL_PFRAC, TOL_CLOSE = 0.02, 0.02              # 교차검증 허용오차
 
 
+def bed_totals_measured(am_csv, se_csv, thickness_um, lateral_um):
+    """★ 스캐폴드에서 **직접** 잰다 (2026-09-07 — 실물 덤프가 생긴 뒤로 이쪽이 정본).
+
+    아래 `bed_totals()` 는 침대 파일이 없던 시절의 **역사적 경로**다: 옛 캠페인 요약치와
+    12:4:1 반경 가설로 총량을 세웠다.  이제는 가정할 이유가 없다 — 원자 좌표가 있다.
+    ⚠ 두 경로의 값이 다르면 그것은 **다른 realization** 이라는 뜻이지 오류가 아니다.
+    """
+    am = np.loadtxt(am_csv, delimiter=',')
+    se = np.loadtxt(se_csv, delimiter=',')
+    r_am, r_se = am[:, 4], se[:, 4]
+    V_AM = float((4.0 / 3.0 * np.pi * r_am ** 3).sum()) * 1000.0 ** 3      # CSV 단위 → µm³
+    S_AM = float((4.0 * np.pi * r_am ** 2).sum()) * 1000.0 ** 2
+    V_SE = float((4.0 / 3.0 * np.pi * r_se ** 3).sum()) * 1000.0 ** 3
+    Ah = lateral_um ** 2 * thickness_um
+    return {'V_AM_um3': V_AM, 'S_AM_um2': S_AM, 'V_SE_um3': V_SE, 'Ah_um3': Ah,
+            'phi_se_local': V_SE / (Ah - V_AM),
+            'porosity': 1.0 - (V_AM + V_SE) / Ah,
+            'se_frac_of_solid': V_SE / (V_AM + V_SE),
+            'n_am': int(len(am)), 'n_se': int(len(se)),
+            'source': 'measured_from_scaffold'}
+
+
 def bed_totals(bed=BED):
-    """총량 + **교차검증**.  어긋나면 예외 — 조용히 진행하지 않는다."""
+    """총량 + **교차검증**.  어긋나면 예외 — 조용히 진행하지 않는다.
+
+    ⚠ 2026-09-07 부로 이것은 **대비 경로**다 — 실물 스캐폴드가 있으면
+    `bed_totals_measured()` 를 쓴다 (`--am/--se`).
+    """
     nP, nS = bed['n_am_p'], bed['n_am_s']
     RP, RS = bed['r_am_p_um'], bed['r_am_s_um']
     V_P = nP * 4.0 / 3.0 * np.pi * RP ** 3
@@ -150,22 +176,37 @@ def _selftest():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Phase A 런 전 사전계산 (GPU·스캐폴드 파일 불요)')
+    ap.add_argument('--am', default='', help='AM 스캐폴드 CSV (있으면 **실측** 경로)')
+    ap.add_argument('--se', default='', help='SE 스캐폴드 CSV')
+    ap.add_argument('--thickness-um', type=float, default=BED['thickness_um'])
+    ap.add_argument('--lateral-um', type=float, default=BED['lateral_um'])
     ap.add_argument('--out', default='')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(_selftest())
 
-    tot = bed_totals()
-    g = dh_gate(tot)
+    if a.am and a.se:
+        tot = bed_totals_measured(a.am, a.se, a.thickness_um, a.lateral_um)
+        print(f'★ 실측 경로 — 스캐폴드에서 직접 (AM {tot["n_am"]:,} · SE {tot["n_se"]:,})')
+        print(f'  porosity {100 * tot["porosity"]:.3f} %  ·  SE/solid {100 * tot["se_frac_of_solid"]:.2f} vol%')
+    else:
+        tot = bed_totals()
+        print('⚠ 대비 경로 — 옛 캠페인 요약치 + 반경 가설 (스캐폴드를 주면 실측한다)')
+    g = dh_gate(tot, lateral_um=a.lateral_um)
     cts = additive_counts(tot)
     val = validate_against_campaign(tot)
 
-    print(f"침대 {BED['case']}  ·  AM_P {BED['n_am_p']} (R {BED['r_am_p_um']} µm) · "
-          f"AM_S {BED['n_am_s']} (R {BED['r_am_s_um']}) · 상자 "
-          f"{BED['lateral_um']}² × {BED['thickness_um']} µm")
-    print(f"  교차검증  p_frac {tot['check_p_frac']:.4f} (기록 {BED['p_frac']}) · "
-          f"V_solid 닫힘 {100 * tot['check_v_solid_rel']:+.2f} %\n")
+    if 'check_p_frac' in tot:
+        print(f"침대 {BED['case']}  ·  AM_P {BED['n_am_p']} (R {BED['r_am_p_um']} µm) · "
+              f"AM_S {BED['n_am_s']} (R {BED['r_am_s_um']}) · 상자 "
+              f"{BED['lateral_um']}² × {BED['thickness_um']} µm")
+        print(f"  교차검증  p_frac {tot['check_p_frac']:.4f} (기록 {BED['p_frac']}) · "
+              f"V_solid 닫힘 {100 * tot['check_v_solid_rel']:+.2f} %\n")
+    else:
+        print(f"  상자 {a.lateral_um}² × {a.thickness_um} µm  ·  "
+              f"V_AM {tot['V_AM_um3']:,.0f} µm³ · S_AM {tot['S_AM_um2']:,.0f} µm² · "
+              f"V_SE {tot['V_SE_um3']:,.0f}\n")
     print(f"① d_h = {g['d_h_um']:.4f} µm (잔여공극만 {g['d_h_void_only_um']:.4f}) · "
           f"φ_SE_local {tot['phi_se_local']:.4f}")
     print(f"   게이트 d_h/dx ≥ {DH_GATE}   ★ 최소 통과 n_grid = {g['n_grid_min_pass']}")
@@ -184,14 +225,14 @@ if __name__ == '__main__':
     for r in val['rows']:
         print(f"   VGCF {r['vgcf_wt_pct']:<4} 계산 {r['n_computed']:7,}  실측 {r['n_measured']:7,}  "
               f"Δ {r['rel_pct']:+6.2f} %")
-    print('\n⛔ 아직 못 하는 것: 각도 선별 (입자 **위치**가 필요) — 스캐폴드 CSV 대기')
+    print('\n★ 각도 선별은 별도 도구다 (입자 위치 필요):  python3 scripts/step4_angular_risk.py --am <am> --se <se>')
 
     if a.out:
         from measure_provenance import provenance
         os.makedirs(os.path.dirname(a.out) or '.', exist_ok=True)
         d = {'bed': BED, 'totals': tot, 'dh_gate': g, 'additive_counts': cts,
              'campaign_validation': val,
-             'not_computed': ('각도 선별 (step4_angular_risk) — 입자 위치가 필요해 스캐폴드 CSV 대기'),
+             'angular_screen': 'scripts/step4_angular_risk.py (별도 산출물)',
              **provenance()}
         json.dump(d, open(a.out, 'w'), ensure_ascii=False, indent=1, default=float)
         print(f'\n  → {a.out}')
