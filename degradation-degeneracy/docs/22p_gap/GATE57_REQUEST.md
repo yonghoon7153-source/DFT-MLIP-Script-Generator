@@ -5,10 +5,29 @@
 | 항목 | 값 |
 |---|---|
 | 브랜치 | `claude/14-gate-code-review-9qkx05` |
-| **대상 커밋** | **`cf10f345`** |
+| **판정 대상 코드** | **`cf10f345`** |
 | `source_digest` (RUN_SCOPE `src/ tools/ configs/ scripts/ run.sh requirements*.txt`) | **`2f1e10779368987f`** |
 | 작업 트리 | clean (`git_dirty = False` · `git_dirty_out_of_scope = []`) |
 | 직전 판정 | 56차 **NO-GO** — P0 7건 · P1 4건 |
+
+> **fetch 는 브랜치 head 로 해 주기 바란다 — 이 문서 자체는 `cf10f345` 보다
+> 뒤에 있다.** 요청문은 자기가 담길 커밋 SHA 를 적을 수 없다 (적는 순간 SHA 가
+> 바뀐다). 그래서 두 가지를 나눈다:
+>
+> - **판정 대상 코드** = `cf10f345` — `source_digest 2f1e10779368987f` 가 이것을
+>   가리킨다. 아래 §"RUN_SCOPE 는 한 바이트도 안 바뀌었다" 가 근거다.
+> - **이 문서** = 브랜치 head. `cf10f345` 이후 커밋은 **이 파일과 원장(`docs/`)
+>   뿐**이므로 head 에서도 `source_digest` 는 같은 값이다.
+>
+> `[재현]` 리뷰어가 직접 확인하는 방법:
+>
+> ```
+> git fetch origin claude/14-gate-code-review-9qkx05 && git checkout FETCH_HEAD
+> python3 -c "import sys; sys.path.insert(0,'.'); from src.io import source_digest; print(source_digest())"
+> # → 2f1e10779368987f 이어야 한다. 아니면 그 자체가 발견이다.
+> git diff --name-only cf10f345 HEAD | grep -Ev '^degradation-degeneracy/docs/'
+> # → 출력이 비어야 한다.
+> ```
 
 **이 요청문은 여러 번 커밋 줄을 고쳤다. 그 이력을 남긴다** — 리뷰어가 이전 판을
 봤을 수 있고, 우리가 한 번 **거짓 문장을 적었기** 때문이다.
