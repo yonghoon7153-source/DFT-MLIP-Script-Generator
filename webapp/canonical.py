@@ -569,14 +569,39 @@ def validate_governance(reg: dict = None, root=None) -> list:
             if rat.get("commit") and len(str(rat["commit"])) != 40:
                 bad.append(f"결정 {d['id']} 의 승인 commit 이 40-hex 가 아니다 "
                            f"(짧은 해시 금지)")
-    # slot 유일성 — 같은 slot 에 active 가 둘이면 어느 쪽이 이기는지 알 수 없다
+    # slot 유일성 — 같은 slot 에 active 가 둘이면 어느 쪽이 이기는지 알 수 없다.
+    # ⚠ 2026-09-07 — 종전 구현은 **slot 이름만** 봤는데, 원장 `_rules` 는
+    #   *"유일성은 scope 가 아니라 **slot + 겹치는 applicability** 에서 검사한다"* 라고
+    #   적혀 있다. 규칙과 구현이 갈라져 있었고, `campaign_closure` 처럼 계마다 하나씩
+    #   생기는 slot 에서 **두 번째 계를 등록하는 순간 무조건 실패**했다
+    #   (sdcp 마감 + b2o3 마감 — 두 결정은 서로 아무 관계가 없다).
+    #   ⇒ 문서된 규칙대로 **applicability 가 겹칠 때만** 충돌로 낸다.
+    # ⛔ 완화가 아니다: 겹침 판정은 **systems 만** 본다(tasks·methods 로 더 잘게 쪼개
+    #   빠져나가는 길을 열지 않는다). systems 가 비었거나 `*` 면 **전역 = 모두와 겹친다.**
+    def _sys_set(d):
+        s = ((d.get("applies_to") or {}).get("systems") or [])
+        if isinstance(s, str):          # 문자열 하나를 글자로 순회하지 않는다
+            s = [s]
+        return set(s)
+
+    def _sys_overlap(a, b):
+        sa, sb = _sys_set(a), _sys_set(b)
+        if not sa or not sb or "*" in sa or "*" in sb:
+            return True                 # 전역은 모두와 겹친다
+        return bool(sa & sb)
+
     slots = {}
     for d in dec.values():
         if _dstate(d) == "active":
-            slots.setdefault(d.get("slot"), []).append(d["id"])
-    for slot, ids in slots.items():
-        if len(ids) > 1:
-            bad.append(f"slot '{slot}' 에 active 결정이 {len(ids)}개다: {ids}")
+            slots.setdefault(d.get("slot"), []).append(d)
+    for slot, ds in slots.items():
+        for i, a in enumerate(ds):
+            for b in ds[i + 1:]:
+                if _sys_overlap(a, b):
+                    bad.append(f"slot '{slot}' 에 applicability 가 겹치는 active 결정이 "
+                               f"둘이다: {[a['id'], b['id']]} "
+                               f"(systems {sorted(_sys_set(a)) or '*'} ∩ "
+                               f"{sorted(_sys_set(b)) or '*'})")
     # ⛔ 회신 AW P0-4 — 중복 ID 는 **로더가 조용히 덮어쓴다** (dict 라 뒤가 이긴다).
     #   원장을 손으로 이어붙이다 같은 id 를 두 번 쓰면 앞 기록이 사라지는데
     #   아무 검사에도 안 걸렸다. 원본 리스트에서 직접 센다.

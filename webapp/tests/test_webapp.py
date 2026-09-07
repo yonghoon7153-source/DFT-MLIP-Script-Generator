@@ -212,6 +212,63 @@ def test_ratification_gate_cannot_be_bypassed_by_field_name():
         C.registry, C.artifacts = real_reg, real_art
 
 
+def test_slot_uniqueness_uses_applicability_not_slot_name():
+    """slot 유일성은 **겹치는 applicability** 에서만 충돌이다 (2026-09-07).
+
+    종전 구현은 slot **이름만** 봐서, `campaign_closure` 처럼 계마다 하나씩 생기는
+    slot 은 **두 번째 계를 등록하는 순간 무조건 실패**했다 (sdcp 마감 + b2o3 마감 —
+    서로 아무 관계가 없는 두 결정). 원장 `_rules` 는 처음부터
+    *"유일성은 scope 가 아니라 slot + 겹치는 applicability 에서 검사한다"* 였으므로
+    **구현이 규칙을 못 따라간 것**이다.
+
+    ⛔ 이 시험이 지켜야 하는 것: 고치면서 **진짜 충돌을 놓치면 안 된다.**
+      그래서 음성 경로(겹치는 systems · 전역 `*` · systems 누락 · 문자열 오타)를
+      전부 건다. 양성 하나만 있는 시험은 완화를 통과시켜도 아무 말 안 한다.
+    """
+    real = (C.decisions, C.assessments, C.registry, C.artifacts)
+    try:
+        C.assessments = lambda root=None: {}
+        C.registry = lambda root=None: {"entries": []}
+        C.artifacts = lambda root=None: {}
+
+        def _mk(i, systems):
+            d = {"id": i, "kind": "closure", "slot": "campaign_closure",
+                 "status": "active", "decision_state": "active",
+                 "ratification": {"state": "ratified", "actor_id": "x",
+                                  "timestamp": "t", "commit": "0" * 40}}
+            if systems is not None:
+                d["applies_to"] = {"systems": systems}
+            return d
+
+        def _slot_bad(a, b):
+            C.decisions = lambda root=None: {a["id"]: a, b["id"]: b}
+            return [x for x in C.validate_governance() if "slot" in x]
+
+        # ── 양성: 계가 다르면 같은 slot 이어도 충돌이 아니다 ────────────────
+        assert not _slot_bad(_mk("D-a", ["sdcp"]), _mk("D-b", ["b2o3"])), \
+            "겹치지 않는 두 마감을 slot 이름만 보고 충돌로 낸다 (규칙과 구현이 갈라짐)"
+
+        # ── ⛔음성: 겹치면 여전히 잡아야 한다 ─────────────────────────────
+        assert _slot_bad(_mk("D-c", ["b2o3"]), _mk("D-d", ["b2o3"])), \
+            "같은 계에 active 마감이 둘인데 통과한다"
+        assert _slot_bad(_mk("D-e", ["b2o3", "modelc"]), _mk("D-f", ["modelc"])), \
+            "부분적으로 겹치는데 통과한다"
+        assert _slot_bad(_mk("D-g", ["*"]), _mk("D-h", ["b2o3"])), \
+            "전역(`*`) 결정이 특정 계 결정과 겹치는데 통과한다"
+        assert _slot_bad(_mk("D-i", None), _mk("D-j", ["b2o3"])), \
+            "systems 가 아예 없는(=전역) 결정이 통과한다 — 누락을 '안 겹침'으로 읽으면 안 된다"
+        assert _slot_bad(_mk("D-k", []), _mk("D-l", ["b2o3"])), \
+            "systems 가 빈 리스트인데 통과한다"
+
+        # ⛔음성: systems 가 문자열이면 글자 단위로 순회되면 안 된다
+        #   "b2o3" 를 글자로 순회하면 {'b','2','o','3'} 이 되어 ["b2o3"] 과 안 겹친다고
+        #   나온다 — 오타 하나가 게이트를 조용히 끈다.
+        assert _slot_bad(_mk("D-m", "b2o3"), _mk("D-n", ["b2o3"])), \
+            "systems 가 문자열일 때 글자 단위로 쪼개져 겹침을 놓친다"
+    finally:
+        C.decisions, C.assessments, C.registry, C.artifacts = real
+
+
 def test_narrow_decision_cannot_supersede_global_policy():
     """⛔음성 (회신 AW P0-3 · AZ P0-6) — **좁은 노드가 전역 정책을 덮으면 잡히는가.**
 
