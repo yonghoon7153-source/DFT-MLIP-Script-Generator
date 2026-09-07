@@ -87,7 +87,7 @@ fi
 #    ★ "${QS[@]}" 가 --frames 를 덮어쓸 수 있도록 아래 기본 --frames 보다 **뒤에** 온다.
 python3 "$SCR/mpm3d_compaction.py" \
   --am-scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" --periodic \
-  --lateral-box 0.050013 --n-grid 256 --arch cuda --gpu-mem 28 --protocol hold --frames 150 \
+  --lateral-box 0.050013 --n-grid 256 --arch cuda --gpu-mem 20 --protocol hold --frames 150 \
   "${QS[@]}" \
   --e-se 1.53 --nu-se 0.49 --target-gpa 0.3 --seed 3 \
   --save-se se_dump.npy --save-dg se_dump_dg.npy --save-eps se_dump_eps.npy --save-metrics mpm_metrics.json \
