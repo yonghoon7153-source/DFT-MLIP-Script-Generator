@@ -601,6 +601,17 @@ def write_vesta(path, cell, labels, elems, pos, title, scale=RAD_SCALE_DEFAULT,
     al, be, ga = ang(cell[1], cell[2]), ang(cell[0], cell[2]), ang(cell[0], cell[1])
     frac = pos @ np.linalg.inv(cell)
 
+    # ── VESTA Boundary. ⛔ 종전엔 `0 1 0 1 0 1` 로 **하드코딩**돼 있어서, 셀 밖으로
+    #   나간 원자가 파일에는 있는데 화면에서 조용히 사라졌다 (2026-09-07: C10F22 가
+    #   b 축으로 셀보다 길어 CF3 하나가 통째로 안 보였다 — 사용자 제보).
+    #   파일에 있는 것은 보여야 한다. 실제 분율 범위를 덮도록 넓힌다.
+    #   ⚠ **넘칠 때만** 넓힌다. 안 넘치는 축까지 여백을 주면 슬랩이 한 겹 더 타일링돼
+    #     가장자리에 얇은 여분 줄이 생긴다 (0–1 이 기본값인 이유).
+    _fmin, _fmax = frac.min(axis=0), frac.max(axis=0)
+    _lo = np.where(_fmin < 0.0, _fmin - 0.02, 0.0)
+    _hi = np.where(_fmax > 1.0, _fmax + 0.02, 1.0)
+    _bound = "  ".join(f"{_lo[i]:8.4f} {_hi[i]:8.4f}" for i in range(3))
+
     # 사이트 라벨: 참조 .vesta 와 같은 **영숫자만** 쓴다 (밑줄/비ASCII 는 파싱 위험).
     #   AFM 부격자는 색으로도 갈리지만 라벨에도 남긴다 — NiA = spin up, NiB = spin down.
     seen, site_lab = {}, []
@@ -632,7 +643,7 @@ def write_vesta(path, cell, labels, elems, pos, title, scale=RAD_SCALE_DEFAULT,
         L.append(f"  {i:3d} {sl:>10s} -0.000000")
     L += ["  0 0 0", "SHAPE",
           "  0       0       0       0   0.000000  0   192   192   192   192", "BOUND",
-          "       0        1         0        1         0        1", "  0   0   0   0  0",
+          _bound, "  0   0   0   0  0",
           "SBOND"]
     present = set(elems)
     n = 0
@@ -783,8 +794,34 @@ def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recen
         if mol0.any() and (~mol0).any():
             pos2, d = recenter_on_fragment(cell, pos, mol0)
             if d is None:
-                print(f"  ⚠ {tag}: 분자 면내 span 이 셀의 {MOL_SPAN_MAX:.0%} 이상 — "
-                      "재중심으로 못 담는다. 원본 좌표 유지 (뷰어에서 Boundary 를 넓힐 것)")
+                # ── 셀보다 긴 분자: 접으면 다시 갈리므로 **접지 않고** 편 채로 중앙에 둔다.
+                #   결과 좌표는 0–1 밖으로 조금 나가지만, write_vesta 의 BOUND 가 그
+                #   범위를 덮으므로 뷰어에서 온전히 보인다. 주기 평행이동이라 물리는 동일.
+                #   (2026-09-07: C10F22 가 b 축 span 1.033 셀이라 CF3 가 잘려 보였다.)
+                _un = unwrap_fragment(cell, pos, mol0)
+                _inv = np.linalg.inv(cell)
+                _f = _un[mol0] @ _inv
+                _bonded_ok = True
+                _df = (pos[mol0][:, None, :] - pos[mol0][None, :, :]) @ _inv
+                _df -= np.round(_df)
+                _dm = np.linalg.norm(_df @ cell, axis=-1)
+                _du = np.linalg.norm(_un[mol0][:, None, :] - _un[mol0][None, :, :], axis=-1)
+                _bd = (_dm < 3.0) & ~np.eye(int(mol0.sum()), dtype=bool)
+                if _bd.any() and (_du[_bd] > _dm[_bd] + 0.5).any():
+                    _bonded_ok = False          # 진짜로 감겨 있다 — 펴도 일관되지 않는다
+                if _bonded_ok:
+                    _d2 = np.array([0.5 - _f[:, 0].mean(), 0.5 - _f[:, 1].mean(), 0.0])
+                    pos = _un + _d2 @ cell      # ⛔ 여기서 floor 로 접지 않는다
+                    _sp = (_f.max(axis=0) - _f.min(axis=0))[:2].max()
+                    rec_note = (f" | recentered WITHOUT folding: fragment in-plane span "
+                                f"{_sp:.3f} of the cell (longer than one cell), so it is "
+                                f"unwrapped and its COM put at the cell centre; some atoms "
+                                f"sit outside 0-1 on purpose and the .vesta BOUND covers them")
+                    print(f"  ⚠ {tag}: 분자 면내 span {_sp:.3f} (셀보다 길다) — "
+                          "접지 않고 펴서 중앙에 뒀다. .vesta BOUND 가 그 범위를 덮는다")
+                else:
+                    print(f"  ⛔ {tag}: 분자가 주기결합으로 감겨 있다 — 펴도 일관된 배치가 "
+                          "없다. 원본 좌표 유지 (이건 구조 자체를 봐야 한다)")
             else:
                 pos = pos2
                 rec_note = (f" | recentered: molecule COM moved to cell center, "
