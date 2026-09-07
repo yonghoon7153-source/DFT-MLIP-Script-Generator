@@ -1498,8 +1498,10 @@ case "$NPAR" in ''|*[!0-9]*) NPAR=1 ;; esac
 #   로그만 봐서는 원인이 안 보였습니다.
 #   ⇒ 벽시계는 몇 시간 뒤에나 알지만 메모리는 **시작 전에** 계산됩니다. 여기서 막습니다.
 #   ⛔ 이 검사가 **못 하는 것**: 실제 사용량을 재지 않습니다. 모형이고 ±2배가
-#     예상 범위입니다(위 실패에서 역산한 범위는 0.98~2.85배). 통과가 안전 보증이
-#     아니라, **명백한 불가를 시작 전에 거르는** 것입니다.
+#     예상 범위입니다. ⛔ 2026-09-07 (Codex v37 P1-1) — 종전에 "실패에서 역산한
+#     범위 0.98~2.85배" 라고 적었으나 **철회합니다**: 159.8 GB 는 관측된 OOM 임계가
+#     아니라 우리 계획값이고, 슬랩과 분자에 같은 계수를 쓸 근거도 없습니다.
+#     통과가 안전 보증이 아니라, **명백한 불가를 시작 전에 거르는** 것입니다.
 if [ "${MEM_GUARD:-on}" = "off" ]; then
   echo "  ⚠ 메모리·배치 사전검사를 껐습니다 (MEM_GUARD=off)."
   echo "     2026-09-04 의 OOM 은 정확히 이 검사가 막는 종류였습니다."
@@ -13911,7 +13913,13 @@ def _return_contract(man: Dict[str, Any]) -> Dict[str, Any]:
         #   세 문서가 같이 렌더한다. CHGCAR 는 압축에서 빼되 서버에서 지우지 않는다.
         "how": ("가장 쉬운 방법 — 푼 디렉터리를 **통째로** 다시 압축해 보내 주십시오 (배포 입력·MANIFEST "
                 "포함 · 위 목록이 자동으로 충족됩니다). 예: "
-                "`tar --exclude=CHGCAR --exclude=WAVECAR -czf 반송.tgz <푼 디렉터리>`"),
+                "`tar --exclude=CHGCAR --exclude=WAVECAR --exclude=POTCAR "
+                "-czf 반송.tgz <푼 디렉터리>`  "
+                "⛔ **POTCAR 는 반드시 빼 주십시오** (라이선스 — 2026-09-07 Codex v37 P1-2). "
+                "종전 명령은 CHGCAR·WAVECAR 만 빼서 조립된 POTCAR 가 딸려 왔습니다. "
+                "증빙인 `POTCAR_PROVENANCE.json` · `POTCAR_ROOT_SEAL.json` · "
+                "`EXECUTABLE_RECEIPT.tsv` 는 **그대로 두십시오** — 그게 판정에 쓰이는 것이고, "
+                "POTCAR 원문은 저희가 받으면 안 되는 것입니다."),
         "not_required": ["CHGCAR·WAVECAR (용량 — 압축에서 빼셔도 됩니다 · ⚠ 서버에서는 지우지 말고 두십시오)",
                          "vasprun.xml (선택)"],
         "failed_jobs": "발산·미수렴 잡도 지우지 말고 그대로 보내 주십시오 — 실패도 판정의 일부입니다",
@@ -14090,21 +14098,41 @@ def _walltime_block(man: Dict[str, Any], a) -> str:
     _basis = max(_h2 * 1.1, _ceil or 0.0)
     _rec = max(24, int(_basis // 12 + 1) * 12)
     _why = ("외피 %d h × 1.1 을 12 h 단위로 올림" % _h2 if _basis == _h2 * 1.1 else
-            "**NELM 천장 %.0f h**(NELM %s · 기동 1회의 결정론적 상한)을 12 h 단위로 올림 "
-            "— 모형 외피 %d h × 1.1 보다 이쪽이 크므로 이쪽을 씁니다. 천장은 이미 최대값이라 "
-            "여유를 더 얹지 않습니다"
+            "**NELM 시나리오 %.0f h**(NELM %s 번을 다 도는 경우)를 12 h 단위로 올림 "
+            "— 모형 외피 %d h × 1.1 보다 이쪽이 크므로 이쪽을 씁니다. ⛔ 이 값은 보장이 "
+            "아닙니다(NELM 은 횟수를 묶지 시간을 묶지 않습니다) — 그래도 이미 최대 "
+            "시나리오라 여유를 더 얹지는 않습니다"
             % (_ceil, _cf_w.get("nelm"), _h2))
     _cap_line = ""
     if _cf_w.get("queue_cap_h") and _ceil:
         _cap = float(_cf_w["queue_cap_h"])
-        _cap_line = ("\n⚠ **잘릴 수 있는가 (모형이 아니라 천장으로)** — 한 번의 VASP 기동은 "
-                     "`NELM=%s` 전자스텝에서 끊깁니다. 이 묶음의 최장 천장은 **%.0f h** 이고, "
-                     "알려 주신 큐 상한 %.0f h %s. "
-                     "추정치(%d h)는 모형이라 ±2배지만 이 천장은 결정론입니다 — 둘을 같은 "
-                     "확신으로 읽지 말아 주십시오."
+        # ⛔⛔ 2026-09-07 (Codex v37 P0-2) — 종전 문구는 이 값을 **"결정론"** 이라고
+        #   적었다. 성립하지 않는다: NELM 은 전자스텝 **횟수**를 묶지 시간을 묶지 않고,
+        #   스텝당 시간이 바로 ±2배인 그 양이다. 주장을 시나리오로 내린다.
+        _cap_line = ("\n⚠ **NELM 시나리오 (보장이 아닙니다)** — 한 번의 VASP 기동은 "
+                     "`NELM=%s` 전자스텝에서 끊깁니다. 가정한 스텝수 대신 NELM 번을 다 돌면 "
+                     "가장 긴 잡이 **%.0f h** 이고, 알려 주신 잡당 큐 상한 %.0f h %s. "
+                     "⛔ 다만 NELM 이 묶는 것은 **횟수**이지 시간이 아닙니다 — 스텝당 시간이 "
+                     "바로 ±2배인 그 양이라 이 수도 같은 폭을 안고 있습니다. "
+                     "종전 문서의 *'결정론적 상한'* 표현은 **철회합니다** (추정 %d h)."
                      % (_cf_w.get("nelm"), _ceil, _cap,
-                        "안에 들어갑니다 (여유 %.0f h)" % (_cap - _ceil) if _ceil <= _cap
+                        "아래입니다 (여유 %.0f h)" % (_cap - _ceil) if _ceil <= _cap
                         else "**를 넘습니다 — 이 코어 수로는 잘립니다**", _h))
+    # ── ★ 단계 할당 (같은 P0-2) — 잡 상한은 이것을 보호하지 못한다 ─────────────
+    _sa = (_cf_w.get("stage_alloc_h") or {})
+    _sa_line = ""
+    if _sa.get("NELM_시나리오"):
+        _n1 = _sa["NELM_시나리오"].get("1"); _n2 = _sa["NELM_시나리오"].get("2")
+        _m1 = (_sa.get("중앙_추정") or {}).get("1"); _m2 = (_sa.get("중앙_추정") or {}).get("2")
+        _req = int(-(-max(_n1 or 0, _n2 or 0) // 12) * 12)
+        _sa_line = ("\n⚠⚠ **요청하실 walltime 은 잡이 아니라 단계 기준입니다.** "
+                    "`run_staged.sh` 는 **한 할당 안에서** 그 단계의 잡 전부를 돌립니다 — "
+                    "잡 하나하나가 큐 상한 아래여도 단계 합이 넘으면 **할당이 먼저 잘립니다.** "
+                    "중앙 추정 1단계 %s h · 2단계 %s h, NELM 시나리오 1단계 %s h · 2단계 %s h. "
+                    "⇒ **단계당 %d h** 를 잡아 주십시오 (시나리오 최대를 12 h 단위로 올림). "
+                    "그만큼의 연속 할당이 어려우시면 **제출 전에** 알려 주십시오 — 단계를 더 "
+                    "잘게 나눌지 저희가 정해야 합니다 (러너가 임의로 쪼개면 1단계 정지 규칙이 깨집니다)."
+                    % (_m1, _m2, _n1, _n2, _req))
     _cores = int(getattr(a, "cores", 48) or 48)
     _conc = int(((man.get("submission") or {}).get("max_concurrency")) or getattr(a, "concurrency", 8) or 8)
     # 🔴 2026-09-03 — 단계 게이트 반영 전체 일수. 없으면(비 staged) 한 물결 값.
@@ -14128,6 +14156,7 @@ def _walltime_block(man: Dict[str, Any], a) -> str:
             f"합니다 (1단계 최장 잡의 중앙 추정은 {_h} h 지만, 잘리지 않으려면 위 {_rec} h 로 잡아 주십시오). "
             f"봉인 프로브도 같은 노드에서 VASP 를 인자 없이 한 번 잠깐 기동합니다."
             + _cap_line
+            + _sa_line
             + _tot_line
             # 🔴 2026-09-04 — 모형은 ±2배다. 큐 상한이 빠듯하면 **대표 잡 하나를 먼저 재는 것**이
             #   모든 모형보다 싸고 정확하다. 그 한 번이 나머지 15잡의 walltime 을 정한다.
@@ -16698,6 +16727,11 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
                if _stmap.get(r) == 2 and r not in _chrel and r + "__nzmag" not in _chrel]
         _c1 = [c for c in _chains if _stmap.get(c[2], 1) == 1]
         _c2 = [c for c in _chains if _stmap.get(c[2], 1) == 2]
+        # ── 단계 할당 계산용 (2026-09-07 Codex v37 P0-2) ─────────────────────
+        _conc_cf = int(getattr(a, "concurrency", 8) or 8)
+        #   각 잡의 상별 시간을 그 상의 NELM 배수로 늘린 **시나리오** (보장 아님).
+        _jh_ceil = [sum(v * (CE.ceiling_factor(ph) or 1.0) for ph, v in d.items())
+                    for d in _jph]
         man["cost_frozen"] = {
             "total_wall_h": round(sum(_jh), 1),
             "core_h": round(sum(_jh) * a.cores),
@@ -16713,17 +16747,20 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
                         "잡 시간 자체도 모형이라 ±2배 — 곱하면 넓다"),
             "baseline_kpar": _kpb,
             # ── 🔴 NELM 천장 (2026-09-04) ─────────────────────────────────────
-            #   추정치(±2배)로 "큐에 들어간다" 를 판정하면 안 된다. 한 번의 VASP 기동은
-            #   NELM 에서 끊기므로 그게 **결정론적** 상한이다.
+            #   ⛔ 2026-09-07 (Codex v37 P0-2) — 종전 주석은 이것을 **결정론적 상한**이라
+            #   불렀다. 성립하지 않는다: NELM 은 전자스텝 **횟수**를 묶고, 그것을 시간으로
+            #   바꾸는 스텝당 시간이 바로 ±2배인 그 양이다. 시나리오로 격하한다.
             "nelm": _nelm,
             "nelm_ceiling_longest_h": round(_ceil_max, 1),
             "queue_cap_h": CE.QUEUE_CAP_H,
             "fits_queue_cap": (not _ceil_over) if _ceil_ok else None,
             "n_jobs_over_queue_cap": len(_ceil_over),
-            "⚠_천장의_뜻": ("천장 = 추정 × NELM / 상별 전자스텝 가정. '얼마나 걸리나'(모형, ±2배)가 "
-                            "아니라 '잘릴 수 있나'(결정론)의 답이다. ⛔ 기동 **1회**의 상한이라 "
-                            "여러 상을 직렬로 도는 잡의 전체 벽시계 상한은 아니다. "
-                            "relax 는 NSW×NELM 이라 여기서 제외된다."),
+            "⚠_천장의_뜻": ("= 추정 × NELM / 상별 전자스텝 가정. **시나리오이지 보장이 아니다** "
+                            "(2026-09-07 Codex v37 P0-2 로 '결정론' 주장 철회 — NELM 은 횟수를 "
+                            "묶지 시간을 묶지 않고, 스텝당 시간이 ±2배인 그 양이다). "
+                            "⛔ 기동 **1회**의 값이라 여러 상을 직렬로 도는 잡의 전체 벽시계도, "
+                            "한 할당에서 여러 잡을 도는 **단계 벽시계**도 아니다 — 후자는 "
+                            "stage_alloc_h 를 보라. relax 는 NSW×NELM 이라 여기서 제외된다."),
             "makespan_d": {str(m): round(CE.schedule_makespan(_plain, m, _chains) / 24, 2)
                            for m in (4, 8, 12, 20)},
             "parent_geom_chains": len(_chains),
@@ -16755,6 +16792,27 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             "stage_longest_h": {
                 "1": round(max([h for h, s in zip(_jh, _jst) if s == 1] or [0]), 1),
                 "2": round(max([h for h, s in zip(_jh, _jst) if s == 2] or [0]), 1)},
+            # ── ★ walltime 계약은 **단계 할당**이다 (2026-09-07 Codex v37 P0-2) ──
+            #   러너는 한 할당 안에서 그 단계의 잡 전부를 돌린다. 잡 하나하나가 큐 상한
+            #   아래여도 단계 합이 넘으면 **할당이 먼저 잘린다.** 종전 문서는 잡 상한만
+            #   적어서 이 경우를 못 보게 했다.
+            "stage_alloc_h": {
+                "정의": ("그 단계를 한 할당 안에서 다 도는 데 필요한 벽시계 (동시 %d잡). "
+                         "잡 최장이 아니라 **이것으로 큐를 잡아야 한다.**" % _conc_cf),
+                "중앙_추정": {
+                    "1": round(CE.staged_makespan(
+                        [h for h, st in zip(_jh, _jst) if st == 1], [], _conc_cf, [], []), 1),
+                    "2": round(CE.staged_makespan(
+                        [], [h for h, st in zip(_jh, _jst) if st == 2], _conc_cf, [], []), 1)},
+                "NELM_시나리오": {
+                    "1": round(CE.staged_makespan(
+                        [x for x, st in zip(_jh_ceil, _jst) if st == 1], [], _conc_cf, [], []), 1),
+                    "2": round(CE.staged_makespan(
+                        [], [x for x, st in zip(_jh_ceil, _jst) if st == 2], _conc_cf, [], []), 1)},
+                "⚠_보장_아님": ("NELM 은 **전자스텝 수**를 묶지 시간을 묶지 않는다. 스텝당 "
+                                "시간이 바로 ±2배인 그 양이므로 이 수도 같은 폭을 안고 있다. "
+                                "2026-09-07 이전 문서의 '결정론적 77 h 상한' 은 철회했다."),
+                "⛔_안_들어간_것": "큐 대기 · 노드 확보 지연 · 1단계 반송 뒤 사람의 판정 왕복"},
             "⛔_직렬_하한_d": (round((max([h for h, s in zip(_jh, _jst) if s == 1] or [0])
                                      + max([h for h, s in zip(_jh, _jst) if s == 2] or [0]))
                                     / 24, 2) if (1 in _jst and 2 in _jst) else None),
@@ -16791,9 +16849,14 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
                            "÷ 잡이_걸친_노드수 × 그_노드의_동시잡수"),
                   "계획_랭크": getattr(a, "cores", 48),
                   "계획_랭크_잡_전체_GB": round(_f_gb + a.cores * _f_repl, 1),
-                  "⚠_모형이다": ("±2배가 예상 범위. 2026-09-04 인수처 OOM 에서 역산한 "
-                                 "오차 범위는 0.98~2.85배 — 슬랩(162.6 GB 예측)은 죽고 "
-                                 "분자(56.1 GB 예측)는 살았다는 사실이 양쪽을 묶는다."),
+                  "⚠_모형이다": ("±2배가 예상 범위(모형 자체의 폭). ⛔ 2026-09-07 철회 "
+                                 "(Codex v37 P1-1): 종전에 2026-09-04 실패에서 오차계수를 "
+                                 "0.98~2.85배로 **역산했다**고 적었으나 그 역산은 성립하지 "
+                                 "않는다 — 159.8 GB 는 관측된 OOM 임계가 아니라 우리 계획값"
+                                 "(188×0.85)이고, 슬랩과 분자에 같은 계수를 적용할 근거도 "
+                                 "없다. 남는 사실은 '슬랩은 죽고 분자는 살았다' 는 **순서**뿐"
+                                 "이며, 그것은 모형이 두 부류를 옳게 갈랐다는 뜻이지 계수를 "
+                                 "정하지 않는다."),
                   "⛔_실측_아님": ("실제 사용량을 재지 않는다. 사전검사 통과는 안전 보증이 "
                                    "아니라 '명백한 불가' 를 시작 전에 거른 것이다."),
                   "출처": "tools/sdcp/vasp_cost_estimate.py job_memory() — 모형의 단일 출처",
@@ -16818,9 +16881,11 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
                       "견디는_모형오차": round(_us / (_tot_gb / _npj), 2),
                       "동시잡": getattr(a, "concurrency", 1),
                       "필요_총_노드": _npj * int(getattr(a, "concurrency", 1) or 1),
-                      "왜_최소가_아닌가": ("2026-09-04 OOM 에서 역산한 모형 오차 범위가 "
-                                           "0.98~2.85배다. 최소 노드 수는 그 범위의 아래끝에서만 "
-                                           "살아남는다 — 안전계수로 위쪽을 덮는다."),
+                      "왜_최소가_아닌가": ("최소 노드 수는 **모형이 정확할 때만** 산다. 모형 폭이 "
+                                           "±2배이므로 여유가 1배 언저리면 사실상 여유가 없다. "
+                                           "⚠ 안전계수가 '어떤 상단을 덮는다' 는 주장은 하지 않는다 — "
+                                           "상단이 얼마인지 우리는 모른다 (2026-09-07 Codex v37 P1-1 로 "
+                                           "역산 주장 철회). 2.0 은 모형 폭만큼은 견디게 하자는 **선택**이다."),
                   }
               man["memory_model"] = _mm
           else:
@@ -18163,8 +18228,14 @@ def selftest() -> int:
                 chk(int(_rec9.group(1)) >= _ce9,
                     f"⛔음성: 권장 walltime {_rec9.group(1)} h ≥ NELM 천장 {_ce9:.0f} h "
                     "(모형 외피만 보면 천장 아래를 권하게 된다 — 그러면 잘린다)")
-            chk("NELM" in _sb9 and "결정론" in _sb9,
-                "SUBMIT 이 **천장은 결정론 · 추정은 모형** 임을 구분해 말한다")
+            # ⚠ "결정론" 이라는 낱말 자체는 **철회 문장 안에** 남는다 — 금지할 것은
+            #   낱말이 아니라 **주장형**이다.
+            chk("NELM" in _sb9 and "보장이 아닙니다" in _sb9
+                and "결정론입니다" not in _sb9 and "결정론)" not in _sb9,
+                "⛔음성 P0-2: SUBMIT 이 NELM 을 **시나리오**로 말하고 결정론이라 "
+                "**주장하지 않는다** (철회 문장 안의 언급은 허용)")
+            chk("철회합니다" in _sb9,
+                "P0-2: SUBMIT 이 종전 '결정론적 상한' 주장을 **명시적으로 철회**한다")
         # ⛔음성 (직접 단위) — **천장이 외피보다 클 때** 권장이 천장을 따라가는가.
         #   합성 번들은 천장이 작아 위 검사가 자동 통과하므로, 사고 상황을 직접 만든다.
         class _FakeA:
@@ -18172,7 +18243,10 @@ def selftest() -> int:
         _man_ce = {"cost_frozen": {"longest_job_h": 29, "nelm": 200,
                                    "nelm_ceiling_longest_h": 76.9, "queue_cap_h": 91.0,
                                    "makespan_staged_d": {"4": 3.35},
-                                   "stage_longest_h": {"1": 28.9, "2": 26.0}},
+                                   "stage_longest_h": {"1": 28.9, "2": 26.0},
+                                   # v37 P0-2 — 단계 할당 계약 (잡 상한과 다른 축)
+                                   "stage_alloc_h": {"중앙_추정": {"1": 47.9, "2": 51.5},
+                                                     "NELM_시나리오": {"1": 127.9, "2": 137.4}}},
                    "submission": {"max_concurrency": 4}}
         _wl = _walltime_block(_man_ce, _FakeA())
         _m_ce = re.search(r"walltime 은 \*\*(\d+) h\*\*", _wl)
@@ -18180,16 +18254,31 @@ def selftest() -> int:
             f"⛔음성: 외피 58 h < 천장 76.9 h 인 사고 상황에서 권장이 "
             f"{_m_ce.group(1) if _m_ce else '?'} h — **천장 이상이면서 큐 상한 91 h 이하** "
             "(종전 산식이면 72 h 를 권해 잘렸고, 천장에 여유를 또 얹으면 96 h 로 넘겼다)")
-        chk("NELM 천장" in _wl and "결정론" in _wl,
-            "⛔음성: 그때 **왜** 그 값인지(천장이라서)를 문서가 말한다")
+        chk("NELM 시나리오" in _wl,
+            "⛔음성: 그때 **왜** 그 값인지(NELM 시나리오라서)를 문서가 말한다")
         _man_lo = json.loads(json.dumps(_man_ce))
         _man_lo["cost_frozen"]["nelm_ceiling_longest_h"] = 10.0
         _wl_lo = _walltime_block(_man_lo, _FakeA())
         chk("외피 58 h × 1.1" in _wl_lo,
             "⛔음성: 천장이 작으면 종전대로 **모형 외피**를 근거로 적는다 "
             "(천장을 만능으로 쓰지 않는다)")
-        chk("들어갑니다 (여유 14 h)" in _wl,
-            "천장 76.9 h 를 큐 상한 91 h 에 대어 **여유를 숫자로** 말한다")
+        chk("아래입니다 (여유 14 h)" in _wl,
+            "NELM 시나리오 76.9 h 를 잡당 큐 상한 91 h 에 대어 **여유를 숫자로** 말한다")
+        # ── 2026-09-07 Codex v37 P0-2 회귀 ───────────────────────────────────
+        #   "결정론적 상한" 이라는 주장이 문서로 다시 새어 나가면 안 된다.
+        # ⚠ 낱말이 아니라 **주장형**을 금지한다 (철회 문장 안에는 남아야 한다).
+        chk("결정론입니다" not in _wl and "결정론)" not in _wl,
+            "⛔음성 P0-2: 문서가 NELM 을 결정론이라고 **주장하지 않는다** "
+            "(NELM 은 전자스텝 수를 묶지 시간을 묶지 않는다)")
+        chk("철회합니다" in _wl,
+            "P0-2: 종전 '결정론적 상한' 주장을 문서에서 **명시적으로 철회**한다")
+        chk("보장이 아닙니다" in _wl and "횟수" in _wl,
+            "P0-2: NELM 값이 **시나리오이지 보장이 아니라고** 말한다")
+        chk("잡이 아니라 단계 기준입니다" in _wl and "할당이 먼저 잘립니다" in _wl,
+            "★ P0-2: walltime 계약이 **잡이 아니라 단계**라고 적는다 — 잡이 전부 상한 "
+            "아래여도 단계가 넘으면 할당이 잘린다")
+        chk("단계당" in _wl and " h** 를 잡아 주십시오" in _wl,
+            "P0-2: 요청할 **단계 walltime 값**을 숫자로 준다")
         # ── 랭크 예시가 이 묶음이 실제로 쓰는 코어 수를 담는가 ────────────────
         _pz9 = (_sm9.get("parallelization") or {})
         _rk9 = _pz9.get("쓸_수_있는_랭크_예") or []
@@ -21783,9 +21872,10 @@ def main():
                          "**노드/잡 권고**를 계산해 싣는다 (2026-09-04 OOM 이후). "
                          "⚠ 현장 값이므로 기본값을 두지 않는다 — 모르면 권고를 안 낸다.")
     ap.add_argument("--mem_safety", type=float, default=2.0,
-                    help="메모리 권고의 안전계수 (기본 2.0). 모형 오차의 실측 범위가 "
-                         "0.98~2.85배라 **최소 노드 수는 여유가 없다** — 2.0 이면 그 범위의 "
-                         "대부분을 덮는다. 1.0 을 주면 최소값(= 모형이 딱 맞아야 산다)이 된다.")
+                    help="메모리 권고의 안전계수 (기본 2.0). 모형 폭이 ±2배라 "
+                         "**최소 노드 수는 여유가 없다** — 2.0 은 그 폭만큼은 견디자는 선택이지 "
+                         "어떤 상단을 덮는다는 주장이 아니다 (2026-09-07 P1-1). "
+                         "1.0 을 주면 최소값(= 모형이 딱 맞아야 산다)이 된다.")
     ap.add_argument("--concurrency", type=int, default=8,
                     help="외주처가 동시에 돌릴 잡 수 — MANIFEST 에 기록. "
                          "⚠ 한 잡의 static→dense 사슬보다 짧아질 수 없다")

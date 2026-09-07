@@ -31,22 +31,34 @@
   · 병렬 스케일링(par_speedup)은 **벤치마크가 아니라 두 구간 어림**이다 (±50 %).
   · **큐 상한을 넘길지는 추정치로 판정하지 않는다** — 그건 NELM 천장으로 본다(아래).
 
-NELM 천장 (2026-09-04 도입 · 이게 외주 코어 수를 정하는 기준이다)
-  추정치는 ±2배다. 그 숫자로 "91 h 큐에 들어간다" 를 판정하면 절반은 틀린다.
-  그런데 **한 번의 VASP 기동이 쓸 수 있는 시간에는 결정론적 상한**이 있다 —
-  INCAR 의 `NELM` 이다. SCF 가 아무리 안 붙어도 NELM 번에서 끊는다.
+NELM 상한 시나리오 (2026-09-04 도입 · **2026-09-07 주장 하향**)
+  ⛔⛔ 2026-09-07 (Codex v37 P0-2) — 종전에 이것을 **"결정론적 77 h 상한"** 이라고
+  적었다. **성립하지 않는다.** NELM 이 묶는 것은 **전자스텝 횟수**이지 시간이 아니다.
 
-      천장[h] = 추정[h] × NELM / (그 상에 가정한 전자스텝 수)
+      NELM 상한[h] = t_step × NELM,   그런데 t_step 이 바로 ±2배인 그 양이다.
 
-  static 은 ESTEP 75 · NELM 200 이므로 천장 = 추정 × 2.67.
-  ⇒ **천장이 큐 walltime 상한 아래면 모형이 2배 틀려도 잡이 안 잘린다.**
-  이건 "얼마나 걸리나"(모형, ±2배) 가 아니라 "잘릴 수 있나"(결정론) 의 답이다.
-  ⛔ 단, 천장은 **VASP 기동 1회**의 상한이다. 한 잡이 여러 상을 직렬로 돌면
-     상마다 천장이 따로 걸린다 — 잡 전체 벽시계의 상한이 아니다.
+  불확실한 수(t_step)에 알려진 배수(NELM)를 곱해도 불확실성은 그대로 남는다.
+  결정론적인 것은 "전자스텝이 NELM 을 넘지 않는다" 까지이고, 그것을 시간으로
+  바꾸는 순간 모형 불확실성이 다시 들어온다. ⇒ **"잘릴 수 있나" 에 결정론적으로
+  답하지 못한다.** 아래 수는 *가정한 스텝수(ESTEP) 대신 NELM 번 돌면 얼마인가* 라는
+  **시나리오**이지 보장이 아니다.
+
+      NELM 시나리오[h] = 추정[h] × NELM / (그 상에 가정한 전자스텝 수)
+
+  static 은 ESTEP 75 · NELM 200 이므로 시나리오 = 추정 × 2.67 (추정 자체가 ±2배).
+
+  ⛔⛔ 그리고 **잡 상한과 단계 할당은 다른 것이다** (같은 P0-2).
+     `run_staged.sh` 는 **한 할당 안에서** 그 단계의 잡들을 동시·직렬로 다 돌린다.
+     따라서 walltime 계약은 **잡이 아니라 단계**에 걸어야 한다. 잡 하나하나가
+     84 h 안에 끝나도, 단계 전체가 그보다 오래면 **할당이 먼저 잘린다.**
+     실측 재계산(19잡·동시 4·192랭크): 중앙 추정 1단계 49.2 h + 2단계 51.5 h.
+     전 잡이 150 스텝에 수렴하면 개별 최장은 57.7 h(84 h 안)인데 단계 할당은
+     각각 98.4 h · 103.0 h 가 필요하다 — 잡 상한만 보면 이걸 못 본다.
 """
 from __future__ import annotations
 
 import argparse
+import math
 import gzip
 import json
 import os
@@ -276,6 +288,34 @@ def max_ranks_on_node(mem, gb_per_node, jobs_parallel=1, need_multiple_of=16,
         return 0
     n = int((usable - mem["floor_GB"]) / mem["repl_GB_per_rank"])
     return (n // need_multiple_of) * need_multiple_of
+
+
+def stage_alloc_h(rows, m):
+    """**단계 할당** 벽시계 [h] — 러너가 한 할당 안에서 그 단계를 다 도는 데 걸리는 시간.
+
+    `rows` = [(stage, wave, hours), ...] · `m` = 동시 실행 잡 수. → {stage: hours}
+
+    ⛔⛔ 왜 잡 상한이 아니라 이것인가 (2026-09-07 Codex v37 P0-2)
+      `run_staged.sh` 는 **하나의 계산노드 할당 안에서** 그 단계의 잡 전부를
+      동시·직렬로 돌린다. 그러므로 큐에 걸어야 하는 walltime 은 **가장 긴 잡**이
+      아니라 **단계 전체**다. 종전 문서는 "잡당 84 h" 만 적어서, 잡이 전부 84 h
+      안에 끝나도 단계 할당이 먼저 잘리는 경우를 못 보게 했다.
+
+    ⚠ 단계 안에 **물결 장벽**이 있다 — PARENT_GEOM 을 가진 잡(canary)은 부모가
+      끝나야 시작하므로 1물결 makespan + 2물결 makespan 이다 (한 덩어리 LPT 가 아니다).
+
+    ⛔ 못 하는 것: 큐 대기·노드 확보 지연·사람의 게이트 판정 왕복은 안 들어간다.
+      그건 계산 시간이 아니다.
+    """
+    out = {}
+    for st in sorted({r[0] for r in rows}):
+        tot = 0.0
+        for w in sorted({r[1] for r in rows if r[0] == st}):
+            hs = [r[2] for r in rows if r[0] == st and r[1] == w]
+            if hs:
+                tot += schedule_makespan(hs, m)
+        out[st] = tot
+    return out
 
 
 def ceiling_factor(ph):
@@ -842,11 +882,39 @@ def report_manifest(a, base) -> int:
     else:
         _cmax, _crel = max(_ceils)
         _over = [r for c, r in _ceils if c > _cap]
-        print(f"  NELM 천장   최장 {_cmax:.1f} h  (NELM {_nelm} · 추정×{_nelm / ESTEP['static']:.2f}) "
-              f"← {_crel}")
-        print(f"              큐 상한 {_cap:.0f} h 기준: "
+        print(f"  NELM 시나리오  잡 최장 {_cmax:.1f} h  "
+              f"(NELM {_nelm} · 추정×{_nelm / ESTEP['static']:.2f}) ← {_crel}")
+        print(f"              ⚠ 이건 **보장이 아니다** — NELM 은 전자스텝 수를 묶지 시간을 묶지"
+              " 않는다.")
+        print(f"                 스텝당 시간이 바로 ±2배인 그 양이라, 이 수도 같은 폭을 안고 있다.")
+        print(f"              큐 상한 {_cap:.0f} h 기준(잡 단위): "
               + (f"⛔ {len(_over)}/{len(_ceils)}잡이 **잘릴 수 있다**"
-                 if _over else f"✔ 전 {len(_ceils)}잡 안전 (여유 {_cap - _cmax:.0f} h)"))
+                 if _over else f"{len(_ceils)}잡 모두 아래 (여유 {_cap - _cmax:.0f} h)"))
+        print(f"              ⛔ 그러나 **잡 상한은 단계 할당을 보호하지 못한다** — 아래 단계 계약을 보라.")
+
+    # ── walltime 계약은 **단계 할당**이다 (2026-09-07 Codex v37 P0-2) ─────────
+    #   러너는 한 계산노드 할당 안에서 그 단계의 잡 전부를 동시·직렬로 돌린다.
+    #   잡 하나하나가 큐 상한 아래여도 단계 전체가 넘으면 **할당이 먼저 잘린다.**
+    if s_mk is not None:
+        _f = {ph: (ceiling_factor(ph) or 1.0) for ph in ESTEP}
+        _sc = [sum(v * _f.get(ph, 1.0) for ph, v in p.items()) for _r, _h, p in jobs]
+        _s1c = [x for x, st in zip(_sc, stages or []) if st == 1]
+        _s2c = [x for x, st in zip(_sc, stages or []) if st == 2]
+        _m1 = staged_makespan(s1h, [], a.concurrent, c1, [])
+        _m2 = staged_makespan([], s2h, a.concurrent, [], c2)
+        _n1 = staged_makespan(_s1c, [], a.concurrent, [], [])
+        _n2 = staged_makespan([], _s2c, a.concurrent, [], [])
+        print()
+        print("  ── ★ walltime 계약 = **단계 할당** (잡 상한이 아니다) ──")
+        print(f"     중앙 추정      1단계 {_m1:6.1f} h · 2단계 {_m2:6.1f} h")
+        print(f"     NELM 시나리오  1단계 {_n1:6.1f} h · 2단계 {_n2:6.1f} h"
+              f"   ← 이 값으로 요청하십시오")
+        _worst = max(_n1, _n2)
+        print(f"     ⇒ 단계당 **{math.ceil(_worst / 12) * 12:.0f} h** 를 권합니다 "
+              f"(NELM 시나리오 최대 {_worst:.1f} h 를 12 h 단위로 올림)")
+        print(f"     ⛔ 잡당 상한({_cap:.0f} h)만 보면 이걸 못 봅니다 — 전 잡이 그 아래여도")
+        print(f"        단계 합이 넘으면 할당이 먼저 잘립니다.")
+        print(f"     ⚠ 이 수도 **모형**이다 (±2배). 큐 대기·노드 확보·사람의 게이트 왕복은 빠져 있다.")
         if _over:
             print(f"              예: {_over[0]}")
             print("              ⇒ 코어를 늘리거나(--cores) 상을 줄여야 한다. "
