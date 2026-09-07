@@ -35,11 +35,11 @@
 | L7 | P0 | clone 밖 absolute bundle 이 `full_bundle` | `preserve.py:5661` · `5670` | **GREEN** |
 | L8 | P0 | directory fsync 실패를 삼키고 issuance 성공 | `preserve.py:5029` · `5226` | **GREEN** |
 | L14 | P0 | (자체 발견) smoke 레코드가 공유 등록부에 쌓여 트리가 더러워진다 | `preserve.py` 등록부 root | **GREEN** |
-| L9 | P0 | producer closure — AnnAssign RHS · name-only decorator · 함수 지역 alias | `row_projection.py:681-722` · `772-808` · `1016-1067` | 대기 |
+| L9 | P0 | producer closure — AnnAssign RHS · name-only decorator · 함수 지역 alias | `row_projection.py:681-722` · `772-808` · `1016-1067` | **GREEN** (`e9418df2`) |
 | L10 | P1 | normal finalize 가 `verifier_origin` 위조 가능 | `preserve.py:5681` · `5993` | **GREEN** |
-| L11 | P1 | 강제 환경이 transitive code bytes 를 안 묶음 (`sitecustomize.py`) | `mutation_replay.py:3135-3214` | 대기 |
-| L12 | P1 | report 안 건드리고 execution evidence 세탁 → 170/170 통과 | `mutation_replay.py:3432-3498` | 대기 |
-| L13 | P1 | 회귀 2건이 배선을 안 부름 + 등록부에 신규 방어 anchor 없음 | `tests/test_docs_lint.py:11799-11908` · `mutation_replay.py` MUTANTS | 대기 |
+| L11 | P1 | 강제 환경이 transitive code bytes 를 안 묶음 (`sitecustomize.py`) | `mutation_replay.py:3135-3214` | **GREEN** (`16e5ba53`) |
+| L12 | P1 | report 안 건드리고 execution evidence 세탁 → 170/170 통과 | `mutation_replay.py:3432-3498` | **RED→구현 완료, 검증 중** |
+| L13 | P1 | 회귀 2건이 배선을 안 부름 + 등록부에 신규 방어 anchor 없음 | `tests/test_docs_lint.py:11799-11908` · `mutation_replay.py` MUTANTS | 시험 4건 작성 · 등록부 축은 마감에서 |
 
 ## 묶음 (같이 고쳐야 값이 나오는 것)
 
@@ -372,3 +372,67 @@ L5 뒤 전체 회귀가 **1465 passed · 3 failed** 였다. 셋 다 **산출물 
 
   이 라운드에서 내 수정이 만든 결함은 이제 넷이다 (L14 · L3 재파손 ·
   `_frozen_coords` 오염 · 과잉 거부). 전부 자체 발견이고 전부 **실행이** 잡았다.
+
+- 2026-09-07 (이어서) — **묶음 ε (L9) 닫음.** 커밋 `e9418df2` · 시험 정정 `1feefccd`.
+
+  세 축 전부 "물음을 바꾸는" 수정이다.
+
+  | 축 | 57차가 물은 것 | 지금 묻는 것 |
+  |---|---|---|
+  | 데코레이터 | 머리에 **계산 노드**가 있는가 | 데코레이터인가 — 있으면 무조건 (조회가 아니라 **치환**이다) |
+  | AnnAssign | (안 물었다 — `Assign` 만) | 우변이 순수 상수인가 · annotation 에 계산이 있는가 |
+  | AugAssign | target 이름만 묶었다 | 상태를 바꾸는 문이므로 무조건 module 효과 |
+  | 능력 | 이 호출 대상의 **철자**가 능력인가 | 능력이 **부르는 자리 밖**에 나타나는가 |
+
+  새 시험 12건 중 10건이 RED 로 시작했다. 변이 감사 5/5 사망.
+
+  **내 수정이 만든 결함 (다섯째)**: AnnAssign 을 닫자마자 44차 경계 시험이
+  깨졌다 — `_PublishLock`·`_ledger_authority`·`_ledger_seal`·`_pointer_bytes`
+  가 producer 닫힘에 들어왔다. 원인은 AnnAssign 이 아니라 **묶는 단위**였다:
+  `_visit(node.body, top or node)` 가 class 본문의 효과를 class **전체**에
+  묶고 있었고, 두 class 의 `_ACTIVE: set = set()` 한 줄이 구현을 통째로 끌고
+  왔다. `top` 은 조건을 담는 문을 가리키는 장치인데 class 본문엔 조건이 없다.
+
+  > **교훈**: 방어를 넓힐 때 깨지는 것은 대개 넓힘 자체가 아니라 **묶는 단위**다.
+
+  **옛 시험 하나가 증명하는 것이 반으로 갈렸다.** 51차 docstring 시험의 alias
+  갈래(`_read = getattr`)는 이제 digest 를 낼 기회가 없다 — fail-closed 로
+  멈춘다. fixture 를 고쳐 옛 단언을 살리지 않고 두 갈래를 **다른 명제**로 나눠
+  적었다 (직접 읽기 → digest 이동 · alias → 거부).
+
+- 2026-09-07 (이어서) — **L11 닫음** (커밋 `16e5ba53`). L12·L13 진행 중.
+
+  영수증이 인터프리터를 **띄워서** 묻는다 (`startup` 키). 재는 면은 실행 파일
+  바이트 · `site`/`sitecustomize`/`usercustomize` · `.pth` · 선언 환경변수로
+  좁혔다 — `sys.modules` 전체를 재면 `python -c` 와 pytest child 가 다른 값을
+  내서 **두 증언을 대조할 수 없기** 때문이다. 그 대조가 L12 의 핵심이다.
+
+  L12 설계: 조각 옆 `binding.execution` 은 공개 함수로 다시 계산할 수 있으므로
+  "이 실행에서 나왔다" 를 증명하지 못한다. 증거를 **실행 안으로** 옮긴다 —
+  재생이 sandbox 에 자기 환경 tag 를 이름에 담은 node 를 놓고, 그 node 는 자기
+  프로세스에서 환경을 다시 재서 tag 와 대조한다. checker 는 조각이 주장한
+  환경에서 tag 를 유도해 report 바이트에서 찾는다.
+
+  **변이 등록부가 내 수정을 잡았다**: `_report_identity_rc` 시그니처를 바꾸자
+  `receipt-verdict-is-fail-closed` 의 preimage 가 0회 → `check_preimages` rc 1.
+  preimage 갱신했다.
+
+  ### L13-c 로 심을 변이 축 (마감에서 `--emit-expect` 로 witness 채운다)
+
+  리뷰어가 "등록부에 anchor 가 하나도 없다" 고 지목한 것 + 이번 라운드 신규:
+
+  | 이름(안) | 파일 | 되돌릴 것 | 죽여야 할 시험 |
+  |---|---|---|---|
+  | `exec-class-is-recorded-at-completion` | preserve | L1 배선 제거 | `test_execution_class_wiring_58.py` |
+  | `run-content-id-is-a-closed-descriptor` | preserve | v2 → first-present | 같은 파일 |
+  | `exec-class-registry-is-cas` | preserve | CAS → last-writer-wins | 같은 파일 |
+  | `smoke-containment-is-kernel-coordinates` | preserve | 좌표 → lexical | `test_namespace_kernel_identity_58.py` |
+  | `frozen-seal-is-consulted-first` | row_projection | 봉인 조회 제거 | `test_frozen_coordinate_seal_58.py` |
+  | `phase-receipt-is-write-once` | preserve | 무조건 대입으로 | `test_phase_receipt_immutability_58.py` |
+  | `bundle-uri-must-be-repo-relative` | preserve | 거부 제거 | `test_evidence_domain_58.py` |
+  | `issuance-fsync-is-strict` | preserve | strict → 삼킴 | `test_issuance_durability_58.py` |
+  | `decorators-are-import-time-effects` | row_projection | 계산 있을 때만 | `test_producer_closure_58.py` |
+  | `capability-may-not-leave-the-call-site` | row_projection | escape 규칙 제거 | 같은 파일 |
+  | `verifier-origin-is-lifecycle-owned` | preserve | 예약 키 도메인 제거 | `test_evidence_domain_58.py` |
+  | `execution-receipt-binds-startup` | mutation_replay | `startup` 제거 | `test_evidence_layer_58.py` |
+  | `report-attests-its-environment` | mutation_replay | 증언 조회 제거 | 같은 파일 |
