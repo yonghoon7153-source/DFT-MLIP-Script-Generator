@@ -81,6 +81,24 @@ d(h, o, k) = log σ_e(w_{k+1}, h, o) − log σ_e(w_k, h, o)
 - 평균 · SD · 범위는 **기술 보고 전용**.  별도 HOLD 게이트로 쓰지 않는다.
 - ⛔ **임의의 "origin 산포 문턱" 을 두지 않는다** (옛 초안의 오류).
 
+### 판정기 = `scripts/phase_a_order_verdict.py` (selftest 12/12)
+
+이 규칙을 **코드로** 박았다.  `δ_num` 은 상수이고 **CLI 로 바꿀 수 없다** — 판정 후 문턱을
+움직이는 가장 흔한 사고를 코드가 막는다 (진단용 `--what-if` 는 **판정 없이** 민감도만 찍는다).
+
+fail-closed 조항 (오늘 잡은 결함들의 예방접종):
+
+| # | 조항 | 왜 |
+|---|---|---|
+| ① | 설계 격자점이 하나라도 비면 **판정하지 않는다** | 부분집합을 훑으면 조용히 초록이 된다 — 72팔 초안이 정확히 그렇게 무너졌다 (CL-71) |
+| ② | 미수렴·`cg_info ≠ 0` 이 하나라도 있으면 **거부** | CL-30 계열 |
+| ③ | exact replay 가 δ_num 을 넘으면 **전체 HOLD** | 문턱 사후 확대 금지 |
+| ④ | Secondary(Lee)·QC 는 `ORDER-*` 에 **관여 못 함** | estimand 분리 |
+| ⑤ | 빈 디렉터리·키 결손 → **거부** | 빈 glob 가 초록이 되던 사고 (오늘만 두 번) |
+
+★ selftest ② 가 핵심이다 — **96팔 중 하나만 역전시켜도 `ORDER-UNRESOLVED`** 가 나오는지
+확인한다.  "최악 팔이 판정을 정한다" 를 코드가 실제로 지키는지의 시험이다.
+
 ### δ_num 의 근거와 그 게이트
 
 `0.04 %` 는 합성 solver-method 차이 최대 `0.014 %/solve` 의 양 endpoint 최악합을 올림한
@@ -227,6 +245,7 @@ docs/data/phase_a_6mah/
   step2_<comp>_<sha>.json          첨가제 매니페스트 + add_rng_per_phase
   step3_<comp>_<vox>_<origin>.json σ_e raw + provenance
   verdict.json                     d(h,o,k) 전수 + ORDER-* 판정
+                                   (= phase_a_order_verdict.py --dir <arms> --out verdict.json)
 ```
 
 원장 등재 = 완주 시 새 `CL-` 번호.  ⚠ 판정이 `ORDER-UNRESOLVED` 여도 **똑같이 등재**한다.
