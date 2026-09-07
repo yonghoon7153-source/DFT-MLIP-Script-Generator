@@ -77,7 +77,7 @@ for name,D,El,err,n,st in SYS:
         ws.cell(row=r,column=8,value=st).font=WARN if st.startswith("RETRACTED") else BODY
         for j in range(1,9): ws.cell(row=r,column=j).border=TH
         r+=1
-ws.cell(row=r+1,column=1,value="⚠ sigma 는 Nernst-Einstein (Haven=1) **상한**입니다 — READ_ME 참조.").font=WARN
+ws.cell(row=r+1,column=1,value="⚠ sigma 는 Haven ratio H_R=1 을 **가정**한 값입니다 — 상한이 아닙니다. READ_ME 참조.").font=WARN
 
 # ── FitLines ─────────────────────────────────────────────────────────────
 ws=wb.create_sheet("FitLines")
@@ -137,7 +137,10 @@ for i,t in enumerate([
   "■ 이 값을 읽을 때 같이 기억할 것",
   "1) B2O3 는 직선이 아닙니다 — 600→800 구간 Ea 0.151 eV, 800→1000 구간 0.294 eV (145 meV 차).",
   "   굽은 선을 300 K 까지 늘린 값이라 위 밴드보다도 더 불확실합니다. 이 축은 2026-08-25 철회됐습니다.",
-  "2) sigma 는 Nernst-Einstein (Haven=1) **상한**입니다 — 실제 이온전도도는 이보다 작습니다.",
+  "2) ⚠ sigma 는 H_R=1 을 가정한 값이고 **상한이 아닙니다.** H_R = D*/D_sigma 이고 우리 MD 는 D*(tracer) 를",
+  "   주므로 sigma_NE = H_R x sigma_true 입니다. H_R<1(상관 이동)이면 NE 는 오히려 **과소**입니다 —",
+  "   Adeli 2019 가 Li5.5PS4.5Cl1.5 에서 H_R=0.23 을 실측했고, 그러면 sigma_true ~ 4.3배입니다.",
+  "   반대로 펠릿 EIS 는 입계·기공 때문에 bulk 보다 낮게 나옵니다. 두 보정이 반대 방향이라 **순 방향이 미정**입니다.",
   "3) MD 는 NVT(부피 고정)라 열팽창이 없습니다. 300 K 의 실제 격자는 이 셀과 다릅니다.",
   "4) 밴드는 Ea 오차만 반영합니다 — D0 불확실도·곡률·프로토콜 편향은 안 들어가 있습니다 (즉 실제는 더 넓습니다).",
  ],start=10):
@@ -153,6 +156,9 @@ L=[("Arrhenius — LPSCl1.6 / LPSOCl1.6 / B2O3@LPSCl1.6   (2026-09-07)","t"),(""
  ("FitLines          : 그림의 직선. 1000/T 를 x, lnD_* 를 y 로 그리세요. '구간' 열이 측정/외삽을 갈라 줍니다.",""),
  ("RT_extrapolation  : 300 K 외삽값 + Ea 오차 밴드.",""),("",""),
  ("■ sigma 와 Ea 는 서로 다른 층위입니다","h"),
+ ("⚠ 2026-09-07 정정: 저희가 종전에 sigma 를 'NE upper bound' 라고 적었는데 **부호가 틀렸습니다.**","w"),
+ ("   H_R<1 이면 NE 는 과소이고, 펠릿 입계는 반대로 실험을 낮춥니다 — 순 방향이 정해지지 않아 절대값을 못 씁니다.","w"),
+ ("   같은 양끼리 대면 잘 맞습니다: 우리 D*(300 K) 1.02e-7 vs Adeli 7Li PFG 실측 D* 1.01e-7 cm^2/s.",""),
  ("sigma(T) = n · e² · D(T) / (k_B · T)    ← 그 온도의 D 하나만 씁니다. 다른 온도 정보가 안 들어갑니다.",""),
  ("Ea       = ln D vs 1/T 직선의 기울기     ← 세 점 전부를 써서 계마다 하나 나옵니다.",""),
  ("⚠ sigma 를 Arrhenius 로 그릴 때는 sigma 가 아니라 sigma×T 를 세로축에 두세요.","w"),

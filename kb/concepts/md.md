@@ -185,7 +185,36 @@ $$E_a = -k_B \cdot \frac{d(\ln D)}{d(1/T)}$$
 $$\sigma = \frac{N q^2}{V k_B T}\, D \qquad (H_R = 1)$$
 
 - $N/V$: Li 수밀도, $q$: Li 전하
-- $H_R=1$은 이온 운동 상관을 무시한 상한 근사
+- $H_R=1$은 이온 운동 상관을 무시한 근사
+
+> [!warning] ⛔ 2026-09-07 정정 — **"$H_R=1$ 이라서 상한" 은 부호가 틀렸다**
+> 정의: $H_R \equiv D^{*}/D_\sigma$ ($D^{*}$ = tracer, $D_\sigma$ = charge). 우리 MD 는
+> MSD 에서 **$D^{*}$** 를 얻으므로
+> $$\sigma_{\rm NE}=\frac{nq^2D^{*}}{k_BT}=H_R\times\sigma_{\rm true}$$
+> 즉 $H_R<1$ (상관·협동 이동) 이면 NE 는 **과소**다. Adeli 2019 가 Li₅.₅PS₄.₅Cl₁.₅ 에서
+> $H_R=0.23$ 을 실측했고(litdb `adeli2019_…`), 그러면 $\sigma_{\rm true}\approx4.3\times\sigma_{\rm NE}$ 다.
+> **"상한" 의 근거로 Haven 을 대면 안 된다.** 같은 취지가
+> `tools/modelc_v3/nernst_einstein_300K.py` L234 에 이미 적혀 있었다
+> (*"real H_R<1 ⇒ true intrinsic sigma is even HIGHER (opposite sign), so H_R does NOT
+> cause the overshoot"*) — 그런데 같은 파일 L13 과 이 카드가 반대로 적고 있었다.
+>
+> **그럼 절대 σ 는 왜 못 쓰나** — 서로 **반대 방향**인 보정이 둘 걸려 있어서 순 방향이
+> 정해지지 않기 때문이다:
+> | 축 | 방향 | 크기 |
+> |---|---|---|
+> | Haven ($H_R<1$) | NE 가 **과소** | ×3–4 |
+> | 펠릿 GB·기공 (실험 쪽) | 실험이 bulk 보다 **낮음** | ×1.3–3 |
+> | MLIP 편향 | 불명 — 아래 참조 | ? |
+>
+> ⚠ *"UMA 가 D 를 3–5× 과대"* 라는 종전 서술(`md_conductivity_protocol.md` L65)은
+> **σ_NE 를 펠릿 total EIS 와 비교한 값**으로 보이고, 그 비교 안에 위 두 오염이 섞여 있다.
+> **같은 양끼리** 대면 잘 맞는다 — 우리 $D^{*}(300\rm\,K)$ 외삽 1.02e-7 cm²/s vs
+> Adeli ⁷Li PFG 실측 $D^{*}$ 1.01e-7 cm²/s (단일시드 1.01배 · 3시드 2.29배).
+> ⇒ **$D^{*}$ 는 실측과 맞는 축이고, 흔들리는 것은 $D^{*}\to\sigma$ 변환이다.**
+>
+> **고치는 길**: $H_R$ 을 문헌에서 빌리지 말고 **우리 궤적에서 직접 잰다** —
+> 집단(전하)좌표 MSD $\langle|\sum_i\Delta \mathbf r_i|^2\rangle/N$ 로 $D_\sigma$ 를 얻으면
+> $H_R=D^{*}/D_\sigma$ 다 (`tools/ionic/msd_diffusive_check.py --haven`, 궤적 있으면 재계산 0).
 
 > [!warning] 절대값 인용 금지 · 멀티시드 판정만
 > UMA-MD의 **$D$·$\sigma$ 절대값은 citeable truth가 아니다.** 조성 간 **비율조차 멀티시드로 판정**해야 하며 단일시드 값은 못 믿는다 — 실제로 단일시드 1.33× 우세 주장이 멀티시드에서 철회된 사례(SEMIFINAL 2026-07-09)가 있다. 인용 가능한 건 다중시드로 재현된 순위/비율과 $E_a$(오차막대 포함)뿐.

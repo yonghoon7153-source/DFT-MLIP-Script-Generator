@@ -87,9 +87,9 @@ for i,(name,v) in enumerate(SYS.items()):
         ax.text(xx,s*1.02,f"{s:.0f}",ha="center",fontsize=7.5,color=H.MUT)
 ax.set_xticks(xs); ax.set_xticklabels([f"{T} K" for T in TT])
 H.apply_axes(ax,ylabel=r"$\sigma_{\rm Li}$ (mS/cm)",
-             title="Nernst–Einstein conductivity (Haven = 1) — UPPER BOUND")
+             title="Nernst–Einstein conductivity ($H_R$ = 1 assumed) — NOT a bound")
 ax.legend(frameon=False,fontsize=9)
-fig.text(.5,.042,"[!] absolute sigma is NOT citable (NE upper bound, Haven=1 assumed) · "
+fig.text(.5,.042,"[!] absolute sigma NOT citable — H_R<1 makes NE an UNDER-estimate, pellet GB pushes the other way · "
          "no 300 K extrapolation · hatched = retracted axis",
          ha="center",fontsize=8.5,color="#be123c")
 fig.text(.5,.006,GEN_NOTE,ha="center",fontsize=7.4,color=H.MUT)
@@ -101,7 +101,11 @@ with open(OUT/"seminar_3sys_summary.csv","w",newline="") as f:
     w.writerow(["# Seminar set 2026-09-07 — MOST RECENT values per system. NOT a citable table."])
     w.writerow(["# LPSCl1.6/B2O3: b2o3_vs_lpscl16_conductivity.csv (FINAL 2026-07-07, 3seed x 3T)"])
     w.writerow(["# LPSOCl1.6: lpsocl_md_arrhenius.json (4seed x 3T, headline 2026-07-27)"])
-    w.writerow(["# sigma = Nernst-Einstein, Haven=1 -> UPPER BOUND. Absolute sigma NOT citable."])
+    w.writerow(["# sigma = Nernst-Einstein with H_R = 1 assumed. Absolute sigma NOT citable."])
+    w.writerow(["#   NOT an upper bound: H_R = D*/D_sigma < 1 (correlated motion) makes NE an UNDER-estimate"])
+    w.writerow(["#   (Adeli 2019 measures H_R = 0.23 for Li5.5PS4.5Cl1.5 -> sigma_true ~ 4.3x sigma_NE),"])
+    w.writerow(["#   while pellet grain boundaries push measured sigma the other way. Net sign undetermined."])
+    w.writerow(["#   Like-for-like our D* is fine: D*(300 K) 1.02e-7 vs Adeli 7Li PFG 1.01e-7 cm^2/s."])
     w.writerow(["# B2O3@LPSCl1.6 UMA-MD transport axis RETRACTED 2026-08-25 (framework creep)."])
     w.writerow([f"# PROTOCOL GENERATION: {GEN_ID}. {GEN_NOTE}"])
     w.writerow(["#   -> db/properties/md_protocol_generations.json (gates G1-G5)"])

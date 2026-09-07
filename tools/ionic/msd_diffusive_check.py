@@ -775,6 +775,127 @@ def mto_from_traj(json_path, save_fs=None, cache=True):
     return out
 
 
+def haven_curves(cart_li, dt_ps, cart_ref=None, n_lag=150):
+    """tracer MSD 와 **집단(전하)좌표 MSD** 를 같은 시간원점 집합에서 함께 낸다.
+
+    반환 `(tau_ps, msd_tracer, msd_charge, n_origins)` — 둘 다 Å², 다중 시간원점.
+
+        MSD*(τ)      = <|Δr_i(τ)|²>_{i, t0}                    ← 지금 쓰는 양
+        MSD_σ(τ)     = <|Σ_i Δr_i(τ)|²>_{t0} / N               ← 집단좌표
+
+    Haven 비  `H_R ≡ D*/D_σ` 이고, Nernst–Einstein 은 `σ = n q² D_σ /(k_B T)` 다.
+    우리는 D* 를 대입해 왔으므로 `σ_NE = H_R × σ_true` — **H_R<1 이면 과소**다.
+
+    ⚠ **드리프트 기준은 골격(비-Li)이다 — 전 원자 COM 이 아니다.**
+      ⛔⛔ 첫 판은 전 원자 COM 을 뺐다. 그런데 Li 가 전 원자의 **44–45 %**(modelc 27/62 ·
+      b2o3 58/128)라 전 원자 COM 안에 Li 집단좌표가 그만큼 들어 있고, 그걸 빼면
+      **재려는 신호를 스스로 지운다.** 합성시험 ⑥ 에서 `cart_all = cart_li` 로 주니
+      `Σ Δr ≡ 0` 이 되어 H_R 이 발산했다 — 극단 사례지만 실물에서도 같은 방향으로
+      **H_R 을 체계적으로 과대**하게 만든다.
+      전하 수송은 **고정 골격에 대한 Li 의 운동**이므로 기준은 비-Li COM 이다.
+      `cart_ref` 를 안 주면 빼지 않고 **그 사실을 반환값에 표시**한다(조용히 넘기지 않는다).
+
+    ⛔ 이 함수가 **못 하는 것**
+      · `H_R` 을 정확히 주지 못한다. 집단좌표는 **표본이 하나**라(이온 N개 평균이 아니다)
+        같은 궤적에서 D* 보다 훨씬 잡음이 크다. 200 ps·Li 27–58 개면 30–50 % 오차를 각오한다.
+        방향(H_R ≷ 1)은 가릴 수 있고, 세 자리 숫자는 못 낸다.
+      · 전하가 Li 만이라고 본다 (골격 이온의 반대 흐름을 안 센다).
+      · 이건 **새 보고량**이다 — 값으로 쓰려면 estimand 카드·문턱 선등록이 먼저다.
+    """
+    import numpy as _np
+    a = _np.asarray(cart_li, dtype=float)
+    nt, N = a.shape[0], a.shape[1]
+    if nt < 8 or N < 1:
+        return [], [], [], []
+    if cart_ref is not None:
+        ref = _np.asarray(cart_ref, dtype=float)
+        if ref.ndim != 3 or ref.shape[0] != nt or ref.shape[1] < 1:
+            raise ValueError(f"cart_ref 모양이 안 맞는다: {ref.shape} vs Li {a.shape}")
+        a = a - ref.mean(axis=1)[:, None, :]      # 골격 COM 기준 상대변위
+    lag_max = max(2, nt // 2)
+    lags = _np.unique(_np.linspace(1, lag_max, min(n_lag, lag_max)).astype(int))
+    tau, mt, mc, nor = [], [], [], []
+    tot = a.sum(axis=1)                                            # (nt, 3) 집단좌표
+    for L in lags:
+        d = a[L:] - a[:-L]                                         # (n0, N, 3)
+        dt_ = tot[L:] - tot[:-L]                                   # (n0, 3)
+        tau.append(float(L * dt_ps))
+        mt.append(float((d ** 2).sum(axis=2).mean()))
+        mc.append(float((dt_ ** 2).sum(axis=1).mean() / N))
+        nor.append(int(d.shape[0]))
+    return tau, mt, mc, nor
+
+
+def haven_from_traj(json_path, save_fs=None, lo=2.0, hi=50.0):
+    """`traj.xyz` 에서 **Haven 비를 직접 잰다.** 궤적이 없으면 None.
+
+    왜 (2026-09-07): 우리는 σ 를 `H_R=1` 로 환산해 왔고, 그 값을 "상한" 이라고 적어 왔다.
+      **부호가 틀렸다** — `H_R<1` 이면 NE 는 과소다(kb/concepts/md.md §6 정정).
+      문헌값(Adeli 0.23)을 빌려 쓸 수도 있지만, 그건 다른 조성·다른 방법의 소환값이다.
+      궤적이 있으면 **우리 계에서 직접 잴 수 있고 MD 재계산이 0** 이다.
+
+    적합 창·자유절편은 D 규약을 그대로 따른다 (`lin_fit`, 기본 2–50 ps).
+    ⛔ 못 하는 것은 `haven_curves` 의 docstring 참조 — 특히 **정밀도**.
+    """
+    jp = pathlib.Path(json_path)
+    traj = jp.parent / "traj.xyz"
+    if not traj.exists():
+        print(f"   · {jp.parent.name}: traj.xyz 가 없다 — Haven 측정 원리적 불가")
+        return None
+    assumed = save_fs is None
+    if assumed:
+        save_fs = 100.0
+    try:
+        frames = _read(str(traj), index=":")
+    except BaseException as e:                                     # noqa: BLE001
+        print(f"   ⚠ traj 읽기 실패: {type(e).__name__} {e}")
+        return None
+    if not frames or len(frames) < 8:
+        return None
+    import numpy as _np
+    sym = frames[0].get_chemical_symbols()
+    li = [i for i, s in enumerate(sym) if s == "Li"]
+    if not li:
+        print("   ⚠ traj 에 Li 가 없다")
+        return None
+    cart = _np.array([f.get_positions() for f in frames])
+    fw = [i for i, s_ in enumerate(sym) if s_ != "Li"]
+    # ⛔ 기준은 **골격(비-Li)** COM 이다. 전 원자 COM 을 쓰면 Li(전 원자의 ~45 %)의
+    #   집단좌표를 스스로 빼서 H_R 을 체계적으로 과대하게 만든다 (합성시험 ⑥).
+    tau, mt, mc, nor = haven_curves(cart[:, li], save_fs / 1000.0,
+                                    cart_ref=cart[:, fw] if fw else None)
+    if not tau:
+        return None
+    st = lin_fit(tau, mt, lo, hi)
+    sc = lin_fit(tau, mc, lo, hi)
+    if not st or not sc or st[0] is None or sc[0] is None:
+        print(f"   ⚠ {jp.parent.name}: {lo}–{hi} ps 창에 점이 모자라 적합 불가")
+        return None
+    d_star = st[0] / 6.0 * 1e-16 / 1e-12                           # Å²/ps → cm²/s
+    d_sig = sc[0] / 6.0 * 1e-16 / 1e-12
+    # ⛔ D_σ 가 잡음 바닥이면 H_R 은 **큰 수가 아니라 정의되지 않는다.**
+    #   여기서 큰 유한값을 뱉으면 그게 측정처럼 읽힌다 (합성시험 ③ 이 잡은 실패).
+    hr, hr_note = None, None
+    if d_sig <= 0:
+        hr_note = "D_σ ≤ 0 (잡음 바닥) — H_R 정의되지 않음. NE 는 과대 쪽이나 배수는 무계"
+    elif sc[2] is not None and sc[2] < 0.5:
+        hr_note = f"D_σ 적합 R²={sc[2]:.2f} < 0.5 — 집단좌표가 확산영역에 없다. H_R 보류"
+    else:
+        hr = d_star / d_sig
+    print(f"   … {traj.parent.name}: Li {len(li)} · {len(frames)} 프레임"
+          + (f" · save_fs={save_fs:g} fs **가정**" if assumed else f" · save_fs={save_fs:g} fs"))
+    print(f"      D* = {d_star:.3e} · D_sigma = {d_sig:.3e} cm²/s"
+          + (f" · H_R = {hr:.3f}" if hr else f" · H_R **미정** — {hr_note}"))
+    return {"window_ps": [lo, hi], "n_Li": len(li), "n_frames": len(frames),
+            "D_star_cm2_s": d_star, "D_sigma_cm2_s": d_sig, "haven_ratio": hr,
+            "haven_undefined_why": hr_note,
+            "R2_tracer": st[2], "R2_charge": sc[2],
+            "drift_reference": ("framework(non-Li) COM" if fw else "없음 — 비-Li 원자가 0"),
+            "save_fs_assumed": assumed,
+            "⚠": ("집단좌표는 표본이 하나라 D* 보다 잡음이 훨씬 크다 — 방향 판별용이지 "
+                  "세 자리 숫자가 아니다. 값으로 쓰려면 estimand 카드·문턱 선등록이 먼저다.")}
+
+
 def n_per_elem_from_traj(json_path):
     """traj.xyz **첫 프레임만** 읽어 원소별 원자수를 센다. 없으면 None.
 
@@ -1602,6 +1723,79 @@ def selftest():
     chk(run_verdict(_tt, _flat, beta=0.55)[0] == CITABLE,
         "[판정·핵심회귀] **β 를 낮게 줘도 판정이 안 바뀐다** — β 는 판정에 안 들어간다")
 
+    # ── Haven 비 (2026-09-07) — **답을 아는 합성 궤적**으로 검증한다 ─────────
+    #   실제 궤적으로는 "그럴듯한 수" 가 나와도 맞는지 알 수 없다. 세 극한은 해석적으로
+    #   정해져 있으므로 추정기가 그걸 재현하는지가 유일한 진짜 검사다.
+    import numpy as _np
+    _rng = _np.random.default_rng(0)
+    _NT, _N, _DT = 4000, 40, 0.1                      # 4000 프레임 · Li 40 · 0.1 ps
+
+    def _hr(steps):
+        """변위 증분 (nt-1, N, 3) → H_R. COM 제거는 끄고(합성계는 드리프트 0) 순수 검사."""
+        pos = _np.concatenate([_np.zeros((1, _N, 3)), _np.cumsum(steps, axis=0)])
+        tau, mt, mc, _ = haven_curves(pos, _DT)
+        st, sc = lin_fit(tau, mt, 5.0, 100.0), lin_fit(tau, mc, 5.0, 100.0)
+        return st[0] / sc[0] if (st and sc and sc[0]) else None
+
+    # ① 독립 랜덤워크 → H_R = 1 (정의상)
+    _ind = _rng.normal(0, 1, (_NT, _N, 3))
+    _h1 = _hr(_ind)
+    chk(_h1 is not None and abs(_h1 - 1.0) < 0.25,
+        f"[Haven·양성] 독립 랜덤워크 → H_R ≈ 1 (측정 {_h1:.3f})")
+
+    # ② 완전 상관(전 이온이 같이 움직임) → Σ Δr = N·Δr ⇒ MSD_σ = N·MSD* ⇒ H_R = 1/N
+    _coh = _np.repeat(_rng.normal(0, 1, (_NT, 1, 3)), _N, axis=1)
+    _h2 = _hr(_coh)
+    chk(_h2 is not None and abs(_h2 * _N - 1.0) < 0.25,
+        f"[Haven·양성] 완전 상관 → H_R = 1/N = {1/_N:.4f} (측정 {_h2:.4f})")
+
+    # ③ 짝 반상관(i 와 i+1 이 반대) → Σ Δr ≡ 0 ⇒ D_σ 가 잡음 바닥
+    #   ⛔ 여기서 **큰 유한수를 뱉으면 안 된다** — H_R 은 정의되지 않는다.
+    _a = _rng.normal(0, 1, (_NT, _N // 2, 3))
+    _anti = _np.concatenate([_a, -_a], axis=1)
+    _pa = _np.concatenate([_np.zeros((1, _N, 3)), _np.cumsum(_anti, axis=0)])
+    _ta, _mta, _mca, _ = haven_curves(_pa, _DT)
+    _sc = lin_fit(_ta, _mca, 5.0, 100.0)
+    chk(_sc is not None and (_sc[0] <= 0 or _sc[2] < 0.5),
+        f"[Haven·음성] 반상관이면 D_σ 적합이 무너진다 — 큰 유한수가 아니라 **미정**이다 "
+        f"(기울기 {_sc[0]:.3e} · R² {_sc[2]:.3f})")
+
+    # ④ ⛔음성: 두 극한이 **실제로 갈린다** (추정기가 상수를 뱉으면 위가 다 통과할 수 있다)
+    chk(_h2 < _h1, f"[Haven·음성] 완전상관 {_h2:.4f} < 독립 {_h1:.3f} — 추정기가 상수가 아니다")
+
+    # ⑤ ⛔음성: 프레임이 모자라면 **빈 결과**를 준다 (조용히 H_R=1 을 만들지 않는다)
+    chk(haven_curves(_np.zeros((4, _N, 3)), _DT) == ([], [], [], []),
+        "[Haven·음성] 프레임 8개 미만이면 빈 결과 — 1.0 을 지어내지 않는다")
+    chk(haven_curves(_np.zeros((100, 0, 3)), _DT) == ([], [], [], []),
+        "[Haven·음성] 이온이 0개면 빈 결과 (0 나눗셈 대신)")
+
+    # ⑥ ⛔음성 **핵심** — 기준을 잘못 잡으면 신호가 지워진다.
+    #   Li 40 + 골격 60 짜리 계에 전 계 등속 표류를 얹는다.
+    #     · 기준 없음        → 표류가 집단좌표를 지배 → H_R 붕괴
+    #     · 골격 COM 기준    → 복구 (H_R ≈ 1)
+    #     · **전 원자 COM**  → Li 가 40 % 섞여 들어가 신호를 갉아먹는다 (첫 판의 버그)
+    _NF = 60
+    _dr = _np.zeros((_NT, 1, 3)); _dr[:, :, 0] = 0.5
+    _li_s = _rng.normal(0, 1, (_NT, _N, 3)) + _dr
+    _fw_s = _rng.normal(0, 0.05, (_NT, _NF, 3)) + _dr      # 골격은 거의 안 움직인다
+    _P = lambda st_: _np.concatenate([_np.zeros((1, st_.shape[1], 3)), _np.cumsum(st_, axis=0)])
+    _pl, _pf = _P(_li_s), _P(_fw_s)
+    _pall = _np.concatenate([_pl, _pf], axis=1)
+
+    def _hr2(ref):
+        t_, mt_, mc_, _ = haven_curves(_pl, _DT, cart_ref=ref)
+        f1, f2 = lin_fit(t_, mt_, 5, 100), lin_fit(t_, mc_, 5, 100)
+        return (f1[0] / f2[0]) if (f1 and f2 and f2[0] > 0) else None
+
+    _hno, _hfw, _hall = _hr2(None), _hr2(_pf), _hr2(_pall)
+    chk(_hno is not None and _hno < 0.2,
+        f"[Haven·음성] 기준을 안 빼면 표류가 집단좌표를 지배한다 (H_R {_hno:.4f})")
+    chk(_hfw is not None and abs(_hfw - 1.0) < 0.30,
+        f"[Haven·양성] **골격 COM** 기준이면 복구된다 (H_R {_hfw:.3f})")
+    chk(_hall is not None and _hall > _hfw * 1.15,
+        f"[Haven·음성·핵심] **전 원자 COM** 기준은 Li 신호를 갉아먹어 H_R 을 과대하게 만든다 "
+        f"(골격 {_hfw:.3f} → 전원자 {_hall:.3f}) — 첫 판의 버그다")
+
     print(f"selftest {'PASS' if not n_bad else 'FAIL'} — {n_ok} ok, {n_bad} bad")
     return 1 if n_bad else 0
 
@@ -1636,6 +1830,12 @@ def main():
                          "MACE-MP-0 의 LGPS 골격이 1050 K 부터 인위적으로 녹는 걸 잡았고, "
                          "우리 아레니우스 상한 1000 K 가 그 바로 아래다. 골격이 녹으면 "
                          "Li 의 'D' 는 확산이 아니라 구조 붕괴다.")
+    ap.add_argument("--haven", action="store_true",
+                    help="궤적에서 **Haven 비 H_R = D*/D_σ 를 직접 잰다** (MD 재계산 0). "
+                         "우리는 σ 를 H_R=1 로 환산해 왔고 그걸 '상한' 이라고 적어 왔는데 "
+                         "**부호가 틀렸다** — H_R<1 이면 NE 는 과소다. 문헌값(Adeli 0.23)을 "
+                         "빌리지 말고 우리 계에서 잰다. ⚠ 집단좌표는 표본이 하나라 D* 보다 "
+                         "훨씬 잡음이 크다 — 방향 판별용이지 세 자리 숫자가 아니다.")
     ap.add_argument("--rebuild_mto", action="store_true",
                     help="MTO 곡선이 없는 런을 **traj.xyz 에서 되살린다**(MD 재계산 0). "
                          "700/900 K 신규 21런이 MTO 없이 저장돼 --mto 판정이 막혔다. "
@@ -1695,6 +1895,39 @@ def main():
             keep = keep[:-1]                                # T700_s2/T700 → T700_s2
         lab = "/".join(keep)
         return lab[-width:] if len(lab) > width else lab
+
+    # ── Haven 비 직접 측정 (2026-09-07) ─────────────────────────────────
+    if a.haven:
+        print(f"Haven 비 H_R = D*/D_σ  (창 {lo}–{hi} ps · 자유절편 · COM 드리프트 제거)")
+        print("⚠ σ_NE = H_R × σ_true 다 — H_R<1 이면 NE 는 **과소**다 (kb/concepts/md.md §6)")
+        print(f"{'런':36s}{'Li':>4s}{'D* cm²/s':>12s}{'D_σ cm²/s':>12s}{'H_R':>8s}  판정")
+        got, miss = [], []
+        for f in files:
+            r = haven_from_traj(f, save_fs=a.save_fs if hasattr(a, "save_fs") else None,
+                                lo=lo, hi=hi)
+            if not r or r.get("haven_ratio") is None:
+                miss.append(case_label(f)); continue
+            h = r["haven_ratio"]
+            v = ("협동 이동 (NE 과소)" if h < 0.8 else
+                 "상관 없음 ≈ NE 맞음" if h <= 1.25 else "역상관 (NE 과대)")
+            print(f"{case_label(f, 36):36s}{r['n_Li']:4d}{r['D_star_cm2_s']:12.3e}"
+                  f"{r['D_sigma_cm2_s']:12.3e}{h:8.3f}  {v}")
+            got.append(h)
+        if miss:
+            print(f"\n⛔ 측정 불가 {len(miss)}런 (traj 없음/창 부족): "
+                  + ", ".join(miss[:4]) + (" …" if len(miss) > 4 else ""))
+        if got:
+            import statistics as _st
+            m = _st.mean(got)
+            sd = _st.pstdev(got) if len(got) > 1 else float("nan")
+            print(f"\n★ H_R 평균 {m:.3f}" + (f" · 런간 SD {sd:.3f} (n={len(got)})"
+                                             if len(got) > 1 else " (n=1 — 산포 없음)"))
+            print(f"  ⇒ σ_true ≈ {1/m:.2f} × σ_NE" if m > 0 else "  ⇒ 환산 불가")
+            print("  ⚠ 집단좌표는 표본이 하나라 D* 보다 훨씬 잡음이 크다. **방향 판별용**이고")
+            print("    값으로 쓰려면 estimand 카드·문턱 선등록이 먼저다 (CLAUDE.md 계산 규율).")
+        else:
+            print("\n⛔ 측정된 런이 하나도 없다 — 궤적이 있는 경로로 글롭할 것")
+        return 0
 
     # ── 계·온도별 MSD 앙상블 평균 ─────────────────────────────────────────
     avg_curves = {}

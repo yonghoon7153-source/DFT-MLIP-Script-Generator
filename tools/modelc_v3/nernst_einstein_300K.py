@@ -9,8 +9,24 @@ conductivity via the Nernst-Einstein (Einstein) relation, Haven ratio H_R = 1:
 
 n_Li = (# Li in MD cell) / (cell volume). This is the SAME convention used to
 produce the stored modelc value (~14 mS/cm), so the two compositions are
-directly comparable. Absolute sigma carries MLIP overshoot (~3-5x) and the
-H_R=1 inflation (~2x); the RATIO and Ea are the robust quantities.
+directly comparable.
+
+⛔ 2026-09-07 CORRECTION — this docstring used to say "Absolute sigma carries MLIP
+overshoot (~3-5x) and the **H_R=1 inflation (~2x)**".  The second half had the SIGN
+BACKWARDS, and it contradicted line ~234 of this very file, which already said it
+correctly.  With H_R = D*/D_sigma and our MSD giving D*:
+
+    sigma_NE = n q^2 D* /(kB T) = H_R * sigma_true      =>  H_R < 1 makes NE an
+                                                            UNDER-estimate, not an upper bound.
+
+Adeli 2019 measures H_R = 0.23 for Li5.5PS4.5Cl1.5 => sigma_true ~ 4.3x sigma_NE.
+The "3-5x overshoot" number appears to come from comparing sigma_NE against
+**cold-pressed pellet total EIS**, a comparison that already mixes (a) this Haven
+factor and (b) grain-boundary/porosity loss in the pellet — which push in OPPOSITE
+directions.  Compared like-for-like our D* is fine: D*(300 K, single-seed) 1.02e-7
+vs Adeli 7Li PFG D* 1.01e-7 cm^2/s.
+=> The robust quantities are Ea and D*; what is unsettled is the D* -> sigma step.
+   See kb/concepts/md.md §6 and `--haven` in tools/ionic/msd_diffusive_check.py.
 
 --segment  (2026-08-24 추가)
     ⛔ 위 기본 모드는 **600–1000 K 를 한 직선으로** 적합한 Ea·D0 를 쓴다. b2o3 는
