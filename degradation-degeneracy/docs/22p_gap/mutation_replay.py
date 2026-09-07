@@ -1022,23 +1022,26 @@ MUTANTS = [
     #   등록부의 완전성뿐이었다 — 새 방어에 대한 변이 증거가 아니다. 우리는
     #   그 문장을 요청문에서 강한 증거처럼 제시했고, 그것은 과대 주장이었다.
     #   여기서 축을 심는다: 각 발견마다 **고친 자리를 되돌리는** 변이 하나.
+    #   ★ anchor 는 **진입점이 실제로 지나는 자리**여야 한다. 처음엔 완료 시점
+    #     기록(`record_run_outputs`)에 걸었는데 변이가 "안 물었다" 로 나왔다 —
+    #     production gate 가 지나는 것은 `note_smoke_exemption()` 이다. L13 이
+    #     지적한 실패형을 등록부에서 되풀이할 뻔했고, 실행이 잡았다.
     ("smoke-gate-records-the-execution-class-g58", PRESERVE,          # L1
-     "        record_execution_class(\n"
-     "            x, cls,\n"
-     '            evidence=(f"산출 완료 시점 등록 · leg={leg_id} phase={phase} "\n'
-     '                      f"class={cls}"),\n'
-     "            ledger=ledger)\n"
-     "        done.append(x)",
-     "        done.append(x)",
+     "    pending = []\n"
+     "    for x in [Path(p) for p in paths if p]:\n"
+     "        try:\n"
+     "            record_execution_class(\n"
+     "                x, EXEC_CLASS_SMOKE,",
+     "    pending = []\n"
+     "    for x in []:\n"
+     "        try:\n"
+     "            record_execution_class(\n"
+     "                x, EXEC_CLASS_SMOKE,",
      "production_smoke_gate_records_the_execution_class"),
     ("content-id-hashes-every-manifest-g58", PRESERVE,                # L2
      '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts},',
      '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts[:1]},',
      "two_fits_sharing_curves_do_not_share_a_content_id"),
-    ("execution-class-record-is-exclusive-g58", PRESERVE,             # L3
-     "        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)",
-     "        fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)",
-     "only_one_writer_can_create_an_execution_class"),
     ("smoke-containment-is-a-kernel-coordinate-g58", PRESERVE,        # L4
      "    return p_fs == ns_fs or ns_fs in p_fs.parents",
      "    return True",
@@ -1057,9 +1060,15 @@ MUTANTS = [
      '    d = root / evidence["bundle_uri"]',
      "an_absolute_bundle_uri_is_refused or "
      "a_bundle_uri_that_escapes_the_repository_is_refused"),
+    #   ★ anchor 는 **호출 자리가 아니라 규칙 자신**이다. 처음엔 발급 경로의
+    #     호출 하나를 지웠는데 변이가 살았다 — 발급은 여러 directory 를 굳히고
+    #     남은 자리가 여전히 물었기 때문이다. 심층 방어를 한 겹만 벗기면
+    #     관측되지 않는다 (41·42·43차에 배운 것과 같다).
     ("issuance-fsync-is-strict-g58", PRESERVE,                        # L8
-     '    _fsync_dir_strict(p.parent, "attempt-token-publish")',
-     "    pass",
+     "    if not _fsync_dir(d):\n"
+     "        raise PreserveError(",
+     "    if False:\n"
+     "        raise PreserveError(",
      "issuance_fails_closed_when_a_directory_cannot_be_flushed"),
     ("decorators-are-import-time-effects-g58", RP,                    # L9-a
      '    out = [ast.copy_location(ast.Expr(value=d), d)\n'
@@ -1368,6 +1377,18 @@ MULTI = [
          "        except OSError as e:",
          "            pass\n        except OSError as e:"),
      ], "two_independent_publishers"),
+    # ★ 58차 L3 — 실행 class 등록의 배타는 **두 겹**이다: 내용당 flock 과
+    #   `O_CREAT|O_EXCL`. 한 겹만 벗기면 다른 겹이 가려서 관측되지 않는다
+    #   (실측: `O_EXCL` 만 지웠더니 시험이 초록이었다). 둘을 함께 되돌려야
+    #   last-writer-wins 이던 옛 상태가 복원된다.
+    ("execution-class-record-is-exclusive-g58", PRESERVE, [
+        ("    with _ledger_lock(_lk):\n"
+         "        return _record_execution_class_locked(",
+         "    if True:\n"
+         "        return _record_execution_class_locked("),
+        ("        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)",
+         "        fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)"),
+     ], "only_one_writer_can_create_an_execution_class"),
 ]
 
 #: **관측되지 않는다고 신고하는** 항목. 왜 안 보이는지와 그래도 왜 남기는지를

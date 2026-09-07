@@ -58,7 +58,10 @@ def test_an_absolute_bundle_uri_is_refused(tmp_path, ledger):
     import hashlib
     files = sorted(x for x in outside.rglob("*") if x.is_file())
     claim = _finish(ledger)
-    with pytest.raises(P.PreserveError):
+    # ★ 거부 **사유**까지 본다. 사유를 안 보면 "경로가 없다" 같은 다른 이유로
+    #   거부돼도 통과한다 — 변이 감사에서 실측했다 (`bundle_uri` 자리를
+    #   되돌렸는데 `payload_index` 쪽 검사가 대신 물어 시험이 초록이었다).
+    with pytest.raises(P.PreserveError, match="bundle_uri"):
         P.finalize_leg(
             "L", ledger=ledger, token=claim.token,
             evidence={
@@ -82,7 +85,7 @@ def test_a_bundle_uri_that_escapes_the_repository_is_refused(uri, ledger):
     "저장소 안에 담긴 정규 상대경로" 만 받는다는 뜻이다.
     """
     claim = _finish(ledger)
-    with pytest.raises(P.PreserveError):
+    with pytest.raises(P.PreserveError, match="bundle_uri"):
         P.finalize_leg(
             "L", ledger=ledger, token=claim.token,
             evidence={"leg_source_digest": "0123456789abcdef",
