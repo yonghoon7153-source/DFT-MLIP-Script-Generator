@@ -17,6 +17,7 @@ import argparse
 import csv
 import json
 import math
+import math
 import os
 import re
 
@@ -84,6 +85,16 @@ def main():
     ap.add_argument('--add-recipe', default='', help='conductive-additive recipe baked into run_mpm.sh, e.g. '
                     '"AM:SE:VGCF=72:27:1" or "AM:SE:VGCF:PTFE=80:18:1:1" (Stage-1 carbon).  Empty = no carbon.')
     ap.add_argument('--add-l-cv', type=float, default=0.4, help='fibre length variation baked into run_mpm.sh.')
+    ap.add_argument('--platen-mach', type=float, default=0.0,
+                    help='플래튼 마하수 V/c_P 를 run_mpm.sh 에 굽는다.  0(기본) = 기하 규칙 '
+                         '`vmax = 0.008·H` + --allow-fast-platen (현행).  ⚠ 기하 규칙은 속도를 '
+                         '**침대 높이에 비례**시키는데 dilate-z 가 조성마다 달라 **Mach 가 조성과 '
+                         '함께 오른다** (실측 W1 0.4275 → W2 0.4393, +7.9 %%/4wt%%).  조성을 축으로 '
+                         '쓰는 캠페인은 이것을 고정해야 한다 (Codex R9).')
+    ap.add_argument('--frames', type=int, default=150,
+                    help='프레임 예산 — **하드 캡**이다 (초과하면 not_converged_frame_budget 으로 '
+                         '죽는다).  --platen-mach 를 낮추면 프레임당 하강폭이 그만큼 줄어 **같은 '
+                         '배수로 늘려야** 한다.  아래 게이트가 강제한다.')
     ap.add_argument('--gpu-mem', type=float, default=28.0,
                     help='taichi 장치 메모리 예약 [GB] — run_mpm.sh 에 구워진다.  기본 28 은 '
                          'V100 32 GB 가정이라 **24 GB 카드(RTX 3090)에서는 초기화부터 실패**한다 '
@@ -706,6 +717,27 @@ def main():
     #    ⇒ 조성 비교가 morphology 교란과 교락된다.  킷에 구워야 런에서 빠지지 않는다.
     _rngpp = ' --add-rng-per-phase' if a.add_rng_per_phase else ''
     gpu_mem = f'{a.gpu_mem:g}'
+    #  ★ Codex R9 — Mach 를 낮추면 frames 를 같은 배수로 늘려야 한다.  안 늘리면 런이
+    #    not_converged_frame_budget 으로 죽고 **숫자가 하나도 안 나온다**.  fail-closed 로 막는다.
+    #    기준: 이 침대류의 기하 규칙 Mach 는 실측 0.4275~0.4612 → 보수적으로 0.50 을 쓴다.
+    _GEO_MACH_UB = 0.50
+    if a.platen_mach > 0:
+        _need = int(math.ceil(150 * _GEO_MACH_UB / a.platen_mach))
+        if a.frames < _need:
+            raise SystemExit(
+                f'⛔ --platen-mach {a.platen_mach:g} 에는 --frames 가 최소 {_need} 필요하다 '
+                f'(받은 값 {a.frames}).\n'
+                f'   근거: 기하 규칙이 150 프레임으로 끝나고 그때 Mach 가 최대 {_GEO_MACH_UB} 다 '
+                f'⇒ 프레임당 하강폭이 {_GEO_MACH_UB / a.platen_mach:.1f}배 줄면 프레임도 그만큼 필요하다.\n'
+                f'   --frames 는 **하드 캡**이라 모자라면 not_converged_frame_budget 으로 죽고 '
+                f'숫자가 하나도 안 나온다.')
+    #  ⚠ Mach 0.03 도 준정적 한계(0.01)를 넘으므로 **승인 플래그가 여전히 필요**하다 —
+    #    없으면 mpm3d 가 시작 즉시 거부한다 (2026-09-07 에 이것으로 킷이 죽을 뻔했다).
+    #    위반은 mpm_metrics.json 의 quasistatic_violation / platen_mach_VcP 에 기록된다.
+    _QS_LIMIT = 0.01
+    _platen = ('--allow-fast-platen' if a.platen_mach <= 0 else
+               (f'--platen-mach {a.platen_mach:g}'
+                + ('' if a.platen_mach <= _QS_LIMIT else ' --allow-fast-platen')))
     add_flags = (f' \\\n  --add-recipe "{a.add_recipe}" --add-l-cv {a.add_l_cv} --mixing {a.mixing} '
                  f'--coh-ptfe 0.10 --binder-opt-wt 1.5{_rngpp} {_buckle}{_stiff}{_align}{_dilate}'
                  f'--save-phase phase.npy --save-fibre fibre.npy --save-fibre-dia fibre_dia.npy'
@@ -1010,7 +1042,7 @@ PSIG=(); [ "${{MPM_PERIODIC_SIGMA:-0}}" = "1" ] && {{ PSIG=(--periodic); echo "[
 #   MPM_QUASISTATIC=1 → 처방대로 --platen-mach 0.01.  ⚠ 프레임당 하강폭이 마하비만큼 줄어
 #   --frames 도 같은 배수로 늘려야 하고(MPM_QS_FRAMES, 기본 1500) **런타임이 ~10× 된다**.
 #   ⚠⚠ 그렇게 만든 베드는 기존 코퍼스와 **재하율이 다른 별도 트랙**이다 — 섞어 쓰지 말 것.
-QS=(--allow-fast-platen)
+QS=({_platen})
 if [ "${{MPM_QUASISTATIC:-0}}" = "1" ]; then
   QS=(--platen-mach 0.01 --frames "${{MPM_QS_FRAMES:-1500}}")
   echo "[run_mpm] ★ MPM_QUASISTATIC=1 → --platen-mach 0.01 --frames ${{MPM_QS_FRAMES:-1500}} (준정적 처방)"
@@ -1023,7 +1055,7 @@ fi
 #    ★ "${{QS[@]}}" 가 --frames 를 덮어쓸 수 있도록 아래 기본 --frames 보다 **뒤에** 온다.
 python3 "$SCR/mpm3d_compaction.py" \\
   --am-scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" --periodic \\
-  --lateral-box {box_x} --n-grid {n_grid_mpm} --arch cuda --gpu-mem {gpu_mem} --protocol hold --frames 150 \\
+  --lateral-box {box_x} --n-grid {n_grid_mpm} --arch cuda --gpu-mem {gpu_mem} --protocol hold --frames {a.frames} \\
   "${{QS[@]}}" \\
   --e-se {e_se_mpm} --nu-se {nu_se_mpm} --target-gpa {press_gpa} --seed {mpm_seed} \\
   --save-se se_dump.npy --save-dg se_dump_dg.npy --save-eps se_dump_eps.npy --save-metrics mpm_metrics.json{add_flags} "${{FRAC[@]}}" \\
@@ -1151,7 +1183,7 @@ echo "          (오래된 run_* 폴더는 디스크 차면 지워도 됨 — �
                # --allow-fast-platen: 준정적 게이트 명시 승인 (run_mpm.sh 와 **같은 규약** —
                #   앵커는 N0 대비 상대 비교라 공통모드 상쇄, 위반은 각 m_*.json 에 기록된다).
                'COMMON=(--am-scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" --periodic\n'
-               '        --lateral-box __BOX__ --n-grid __NG__ --arch cuda --gpu-mem __GM__ --protocol hold --frames 150\n'
+               '        --lateral-box __BOX__ --n-grid __NG__ --arch cuda --gpu-mem __GM__ --protocol hold --frames __FR__\n'
                '        --allow-fast-platen\n'
                '        --e-se __ESE__ --nu-se __NUSE__ --target-gpa __PRESS__ --seed __SEED__)\n'
                'run_one() { local lab="$1"; shift; echo "=== A-1 앵커: $lab ==="; '
@@ -1201,7 +1233,7 @@ echo "          (오래된 run_* 폴더는 디스크 차면 지워도 됨 — �
                  # --allow-fast-platen: run_mpm.sh 와 같은 준정적 규약 (제작↔구동 두 팔 모두 같은
                  #   재하율이라 공통모드 상쇄; 위반은 m_fab/m_*.json 에 기록된다).
                  'COMMON=(--am-scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" --periodic\n'
-                 '        --lateral-box __BOX__ --n-grid __NG__ --arch cuda --gpu-mem __GM__ --frames 150\n'
+                 '        --lateral-box __BOX__ --n-grid __NG__ --arch cuda --gpu-mem __GM__ --frames __FR__\n'
                  '        --allow-fast-platen\n'
                  '        --e-se __ESE__ --nu-se __NUSE__ --seed __SEED__)\n'
                  'STATE="$OUT/fab_state.npz"\n'
@@ -1250,7 +1282,7 @@ echo "          (오래된 run_* 폴더는 디스크 차면 지워도 됨 — �
                  'echo "        a1_debond_servo.csv / a1_debond_hold.csv = 두 지그 극한 브래킷)"\n'
                  'echo "⚠ servo=정응력(두께가 변함) · hold=정적변위(압력이 변함).  실제 지그는 둘 사이."\n')
     if a.op_pressure_mpa is None:
-        a1 = (a1_tmpl.replace('__BOX__', f'{box_x}').replace('__NG__', f'{n_grid_mpm}').replace('__GM__', gpu_mem)
+        a1 = (a1_tmpl.replace('__BOX__', f'{box_x}').replace('__NG__', f'{n_grid_mpm}').replace('__GM__', gpu_mem).replace('__FR__', str(a.frames))
               .replace('__ESE__', f'{e_se_mpm}').replace('__NUSE__', f'{nu_se_mpm}')
               .replace('__PRESS__', f'{press_gpa}')
               .replace('__SEED__', f'{mpm_seed}'))      # ★ PD-03: A-1 도 같은 seed
@@ -1259,7 +1291,7 @@ echo "          (오래된 run_* 폴더는 디스크 차면 지워도 됨 — �
         if _op_gpa >= press_gpa:
             print(f'  ⚠ [A-1] --op-pressure-mpa {a.op_pressure_mpa:g} ≥ 제작압 {press_gpa*1000:g} MPa — '
                   f'제하가 아니라 추가 압밀이 된다 (의도한 값인지 확인).')
-        a1 = (a1_2stage.replace('__BOX__', f'{box_x}').replace('__NG__', f'{n_grid_mpm}').replace('__GM__', gpu_mem)
+        a1 = (a1_2stage.replace('__BOX__', f'{box_x}').replace('__NG__', f'{n_grid_mpm}').replace('__GM__', gpu_mem).replace('__FR__', str(a.frames))
               .replace('__ESE__', f'{e_se_mpm}').replace('__NUSE__', f'{nu_se_mpm}')
               .replace('__PRESSMPA__', f'{press_gpa * 1000:g}').replace('__PRESS__', f'{press_gpa}')
               .replace('__SEED__', f'{mpm_seed}')      # ★ PD-03: A-1 도 같은 seed
