@@ -62,6 +62,21 @@ def drift_class(drift, resid, n_frames):
     return "middle"
 
 
+def resolve_base_T(rows, want):
+    """기준 온도를 정한다. 없으면 **멈춘다** — 조용히 대체하지 않는다.
+
+    ⛔ 왜 함수로 뺐나 (회신 BG ⑤ · 2026-09-07): 이 판정이 `main()` 안에 있어서
+      `_selftest()` 가 **실제 missing-base-T 경로를 한 번도 안 밟았다.** 게이트를
+      고쳐 놓고 시험은 그 옆을 지나가고 있었다.
+    """
+    if want not in rows:
+        raise SystemExit(
+            f"⛔ 기준 온도 {want} K 의 자료가 없다 (있는 것: {sorted(rows)}).\n"
+            f"   조용히 다른 온도로 대체하지 않는다 — 기준이 바뀌면 표류의 정의가 바뀐다.\n"
+            f"   다른 기준을 쓰려면 명시한다:  --base_T {sorted(rows)[0] if rows else '<T>'}")
+    return want
+
+
 def _selftest():
     ok = bad = 0
     def chk(c, msg):
@@ -83,6 +98,20 @@ def _selftest():
     chk(drift_class(15.0, {800: 0, 1000: 0}, nf) == "middle", "사이는 middle — 단정 금지")
     chk(drift_class(5.0, {800: 50, 1000: 0}, nf) == "middle",
         "⛔음성: 표류가 작아도 **잔차가 문턱을 넘으면 ok 가 아니다**")
+    # ── 기준온도 부재 (회신 BG ⑤) — 이 경로를 종전 selftest 가 **한 번도 안 밟았다** ──
+    chk(resolve_base_T({600: 1, 800: 2}, 600) == 600, "있는 기준온도는 그대로 쓴다")
+    try:
+        resolve_base_T({800: 1, 1000: 2}, 600); _hit = False
+    except SystemExit:
+        _hit = True
+    chk(_hit, "⛔음성: **기준온도 자료가 없으면 멈춘다** — 조용히 다른 온도로 대체하면 "
+              "표류의 정의 자체가 바뀐다")
+    try:
+        resolve_base_T({}, 600); _hit2 = False
+    except SystemExit:
+        _hit2 = True
+    chk(_hit2, "⛔음성: 자료가 아예 비어도 멈춘다 (빈 dict 에서 KeyError 로 죽지 않는다)")
+
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
@@ -132,12 +161,12 @@ def main():
     #   최저 T 로 갈아탔다. 그러면 "600 K 대비 표류" 라고 찍힌 숫자가 실은 800 K 대비이고,
     #   화면·JSON 어디에도 그 사실이 안 남는다. 표류는 기준이 바뀌면 값이 통째로 바뀌는 양이다.
     #   ⇒ 대체하지 않고 **멈춘다.** 일부러 다른 기준을 쓰려면 `--base_T` 로 **선언**한다.
-    if a.base_T not in rows:
+    if False:  # (판정은 resolve_base_T 로 옮겼다 — 아래 한 줄)
         raise SystemExit(
             f"⛔ 기준 온도 {a.base_T} K 의 자료가 없다 (있는 것: {sorted(rows)}).\n"
             f"   최저 T 로 조용히 갈아타지 않는다 — 표류는 기준이 바뀌면 값이 바뀐다.\n"
             f"   다른 기준을 쓰려면 명시한다:  --base_T {sorted(rows)[0]}")
-    bT = a.base_T
+    bT = resolve_base_T(rows, a.base_T)
     brk = rows[bT]["p95"]
     s0 = rows[bT]["force_scale_eV_per_A"]
 

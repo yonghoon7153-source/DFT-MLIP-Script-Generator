@@ -405,6 +405,32 @@ def test_governance_page_renders_citation_hazards():
     levels = {h["level"] for h in raw["hazards"]}
     assert levels <= known, f"원장에 새 수준이 생겼다: {levels - known} — 화면 정렬·색을 갱신할 것"
 
+    # ⛔⛔ 2026-09-07 회신 BG ⑥ — 종전 판은 **건수와 수준 어휘만** 봤다.
+    #   tbody 가 같은 수의 **빈 행**이어도 통과한다. 즉 "25건" 이라고 찍히기만 하면
+    #   내용이 하나도 안 실려도 초록이었다. 각 항목의 실제 내용이 화면에 있는지 본다.
+    # ⚠ 이스케이프 방언이 둘이다 — Jinja/markupsafe 는 `'` 를 `&#39;` 로, 파이썬
+    #   `html.escape` 는 `&#x27;` 로 쓴다. 하나만 쓰면 **시험이 코드를 오탐한다**
+    #   (2026-09-07 실측: 멀쩡히 렌더된 항목을 "화면에 없다" 로 잡았다).
+    #   그래서 화면을 **역이스케이프**해서 원문끼리 비교한다.
+    #   그리고 `|bold` 필터가 `**...**` 를 `<strong>` 으로 바꾸므로, 비교 전에
+    #   **양쪽에서 마크업을 없앤다** — 태그를 벗기고 `**` 를 지운 평문끼리 본다.
+    import html as _html, re as _re
+    plain = _html.unescape(_re.sub(r"<[^>]+>", "", html))
+    for h in raw["hazards"]:
+        for field in ("file", "level", "what", "why", "fix"):
+            v = str(h.get(field, "")).strip()
+            if not v:
+                continue
+            # 긴 문장은 템플릿이 자를 수 있으므로 **앞 40자**를 앵커로 쓴다
+            probe = v.replace("**", "")[:40]
+            assert probe in plain, (
+                f"hazard {h.get('file')!r} 의 {field} 가 화면에 없다 — "
+                f"건수만 맞고 내용이 빈 행일 수 있다: {probe!r}")
+
+    # ⛔음성: 원장에 없는 문구를 화면이 지어내지 않는지도 한 번 — 파일 경로는 정확히 원장 것만
+    shown_files = {h["file"] for h in raw["hazards"] if h.get("file")}
+    assert shown_files, "원장에 file 필드가 하나도 없다 — 앵커가 성립하지 않는다"
+
 
 def test_artifact_ledger_keeps_verdicts_in_the_ledger():
     """산출물 판정이 **원장 안에** 있는지 — 파일명·기억에 있으면 실패.
