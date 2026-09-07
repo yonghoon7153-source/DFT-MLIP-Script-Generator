@@ -290,10 +290,28 @@ def max_ranks_on_node(mem, gb_per_node, jobs_parallel=1, need_multiple_of=16,
     return (n // need_multiple_of) * need_multiple_of
 
 
+def schedule_fifo(job_hours_in_order, m):
+    """**주어진 순서대로** 빈 슬롯에 넣는 FIFO 리스트 스케줄링 makespan [h].
+
+    ⛔⛔ 왜 LPT 가 아니라 이것인가 (2026-09-08 Codex 재검토)
+      실제 러너 `run_staged.sh` 는 `sorted(glob("*/*/job.json"))` — **경로 사전순** — 로
+      목록을 만들고 `xargs -P` 가 그 순서대로 빈 슬롯에 넣는다. 정렬을 시간으로 다시
+      하지 않는다. 추정기가 LPT(긴 것 먼저)로 계산하면 **러너가 하지 않는 최적화**를
+      한 셈이 되어 1단계가 55.6 h → 47.9 h 로 낙관된다 (같은 잡, 순서만 다름).
+      ⇒ 러너 순서를 그대로 모형에 넣는다. 러너의 정렬을 바꾸면 여기도 같이 바꾼다.
+    """
+    m = max(1, int(m))
+    free = [0.0] * m
+    for h in job_hours_in_order:
+        i = min(range(m), key=lambda k: free[k])       # 가장 먼저 비는 슬롯
+        free[i] += float(h)
+    return max(free) if free else 0.0
+
+
 def stage_alloc_h(rows, m):
     """**단계 할당** 벽시계 [h] — 러너가 한 할당 안에서 그 단계를 다 도는 데 걸리는 시간.
 
-    `rows` = [(stage, wave, hours), ...] · `m` = 동시 실행 잡 수. → {stage: hours}
+    `rows` = [(stage, wave, hours, relpath), ...] · `m` = 동시 실행 잡 수. → {stage: hours}
 
     ⛔⛔ 왜 잡 상한이 아니라 이것인가 (2026-09-07 Codex v37 P0-2)
       `run_staged.sh` 는 **하나의 계산노드 할당 안에서** 그 단계의 잡 전부를
@@ -301,28 +319,35 @@ def stage_alloc_h(rows, m):
       아니라 **단계 전체**다. 종전 문서는 "잡당 84 h" 만 적어서, 잡이 전부 84 h
       안에 끝나도 단계 할당이 먼저 잘리는 경우를 못 보게 했다.
 
-    ⚠ 단계 안에 **물결 장벽**이 있다 — PARENT_GEOM 을 가진 잡(canary)은 부모가
-      끝나야 시작하므로 1물결 makespan + 2물결 makespan 이다 (한 덩어리 LPT 가 아니다).
+    ★ 러너와 **같은 규칙**으로 센다 (2026-09-08 재검토 반영):
+      · 순서 = 상대경로 **사전순** (러너의 `sorted(glob)`)
+      · 물결 = PARENT_GEOM 있는 잡은 2물결. **1물결 전체가 끝나야** 2물결 시작 (장벽)
+      · 배치 = 그 순서대로 빈 슬롯에 FIFO (`xargs -P`) — LPT 아님
+      실측: 같은 잡 시간으로 LPT 47.94 h · LPT+장벽 49.18 h · **FIFO+장벽 55.59 h** (1단계).
 
-    ⛔ 못 하는 것: 큐 대기·노드 확보 지연·사람의 게이트 판정 왕복은 안 들어간다.
-      그건 계산 시간이 아니다.
+    ⛔ 못 하는 것: 큐 대기·노드 확보 지연·시작/봉인/분석 오버헤드·사람의 게이트 판정
+      왕복은 안 들어간다. 그리고 이것은 **러너의 현재 순서 정책**을 모형화한 것이다 —
+      러너가 LPT 로 바뀌면 이 함수도 바꿔야 하고, 그 전엔 LPT 값을 적으면 안 된다.
     """
     out = {}
     for st in sorted({r[0] for r in rows}):
         tot = 0.0
         for w in sorted({r[1] for r in rows if r[0] == st}):
-            hs = [r[2] for r in rows if r[0] == st and r[1] == w]
-            if hs:
-                tot += schedule_makespan(hs, m)
+            ordered = sorted((r for r in rows if r[0] == st and r[1] == w), key=lambda r: r[3])
+            if ordered:
+                tot += schedule_fifo([r[2] for r in ordered], m)
         out[st] = tot
     return out
 
 
 def ceiling_factor(ph):
-    """이 상의 **NELM 천장 배수** (추정 → 잘릴 수 있는 최대 벽시계). → float | None
+    """이 상의 **NELM 시나리오 배수** — 가정한 스텝수 대신 NELM 번을 다 돌면 몇 배인가. → float | None
 
-    한 번의 VASP 기동은 NELM 전자스텝에서 끊긴다. 우리가 가정한 전자스텝이
-    ESTEP[ph] 이므로, 그 상이 최악으로 길어져도 `NELM / ESTEP[ph]` 배까지다.
+    ⛔ 2026-09-07/08 (Codex v37 P0-2 · 재검토) — 종전 docstring 은 *"그 상이 최악으로
+      길어져도 이 배수까지"* 라고 적었다. **그 논리는 틀렸다.** NELM 은 전자스텝 횟수를
+      묶을 뿐이고, 스텝당 시간(±2배)은 이 배수에 그대로 실린다. 이 값은 '얼마나 길어질
+      수 있나' 의 상한이 아니라 '스텝수가 NELM 이면' 이라는 **하나의 시나리오**다.
+      여유를 얼마로 둘지는 별도의 계획상 선택이고, NELM 으로 입증되는 사실이 아니다.
 
     ⛔ `relax` 는 None 을 준다 — 이온스텝마다 NELM 이 새로 걸려서 NELM 하나로는
       벽시계가 안 묶인다 (NSW × NELM 이 필요하다). 모르는 것을 숫자로 내지 않는다.
@@ -892,28 +917,35 @@ def report_manifest(a, base) -> int:
                  if _over else f"{len(_ceils)}잡 모두 아래 (여유 {_cap - _cmax:.0f} h)"))
         print(f"              ⛔ 그러나 **잡 상한은 단계 할당을 보호하지 못한다** — 아래 단계 계약을 보라.")
 
-    # ── walltime 계약은 **단계 할당**이다 (2026-09-07 Codex v37 P0-2) ─────────
+    # ── walltime 계약은 **단계 할당**이다 (2026-09-07 Codex v37 P0-2 · 09-08 재검토) ──
     #   러너는 한 계산노드 할당 안에서 그 단계의 잡 전부를 동시·직렬로 돌린다.
     #   잡 하나하나가 큐 상한 아래여도 단계 전체가 넘으면 **할당이 먼저 잘린다.**
+    #   ★ 러너의 실제 순서(경로 사전순 FIFO + 물결 장벽)로 센다 — LPT 아님.
     if s_mk is not None:
         _f = {ph: (ceiling_factor(ph) or 1.0) for ph in ESTEP}
-        _sc = [sum(v * _f.get(ph, 1.0) for ph, v in p.items()) for _r, _h, p in jobs]
-        _s1c = [x for x, st in zip(_sc, stages or []) if st == 1]
-        _s2c = [x for x, st in zip(_sc, stages or []) if st == 2]
-        _m1 = staged_makespan(s1h, [], a.concurrent, c1, [])
-        _m2 = staged_makespan([], s2h, a.concurrent, [], c2)
-        _n1 = staged_makespan(_s1c, [], a.concurrent, [], [])
-        _n2 = staged_makespan([], _s2c, a.concurrent, [], [])
+        _rows = []
+        for (r, h, p), st in zip(jobs, stages or []):
+            _w = 2 if r.endswith("__nzmag") else 1          # PARENT_GEOM = canary
+            _rows.append((st, _w, h, r))
+        _rows_c = [(st, w, sum(v * _f.get(ph, 1.0) for ph, v in p.items()), r)
+                   for (r, h, p), (st, w, _h, _r) in zip(jobs, _rows)]
+        _med = stage_alloc_h(_rows, a.concurrent)
+        _nel = stage_alloc_h(_rows_c, a.concurrent)
+        _m1, _m2 = _med.get(1, 0.0), _med.get(2, 0.0)
+        _n1, _n2 = _nel.get(1, 0.0), _nel.get(2, 0.0)
         print()
         print("  ── ★ walltime 계약 = **단계 할당** (잡 상한이 아니다) ──")
+        print("     (러너 순서 그대로: 경로 사전순 FIFO + 물결 장벽 · LPT 아님)")
         print(f"     중앙 추정      1단계 {_m1:6.1f} h · 2단계 {_m2:6.1f} h")
-        print(f"     NELM 시나리오  1단계 {_n1:6.1f} h · 2단계 {_n2:6.1f} h"
-              f"   ← 이 값으로 요청하십시오")
+        print(f"     NELM 시나리오  1단계 {_n1:6.1f} h · 2단계 {_n2:6.1f} h")
         _worst = max(_n1, _n2)
-        print(f"     ⇒ 단계당 **{math.ceil(_worst / 12) * 12:.0f} h** 를 권합니다 "
-              f"(NELM 시나리오 최대 {_worst:.1f} h 를 12 h 단위로 올림)")
-        print(f"     ⛔ 잡당 상한({_cap:.0f} h)만 보면 이걸 못 봅니다 — 전 잡이 그 아래여도")
-        print(f"        단계 합이 넘으면 할당이 먼저 잘립니다.")
+        _req = math.ceil(_worst / 12) * 12
+        print(f"     ⇒ 단계당 **{_req:.0f} h** 를 요청 (NELM 시나리오 최대 {_worst:.1f} h 를 12 h 단위로 올림)")
+        if _req > _cap:
+            print(f"     ⛔ 알려진 잡당 큐 상한 {_cap:.0f} h 로는 **충족되지 않는다** — 더 긴 할당의 가용성을")
+            print(f"        확인하거나, 완료된 잡 사이에서 단계를 이어가는 **운영 계약**을 인수처와 정해야 한다.")
+            print(f"        (VASP 를 중간에 자르거나 과학 문턱을 낮추라는 뜻이 아니다.)")
+        print(f"     ⛔ 잡당 상한만 보면 이걸 못 본다 — 전 잡이 그 아래여도 단계 합이 넘으면 할당이 먼저 잘린다.")
         print(f"     ⚠ 이 수도 **모형**이다 (±2배). 큐 대기·노드 확보·사람의 게이트 왕복은 빠져 있다.")
         if _over:
             print(f"              예: {_over[0]}")

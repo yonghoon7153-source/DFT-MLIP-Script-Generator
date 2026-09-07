@@ -51,6 +51,7 @@ v2 → v3 (2026-08-12) — v2 는 NO-GO 였다. 실측으로 확인된 것만 �
 from __future__ import annotations
 
 import argparse
+import math
 import hashlib
 import inspect
 import json
@@ -1043,15 +1044,20 @@ esac
 #     MPICH/Hydra·Intel MPI → `-ppn <ppn>`
 #     srun      → `--nodes/--ntasks-per-node`  (모호하지 않다)
 #   판별에 실패하면 **거부한다** — 모르는 채로 배치 없이 던지는 것이 P0-1 그 자체다.
-_PLACE=""
+_PLACE=""; _SLOT_FILE=""
 if [ "$VASP_LAUNCHER_KIND" = srun ] || [ "$VASP_LAUNCHER_KIND" = mpirun ] \
    || [ "$VASP_LAUNCHER_KIND" = mpiexec ]; then
-  if [ -z "${VASP_RANKS_PER_NODE:-}" ]; then
-    echo "⛔ VASP_RANKS_PER_NODE 가 없습니다 — 랭크 배치를 강제할 수 없습니다."
-    echo "   'bash run_staged.sh {1|2}' 로 실행하면 사전검사가 이 값을 정해 넘깁니다."
-    echo "   (직접 부르실 때는 VASP_NODES 와 함께 지정해 주십시오.)"
-    exit 1
-  fi
+  # ⛔⛔ 2026-09-08 (Codex 재검토 P0-1 a) — 플래그만으로는 **동시 잡이 같은 노드를 쓰는 것**을
+  #   막지 못한다. run_staged 가 할당 호스트를 서로소 조각으로 나눠 _hostpool/free/ 에 두고,
+  #   여기서 조각 하나를 **원자적으로 점유**(mv)해 hostfile 로 넘긴다. 끝나면 돌려준다.
+  #   모드 판별·플래그 규칙은 run_staged 가 한 번 정해 _place_flags.sh 로 준다 — 여기서 다시 안 한다.
+  for _v in VASP_RANKS_PER_NODE VASP_PLACE_MODE; do
+    if [ -z "$(eval echo \"\${$_v:-}\")" ]; then
+      echo "⛔ $_v 가 없습니다 — 랭크 배치를 강제할 수 없습니다."
+      echo "   'bash run_staged.sh {1|2}' 로 실행하면 사전검사·배치 프로브가 이 값을 정해 넘깁니다."
+      exit 1
+    fi
+  done
   case "${VASP_RANKS_PER_NODE}" in ''|*[!0-9]*|0)
     echo "⛔ VASP_RANKS_PER_NODE 가 양의 정수가 아닙니다: $VASP_RANKS_PER_NODE"; exit 1 ;;
   esac
@@ -1059,25 +1065,28 @@ if [ "$VASP_LAUNCHER_KIND" = srun ] || [ "$VASP_LAUNCHER_KIND" = mpirun ] \
     echo "⛔ 랭크 $VASP_NPROC 이 노드당 $VASP_RANKS_PER_NODE 로 안 나뉩니다"; exit 1
   fi
   _NODES_EFF=$(( 10#$VASP_NPROC / 10#$VASP_RANKS_PER_NODE ))
-  if [ "$VASP_LAUNCHER_KIND" = srun ]; then
-    _PLACE="--nodes=$_NODES_EFF --ntasks-per-node=$VASP_RANKS_PER_NODE"
-  else
-    _mpiver=$("$LAUNCHER_BIN" --version 2>&1 | head -5 || true)
-    case "$_mpiver" in
-      *"Open MPI"*|*"OpenRTE"*|*"open-mpi"*) _PLACE="-N $VASP_RANKS_PER_NODE" ;;
-      *HYDRA*|*Hydra*|*MPICH*|*"Intel(R) MPI"*) _PLACE="-ppn $VASP_RANKS_PER_NODE" ;;
-      *)
-        echo "⛔ MPI 구현을 판별하지 못해 **랭크 배치를 강제할 수 없습니다.**"
-        echo "   $LAUNCHER_BIN --version 이 Open MPI / MPICH·Hydra / Intel MPI 중"
-        echo "   어느 것도 아닙니다. 배치를 못 박으면 192 랭크가 한 노드에 몰려 OOM 납니다."
-        echo "   → srun 을 쓰시거나(VASP_LAUNCHER_KIND=srun), 현장 방식으로 배치를 고정한"
-        echo "     래퍼를 만들어 VASP_LAUNCHER_KIND=wrapper 로 주십시오."
-        echo "   관측된 --version 앞부분:"
-        printf '     %s\n' "$_mpiver"
-        exit 1 ;;
-    esac
-  fi
-  echo "  ✔ 랭크 배치: 노드 $_NODES_EFF × ${VASP_RANKS_PER_NODE}랭크  ($LAUNCHER_BIN $_PLACE)"
+  _ROOT_ABS=$(cd "$_ROOT" && pwd)
+  [ -f "$_ROOT_ABS/_place_flags.sh" ] || { echo "⛔ $_ROOT_ABS/_place_flags.sh 가 없습니다 — run_staged 를 거치지 않았습니다"; exit 1; }
+  # shellcheck disable=SC1090
+  . "$_ROOT_ABS/_place_flags.sh"
+  [ -d "$_ROOT_ABS/_hostpool/free" ] || { echo "⛔ 호스트 풀이 없습니다 — run_staged 의 배치 프로브를 거치지 않았습니다"; exit 1; }
+  _try=0
+  while [ -z "$_SLOT_FILE" ] && [ "$_try" -lt 3600 ]; do
+    for _f in "$_ROOT_ABS"/_hostpool/free/slot_*; do
+      [ -e "$_f" ] || continue
+      if mv "$_f" "$_ROOT_ABS/_hostpool/busy/" 2>/dev/null; then
+        _SLOT_FILE="$_ROOT_ABS/_hostpool/busy/$(basename "$_f")"; break
+      fi
+    done
+    [ -n "$_SLOT_FILE" ] || { _try=$((_try+1)); sleep 1; }
+  done
+  [ -n "$_SLOT_FILE" ] || { echo "⛔ 호스트 조각을 1시간 안에 얻지 못했습니다 (동시 잡 수 > 조각 수?)"; exit 1; }
+  # 끝나면(정상·오류·신호) 조각을 돌려준다 — 안 돌려주면 다음 잡이 굶는다
+  trap '[ -n "$_SLOT_FILE" ] && [ -e "$_SLOT_FILE" ] && mv "$_SLOT_FILE" "$_ROOT_ABS/_hostpool/free/" 2>/dev/null; exit' EXIT INT TERM
+  _PLACE=$(place_args "$VASP_PLACE_MODE" "$_SLOT_FILE" "$_NODES_EFF" "$VASP_RANKS_PER_NODE") \
+    || { echo "⛔ 모르는 VASP_PLACE_MODE: $VASP_PLACE_MODE"; exit 1; }
+  echo "  ✔ 랭크 배치: $(basename "$_SLOT_FILE") = [$(paste -sd, "$_SLOT_FILE")] · 노드 $_NODES_EFF × ${VASP_RANKS_PER_NODE}랭크 · $_PLACE"
+  printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$_SLOT_FILE")" "$(paste -sd, "$_SLOT_FILE")" >> _placement.tsv
 fi
 _launch() {
   case "$VASP_LAUNCHER_KIND" in
@@ -1534,14 +1543,37 @@ try:
     if v: obs.append((float(v) / 1024.0, "SLURM_MEM_PER_NODE"))
 except ValueError:
     pass
-for path, name in (("/sys/fs/cgroup/memory.max", "cgroup v2 memory.max"),
-                   ("/sys/fs/cgroup/memory/memory.limit_in_bytes", "cgroup v1 limit")):
+# ⛔ 2026-09-08 (Codex 재검토 P0-1 c) — 종전엔 cgroup **루트 파일만** 읽었다. 작업이 하위
+#   cgroup 에 있으면(스케줄러가 보통 그렇게 만든다) 적용되는 제한을 놓친다. 현재 프로세스의
+#   cgroup 경로를 /proc/self/cgroup 에서 읽어 **리프에서 루트까지 올라가며** 제한을 모두 모은다.
+def _cgroup_mem_limits():
+    got = []
     try:
-        t = open(path).read().strip()
-        if t not in ("max", "") and int(t) < (1 << 62):
-            obs.append((int(t) / 1024.0 ** 3, name))
-    except (OSError, ValueError):
-        pass
+        lines = open("/proc/self/cgroup").read().splitlines()
+    except OSError:
+        return got
+    walks = []
+    for ln in lines:
+        parts = ln.split(":", 2)
+        if len(parts) != 3:
+            continue
+        hid, ctrls, path = parts
+        if hid == "0" and ctrls == "":                       # cgroup v2 (unified)
+            walks.append(("/sys/fs/cgroup", path, "memory.max", "cgroup v2"))
+        elif "memory" in ctrls.split(","):                   # cgroup v1 memory controller
+            walks.append(("/sys/fs/cgroup/memory", path, "memory.limit_in_bytes", "cgroup v1"))
+    for root, path, fname, tag in walks:
+        segs = [x for x in path.split("/") if x]
+        for k in range(len(segs), -1, -1):                   # 리프 → 루트
+            d = os.path.join(root, *segs[:k]) if k else root
+            try:
+                t = open(os.path.join(d, fname)).read().strip()
+                if t not in ("max", "") and int(t) < (1 << 62):
+                    got.append((int(t) / 1024.0 ** 3, f"{tag} {d}/{fname}"))
+            except (OSError, ValueError):
+                pass
+    return got
+obs.extend(_cgroup_mem_limits())
 try:
     for ln in open("/proc/meminfo"):
         if ln.startswith("MemTotal:"):
@@ -1568,15 +1600,47 @@ elif decl is not None:
 else:
     mem, src = None, None
 
-# ══ ② 노드 수도 **할당과 대조** 한다 ══════════════════════════════════════
-#   ⛔ 같은 P0-1 — 총 4노드 할당에 "잡당 4노드 × 동시 4잡"(=16 필요) 이 통과했다.
-tot = None
-for k in ("VASP_TOTAL_NODES", "SLURM_JOB_NUM_NODES", "SLURM_NNODES"):
+# ══ ② 노드 수도 **할당과 대조** 한다 — 관측이 선언보다 우선 ══════════════════
+#   ⛔ 2026-09-07 P0-1: 총 4노드 할당에 "잡당 4노드 × 동시 4잡"(=16 필요) 이 통과했다.
+#   ⛔ 2026-09-08 재검토 (b): 종전엔 VASP_TOTAL_NODES 를 **먼저** 읽고 끝내서, 그게 있으면
+#     더 작은 SLURM_JOB_NUM_NODES 를 대조하지 않았다 — 선언이 관측을 덮는 경로였다.
+#     ⇒ 관측(SLURM · VASP_HOSTFILE 의 고유 호스트 수)을 모으고, 선언은 **관측 이하일 때만**
+#       받아들인다. 선언 > 관측이면 거부. 관측이 하나도 없으면 아래 배치 프로브가 관측을 대신한다.
+obs_n = []
+for k in ("SLURM_JOB_NUM_NODES", "SLURM_NNODES"):
     if os.environ.get(k):
         try:
-            tot = (int(os.environ[k]), k); break
+            obs_n.append((int(os.environ[k]), k)); break
         except ValueError:
             pass
+hf = os.environ.get("VASP_HOSTFILE")
+if hf and os.path.isfile(hf):
+    try:
+        hosts = []
+        for ln in open(hf):
+            t = ln.split()
+            if t and not t[0].startswith("#") and t[0] not in hosts:
+                hosts.append(t[0])
+        if hosts:
+            obs_n.append((len(hosts), f"VASP_HOSTFILE 고유 호스트 ({hf})"))
+    except OSError:
+        pass
+decl_n = os.environ.get("VASP_TOTAL_NODES")
+decl_n = int(decl_n) if decl_n and decl_n.isdigit() else None
+tot = None
+if obs_n:
+    tot = min(obs_n)
+    if decl_n is not None and decl_n > tot[0]:
+        out("⛔ VASP_TOTAL_NODES 선언이 **관측된 할당보다 큽니다.**")
+        out(f"   선언 {decl_n} 노드  vs  관측 {tot[0]} 노드 ({tot[1]})")
+        for n_, k_ in sorted(obs_n):
+            out(f"     · {k_}: {n_}")
+        out("   선언으로 할당을 늘릴 수 없습니다 — 관측값 이하로 낮추거나 실제 할당을 늘려 주십시오.")
+        sys.exit(2)
+    if decl_n is not None and decl_n < tot[0]:
+        tot = (decl_n, f"VASP_TOTAL_NODES (관측 {tot[0]} 보다 보수적)")
+elif decl_n is not None:
+    tot = (decl_n, "VASP_TOTAL_NODES (⚠ 관측 없음 — 아래 배치 프로브가 실제 호스트로 검증합니다)")
 
 nd = os.environ.get("VASP_NODES")
 if nd:
@@ -1638,8 +1702,10 @@ if need_gb > usable:
 out(f"     ✔ {need_gb / usable * 100:.0f} % 사용 — 통과 (모형 기준 {usable / need_gb:.2f}배 여유)")
 if not obs:
     out("     ⚠ 노드 메모리를 **관측하지 못했습니다** — 위 판정은 선언값에만 근거합니다.")
-if not tot:
-    out("     ⚠ 할당 노드 수를 **관측하지 못했습니다** — 배치가 선언대로인지 검증 못 했습니다.")
+    print("MEMG_MEM_UNOBSERVED=1")
+if not obs_n:
+    out("     ⚠ 할당 노드 수를 관측하지 못했습니다 — **아래 배치 프로브가 실제 호스트로 검증합니다** (프로브도 못 하면 멈춥니다).")
+    print("MEMG_NODES_UNOBSERVED=1")
 
 # 검사한 배치를 **실행에 결박**한다 (P0-1 의 핵심 — 산술만 하고 끝내지 않는다)
 print(f"VASP_NODES={nodes}")
@@ -1649,6 +1715,156 @@ PYMEM
   . ./._memguard.env && rm -f ._memguard.env
   export VASP_NODES VASP_RANKS_PER_NODE
   echo "     → 배치 결박: VASP_NODES=$VASP_NODES · VASP_RANKS_PER_NODE=$VASP_RANKS_PER_NODE"
+fi
+
+# ══ 배치 **실측** — 호스트 풀 + 동시 프로브 (2026-09-08 Codex 재검토 P0-1 a·b) ══════
+#   플래그가 launcher 에 **도착**하는 것과 랭크가 **실제로 그 노드들에 놓이는** 것은 다르다.
+#   · -N/-ppn 은 노드당 랭크만 정하고, 동시에 뜨는 launcher 호출들이 **서로 다른 호스트
+#     집합**을 쓰게 하지 않는다 ⇒ 할당 호스트를 JOBS_PARALLEL 조각으로 나눠 잡별 hostfile 로 준다.
+#   · Intel MPI 는 스케줄러 배치를 존중하는 기본값에서 -ppn 을 무시할 수 있다
+#     ⇒ I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0.
+#   · 그리고 **첫 VASP 실행 전에** 같은 launcher·같은 플래그로 `hostname` 을 NPAR 개
+#     **동시에** 띄워 rank→host 를 읽는다: 프로브마다 (고유 호스트 = VASP_NODES) ∧
+#     (호스트당 랭크 = VASP_RANKS_PER_NODE) ∧ (호스트 ⊆ 자기 조각) ∧ **프로브 간 호스트 집합
+#     서로소**. 하나라도 어긋나면 멈춘다. 결과는 PLACEMENT_PROBE.json 에 남는다 (배치 증거).
+#   ⛔ 이 검사가 못 하는 것: 메모리 대역·통신망·NUMA 는 보지 않는다. VASP 를 돌리지 않는다.
+if [ "${MEM_GUARD:-on}" != "off" ] && [ "$VASP_LAUNCHER_KIND" != none ]; then
+  _NPROBE=$NPAR
+  _np_flag_p="-np"; [ "$VASP_LAUNCHER_KIND" = srun ] && _np_flag_p="-n"
+  # ── 호스트 목록 (관측) ──────────────────────────────────────────────────
+  : > _hosts_all.txt; _HOSTS_SRC=""
+  if [ -n "${SLURM_JOB_NODELIST:-}" ] && command -v scontrol >/dev/null 2>&1; then
+    if scontrol show hostnames "$SLURM_JOB_NODELIST" > _hosts_all.txt 2>/dev/null && [ -s _hosts_all.txt ]; then
+      _HOSTS_SRC="scontrol show hostnames \$SLURM_JOB_NODELIST"
+    fi
+  fi
+  if [ -z "$_HOSTS_SRC" ] && [ -n "${VASP_HOSTFILE:-}" ] && [ -f "$VASP_HOSTFILE" ]; then
+    awk 'NF && $1 !~ /^#/ {print $1}' "$VASP_HOSTFILE" | awk '!seen[$0]++' > _hosts_all.txt
+    [ -s _hosts_all.txt ] && _HOSTS_SRC="VASP_HOSTFILE=$VASP_HOSTFILE"
+  fi
+  # ── 배치 플래그 규칙: 러너와 프로브가 **같은 파일**을 읽는다 (두 곳에 복사하지 않는다) ──
+  cat > _place_flags.sh <<'PF'
+# 생성: run_staged.sh (2026-09-08). run_job.sh 와 배치 프로브가 이 함수 하나로 플래그를 만든다.
+place_args() {   # $1 mode(srun|ompi|hydra)  $2 slotfile(절대경로)  $3 nodes  $4 ranks/node
+  case "$1" in
+    srun)  printf -- '--nodelist=%s --nodes=%s --ntasks-per-node=%s' "$(paste -sd, "$2")" "$3" "$4" ;;
+    ompi)  printf -- '--hostfile %s -N %s' "$2" "$4" ;;
+    hydra) printf -- '-f %s -ppn %s' "$2" "$4" ;;
+    *)     return 1 ;;
+  esac
+}
+PF
+  # ── 모드 판별 (한 곳에서만) ───────────────────────────────────────────────
+  VASP_PLACE_MODE=""
+  case "$VASP_LAUNCHER_KIND" in
+    srun) VASP_PLACE_MODE=srun ;;
+    mpirun|mpiexec)
+      _mpiver=$("$LAUNCHER_BIN" --version 2>&1 | head -5 || true)
+      case "$_mpiver" in
+        *"Open MPI"*|*OpenRTE*|*open-mpi*) VASP_PLACE_MODE=ompi ;;
+        *HYDRA*|*Hydra*|*MPICH*|*"Intel(R) MPI"*)
+          VASP_PLACE_MODE=hydra
+          case "$_mpiver" in *"Intel(R) MPI"*)
+            export I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0   # 없으면 -ppn 이 무시될 수 있다 (Intel 문서)
+            echo "  · Intel MPI: I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0 (스케줄러 배치 존중 시 -ppn 무시 방지)" ;;
+          esac ;;
+        *)
+          echo "⛔ MPI 구현을 판별하지 못해 **랭크 배치를 강제할 수 없습니다.** ($LAUNCHER_BIN --version)"
+          printf '     %s\n' "$_mpiver"
+          echo "   → srun 을 쓰시거나, 배치를 고정한 현장 래퍼를 VASP_LAUNCHER_KIND=wrapper 로 주십시오."
+          exit 2 ;;
+      esac ;;
+    wrapper) VASP_PLACE_MODE=wrapper ;;
+  esac
+  export VASP_PLACE_MODE
+  # ── 호스트 풀 (잡별 서로소 조각) ─────────────────────────────────────────
+  rm -rf _hostpool; mkdir -p _hostpool/free _hostpool/busy
+  if [ "$VASP_PLACE_MODE" != wrapper ]; then
+    if [ -z "$_HOSTS_SRC" ]; then
+      echo "⛔ 할당 호스트 목록을 얻지 못해 **잡별 호스트 분리를 할 수 없습니다.**"
+      echo "   SLURM 할당 안에서 돌리시거나(SLURM_JOB_NODELIST + scontrol), 할당 호스트를 한 줄에"
+      echo "   하나씩 적은 파일을 VASP_HOSTFILE 로 주십시오. 분리 없이 동시 $NPAR 잡을 띄우면"
+      echo "   launcher 들이 같은 노드에 겹쳐 OOM 납니다 — 2026-09-04 의 그 경로입니다."
+      exit 2
+    fi
+    python3 - "$VASP_NODES" "$NPAR" <<'PYPOOL' || exit 2
+import sys
+nodes, npar = int(sys.argv[1]), int(sys.argv[2])
+hosts = [l.strip() for l in open("_hosts_all.txt") if l.strip()]
+need = nodes * npar
+if len(hosts) < need:
+    print(f"⛔ 호스트 {len(hosts)} 개로는 잡당 {nodes} × 동시 {npar} = {need} 개를 채울 수 없습니다.", file=sys.stderr)
+    print(f"   → 할당을 늘리시거나 export JOBS_PARALLEL={max(1, len(hosts)//nodes)}", file=sys.stderr)
+    sys.exit(2)
+for k in range(npar):
+    with open(f"_hostpool/free/slot_{k+1}", "w") as f:
+        f.write("\n".join(hosts[k*nodes:(k+1)*nodes]) + "\n")
+print(f"  ✔ 호스트 풀: {npar} 조각 × {nodes} 호스트 (출처 {len(hosts)} 호스트)", file=sys.stderr)
+PYPOOL
+  fi
+  # ── 동시 프로브 ────────────────────────────────────────────────────────
+  . ./_place_flags.sh
+  _probe_exe=$(command -v hostname); rm -f _probe_*.out
+  for _k in $(seq 1 "$_NPROBE"); do
+    if [ "$VASP_PLACE_MODE" = wrapper ]; then
+      ( "$VASP_WRAPPER" "$_probe_exe" "$VASP_NPROC" > "_probe_$_k.out" 2>/dev/null ) &
+    else
+      _sf="$PWD/_hostpool/free/slot_$_k"
+      _pa=$(place_args "$VASP_PLACE_MODE" "$_sf" "$VASP_NODES" "$VASP_RANKS_PER_NODE")
+      # shellcheck disable=SC2086
+      ( "$LAUNCHER_BIN" $_pa "$_np_flag_p" "$VASP_NPROC" "$_probe_exe" > "_probe_$_k.out" 2>/dev/null ) &
+    fi
+  done
+  wait
+  python3 - "$_NPROBE" "$VASP_NODES" "$VASP_RANKS_PER_NODE" "$VASP_PLACE_MODE" "$_HOSTS_SRC" <<'PYPROBE' || exit 2
+import sys, json, collections, os, time
+npr, nodes, ppn, mode, src = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]
+res, bad, seen_all = [], [], {}
+for k in range(1, npr + 1):
+    try:
+        lines = [l.strip() for l in open(f"_probe_{k}.out") if l.strip()]
+    except OSError:
+        lines = []
+    cnt = collections.Counter(lines)
+    want = None
+    if mode != "wrapper":
+        try:
+            want = [l.strip() for l in open(f"_hostpool/free/slot_{k}") if l.strip()]
+        except OSError:
+            want = None
+    rec = {"probe": k, "ranks_seen": len(lines), "hosts": dict(cnt), "slot_hosts": want}
+    why = []
+    if not lines:
+        why.append("출력 없음 — launcher 가 hostname 을 실행하지 못했다")
+    if len(cnt) != nodes:
+        why.append(f"고유 호스트 {len(cnt)} ≠ VASP_NODES {nodes}")
+    if any(v != ppn for v in cnt.values()):
+        why.append(f"호스트당 랭크 {sorted(set(cnt.values()))} ≠ {ppn}")
+    if want is not None and not set(cnt) <= set(want):
+        why.append(f"자기 조각 밖 호스트 {sorted(set(cnt) - set(want))}")
+    for h in cnt:
+        if h in seen_all:
+            why.append(f"프로브 {seen_all[h]} 와 호스트 {h} 겹침 — 동시 잡이 같은 노드를 쓴다")
+        seen_all.setdefault(h, k)
+    rec["ok"] = not why; rec["why"] = why
+    res.append(rec)
+    if why: bad.append((k, why, dict(cnt)))
+json.dump({"schema": "placement_probe/v1", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+           "mode": mode, "hosts_source": src, "concurrent_probes": npr,
+           "expected": {"nodes_per_job": nodes, "ranks_per_node": ppn},
+           "probes": res, "all_ok": not bad,
+           "⛔_이_기록이_보증하지_않는_것": "메모리 대역·통신망·NUMA. VASP 자체의 배치도 아니다 — 같은 launcher·같은 플래그로 hostname 을 놓아 본 결과다."},
+          open("PLACEMENT_PROBE.json", "w"), ensure_ascii=False, indent=1)
+if bad:
+    print("⛔ 배치 프로브 실패 — **launcher 가 요청한 대로 랭크를 놓지 않았습니다.** 첫 VASP 전에 멈춥니다.", file=sys.stderr)
+    for k, why, cnt in bad:
+        print(f"   프로브 {k}: " + " · ".join(why), file=sys.stderr)
+        print(f"      관측 rank→host: {cnt}", file=sys.stderr)
+    print("   PLACEMENT_PROBE.json 에 전부 기록했습니다. 이 상태로 VASP 를 띄우면 노드가 겹쳐 OOM 납니다.", file=sys.stderr)
+    sys.exit(2)
+print(f"  ✔ 배치 프로브 {npr} 개 동시 통과: 각 {nodes} 호스트 × {ppn} 랭크 · 프로브 간 호스트 서로소 · PLACEMENT_PROBE.json", file=sys.stderr)
+PYPROBE
+  rm -f _probe_*.out
 fi
 
 PP=${PP:?PP 를 지정하세요 (POTCAR 원본 트리)}
@@ -13879,7 +14095,9 @@ def _return_contract(man: Dict[str, Any]) -> Dict[str, Any]:
                        "(run_staged 경로가 자동 생성 · 분석기가 root seal 과 대조합니다)")
     root = ["MANIFEST.json (받으신 그대로 — 분석기가 가장 먼저 읽습니다)",
             "POTCAR_ROOT_SEAL.json (첫 실행 전 봉인)", "ZIP_SHA256.txt",
-            "RESULTS.json (run_staged 가 판정 때 만듦 — 있으면 그대로)"]
+            "RESULTS.json (run_staged 가 판정 때 만듦 — 있으면 그대로)",
+        "PLACEMENT_PROBE.json — 첫 VASP 전 배치 프로브 기록 (2026-09-08 · 랭크가 실제로 어느 노드에 놓였는지 · 잡 사이 겹침 없음의 증거)",
+    ]
     if staged:
         root.append("STAGE1_PASS.json (1단계 통과 receipt)")
     # ⛔ 회신 AY P1 — attestation 이 반송 목록에는 있는데 주 실행 절차에 생성 단계가
@@ -13982,6 +14200,24 @@ def _run_env_block(man: Dict[str, Any], a, manifest_sha: str = "<메일 본문�
             "export VASP_NODES=<잡 하나가 걸치는 노드 수>  # 예: 4\n"
             "#    러너가 첫 VASP 실행 전에 최악 잡의 노드당 메모리를 계산해 보고, 넘치면 멈춥니다.\n"
             "#    두 값을 모르면 러너가 **추측하지 않고 멈춥니다** — 2026-09-04 OOM 이 그 경로였습니다.\n")
+    # ── 2026-09-08 (Codex 재검토 P0-1 a·b·c) — 배치는 **선언이 아니라 실측**으로 확인한다 ──
+    #   러너가 요구하는 변수와 하는 일을 여기(정본)에 적는다. 문서에 없는 변수를 러너가
+    #   요구하면 현장은 첫 실행에서 멈춘다 (BH P1-1 과 같은 종류).
+    _memblk += (
+        "#    ⚠ 위 두 값은 **선언**입니다. 러너는 선언을 믿지 않고 관측과 대조합니다:\n"
+        "#      · 노드 메모리 — SLURM_MEM_PER_NODE · 이 작업에 적용된 cgroup 제한(계층 전부) · /proc/meminfo\n"
+        "#        중 **가장 작은 값**. 선언이 그보다 크면 멈춥니다 (선언으로 메모리를 늘릴 수 없습니다).\n"
+        "#      · 노드 수 — SLURM_JOB_NUM_NODES 또는 아래 VASP_HOSTFILE 의 고유 호스트 수와 대조.\n"
+        "#        잡당 노드 × 동시 잡이 할당을 넘으면 멈춥니다.\n"
+        "# export VASP_HOSTFILE=/abs/hosts.txt   # SLURM 밖에서 돌리실 때만: 할당 호스트를 한 줄에 하나씩\n"
+        "#    (SLURM 안에서는 SLURM_JOB_NODELIST 를 scontrol 로 풀어 자동으로 얻습니다.)\n"
+        "#    러너는 그 호스트들을 **동시 잡 수만큼 서로소 조각**으로 나눠 잡마다 hostfile 로 넘기고,\n"
+        "#    **첫 VASP 실행 전에** 같은 launcher·같은 플래그로 `hostname` 을 동시에 띄워 랭크가 실제로\n"
+        "#    어느 노드에 놓이는지 읽습니다 (노드 수 · 노드당 랭크 · 조각 안 · 잡 사이 겹침 없음).\n"
+        "#    어긋나면 멈추고, 결과는 PLACEMENT_PROBE.json 에 남습니다 — 반송 목록에 포함해 주십시오.\n"
+        "#    ⚠ MPI 구현은 `<launcher> --version` 으로 판별합니다 (Open MPI → -N · MPICH/Intel → -ppn).\n"
+        "#      판별이 안 되면 멈춥니다. Intel MPI 는 I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0 을 러너가 켭니다.\n"
+    )
 
     return """cd <이 묶음을 푼 디렉터리>              # 묶음 **루트**
 
@@ -14080,62 +14316,77 @@ def _render_return_contract(man: Dict[str, Any]) -> str:
 def _walltime_block(man: Dict[str, Any], a) -> str:
     """walltime·실행 위치 안내 — README·SUBMIT(·메일) 이 **같은 문장**을 싣는다.
 
-    🔴 렌즈4 P1-3 (2026-09-03) — v34 는 세 문서가 세 말을 했다: 메일 "111 h ±2배"(권장 없음) ·
-      README "이보다 짧으면 나눠서 다시 만들어 드립니다"(static 단일점은 나눌 수 없고 재개도
-      폐지됨 — 이행 불가한 약속) · SUBMIT "252 h 권장"(산식 없음). 168 h 큐 사이트는 README
-      로는 문제없고 SUBMIT 으로는 잘린다. 한 함수에서 한 문장을 낸다.
+    🔴 렌즈4 P1-3 (2026-09-03) — v34 는 세 문서가 세 말을 했다. 한 함수에서 한 문장을 낸다.
+
+    🔴🔴 2026-09-08 (Codex v37 재검토 P0-2) — **요청값은 하나다: 단계 할당.**
+      종전 판은 "잡당 walltime 84 h" 를 권하는 문장과 "단계당 144 h" 문장을 **둘 다**
+      실었다 — 기존 지시를 교체하지 않고 새 지시를 덧붙인 것이다. 인수처는 어느 것을
+      따라야 하는지 모른다. 이제 요청 숫자는 단계 할당 하나뿐이고, 잡당 값은
+      **"참고 (요청값 아님)"** 으로만 남긴다.
+      단계 할당은 `cost_frozen.stage_alloc_h` 에서 읽는다 — 그 값은 러너의 실제 순서
+      (경로 사전순 FIFO + 물결 장벽)로 계산된 것이다 (LPT 아님).
+
+    ⛔ 이 함수가 못 하는 것: `stage_alloc_h` 가 없는 묶음(2026-09-08 이전)에는 요청값을
+      **내지 않는다** — 잡당 값으로 대신 채우면 바로 그 사고가 재발한다.
     """
     _cf_w = man.get("cost_frozen") or {}
     _h = round(_cf_w.get("longest_job_h") or 56)
     _h2 = _h * 2
-    # 🔴🔴 2026-09-04 — 종전 권장 walltime 은 **모형의 ±2배 외피**만 봤다. 그런데 잡이 실제로
-    #   잘리는 상한은 모형이 아니라 **NELM 천장**(기동 1회가 NELM 전자스텝에서 끊긴다)이다.
-    #   실측: v35 계획에서 외피 58 h → 권장 72 h 였는데 천장은 **76.9 h** 였다.
-    #   즉 우리가 권한 walltime 아래에서 잘릴 수 있는 잡이 있었다. 둘 중 **큰 쪽**을 쓴다.
     _ceil = _cf_w.get("nelm_ceiling_longest_h")
-    #   ⚠ 여유(×1.1)는 **모형 쪽에만** 붙인다. 천장은 이미 최대값이라 그 위에 또 여유를
-    #     얹으면 큐 상한을 공연히 넘긴다 (76.9 → 96 h 로 91 h 큐를 넘긴 실측이 있다).
-    _basis = max(_h2 * 1.1, _ceil or 0.0)
-    _rec = max(24, int(_basis // 12 + 1) * 12)
-    _why = ("외피 %d h × 1.1 을 12 h 단위로 올림" % _h2 if _basis == _h2 * 1.1 else
-            "**NELM 시나리오 %.0f h**(NELM %s 번을 다 도는 경우)를 12 h 단위로 올림 "
-            "— 모형 외피 %d h × 1.1 보다 이쪽이 크므로 이쪽을 씁니다. ⛔ 이 값은 보장이 "
-            "아닙니다(NELM 은 횟수를 묶지 시간을 묶지 않습니다) — 그래도 이미 최대 "
-            "시나리오라 여유를 더 얹지는 않습니다"
-            % (_ceil, _cf_w.get("nelm"), _h2))
-    _cap_line = ""
-    if _cf_w.get("queue_cap_h") and _ceil:
-        _cap = float(_cf_w["queue_cap_h"])
-        # ⛔⛔ 2026-09-07 (Codex v37 P0-2) — 종전 문구는 이 값을 **"결정론"** 이라고
-        #   적었다. 성립하지 않는다: NELM 은 전자스텝 **횟수**를 묶지 시간을 묶지 않고,
-        #   스텝당 시간이 바로 ±2배인 그 양이다. 주장을 시나리오로 내린다.
-        _cap_line = ("\n⚠ **NELM 시나리오 (보장이 아닙니다)** — 한 번의 VASP 기동은 "
-                     "`NELM=%s` 전자스텝에서 끊깁니다. 가정한 스텝수 대신 NELM 번을 다 돌면 "
-                     "가장 긴 잡이 **%.0f h** 이고, 알려 주신 잡당 큐 상한 %.0f h %s. "
-                     "⛔ 다만 NELM 이 묶는 것은 **횟수**이지 시간이 아닙니다 — 스텝당 시간이 "
-                     "바로 ±2배인 그 양이라 이 수도 같은 폭을 안고 있습니다. "
-                     "종전 문서의 *'결정론적 상한'* 표현은 **철회합니다** (추정 %d h)."
-                     % (_cf_w.get("nelm"), _ceil, _cap,
-                        "아래입니다 (여유 %.0f h)" % (_cap - _ceil) if _ceil <= _cap
-                        else "**를 넘습니다 — 이 코어 수로는 잘립니다**", _h))
-    # ── ★ 단계 할당 (같은 P0-2) — 잡 상한은 이것을 보호하지 못한다 ─────────────
-    _sa = (_cf_w.get("stage_alloc_h") or {})
-    _sa_line = ""
-    if _sa.get("NELM_시나리오"):
-        _n1 = _sa["NELM_시나리오"].get("1"); _n2 = _sa["NELM_시나리오"].get("2")
-        _m1 = (_sa.get("중앙_추정") or {}).get("1"); _m2 = (_sa.get("중앙_추정") or {}).get("2")
-        _req = int(-(-max(_n1 or 0, _n2 or 0) // 12) * 12)
-        _sa_line = ("\n⚠⚠ **요청하실 walltime 은 잡이 아니라 단계 기준입니다.** "
-                    "`run_staged.sh` 는 **한 할당 안에서** 그 단계의 잡 전부를 돌립니다 — "
-                    "잡 하나하나가 큐 상한 아래여도 단계 합이 넘으면 **할당이 먼저 잘립니다.** "
-                    "중앙 추정 1단계 %s h · 2단계 %s h, NELM 시나리오 1단계 %s h · 2단계 %s h. "
-                    "⇒ **단계당 %d h** 를 잡아 주십시오 (시나리오 최대를 12 h 단위로 올림). "
-                    "그만큼의 연속 할당이 어려우시면 **제출 전에** 알려 주십시오 — 단계를 더 "
-                    "잘게 나눌지 저희가 정해야 합니다 (러너가 임의로 쪼개면 1단계 정지 규칙이 깨집니다)."
-                    % (_m1, _m2, _n1, _n2, _req))
+    _cap = float(_cf_w.get("queue_cap_h") or 0.0)
     _cores = int(getattr(a, "cores", 48) or 48)
     _conc = int(((man.get("submission") or {}).get("max_concurrency")) or getattr(a, "concurrency", 8) or 8)
-    # 🔴 2026-09-03 — 단계 게이트 반영 전체 일수. 없으면(비 staged) 한 물결 값.
+
+    # ── ★ 요청값: 단계 할당 (하나) ─────────────────────────────────────────
+    _sa = (_cf_w.get("stage_alloc_h") or {})
+    _nel = _sa.get("NELM_시나리오") or {}
+    _med = _sa.get("중앙_추정") or {}
+    if _nel:
+        _n1, _n2 = _nel.get("1"), _nel.get("2")
+        _m1, _m2 = _med.get("1"), _med.get("2")
+        _req = int(_sa.get("요청_h") or (-(-max(_n1 or 0, _n2 or 0) // 12) * 12))
+        _req_block = (
+            f"⚠ **walltime — 요청은 단계 기준 하나입니다.** `run_staged.sh` 는 계산노드 할당 **안에서**"
+            f"(로그인 노드 아님) 그 단계의 잡 전부를 동시 {_conc}잡 × VASP_NPROC 랭크로 돌리므로, "
+            f"할당은 **그 단계가 끝날 때까지** 유지돼야 합니다. 잡 하나하나가 짧아도 단계 합이 넘으면 "
+            f"**할당이 먼저 잘립니다.**\n"
+            f"   · 단계 할당 (러너의 실제 순서로 계산 — 경로 사전순 FIFO + 물결 장벽): "
+            f"중앙 추정 1단계 {_m1} h · 2단계 {_m2} h / NELM 시나리오 1단계 {_n1} h · 2단계 {_n2} h\n"
+            f"   ⇒ **단계당 {_req} h** 를 요청해 주십시오 (NELM 시나리오 최대를 12 h 단위로 올림). "
+            f"⚠ 이 수도 보장이 아닌 **계획값**입니다 — 여유를 더 둘지는 귀측 큐 정책의 선택이고, "
+            f"NELM 으로 입증되는 것이 아닙니다."
+        )
+        if _cap and _req > _cap:
+            _req_block += (
+                f"\n   ⛔ 알려 주신 잡당 큐 상한 **{_cap:.0f} h 로는 충족되지 않습니다.** 더 긴 할당이 "
+                f"가능한지, 아니면 완료된 잡 사이에서 단계를 이어갈 운영 방식이 있는지 **제출 전에** "
+                f"알려 주십시오. VASP 를 중간에 끊거나 잡을 쪼개는 방식은 안 됩니다 — static 단일점은 "
+                f"나눌 수 없고 재개도 없습니다."
+            )
+    else:
+        _req_block = (
+            "⛔ **이 묶음에는 단계 할당(stage_alloc_h) 정보가 없어 요청 walltime 을 낼 수 없습니다.** "
+            "2026-09-08 이전 생성기의 묶음입니다 — 다시 만들어 받으십시오. (잡당 값으로 대신 "
+            "채우지 않습니다 — 그것이 잡이 다 끝나기 전에 할당이 잘리던 사고의 원인입니다.)"
+        )
+
+    # ── 참고 (요청값 아님): 잡당 수치 · NELM 시나리오 · 철회 ───────────────────
+    _ref_block = (
+        f"\n   참고 (요청값 아님): 가장 긴 잡의 중앙 추정 **{_h} h** ({_cores}코어/잡 · 모형 ±2배 → "
+        f"외피 {_h2} h)."
+    )
+    if _ceil:
+        _ref_block += (
+            f" 가정한 스텝수 대신 `NELM={_cf_w.get('nelm')}` 번을 다 돌면 가장 긴 잡이 **{_ceil:.0f} h** 입니다"
+            + (f" (잡당 큐 상한 {_cap:.0f} h {'아래입니다 (여유 %.0f h)' % (_cap - _ceil) if _ceil <= _cap else '**를 넘습니다**'})."
+               if _cap else ".")
+            + " ⛔ 다만 NELM 이 묶는 것은 **횟수**이지 시간이 아닙니다 — 스텝당 시간이 바로 ±2배인 "
+              "그 양이라 이 수도 같은 폭을 안고 있고, **보장이 아닙니다**. 종전 문서의 *'결정론적 상한'* "
+              "표현은 **철회합니다**."
+        )
+    _ref_block += " 봉인 프로브도 같은 노드에서 VASP 를 인자 없이 한 번 잠깐 기동합니다."
+
+    # ── 전체 일정 ───────────────────────────────────────────────────────────
     _mkw = (_cf_w.get("makespan_staged_d") or _cf_w.get("makespan_d") or {})
     _mk_tot = _mkw.get(str(_conc), _mkw.get(_conc))
     _stg_l = _cf_w.get("stage_longest_h") or {}
@@ -14147,19 +14398,7 @@ def _walltime_block(man: Dict[str, Any], a) -> str:
                     "동시 실행을 늘려도 이 아래로는 내려가지 않습니다)"
                     % (_stg_l.get("1"), _stg_l.get("2")))
                  + ". 여기에 1단계 반송 뒤 저희 판정 왕복 시간은 포함돼 있지 않습니다.")
-    return (f"⚠ **walltime** — 가장 긴 잡의 중앙 추정 **{_h} h** ({_cores}코어/잡 · 모형 불확실성 ±2배 → "
-            f"외피 {_h2} h). 잡당 walltime 은 **{_rec} h** 를 권합니다 (= {_why} · "
-            f"그보다 짧으면 잘립니다). 큐 상한이 {_rec} h 보다 짧으면 **제출 전에** 알려 주십시오 — static "
-            f"단일점은 나눌 수 없고 재개도 없어, 그 잡은 더 긴 큐/노드 배정이 필요합니다.\n"
-            f"⚠ **실행 위치** — `run_staged.sh` 는 **계산 노드 할당 안에서**(로그인 노드 아님) 잡 {_conc}개 × "
-            f"VASP_NPROC 랭크를 동시에 띄우므로, 그 할당이 **요청 walltime {_rec} h** 동안 유지돼야 "
-            f"합니다 (1단계 최장 잡의 중앙 추정은 {_h} h 지만, 잘리지 않으려면 위 {_rec} h 로 잡아 주십시오). "
-            f"봉인 프로브도 같은 노드에서 VASP 를 인자 없이 한 번 잠깐 기동합니다."
-            + _cap_line
-            + _sa_line
-            + _tot_line
-            # 🔴 2026-09-04 — 모형은 ±2배다. 큐 상한이 빠듯하면 **대표 잡 하나를 먼저 재는 것**이
-            #   모든 모형보다 싸고 정확하다. 그 한 번이 나머지 15잡의 walltime 을 정한다.
+    return (_req_block + _ref_block + _tot_line
             + (f"\n💡 **먼저 한 잡만 재 보시길 권합니다.** 위 추정은 모형이라 ±2배입니다. "
                f"큐 상한이 빠듯하시면 `refs/` 의 기체 잡 하나(가장 짧습니다)나 복합체 한 잡을 "
                f"먼저 돌려 실제 벽시계를 알려 주시면, 나머지 walltime 을 그 값으로 다시 잡아 "
@@ -14628,10 +14867,8 @@ n=$(wc -l < JOBS.txt)
 {slurm_block}
 ```""" % (man.get("n_jobs", 0), man.get("n_jobs", 0)))
 
-    # ⛔ 회신 AR P1-11 — walltime 도 하드코딩(56 h)이었다. cost_frozen 에서 가져온다.
-    _long_h = round((man.get("cost_frozen") or {}).get("longest_job_h") or 56)
-    _long_h2 = _long_h * 2
-    _long_rec = max(24, int(_long_h2 * 1.1 // 12 + 1) * 12)
+    # ⛔ 회신 AR P1-11 — walltime 은 cost_frozen 에서 온다 (_walltime_block 이 단일 출처).
+    #   2026-09-08: 여기 있던 잡당 권장값(_long_h/_long_rec)은 **삭제** — 요청값은 단계 할당 하나다.
     # 🔴 렌즈4 P2-1·P2-2 (2026-09-03) — dense 문구는 dense 잡이 **있을 때만**, 종 순서 목록은
     #   손으로 적은 옛 목록(`Li Ni O` · … `C F H`) 이 아니라 **planned meta 실물**에서.
     _n_dn_sub = sum(1 for v in (man.get("planned") or {}).values()
@@ -16738,6 +16975,11 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
         #   각 잡의 상별 시간을 그 상의 NELM 배수로 늘린 **시나리오** (보장 아님).
         _jh_ceil = [sum(v * (CE.ceiling_factor(ph) or 1.0) for ph, v in d.items())
                     for d in _jph]
+        #   ★ 러너와 같은 규칙: 사전순 FIFO + PARENT_GEOM 물결 장벽 (LPT 아님 — 09-08 재검토)
+        _jwave = [2 if (out / _r / "PARENT_GEOM").exists() else 1 for _r in _jrel]
+        _sa_med = CE.stage_alloc_h(list(zip(_jst, _jwave, _jh, _jrel)), _conc_cf)
+        _sa_nel = CE.stage_alloc_h(list(zip(_jst, _jwave, _jh_ceil, _jrel)), _conc_cf)
+        _sa_req = int(math.ceil(max(list(_sa_nel.values()) or [0.0]) / 12.0) * 12)
         man["cost_frozen"] = {
             "total_wall_h": round(sum(_jh), 1),
             "core_h": round(sum(_jh) * a.cores),
@@ -16805,16 +17047,17 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             "stage_alloc_h": {
                 "정의": ("그 단계를 한 할당 안에서 다 도는 데 필요한 벽시계 (동시 %d잡). "
                          "잡 최장이 아니라 **이것으로 큐를 잡아야 한다.**" % _conc_cf),
-                "중앙_추정": {
-                    "1": round(CE.staged_makespan(
-                        [h for h, st in zip(_jh, _jst) if st == 1], [], _conc_cf, [], []), 1),
-                    "2": round(CE.staged_makespan(
-                        [], [h for h, st in zip(_jh, _jst) if st == 2], _conc_cf, [], []), 1)},
-                "NELM_시나리오": {
-                    "1": round(CE.staged_makespan(
-                        [x for x, st in zip(_jh_ceil, _jst) if st == 1], [], _conc_cf, [], []), 1),
-                    "2": round(CE.staged_makespan(
-                        [], [x for x, st in zip(_jh_ceil, _jst) if st == 2], _conc_cf, [], []), 1)},
+                "★_계산_규칙": ("러너 run_staged.sh 와 **같은 순서**로 센다 — 경로 사전순 FIFO "
+                                "(sorted(glob) → xargs -P) + PARENT_GEOM 물결 장벽. LPT 가 아니다. "
+                                "2026-09-08 재검토: 같은 잡 시간에 LPT 47.9 / LPT+장벽 49.2 / "
+                                "FIFO+장벽 55.6 h — 러너가 하지 않는 최적화를 추정기가 하면 안 된다."),
+                "중앙_추정": {str(k): round(v, 1) for k, v in _sa_med.items()},
+                "NELM_시나리오": {str(k): round(v, 1) for k, v in _sa_nel.items()},
+                "요청_h": _sa_req,
+                "⛔_큐_충족": (f"알려진 잡당 큐 상한 {CE.QUEUE_CAP_H:.0f} h 로는 **충족되지 않는다** "
+                              f"(요청 {_sa_req} h). 더 긴 할당 가용성을 확인하거나 완료 잡 사이에서 "
+                              f"단계를 이어가는 운영 계약이 필요하다."
+                              if _sa_req > CE.QUEUE_CAP_H else "큐 상한 안"),
                 "⚠_보장_아님": ("NELM 은 **전자스텝 수**를 묶지 시간을 묶지 않는다. 스텝당 "
                                 "시간이 바로 ±2배인 그 양이므로 이 수도 같은 폭을 안고 있다. "
                                 "2026-09-07 이전 문서의 '결정론적 77 h 상한' 은 철회했다."),
@@ -17251,20 +17494,41 @@ exit 0
 
 
 FAKE_MPIRUN = r"""#!/usr/bin/env bash
-# 가짜 mpirun — 실물처럼 `--version` 에 답하고, `[-N ppn] -np N <exe>` 를 받아 실행한다.
-# ⚠ 2026-09-07 (v37 P0-1) — 러너가 랭크 배치 플래그를 **앞에** 붙이게 됐다. 종전 스텁은
-#   "첫 인자가 -np" 를 강제해서 그 변경을 실패로 잡았다 — 시험이 제 일을 한 것이다.
-#   이제 배치 플래그를 받되, **그것이 실제로 왔는지 기록**해 시험이 확인할 수 있게 한다.
+# 가짜 mpirun (Open MPI 흉내). `--version` · `--hostfile F -N ppn -np N <exe>` 를 받는다.
+# ⚠ 2026-09-08 — exe 가 hostname 이면 **배치를 흉내**낸다: hostfile 의 호스트를 ppn 번씩 N 개 찍는다.
+#   (실물 mpirun 이 그렇게 놓는다는 가정 — 이 스텁은 "러너가 옳은 플래그를 만들었나" 를 시험한다.)
+#   STUB_BAD_PLACEMENT=1 이면 hostfile 을 **무시**하고 첫 호스트에 전부 몰아 찍는다 — 음성 시험용.
 set -u
 case "${1:-}" in
   --version|-V) echo "mpirun (Open MPI) 4.1.5"; echo "Report bugs to http://www.open-mpi.org/community/help/"; exit 0 ;;
 esac
-_ppn=""
-if [ "${1:-}" = "-N" ] || [ "${1:-}" = "--npernode" ]; then _ppn="${2:-}"; shift 2; fi
+_ppn=""; _hf=""
+while :; do
+  case "${1:-}" in
+    -N|--npernode) _ppn="${2:-}"; shift 2 ;;
+    --hostfile|-hostfile|-f|-machinefile) _hf="${2:-}"; shift 2 ;;
+    -ppn) _ppn="${2:-}"; shift 2 ;;
+    *) break ;;
+  esac
+done
 [ -n "${STUB_PLACE_LOG:-}" ] && printf '%s
-' "ppn=${_ppn:-none}" >> "$STUB_PLACE_LOG"
+' "ppn=${_ppn:-none} hostfile=${_hf:-none}" >> "$STUB_PLACE_LOG"
 [ "${1:-}" = "-np" ] || [ "${1:-}" = "-n" ] || { echo "FAKE_MPIRUN: -np/-n 이 아니다: ${1:-}"; exit 9; }
-shift 2
+_np="${2:-1}"; shift 2
+case "$(basename "${1:-}")" in
+  hostname)
+    if [ -z "$_hf" ] || [ ! -f "$_hf" ]; then hostname; exit 0; fi
+    mapfile -t _hosts < "$_hf"
+    if [ "${STUB_BAD_PLACEMENT:-0}" = "1" ]; then
+      for _i in $(seq 1 "$_np"); do echo "${_hosts[0]}"; done; exit 0
+    fi
+    _n=0
+    for _h in "${_hosts[@]}"; do
+      [ -n "$_h" ] || continue
+      for _i in $(seq 1 "${_ppn:-1}"); do [ "$_n" -lt "$_np" ] && { echo "$_h"; _n=$((_n+1)); }; done
+    done
+    exit 0 ;;
+esac
 exec "$@"
 """
 
@@ -17326,14 +17590,25 @@ def _runner_launcher_regression(out: Path, chk) -> None:
                 json.dumps(seal, ensure_ascii=False, indent=1))
         return b, jd
 
-    def go(jd, extra=None, token=None):
+    def go(jd, extra=None, token=None, pool=True):
         log = jd / "_ph.log"
         log.unlink(missing_ok=True)
         # ⚠ 2026-09-07 (v37 P0-1) — 러너가 랭크 배치를 요구한다. 생산에서는
         #   run_staged 의 사전검사가 정해 넘긴다. 여기서는 그 값을 흉내낸다.
+        # 2026-09-08 — run_job 은 run_staged 가 만든 _place_flags.sh 와 호스트 풀을 요구한다.
+        _root = jd.parent.parent
+        (_root / "_place_flags.sh").write_text(
+            "place_args() { case \"$1\" in ompi) printf -- '--hostfile %s -N %s' \"$2\" \"$4\" ;; "
+            "*) return 1 ;; esac; }\n")
+        import shutil as _shp
+        _shp.rmtree(_root / "_hostpool", ignore_errors=True)
+        if pool:   # 음성 시험은 pool=False 로 **풀 없는 상태**를 실제로 만든다
+            for _sub in ("free", "busy"):
+                (_root / "_hostpool" / _sub).mkdir(parents=True, exist_ok=True)
+            (_root / "_hostpool" / "free" / "slot_1").write_text("nodeA\nnodeB\n")
         env = {**os.environ, "PATH": f"{bindir}:{os.environ.get('PATH','')}",
                "VASP_LAUNCHER_KIND": "mpirun", "VASP_NPROC": "2",
-               "VASP_NODES": "2", "VASP_RANKS_PER_NODE": "1",
+               "VASP_NODES": "2", "VASP_RANKS_PER_NODE": "1", "VASP_PLACE_MODE": "ompi",
                "STUB_PLACE_LOG": str(jd / "_place.log"),
                "VASP_EXE": str(exe), "STUB_LOG": str(log)}
         if token is not None:
@@ -17357,10 +17632,14 @@ def _runner_launcher_regression(out: Path, chk) -> None:
         % (r.returncode, ran, "" if r.returncode == 0 else " | " + (r.stdout + r.stderr).strip()[-160:]))
     # ── v37 P0-1 — **배치가 launcher 에 실제로 도착했는지** 본다 (산술만 하고 끝내지 않는다)
     _pl = (jd / "_place.log")
-    chk(_pl.is_file() and "ppn=1" in _pl.read_text(),
-        "★ v37 P0-1: 랭크 배치(-N 1)가 **mpirun 에 실제로 전달됐다** "
-        f"(스텁 기록: {_pl.read_text().split() if _pl.is_file() else '없음'}) — "
-        "종전엔 VASP_NODES 가 산술에만 쓰이고 실행에는 안 갔다")
+    _plt = _pl.read_text() if _pl.is_file() else ""
+    chk("ppn=1" in _plt and "hostfile=" in _plt and "slot_1" in _plt,
+        "★ v37 P0-1 (재검토 a): 랭크 배치(-N 1)와 **잡별 hostfile(slot_1)** 이 mpirun 에 실제로 전달됐다 "
+        f"(스텁 기록: {_plt.split()[:4]})")
+    chk((jd.parent.parent / "_hostpool" / "free" / "slot_1").is_file(),
+        "재검토 a: 잡이 끝나면 호스트 조각을 **풀에 돌려준다** (안 돌려주면 다음 잡이 굶는다)")
+    chk((jd / "_placement.tsv").is_file() and "slot_1" in (jd / "_placement.tsv").read_text(),
+        "재검토 a: 잡별 배치 기록(_placement.tsv)이 남는다")
     # ⛔음성 — 배치 변수가 없으면 **거부**한다 (조용히 배치 없이 던지지 않는다)
     _b2, _jd2 = stage("noplace")
     _t2 = (_b2 / ".lock_bundle")
@@ -17370,6 +17649,14 @@ def _runner_launcher_regression(out: Path, chk) -> None:
     chk(_r2.returncode != 0 and "VASP_RANKS_PER_NODE" in (_r2.stdout + _r2.stderr),
         "⛔음성 v37 P0-1: VASP_RANKS_PER_NODE 가 없으면 run_job 이 **멈춘다** "
         f"(rc={_r2.returncode})")
+    # ⛔음성 재검토 a — 호스트 풀이 없으면 배치 없이 던지지 않는다
+    _b3, _jd3 = stage("nopool")
+    _t3 = (_b3 / ".lock_bundle")
+    if not _t3.is_file():
+        _t3.write_text("selftest-token\n")
+    _r3, _ = go(_jd3, token=_t3.read_text().strip(), pool=False)
+    chk(_r3.returncode != 0 and "호스트 풀이 없습니다" in (_r3.stdout + _r3.stderr),
+        f"⛔음성 재검토 a: 호스트 풀이 없으면 run_job 이 **멈춘다** (rc={_r3.returncode})")
     rcpt = jd / "EXECUTABLE_RECEIPT.tsv"
     _rows = [l.split("\t") for l in rcpt.read_text().splitlines() if l.strip()] \
         if rcpt.is_file() else []
@@ -18110,15 +18397,27 @@ def selftest() -> int:
         chk("고르게 못 나눕니다" in _mg,
             "⛔음성 P0-1: 랭크가 노드로 정수 분할 안 되면 거부 (한 노드만 OOM 난다)")
         # 러너(run_job)가 그 배치를 실제 플래그로 만든다
-        chk("VASP_RANKS_PER_NODE" in RUN_JOB and "--ntasks-per-node=" in RUN_JOB,
-            "P0-1: run_job 이 srun 배치 플래그를 실제로 만든다")
-        chk('"$LAUNCHER_BIN" $_PLACE' in RUN_JOB,
-            "P0-1: 그 플래그가 **launcher 호출에 실제로 들어간다**")
-        chk("-N $VASP_RANKS_PER_NODE" in RUN_JOB and "-ppn $VASP_RANKS_PER_NODE" in RUN_JOB
-            and "--version" in RUN_JOB,
-            "P0-1: MPI 구현을 --version 으로 판별해 플래그를 고른다 (추측하지 않는다)")
-        chk("MPI 구현을 판별하지 못해" in RUN_JOB,
-            "⛔음성 P0-1: 판별 실패 시 **거부**한다 (배치 없이 던지는 것이 사고 자체다)")
+        chk("--ntasks-per-node=" in _rs and "--hostfile %s -N %s" in _rs and "-f %s -ppn %s" in _rs,
+            "P0-1: 배치 플래그 규칙(srun/ompi/hydra)이 _place_flags.sh **한 곳**에 있다")
+        chk("place_args" in RUN_JOB and '"$LAUNCHER_BIN" $_PLACE' in RUN_JOB,
+            "P0-1: run_job 이 그 함수로 플래그를 만들고 **launcher 호출에 실제로 넣는다**")
+        chk("--version" in _rs and "VASP_PLACE_MODE" in _rs and "MPI 구현을 판별하지 못해" in _rs,
+            "⛔음성 P0-1: MPI 구현을 --version 으로 **한 곳(run_staged)** 에서 판별하고, 실패 시 거부")
+        # ── 2026-09-08 재검토 P0-1 a·b·c ─────────────────────────────────────
+        chk("_hostpool/free" in _rs and "_hostpool/free" in RUN_JOB and 'mv "$_f"' in RUN_JOB,
+            "★ 재검토 a: 할당 호스트를 **서로소 조각**으로 나눠 run_job 이 **원자적으로 점유**한다")
+        chk("I_MPI_JOB_RESPECT_PROCESS_PLACEMENT=0" in _rs,
+            "재검토 a: Intel MPI 에서 -ppn 이 무시되지 않게 환경을 박는다")
+        chk("_probe_" in _rs and "PLACEMENT_PROBE.json" in _rs and "서로소" in _rs and re.search(r"(?m)^\s*wait\s*$", _rs),
+            "★ 재검토 a: 첫 VASP 전에 hostname 프로브를 **동시에** 띄워 rank→host 와 프로브 간 서로소를 검증한다")
+        chk("배치 프로브 실패" in _rs,
+            "⛔음성 재검토 a: 프로브가 어긋나면 **멈춘다**")
+        chk("/proc/self/cgroup" in _rs and "리프 → 루트" in _rs,
+            "★ 재검토 c: cgroup 을 /proc/self/cgroup 경로 따라 **계층으로** 읽는다 (루트 고정 읽기 폐기)")
+        chk("관측된 할당보다 큽니다" in _rs and "VASP_HOSTFILE" in _rs,
+            "⛔음성 재검토 b: VASP_TOTAL_NODES 선언이 관측(SLURM·hostfile)을 넘으면 **거부**한다")
+        chk("MEMG_NODES_UNOBSERVED" in _rs and "프로브가 실제 호스트로 검증" in _rs,
+            "재검토 b: 관측 불가는 '경고 후 진행' 이 아니라 **프로브로 검증**으로 넘긴다")
         # ⚠ 회신 BB P1 — census 본문이 러너에서 `census.py` 로 빠졌다. 검사도
         #   실물이 있는 곳을 봐야 한다 (러너에는 **호출**이 남는다).
         # ⚠ `RECHECK_SEAL=1 python3 census.py …` 도 앞 문자열을 **포함**한다 —
@@ -18209,82 +18508,71 @@ def selftest() -> int:
             chk(_g10 in _sb9, "AS 10: SUBMIT 의 수치 게이트 표에 `%s` 가 있다" % _g10)
         chk("중앙 추정 56 h" not in _sb9,
             "⛔음성 AR P1-11: walltime 이 하드코딩 56 h 가 아니라 cost_frozen 에서 온다")
-        # ══ 2026-09-04 — 권장 walltime 이 **NELM 천장 아래면 안 된다** ═══════════
-        #   실측 사고: v35 초판이 외피 58 h 만 보고 72 h 를 권했는데 천장은 76.9 h 였다.
-        #   즉 우리가 권한 walltime 아래에서 잘릴 수 있는 잡이 있었다.
+        # ══ 2026-09-08 (Codex v37 재검토 P0-2) — **요청값은 단계 할당 하나** ═══════
+        import vasp_cost_estimate as CE   # noqa: E402  (큐 상한 상수)
+        #   종전 판은 잡당 84 h 지시와 단계당 144 h 지시가 **같이** 나갔다. 여기서
+        #   (a) 요청 숫자가 하나인지 (b) 그것이 stage_alloc_h 에서 온 값인지
+        #   (c) 잡당 지시 문장이 사라졌는지 (d) 큐 미충족을 말하는지 본다.
         _cf9 = m_st.get("cost_frozen") or {}
-        # ⛔음성 2026-09-04 — 이 묶음의 동시잡이 makespan 표에 **있어야** 한다.
-        #   없으면 walltime 블록의 조회가 None 이 되어 "전체 일정" 문장이 통째로 사라진다
-        #   (실측: --concurrency 5 에서 두 문서 모두 그 줄이 없었다).
         _mkw9 = _cf9.get("makespan_staged_d") or {}
         _cc9 = (m_st.get("submission") or {}).get("max_concurrency")
         if _mkw9 and _cc9:
             chk(str(_cc9) in _mkw9,
-                f"⛔음성: makespan 표가 이 묶음의 동시잡({_cc9})을 담는다 — 없으면 "
-                f"'전체 일정' 문장이 문서에서 사라진다 (키 {sorted(_mkw9)})")
+                f"⛔음성: makespan 표가 이 묶음의 동시잡({_cc9})을 담는다 (키 {sorted(_mkw9)})")
             chk("전체 일정" in _rd9 and "전체 일정" in _sb9,
                 "⛔음성: README·SUBMIT 둘 다 **전체 일정** 문장을 담는다")
-        _ce9 = _cf9.get("nelm_ceiling_longest_h")
-        chk(_ce9 is not None and _cf9.get("nelm"),
-            f"cost_frozen 이 NELM 천장을 담는다 (천장 {_ce9} h · NELM {_cf9.get('nelm')})")
-        if _ce9:
-            _rec9 = re.search(r"walltime 은 \*\*(\d+) h\*\*", _sb9)
-            chk(bool(_rec9), "SUBMIT 이 권장 walltime 을 숫자로 적는다")
-            if _rec9:
-                chk(int(_rec9.group(1)) >= _ce9,
-                    f"⛔음성: 권장 walltime {_rec9.group(1)} h ≥ NELM 천장 {_ce9:.0f} h "
-                    "(모형 외피만 보면 천장 아래를 권하게 된다 — 그러면 잘린다)")
-            # ⚠ "결정론" 이라는 낱말 자체는 **철회 문장 안에** 남는다 — 금지할 것은
-            #   낱말이 아니라 **주장형**이다.
-            chk("NELM" in _sb9 and "보장이 아닙니다" in _sb9
-                and "결정론입니다" not in _sb9 and "결정론)" not in _sb9,
-                "⛔음성 P0-2: SUBMIT 이 NELM 을 **시나리오**로 말하고 결정론이라 "
-                "**주장하지 않는다** (철회 문장 안의 언급은 허용)")
-            chk("철회합니다" in _sb9,
-                "P0-2: SUBMIT 이 종전 '결정론적 상한' 주장을 **명시적으로 철회**한다")
-        # ⛔음성 (직접 단위) — **천장이 외피보다 클 때** 권장이 천장을 따라가는가.
-        #   합성 번들은 천장이 작아 위 검사가 자동 통과하므로, 사고 상황을 직접 만든다.
+        _sa9 = _cf9.get("stage_alloc_h") or {}
+        chk(bool(_sa9.get("NELM_시나리오")) and bool(_sa9.get("중앙_추정")) and _sa9.get("요청_h"),
+            f"cost_frozen.stage_alloc_h 가 중앙/NELM/요청_h 를 담는다 (요청 {_sa9.get('요청_h')} h)")
+        chk("사전순 FIFO" in str(_sa9.get("★_계산_규칙", "")),
+            "★ P0-2 재검토: stage_alloc_h 가 **러너 순서(사전순 FIFO+장벽)** 로 계산됐다고 기록한다")
+        for _doc, _nm in ((_rd9, "README"), (_sb9, "SUBMIT")):
+            _reqs = re.findall(r"\*\*단계당 (\d+) h\*\*", _doc)
+            chk(len(_reqs) == 1,
+                f"★ P0-2 재검토: {_nm} 의 요청 walltime 숫자가 **하나**다 (실측 {_reqs})")
+            chk(_reqs and int(_reqs[0]) == int(_sa9.get("요청_h") or -1),
+                f"{_nm} 요청값 {_reqs} 이 MANIFEST.stage_alloc_h.요청_h({_sa9.get('요청_h')}) 와 같다")
+            chk("잡당 walltime 은" not in _doc and "요청 walltime" not in _doc.replace("요청 walltime 을 낼 수 없습니다", ""),
+                f"⛔음성 P0-2 재검토: {_nm} 에 **잡당 walltime 지시**가 남아 있지 않다 (지시는 단계 하나)")
+            chk("요청값 아님" in _doc,
+                f"{_nm} 이 잡당 수치를 **참고(요청값 아님)** 로 표시한다")
+            if _sa9.get("요청_h") and CE.QUEUE_CAP_H and int(_sa9["요청_h"]) > CE.QUEUE_CAP_H:
+                chk("충족되지 않습니다" in _doc,
+                    f"⛔음성 P0-2 재검토: {_nm} 이 큐 상한 {CE.QUEUE_CAP_H:.0f} h 로 요청 "
+                    f"{_sa9['요청_h']} h 를 **충족할 수 없음**을 말한다")
+            chk("결정론입니다" not in _doc and "결정론)" not in _doc and "철회합니다" in _doc,
+                f"⛔음성 P0-2: {_nm} 이 NELM 을 결정론이라 주장하지 않고 종전 표현을 철회한다")
+        # ── 합성 픽스처: 함수 단위 계약 ───────────────────────────────────────
         class _FakeA:
             cores, concurrency = 192, 4
         _man_ce = {"cost_frozen": {"longest_job_h": 29, "nelm": 200,
                                    "nelm_ceiling_longest_h": 76.9, "queue_cap_h": 91.0,
                                    "makespan_staged_d": {"4": 3.35},
                                    "stage_longest_h": {"1": 28.9, "2": 26.0},
-                                   # v37 P0-2 — 단계 할당 계약 (잡 상한과 다른 축)
-                                   "stage_alloc_h": {"중앙_추정": {"1": 47.9, "2": 51.5},
-                                                     "NELM_시나리오": {"1": 127.9, "2": 137.4}}},
+                                   "stage_alloc_h": {"중앙_추정": {"1": 55.6, "2": 51.5},
+                                                     "NELM_시나리오": {"1": 148.2, "2": 137.4},
+                                                     "요청_h": 156}},
                    "submission": {"max_concurrency": 4}}
         _wl = _walltime_block(_man_ce, _FakeA())
-        _m_ce = re.search(r"walltime 은 \*\*(\d+) h\*\*", _wl)
-        chk(bool(_m_ce) and 77 <= int(_m_ce.group(1)) <= 91,
-            f"⛔음성: 외피 58 h < 천장 76.9 h 인 사고 상황에서 권장이 "
-            f"{_m_ce.group(1) if _m_ce else '?'} h — **천장 이상이면서 큐 상한 91 h 이하** "
-            "(종전 산식이면 72 h 를 권해 잘렸고, 천장에 여유를 또 얹으면 96 h 로 넘겼다)")
-        chk("NELM 시나리오" in _wl,
-            "⛔음성: 그때 **왜** 그 값인지(NELM 시나리오라서)를 문서가 말한다")
-        _man_lo = json.loads(json.dumps(_man_ce))
-        _man_lo["cost_frozen"]["nelm_ceiling_longest_h"] = 10.0
-        _wl_lo = _walltime_block(_man_lo, _FakeA())
-        chk("외피 58 h × 1.1" in _wl_lo,
-            "⛔음성: 천장이 작으면 종전대로 **모형 외피**를 근거로 적는다 "
-            "(천장을 만능으로 쓰지 않는다)")
-        chk("아래입니다 (여유 14 h)" in _wl,
-            "NELM 시나리오 76.9 h 를 잡당 큐 상한 91 h 에 대어 **여유를 숫자로** 말한다")
-        # ── 2026-09-07 Codex v37 P0-2 회귀 ───────────────────────────────────
-        #   "결정론적 상한" 이라는 주장이 문서로 다시 새어 나가면 안 된다.
-        # ⚠ 낱말이 아니라 **주장형**을 금지한다 (철회 문장 안에는 남아야 한다).
-        chk("결정론입니다" not in _wl and "결정론)" not in _wl,
-            "⛔음성 P0-2: 문서가 NELM 을 결정론이라고 **주장하지 않는다** "
-            "(NELM 은 전자스텝 수를 묶지 시간을 묶지 않는다)")
-        chk("철회합니다" in _wl,
-            "P0-2: 종전 '결정론적 상한' 주장을 문서에서 **명시적으로 철회**한다")
-        chk("보장이 아닙니다" in _wl and "횟수" in _wl,
-            "P0-2: NELM 값이 **시나리오이지 보장이 아니라고** 말한다")
-        chk("잡이 아니라 단계 기준입니다" in _wl and "할당이 먼저 잘립니다" in _wl,
-            "★ P0-2: walltime 계약이 **잡이 아니라 단계**라고 적는다 — 잡이 전부 상한 "
-            "아래여도 단계가 넘으면 할당이 잘린다")
-        chk("단계당" in _wl and " h** 를 잡아 주십시오" in _wl,
-            "P0-2: 요청할 **단계 walltime 값**을 숫자로 준다")
+        _reqs_ce = re.findall(r"\*\*단계당 (\d+) h\*\*", _wl)
+        chk(_reqs_ce == ["156"],
+            f"★ 합성: 요청값이 stage_alloc_h.요청_h 그대로 **156 h 하나** (실측 {_reqs_ce}) — 144 도 84 도 아니다")
+        chk("91 h 로는 충족되지 않습니다" in _wl,
+            "⛔음성 합성: 156 > 91 이면 **큐 미충족**을 명시한다")
+        chk("잡당 walltime 은" not in _wl and "요청 walltime 84" not in _wl,
+            "⛔음성 합성: 잡당 84 h 지시가 어디에도 없다")
+        chk("참고 (요청값 아님)" in _wl and "29 h" in _wl,
+            "합성: 잡당 중앙 추정은 **참고**로만 남는다")
+        chk("결정론입니다" not in _wl and "결정론)" not in _wl and "철회합니다" in _wl
+            and "보장이 아닙니다" in _wl and "횟수" in _wl,
+            "⛔음성 P0-2: NELM 을 결정론이라 주장하지 않고, 시나리오·철회를 말한다")
+        # ⛔음성 — stage_alloc_h 가 없는 옛 묶음은 **요청값을 내지 않는다** (잡당으로 대신 채우면 재발)
+        _man_old = {"cost_frozen": {"longest_job_h": 29, "nelm": 200,
+                                    "nelm_ceiling_longest_h": 76.9, "queue_cap_h": 91.0},
+                    "submission": {"max_concurrency": 4}}
+        _wl_old = _walltime_block(_man_old, _FakeA())
+        chk(not re.findall(r"\*\*단계당 (\d+) h\*\*", _wl_old) and "요청 walltime 을 낼 수 없습니다" in _wl_old,
+            "⛔음성: stage_alloc_h 없는 묶음엔 요청값을 **내지 않고** 그렇다고 말한다")
         # ── 랭크 예시가 이 묶음이 실제로 쓰는 코어 수를 담는가 ────────────────
         _pz9 = (_sm9.get("parallelization") or {})
         _rk9 = _pz9.get("쓸_수_있는_랭크_예") or []
@@ -20833,6 +21121,41 @@ def _runner_e2e(bundle: Path, chk) -> bool:
         r = _sp.run(["bash", "run_staged.sh", "1"], cwd=str(root), env=e,
                     capture_output=True, text=True, timeout=600)
         return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+    # ══ 2026-09-08 (Codex 재검토 P0-1 a) — **배치 프로브를 실제 run_staged 경로로** 시험 ═══
+    #   kind=mpirun + 배치를 흉내내는 스텁 + hostfile. 노드 수는 이 시험기의 실제 메모리
+    #   상한(cgroup 계층 포함)을 통과하도록 랭크당 1 노드로 펼친다 (가드를 끄지 않는다).
+    def _probe_case(tag, bad):
+        dst = base / f"probe_{tag}"
+        _sh2.rmtree(dst, ignore_errors=True)
+        _sh2.copytree(bundle, dst)
+        (dst / ".SELFTEST_FIXTURE").write_text("1\n")
+        mb = dst / "_mpibin"; mb.mkdir()
+        (mb / "mpirun").write_text(FAKE_MPIRUN); (mb / "mpirun").chmod(0o755)
+        _nn = KPAR_VAL * NCORE_VAL                           # = VASP_NPROC → 노드당 1랭크
+        (dst / "_hosts.txt").write_text("".join(f"probe-node{k:02d}\n" for k in range(1, _nn + 1)))
+        e = {"VASP_LAUNCHER_KIND": "mpirun", "LAUNCHER_BIN": str(mb / "mpirun"),
+             "VASP_HOSTFILE": str(dst / "_hosts.txt"), "VASP_NODES": str(_nn), "JOBS_PARALLEL": "1"}
+        for k in ("SLURM_JOB_NUM_NODES", "SLURM_NNODES", "SLURM_MEM_PER_NODE", "NODE_MEM_GB"):
+            e[k] = ""     # 관측은 hostfile · cgroup · /proc/meminfo 로만
+        if bad:
+            e["STUB_BAD_PLACEMENT"] = "1"
+        rc, out_ = _run(dst, e)
+        return rc, out_, dst
+    _rcP, _oP, _dP = _probe_case("ok", bad=False)
+    chk("배치 프로브 1 개 동시 통과" in _oP and (_dP / "PLACEMENT_PROBE.json").is_file()
+        and json.loads((_dP / "PLACEMENT_PROBE.json").read_text()).get("all_ok") is True,
+        "★ 재검토 a 양성: 스텁이 hostfile 대로 놓으면 프로브가 통과하고 PLACEMENT_PROBE.json 에 all_ok 가 남는다 "
+        f"(rc={_rcP})")
+    chk((_dP / "_hostpool" / "free" / "slot_1").is_file()
+        and (_dP / "_place_flags.sh").is_file(),
+        "재검토 a: run_staged 가 호스트 풀(slot_1)과 _place_flags.sh 를 만든다")
+    _rcB, _oB, _dB = _probe_case("bad", bad=True)
+    chk(_rcB == 2 and "배치 프로브 실패" in _oB and "고유 호스트 1 ≠ VASP_NODES" in _oB,
+        f"⛔음성 재검토 a: launcher 가 hostfile 을 무시해 한 노드에 몰면 **첫 VASP 전에 멈춘다** (rc={_rcB})")
+    chk((_dB / "PLACEMENT_PROBE.json").is_file()
+        and json.loads((_dB / "PLACEMENT_PROBE.json").read_text()).get("all_ok") is False,
+        "⛔음성 재검토 a: 실패한 프로브도 PLACEMENT_PROBE.json 에 관측 rank→host 를 남긴다 (증거)")
 
     def _copy(tag):
         dst = base / tag
