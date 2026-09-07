@@ -1,6 +1,6 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 360
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 361
 
 규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
@@ -26,7 +26,7 @@
 - `kb/physics/vacancy_effects.md` — Vacancy Effects in Argyrodite
 - `kb/physics/vacancy_mechanism_corrected_2026_05_08.md` — Vacancy + Halogen Distribution → Adhesion: Corrected Mechanism
 
-## methodology/ (50)
+## methodology/ (51)
 - `kb/methodology/PHASE1_QUICKSTART_doping.md` — Phase 1 Quickstart Guide
 - `kb/methodology/adhesion_calibration_decision_2026_05_17.md` — Adhesion Calibration Decision — 2026-05-17
 - `kb/methodology/adhesion_energy.md` — Adhesion Energy (Wad) Calculation
@@ -69,6 +69,7 @@
 - `kb/methodology/microstructure_ml_transfer_to_cascade_2026_08_25.md` — 미세구조 ML 세미나에서 cascade 로 이전 가능한 것 — 화학이 아니라 설계·평가 방법론 ○미열람
 - `kb/methodology/modelC_v2_slab_fix.md` — modelC v2 Slab Construction — Convention Fix
 - `kb/methodology/nd_vs_O_isolation_campaign_2026_06_18.md` — Nd vs O 분리 — "Nd가 특별한가, O 운반체일 뿐인가" 정량 캠페인
+- `kb/methodology/o2_muO_screening_2026_09_07.md` — LPSCl + O₂ — 산소 화학퍼텐셜(μ_O) 전방향 스크리닝 ○미열람
 - `kb/methodology/offline_archive_index_2026_08_20.md` — 오프라인 백업 인덱스 — repo 밖에 있는 원자료가 어디 있나 ○미열람
 - `kb/methodology/probe_language_reference.md` — Probe 언어 레퍼런스 — 각 계산이 무엇이고, 어떻게 구하고, 논문/figure에 어떻게 쓰는가
 - `kb/methodology/ps4_libration_dopant_2026_08_28.md` — T16 — PS₄ 는 안 돈다(재확인). 그런데 **+O 가 흔들림 원뿔을 좁힌다**(신규) ○미열람

@@ -94,6 +94,63 @@ O2_REFERENCE_CAVEAT = (
 )
 
 
+#: 축을 읽을 수 있게 만드는 **기준 반응**. `환원형,산화형` 쌍으로 준다.
+#:   `2 Li + ½O₂ → Li₂O` 의 평형 μ_O 를 **같은 hull 위에서** 내면, 우리 개시점을
+#:   *"Li/Li₂O 평형보다 얼마나 위/아래"* 로 말할 수 있다 — **기준이 양쪽에서 지워져서**
+#:   PBE O₂ 과결합·MP anion correction 이 차이에서 상쇄된다.
+#: ⚠ 완전 상쇄는 아니다: 두 반응의 O 결합환경이 다르면 보정 오차가 완전히는 안 지워진다.
+#:   그래도 **원소 기준 절대값보다는 훨씬 낫다** — 그것이 이 기능의 전부다.
+DEFAULT_LANDMARKS = ("Li,Li2O", "Li2S,Li2SO4", "Li3PS4,Li3PO4")
+
+
+def landmark_mu(entries, red_formula, ox_formula, open_symbol="O"):
+    """`A + n/2 X₂ → B` 의 평형 μ_X. 비-X 조성이 맞도록 A 를 스케일한다.
+
+    μ_X = [E(B) − s·E(A)] / [n_X(B) − s·n_X(A)]   (s = 비-X 조성을 맞추는 배수)
+
+    ⛔ 못 하는 것
+      · 두 상이 **hull 위에 있는지 확인하지 않는다.** 준안정상을 주면 그 값이 나온다.
+      · 비-X 조성이 **비례하지 않으면** 계산하지 않고 None 을 낸다 (억지로 균형 안 잡는다).
+      · 실험 생성에너지와 대조하지 않는다 — 그건 부르는 쪽 몫이다.
+    """
+    from pymatgen.core import Composition, Element
+    X = Element(open_symbol)
+
+    def best(f):
+        c = Composition(f)
+        cand = [e for e in entries
+                if e.composition.reduced_formula == c.reduced_formula]
+        if not cand:
+            return None, None
+        e = min(cand, key=lambda x: x.energy_per_atom)
+        n = c.num_atoms                       # 요청한 화학식 단위로 환산
+        return e.energy_per_atom * n, c
+
+    E_red, c_red = best(red_formula)
+    E_ox, c_ox = best(ox_formula)
+    if E_red is None or E_ox is None:
+        return None, f"hull 에 없다: {red_formula if E_red is None else ox_formula}"
+
+    others = sorted({el for el in list(c_red) + list(c_ox) if el != X})
+    if not others:
+        return None, "비-O 원소가 없다"
+    ratios = []
+    for el in others:
+        a, b = c_red[el], c_ox[el]
+        if a < 1e-9:
+            if b > 1e-9:
+                return None, f"{el} 가 환원형에 없다 — 균형이 안 잡힌다"
+            continue
+        ratios.append(b / a)
+    if not ratios or max(ratios) - min(ratios) > 1e-6:
+        return None, f"비-{open_symbol} 조성이 비례하지 않는다 (배수 {ratios})"
+    s = ratios[0]
+    dn = c_ox[X] - s * c_red[X]
+    if abs(dn) < 1e-9:
+        return None, f"{open_symbol} 개수가 안 변한다 — 산화반응이 아니다"
+    return (E_ox - s * E_red) / dn, None
+
+
 def steps_from_profile(profile, open_symbol, mu_ref, rxn=rxn_to_str):
     """profile(dict 리스트) → steps. **순수 함수** — pymatgen·MP 없이 시험할 수 있다.
 
@@ -217,7 +274,10 @@ def main():
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--target", nargs="+", required=True,
+    # ⚠ 2026-09-07 — required=True 였다. 그래서 `--selftest` 만으로는 **selftest 가
+    #   안 돌았다**(더미 --target 을 줘야 했다). 시험을 돌리기 어렵게 만드는 것은
+    #   시험을 안 돌리게 만드는 것과 같다. 아래에서 손으로 검사한다.
+    ap.add_argument("--target", nargs="+",
                     help='comp:label, e.g. "Li6PS5Cl:comp1" '
                          '"Li5.4P1S4.4Cl1.6:modelc"')
     ap.add_argument("--elements", nargs="+", default=["Li", "P", "S", "Cl"])
@@ -226,6 +286,9 @@ def main():
                          "(LPSCl + O₂) 의 μ_O staircase 가 나온다. ⚠ 부호의 뜻이 원소마다 "
                          "다르다 — O 는 받아들임(+)이 **산화**다.")
     ap.add_argument("--out", default="esw_grand_potential_results.json")
+    ap.add_argument("--landmarks", nargs="*", default=list(DEFAULT_LANDMARKS),
+                    help="축을 읽을 기준 반응. '환원형,산화형' 쌍 (예: Li,Li2O). "
+                         "빈 목록을 주면 끈다.")
     ap.add_argument("--exclude_phases", nargs="*", default=[],
                     help="Phases to drop from the hull, by reduced FORMULA or MP-id "
                          "(Gil-González 2022 set: LiS4 SCl3 Li5PS4Cl2). Formula match "
@@ -236,6 +299,8 @@ def main():
 
     if args.selftest:
         return selftest()
+    if not args.target:
+        ap.error("--target 이 필요하다 (--selftest 를 쓸 때만 생략 가능)")
 
     # ⛔ 열 원소가 chemsys 에 없으면 hull 에 그 원소가 아예 없다 — 조용히 빈 프로파일이
     #   나오지 않게 여기서 멈춘다 (fail-closed).
@@ -266,6 +331,26 @@ def main():
     if args.open_element == "O":
         print(f"  {O2_REFERENCE_CAVEAT}")
 
+    # ── 기준 반응(landmark) — 축을 읽을 수 있게 만든다 ──────────────────────
+    landmarks = {}
+    for spec in (args.landmarks or []):
+        if "," not in spec:
+            print(f"  [landmark] 건너뜀 — '환원형,산화형' 형식이 아니다: {spec}"); continue
+        red, ox = [t.strip() for t in spec.split(",", 1)]
+        mu, why = landmark_mu(entries, red, ox, open_symbol)
+        landmarks[f"{red}->{ox}"] = (None if mu is None else
+                                     {"mu_eV": round(mu, 4),
+                                      f"dmu_{open_symbol}_eV": round(mu - mu_ref, 4)})
+        if mu is None:
+            print(f"  [landmark] {red}→{ox}: 못 냄 — {why}")
+        else:
+            print(f"  [landmark] {red:>10s} → {ox:<10s}  "
+                  f"μ_{open_symbol} = {mu:+.4f}  (Δμ {mu - mu_ref:+.4f} eV)")
+    if landmarks:
+        print("  ⇒ 개시점을 이 기준 대비로 읽으면 **기준이 양쪽에서 지워진다** "
+              "(절대값보다 훨씬 낫다. 완전 상쇄는 아니다 — O 결합환경이 다르면 잔차가 남는다)")
+        print()
+
     results = {}
     for spec in args.target:
         comp_str, _, label = spec.partition(":")
@@ -283,6 +368,7 @@ def main():
                   f"(Mo/Ong/Ceder 2012); MP GGA_GGA+U corrected hull; **{args.open_element} opened**.",
         "open_element": args.open_element,
         "elements": args.elements,
+        "landmarks": landmarks,
         "excluded_phases": args.exclude_phases,
         f"mu_{args.open_element}_ref_eV": round(mu_ref, 4),
         "axis_convention": (
@@ -348,6 +434,43 @@ def selftest():
     chk(limits_from_steps([], "O")["uptake_onset_mu_eV"] is None, "빈 프로파일도 안 죽는다")
     chk("μ_O" in O2_REFERENCE_CAVEAT and "pO₂" in O2_REFERENCE_CAVEAT,
         "O₂ 기준 경고문이 데이터에 실려 나간다")
+
+    # ── landmark (2026-09-07) — 축을 읽게 만드는 기준 반응 ───────────────────
+    chk(len(DEFAULT_LANDMARKS) >= 3 and all("," in x for x in DEFAULT_LANDMARKS),
+        "기본 기준 반응 목록이 '환원형,산화형' 형식이다")
+
+    try:
+        from pymatgen.core import Composition          # noqa: F401
+    except ImportError:
+        print("  ⚠ landmark 계산 시험 **건너뜀** — pymatgen 이 없다.")
+        print("     ⛔ 이건 통과가 아니라 **안 돈 것**이다. gabia 에서 반드시 다시 돌린다:")
+        print("        python3 tools/oxidation/esw_grand_potential.py --selftest")
+    else:
+        class _FakeEntry:
+            def __init__(self, formula, e_per_atom):
+                self.composition = Composition(formula)
+                self.energy_per_atom = e_per_atom
+
+        # Li −1.0/atom · Li2O −5.0/atom(3원자 ⇒ f.u. −15.0)
+        #   2Li + ½O₂ → Li2O ⇒ μ_O = E(Li2O) − 2E(Li) = −15.0 − (−2.0) = **−13.0**
+        # Li2S(3원자 ⇒ −9.0) → Li2SO4(7원자 ⇒ −42.0), O 4개
+        #   ⇒ μ_O = (−42.0 + 9.0)/4 = **−8.25**
+        ents = [_FakeEntry("Li", -1.0), _FakeEntry("Li2O", -5.0),
+                _FakeEntry("Li2S", -3.0), _FakeEntry("Li2SO4", -6.0)]
+
+        mu, why = landmark_mu(ents, "Li", "Li2O", "O")
+        chk(why is None and abs(mu - (-13.0)) < 1e-9,
+            f"Li→Li2O 평형 μ_O 를 정확히 낸다 (기대 −13.0 · 얻음 {mu})")
+        mu2, why2 = landmark_mu(ents, "Li2S", "Li2SO4", "O")
+        chk(why2 is None and abs(mu2 - (-8.25)) < 1e-9,
+            f"비-O 조성이 같으면 스케일 1 로 낸다 (기대 −8.25 · 얻음 {mu2})")
+        _, w3 = landmark_mu(ents, "Li", "Li2SO4", "O")
+        chk(w3 is not None, "⛔음성: 비-O 조성이 비례하지 않으면 **억지로 균형 잡지 않는다** "
+                            "(Li→Li2SO4 는 S 가 환원형에 없다)")
+        _, w4 = landmark_mu(ents, "Li", "Nonexistent2O3", "O")
+        chk(w4 is not None and "hull" in w4, "⛔음성: hull 에 없는 상은 사유를 말하고 None")
+        _, w5 = landmark_mu(ents, "Li2O", "Li2O", "O")
+        chk(w5 is not None, "⛔음성: O 개수가 안 변하면 산화반응이 아니라고 말한다")
 
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
