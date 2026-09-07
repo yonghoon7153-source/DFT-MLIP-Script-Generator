@@ -45,14 +45,35 @@ FORBIDDEN_CLAIMS = (
 #:   늘어나 금지로 읽히는 문맥이 많아진다), 어느 쪽이 /sdcp 마감문서에 맞는지는
 #:   과학·편집 판정이라 사람이 정할 일이다. 대신 아래 시험이 **위험한 방향의
 #:   드리프트**(여기에만 표지가 늘어 다른 화면보다 느슨해지는 것)를 막는다.
-_PROHIBITION_MARKS = ("⛔", "금지", "철회", "보류", "않는다", "가 아니다", "이 아니다",
-                      "못 쓴다", "안 쓴다", "라 쓰지", "라고 쓰지", "HISTORICAL",
-                      "BLOCKED", "SUPERSEDED", "미해결", "비인용")
+#: ✅ 2026-09-07 해소 — 사본을 없앴다. 정본이 `canonical` 에 **두 벌 나란히** 있고
+#:   (`PROHIBITION_MARKS` 넓음 · `PROHIBITION_MARKS_STRICT` 좁음), 좁다는 사실은
+#:   아래 `test_strict_marks_stay_a_proper_subset` 가 지킨다.
+from webapp.canonical import (PROHIBITION_MARKS,          # noqa: E402
+                              PROHIBITION_MARKS_STRICT)
+_PROHIBITION_MARKS = PROHIBITION_MARKS_STRICT
 
 
 def _is_prohibition(ctx: str) -> bool:
     """문맥에 금지 표지가 있나. 없으면 그 문장은 주장으로 읽힌다."""
     return any(m in ctx for m in _PROHIBITION_MARKS)
+
+
+def test_strict_marks_stay_a_proper_subset():
+    """⛔음성: `/sdcp` 의 좁은 표지 집합이 **넓은 쪽과 같아지면 안 된다.**
+
+    검사는 "숫자 주변에 표지가 없으면 그 출현은 **주장**" 으로 돈다 ⇒ 표지가 **늘면
+    검사가 느슨해진다.** 마감문서인 `/sdcp` 는 제일 엄격해야 하므로 좁은 쪽을 쓴다.
+    사본을 없애면서 생긴 새 위험이 **"정리하다 하나로 합치는 것"** 이라 그것만 막는다.
+    """
+    strict, broad = set(PROHIBITION_MARKS_STRICT), set(PROHIBITION_MARKS)
+    assert strict < broad, (
+        "좁은 표지 집합이 넓은 쪽의 **진부분집합**이 아니다. 같아졌다면 /sdcp 검사가 "
+        f"느슨해진 것이다. strict−broad={sorted(strict - broad)} · "
+        f"broad−strict={sorted(broad - strict)}")
+    # 넓은 쪽에만 있는 대표 표지가 /sdcp 에서 금지로 안 읽히는지 실물로 확인
+    assert not _is_prohibition("이 값은 RETRACTED 다"), \
+        "RETRACTED 는 넓은 쪽 전용인데 /sdcp 가 금지로 읽었다 — 두 집합이 새고 있다"
+    assert _is_prohibition("⛔ 인용 금지"), "양성: 좁은 집합도 제 일은 한다"
 
 
 def _html():
