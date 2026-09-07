@@ -464,3 +464,19 @@ L5 뒤 전체 회귀가 **1465 passed · 3 failed** 였다. 셋 다 **산출물 
   새 선언을 평범하게 적으면 그 선언 줄이 자기 preimage 로 두 번 세어진다.
   기존 항목이 `"` 로 따옴표를 escape 해 둔 이유가 그것이었고, 같은 처리를
   두 곳에 했다.
+
+- 2026-09-07 (마감 완료) — **58차 라운드 닫힘.**
+
+  | 마감 단계 | 결과 |
+  |---|---|
+  | g12 freeze → g13 | 행 바이트 `ad598fe77e75afec` — 아홉 세대째 같다 |
+  | 영수증 + 원장 identity | `core_sha 82f1e652…` · validator `920cfd31c22ebe06` |
+  | 변이 등록부 | 170 → **186** (`-g58` 16축) · EXPECT 전부 관측값 |
+  | 12조각 | **12/12 RC 0** · 186 정확히 덮음 · 한 HEAD |
+  | 전체 회귀 | **1488 passed · 1 xfailed** (rc 0) |
+  | strict smoke | **rc 0** · 트리 clean |
+  | 요청문 | `docs/22p_gap/GATE58_REQUEST.md` |
+
+  **미결로 남긴 것**: 54차 lock 명제(`finalize-holds-the-claim-lock` 의 복구 분기)가
+  증명자를 잃었고 새 증명자를 못 만들었다. L6 의 write-once receipt 가 늦은 writer 를
+  먼저 거부하기 때문이다. 요청문 §2-4 에 적었다.

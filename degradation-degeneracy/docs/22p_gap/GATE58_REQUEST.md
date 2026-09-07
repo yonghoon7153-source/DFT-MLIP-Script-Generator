@@ -129,14 +129,20 @@ node 와 그 assertion 줄 그대로이고, 채운 뒤 전체 재생이 같은 �
 
 ## §2 증거
 
-### 2-1 전체 회귀 — **1488 passed · 0 failed · 1 xfailed** (1127.37s, rc 0)
+### 2-1 전체 회귀 + strict smoke — 마감 커밋에서 다시 돌렸다
 
 ```
-$ cd degradation-degeneracy && python -m pytest tests/ -q
-........................................................................ [ 96%]
-.................................................                        [100%]
-1488 passed, 1 xfailed in 1127.37s (0:18:47)
+$ python -m pytest tests/ -q
+1488 passed, 1 xfailed in 1819.87s (0:30:19)          rc 0
+
+$ ./scripts/smoke_e2e.sh
+✅ pipeline smoke 통과                                  rc 0
 ```
+
+smoke 뒤 **작업 트리가 clean 이다** — L14 가 smoke 실행 class 레코드를 gitignore 된
+지역 등록부로 가른 결과다. 고치기 전에는 smoke 를 돌릴 때마다 공유 등록부가 늘어
+"smoke 는 clean 커밋에서 돈다" 는 이 저장소의 규율과 충돌했다 (그 충돌은 L1 을
+고치면서 **우리가 만든 것**이고, 자체 발견으로 접수해 닫았다).
 
 등록부 오염 0건 (`_exec_class` · `_frozen_coords` 둘 다). 이 라운드 첫 완전
 초록이다 — 그 전까지는 cohort identity 가 낡아 3건이 빨갰고, 그 사실을
