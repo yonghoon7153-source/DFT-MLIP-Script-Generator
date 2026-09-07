@@ -1056,6 +1056,16 @@ _STATUS_BADGE = {
     "source_pending":   ("출처미배선", "#6b7280", "#f3f4f6",
                          "원자료를 아직 못 가리킨다 — 검증되지 않은 값이다."),
     "superseded":       ("철회", "#b91c1c", "#fee2e2", "철회된 값이다."),
+    # ⛔⛔ 2026-09-07 — **`retracted` 가 이 표에 없었다.** 레지스트리는 철회를
+    #   `status: "retracted"` 로 쓰는데(b2o3 MD_Ea 0.199 가 그렇다) 여기엔
+    #   `superseded` 만 있어서 `_STATUS_BADGE.get(st)` 가 None → `if not b: continue`
+    #   ⇒ **배지가 통째로 안 붙고 철회값이 정상 카드처럼 화면에 떴다.**
+    #   1저자가 /composition/b2o3 에서 "이 값이 최종이지?" 라고 물어 발견했다.
+    "retracted":        ("철회", "#b91c1c", "#fee2e2",
+                         "⛔ 철회된 값이다 — 인용하지 않는다. 사유·대체값은 원장의 "
+                         "`retracted` 절에 있다."),
+    "non_citable":      ("인용불가", "#b91c1c", "#fee2e2",
+                         "⛔ 값은 있으나 **원자료가 인용을 금지**했다."),
 }
 
 
