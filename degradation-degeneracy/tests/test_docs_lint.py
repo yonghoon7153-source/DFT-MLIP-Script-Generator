@@ -9392,24 +9392,49 @@ def test_a_docstring_the_computation_reads_is_inside_the_identity():
 
     여기서 확인하는 것: docstring 을 **어떻게 읽든** — 직접이든 alias 든 — 그
     산문을 바꾸면 producer digest 가 움직인다.
+
+    ★ 58차 L9-b 이후 — **이 시험이 증명하는 것이 반으로 갈렸다.** 능력이 부르는
+      자리 밖에 나타나면 거부하게 되면서, alias 로 읽는 쪽(`_read = getattr`)은
+      이제 digest 를 낼 기회 자체가 없다: `_producer_semantic_over()` 가
+      fail-closed 로 멈춘다. 그래서 두 reader 를 **다른 명제**로 나눠 적는다.
+
+      - 직접 읽기 → digest 가 움직인다 (51차 명제 그대로).
+      - alias 읽기 → 거부된다 (58차 명제. 더 강하다 — 그런 producer 는 아예
+        쓸 수 없다).
+
+      fixture 를 고쳐서 옛 단언을 살려 두지 않는다. 방어를 조인 뒤에도 옛
+      단언이 그대로 통과하면 그건 성공이 아니라 fixture 가 진실을 가린 것이고,
+      이 저장소가 네 번 겪은 형태다.
     """
     rp = _rp()
     sc = (_REPO / "src" / "scoring.py").read_text(encoding="utf-8")
     doc = chr(34) * 3 + "tol=0.02" + chr(34) * 3
-    for reader in ("score_canonical.__doc__",
-                   "_read(score_canonical, '__' + 'doc__')"):
-        src = _mini_producer(
+
+    def _src(reader, extra=""):
+        # 별칭은 alias 갈래에만 둔다 — 직접 읽기 갈래에 두면 그 소스도 58차
+        # 규칙에 걸려, 51차 명제를 확인할 기회가 사라진다 (실측으로 겪었다).
+        return _mini_producer(
             rp,
             "def score_canonical(df):\n"
             "    " + doc + "\n"
             f"    return float({reader}.split('=')[1])\n",
-            extra="_read = getattr\n")
-        base = rp._producer_semantic_over(src, sc)
-        moved = rp._producer_semantic_over(
-            src.replace("tol=0.02", "tol=0.05", 1), sc)
-        assert moved != base, (
-            f"`{reader}` 로 읽는 docstring 을 바꿨는데 producer digest 가 "
-            "그대로다 — 계산이 쓰는 값이 identity 밖에 있다")
+            extra=extra)
+
+    src = _src("score_canonical.__doc__")
+    base = rp._producer_semantic_over(src, sc)
+    moved = rp._producer_semantic_over(
+        src.replace("tol=0.02", "tol=0.05", 1), sc)
+    assert moved != base, (
+        "직접 읽는 docstring 을 바꿨는데 producer digest 가 그대로다 — "
+        "계산이 쓰는 값이 identity 밖에 있다")
+
+    with pytest.raises(SystemExit) as ei:
+        rp._producer_semantic_over(
+            _src("_read(score_canonical, '__' + 'doc__')",
+                 extra="_read = getattr\n"), sc)
+    assert "능력" in str(ei.value), (
+        "능력을 값으로 옮긴 producer 가 거부되지 않았다 (58차 L9-b) — "
+        f"실제 사유: {ei.value}")
 
 
 def test_the_canonical_form_agrees_on_every_supported_interpreter():
