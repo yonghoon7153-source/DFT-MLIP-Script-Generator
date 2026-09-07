@@ -288,14 +288,24 @@ CSV 의 비 셀이 `1.08+/-0.18` 같은 **포맷 문자열**이고, 행 식별�
 알려주지 않는다. ⇒ **통과를 `citable` 로 읽지 않는다. `HOLD 해제 후보` 까지다.**
 검증하려면 장궤적 절단 실험이나 알려진 확산/비확산 사례의 민감도 검사가 필요하다.
 
-### ⑥ 봉인 두 장 (2026-09-07) — **비준 전에는 안 던진다**
+### ⑥ 봉인 두 장 (2026-09-07) — **비준 완료 · 런 GO**
 
-| | 파일 | 결정 ID |
-|---|---|---|
-| **소급 마감** | `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` | `D-2026-09-07-b2o3-md-closure-retrospective` |
-| **전향적 사전등록** | `db/properties/b2o3_cell_expansion_prereg_2026_09_07.json` | `D-2026-09-07-b2o3-cell-expansion-diagnostic` |
+| | 파일 | 결정 ID | 상태 |
+|---|---|---|---|
+| **소급 마감** | `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` | `D-2026-09-07-b2o3-md-closure-retrospective` | `active` |
+| **전향적 사전등록** | `db/properties/b2o3_cell_expansion_prereg_2026_09_07.json` | `D-2026-09-07-b2o3-cell-expansion-diagnostic` | `active` |
 
-둘 다 `decision_state: proposed` — **1저자가 ratify 해야 active** 가 되고, 그 전에는 런을 안 던진다.
+**둘 다 2026-09-07T07:32:35Z 에 1저자가 비준했다** (`decisions.json` 두 항목 모두
+`decision_state: active`, 카드 두 장 모두 `status: ratified`, actor `yonghoon7153@gmail.com`,
+commit `d9da5e276`). 전향 카드는 **`results_seen: false` 인 채로** 비준됐다 — 결과를 보기
+전에 봉인했다는 뜻이고, 사전등록의 요건이다.
+
+⇒ **2×2×1 진단 런은 던져도 된다.** 남은 것은 자원(GPU)이지 승인이 아니다.
+
+> ⚠ 이 절은 초판에서 *"둘 다 `decision_state: proposed` — 1저자가 ratify 해야 active"* 라고
+> 적혀 있었다. 비준(07:32Z)보다 앞서 쓴 문장이 그대로 남아 **색인이 원장과 반대**를
+> 말하고 있었다 (2026-09-07 늦게 발견해 정정). 상태의 정본은 언제나
+> `db/governance/decisions.json` 과 카드의 `ratification` 블록이다 — 이 색인이 아니다.
 
 **소급 쪽에 못 박은 것**: 축은 08-25 에 닫혔고 이 기록은 09-07 에 쓴다. **당시엔 재개 조건이
 등록돼 있지 않았다** — 마감 규율 채택(08-28)보다 사흘 빨랐다. 당시 원장의 산문
