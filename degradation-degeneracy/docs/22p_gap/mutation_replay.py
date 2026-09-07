@@ -2878,7 +2878,10 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_docs_lint.py::test_a_frozen_alias_whose_path_has_a_space_is_not_writable":
-                "AssertionError: 거부는 했지만 '얼린 tree' 판정이 아니다 (fail-closed 거부일 수 있다): ✗ 커널이 답한 mount 를 목적지 경로에 맞출 수 없다 (/tmp/pytest-of-root/pytest-8686/test_a_frozen_alias_whose_path0/repo/docs/22p_gap/coh2/a b 가 '/tmp/p",
+            # ★ 임시 경로(`/tmp/pytest-of-root/pytest-<n>/…`)는 실행마다 다르다.
+            #   EXPECT 주석이 말한 대로 **안정한 접두만** 남긴다 (실측: 조각 8 이
+            #   session 번호 하나 때문에 RC 1 이었다).
+                "AssertionError: 거부는 했지만 '얼린 tree' 판정이 아니다 (fail-closed 거부일 수 있다): ✗ 커널이 답한 mount 를 목적지 경로에 맞출 수 없다",
         }
     },
     # ★ 57차 P0-2 — 56차의 `deepest-mount-is-chosen` 을 대체한다. 지켜야 할
