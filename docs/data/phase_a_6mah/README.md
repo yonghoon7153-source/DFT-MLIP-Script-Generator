@@ -60,10 +60,28 @@ SE/solid 34.18 vol%   ·   p_frac 71.26 %
 |---|---|
 | `am_scaffold.csv.gz` | AM 1,498 (126 + 1,372) |
 | `kits/<recipe>/` | **킷 5개** — `run_mpm.sh` · `mpm_input.json` · `harvest.sh`.  스캐폴드는 공유(위 두 `.gz`)라 킷마다 안 넣었다 |
-| `se_scaffold.csv.gz` | SE 158,651 — 킷 규약대로 gzip (6.1 → 1.9 MB).  두 도구 다 `.gz` 를 그대로 읽는다 |
+| `se_scaffold.csv.gz` | SE 158,688 — gzip (6.2 → 1.5 MB).  각도·사전계산 도구는 `.gz` 를 그대로 읽는다 |
 | `in.real_4.liggghts` | DEM 덱 (봉인) |
 | `precompute.json` | `d_h/dx` 게이트 + 첨가제 객체 수 (실측 경로) |
 | `angular_risk.json` | STEP4 각도 위험 5종 |
+
+## 킷 쓰는 법 — ⚠ **부모 폴더에 `scripts/` 가 있어야 한다**
+
+`run_mpm.sh` 는 `$KIT/scripts` 또는 **`$KIT/../scripts`** 에서만 레포를 찾는다 (스크립트 §경로 자립).
+아무 데나 풀면 `ABORT — scripts/ 를 못 찾음` 으로 **멈춘다** (실제로 걸렸다, 2026-09-07).
+
+```bash
+mkdir -p ~/pa/kits && ln -sfn ~/Yonghoon-DEM-DFT/scripts ~/pa/kits/scripts
+#   그 다음 킷들을 ~/pa/kits/<recipe>/ 로 풀고 스캐폴드 두 개를 각 킷에 gunzip
+cd ~/pa/kits/VGCF_PTFE_1_1 && bash run_mpm.sh
+```
+
+⚠ 심링크로 걸면 bash 가 `$SCR/..` 를 **논리 경로**로 읽어 `.git` 을 못 본다 →
+스크립트가 `git pull --ff-only` 를 건너뛴다 (*"⚠ git pull 스킵"*).  **무해하다** — 다만
+scripts 최신화가 자동으로 안 되니 런 전에 레포를 직접 pull 할 것.
+
+★ `run_mpm.sh` 는 **스스로 detach** 한다 (SSH 끊겨도 산다).  실행하면 `RUN_DIR` 과
+`tail -f …/mpm_run.log` 명령을 찍고 즉시 빠져나온다.  완료 마커 = `latest_run/mpm_done.marker`.
 
 ## 판정 요약
 
