@@ -36,7 +36,9 @@ for ax,T in zip(axes,TT):
                  title=f"{T} K")
 axes[0].legend(frameon=False,fontsize=9,loc="upper left")
 axes[0].text(26,axes[0].get_ylim()[1]*.04,"fit window\n2–50 ps",ha="center",fontsize=8,color=H.MUT)
-fig.suptitle("Li MSD — seed-ensemble means, UMA-s-1p1 (omat), 200 ps",fontsize=12,color=H.INK)
+fig.suptitle(f"Li MSD — seed-ensemble means, UMA-s-1p1 (omat), 0–{t.max():.0f} ps",
+             fontsize=12,color=H.INK)   # ⛔ 부모 CSV 헤더는 "0-200 ps" 라고 하지만
+                                         #   데이터는 온도 공통 길이로 잘려 있다 — 실측을 쓴다
 fig.text(.5,.005,"dashed = B2O3@LPSCl1.6: UMA-MD transport axis RETRACTED 2026-08-25 "
          "(anion-sublattice mobility) — shown for context only, not citable",
          ha="center",fontsize=8.5,color="#be123c")
