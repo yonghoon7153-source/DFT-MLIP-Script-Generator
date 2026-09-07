@@ -1609,6 +1609,18 @@ mark.hl.is-focus, .rail-i.is-focus {
 }
 .pipe-quote-plain b { color: var(--ink); }
 
+/* 58차 — **정정·경고** 인용. `/trust` 는 "고쳤다" 는 주장도 검증 대상이라고
+   말하는 화면이므로, 그 정정이 본문과 같은 톤이면 안 읽힌다. `--bad` 로
+   테두리를 세우되 배경은 옅게 — 읽는 흐름을 끊지 않으면서 눈에 걸리게. */
+.pipe-quote-bad {
+  border-left-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 7%, var(--surface-2));
+  font-size: var(--fs-sm); line-height: 1.75; color: var(--ink-2);
+}
+.pipe-quote-bad b { color: var(--ink); }
+.pipe-quote-bad p { margin: 0 0 9px; }
+.pipe-quote-bad p:last-child { margin-bottom: 0; }
+
 .pipe-two-pages { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
 .pc-p22 { border-top-color: var(--bad); }
 .pc-p22 .pc-tag { color: var(--bad); }

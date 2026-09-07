@@ -1052,7 +1052,8 @@ def trust_numbers() -> list[tuple[str, str, str]]:
         n = len(list(ec.glob("*.json")))
         if n:
             out.append(("분류된 산출물", str(n),
-                        "내용 해시로 실행 class 가 등록된 건수 (P0-8)"))
+                        "내용 해시로 실행 class 가 등록된 건수 — 공유 등록부만 "
+                        "(smoke 면제는 58차 L14 로 국소 자리로 갈랐다)"))
 
     # ④ 회귀 시험 파일 수 — 실행 결과가 아니라 **파일 수**다 (셀 수 있다)
     td = dd / "tests"
