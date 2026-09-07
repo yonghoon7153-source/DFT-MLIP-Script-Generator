@@ -84,6 +84,10 @@ def main():
     ap.add_argument('--add-recipe', default='', help='conductive-additive recipe baked into run_mpm.sh, e.g. '
                     '"AM:SE:VGCF=72:27:1" or "AM:SE:VGCF:PTFE=80:18:1:1" (Stage-1 carbon).  Empty = no carbon.')
     ap.add_argument('--add-l-cv', type=float, default=0.4, help='fibre length variation baked into run_mpm.sh.')
+    ap.add_argument('--add-rng-per-phase', action='store_true',
+                    help='첨가제 상마다 독립 RNG 스트림을 run_mpm.sh 에 굽는다 (CL-71/77).  '
+                         '조성을 축으로 쓰는 캠페인에서는 **필수** — 없으면 VGCF 개수가 PTFE '
+                         '형상을 바꿔 조성 비교가 교락된다.')
     ap.add_argument('--collector-rint', type=float, default=-1.0,
                     help='selected collector R_int (Ω·cm²; manuscript Fig6e cycled: bare-Al 110 / DBE 46 / '
                          'C-SUS primer 30 / ideal 0).  <0 = none — payload still reports every preset.')
@@ -693,8 +697,12 @@ def main():
     # ε_DEM exactly and the viewer/coverage compare a dilated SE cloud against un-dilated AM spheres.
     tgt_pay = round(_eps_real, 4) if _dilate else tgt
     pay_dilate = f' --dilate-z {_dz}' if _dilate else ''
+    #  ★ CL-71/77 — 조성을 축으로 쓰는 캠페인은 **상별 RNG 스트림**이 필수다.  기본(off)은
+    #    VGCF 와 PTFE 가 한 스트림을 ADD 순서로 소비해 **VGCF 개수가 PTFE 형상을 바꾼다**
+    #    ⇒ 조성 비교가 morphology 교란과 교락된다.  킷에 구워야 런에서 빠지지 않는다.
+    _rngpp = ' --add-rng-per-phase' if a.add_rng_per_phase else ''
     add_flags = (f' \\\n  --add-recipe "{a.add_recipe}" --add-l-cv {a.add_l_cv} --mixing {a.mixing} '
-                 f'--coh-ptfe 0.10 --binder-opt-wt 1.5 {_buckle}{_stiff}{_align}{_dilate}'
+                 f'--coh-ptfe 0.10 --binder-opt-wt 1.5{_rngpp} {_buckle}{_stiff}{_align}{_dilate}'
                  f'--save-phase phase.npy --save-fibre fibre.npy --save-fibre-dia fibre_dia.npy'
                  if a.add_recipe else '')
     pay_phase = ' --phase phase.npy --fibre fibre.npy --fibre-dia fibre_dia.npy' if a.add_recipe else ''
