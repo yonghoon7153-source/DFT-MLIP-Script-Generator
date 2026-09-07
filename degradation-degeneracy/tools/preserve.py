@@ -4753,10 +4753,50 @@ class LegClaim:
                     "plan", f"claim 이 다른 attempt 로 바뀌었다 "
                             f"({rec['attempt_id']} ≠ {self.attempt_id}) — 이 "
                             "실행은 더 이상 권한이 없다")
-            rec.setdefault("phases", {})[phase] = {
+            # ★ 58차 L6 — **닫힌 phase 는 불변이다.** 이 자리는 claim lock 안이라
+            #   lost update 는 없었다. 그런데 lock 이 막는 것은 **동시 쓰기**이지
+            #   **덮어쓰기**가 아니다 — 술어가 없으면 lock 은 무조건 대입을
+            #   순서대로 해 줄 뿐이다.
+            #
+            #   왜 막아야 하나: 이 receipt 를 읽고 계산한 소비자가 이미 있을 수
+            #   있다. 늦은 writer 가 덮으면 **그 소비자의 근거가 소리 없이
+            #   바뀐다.** 리뷰어 반례는 공개 API 만 쓰는 정상 일정이었다 —
+            #   grid(A) → fit 이 A 를 검증하고 기록 → 늦은 grid(B) → finalize 성공.
+            #   원장에는 B 가 봉인되는데 fit 은 A 를 보고 계산했다.
+            #
+            #   **같은 값의 재시도는 통과한다** (멱등). 재시도는 정상 운용이고,
+            #   막으면 crash 복구가 불가능해진다. 다른 값이면 거부다.
+            prev = (rec.get("phases") or {}).get(phase)
+            if prev is not None:
+                if _canon_json(prev.get("receipt")) != _canon_json(receipt):
+                    raise PreserveError(
+                        "plan",
+                        f"{self.leg_id!r} 의 phase {phase!r} 는 이미 "
+                        f"{prev.get('at')} 에 닫혔고, 지금 주는 receipt 가 그때와 "
+                        "다르다 — 닫힌 phase 는 덮어쓸 수 없다 (이 값을 읽고 "
+                        "계산한 소비자가 이미 있을 수 있다). 같은 값의 재시도는 "
+                        "허용된다")
+                return                       # 멱등 재시도 — timestamp 도 안 바꾼다
+            entry = {
                 "at": dt.datetime.now(dt.timezone.utc).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"),
                 "receipt": receipt}
+            # ★ 58차 L6 (둘째 절반) — **소비자는 자기가 본 생산자를 적는다.**
+            #   불변성만으로는 부족하다. 불변성이 없던 시절에 이미 어긋난
+            #   durable state 가 남아 있을 수 있고, finalize 는 원장에 봉인하는
+            #   마지막 문이다. 그 문이 phase 키의 **존재만** 보면 어긋난 짝을
+            #   그대로 `executed` 로 닫는다.
+            #
+            #   그래서 fit 이 닫힐 때 그 순간의 grid receipt 정규형 해시를
+            #   같이 남긴다. finalize 가 그것을 다시 계산해 대조한다.
+            if phase != CLAIM_PHASES[0]:
+                first = (rec.get("phases") or {}).get(CLAIM_PHASES[0])
+                if first is not None:
+                    entry["consumed"] = {
+                        CLAIM_PHASES[0]: hashlib.sha256(
+                            _canon_json(first.get("receipt")).encode("utf-8")
+                        ).hexdigest()}
+            rec.setdefault("phases", {})[phase] = entry
             _atomic_write_json(self.path, rec)
 
 
@@ -4864,6 +4904,12 @@ def _atomic_write_text(path: Path, text: str) -> None:
         os.fsync(dfd)
     finally:
         os.close(dfd)
+
+
+def _canon_json(v) -> str:
+    """(내부) 값의 정규형 — 같은 값인지 묻는 데만 쓴다 (58차 L6)."""
+    return json.dumps(v, sort_keys=True, ensure_ascii=False,
+                      separators=(",", ":"))
 
 
 def _atomic_write_json(path: Path, rec: dict) -> None:
@@ -5797,6 +5843,59 @@ BUNDLE_EVIDENCE_KEYS = ("bundle_uri", "bundle_files", "payload_bytes",
                         "payload_index", "payload_index_sha256")
 
 
+LIFECYCLE_OWNED_EVIDENCE_KEYS = ("phases", "attempt_id", "run_spec_digest",
+                                  "attempt_verifier", "verifier_origin")
+
+
+def _assert_evidence_domain(evidence: dict) -> None:
+    """caller evidence 의 **도메인을 닫는다** (58차 L10).
+
+    이 다섯은 lifecycle 이 정하는 값이다. 그 중 셋은 지금 나중에 덮어쓰므로
+    caller 가 줘도 무해해 **보인다** — 그러나 그것은 "덮어쓰는 순서" 에 기댄
+    안전이고, 순서가 바뀌면 조용히 뚫린다. 특히 `verifier_origin` 은 일부러
+    약한 migration 경로를 표시하는 값이라(57차 P0-5), caller 가 쓸 수 있으면
+    정상 기록과 migration 기록이 **유일한 provenance 표시로 구분되지 않는다.**
+
+    한 개만 막지 않고 **전부** 막는다. 하나만 막으면 나머지가 열려 있고,
+    "지금은 무해하다" 는 다음 라운드의 결함이다.
+    """
+    bad = [k for k in LIFECYCLE_OWNED_EVIDENCE_KEYS if k in (evidence or {})]
+    if bad:
+        raise PreserveError(
+            "plan",
+            f"evidence 에 lifecycle 소유 키가 들어 있다: {bad} — 이 값들은 "
+            "호출자가 정할 수 없다 (원장에 봉인되는 provenance 다)")
+
+
+def _repo_relative_or_refuse(root: Path, raw, what: str) -> Path:
+    """저장소 **안**에 담긴 정규 상대경로만 통과시킨다 (58차 L7).
+
+    `root / raw` 는 `raw` 가 absolute 면 `root` 를 **버린다** — pathlib 의
+    정의다. 그래서 clone 밖 디렉터리가 개수·바이트·해시만 맞으면
+    `full_bundle` 로 기록됐다. clean clone 에서 회수할 수 없는 증거를
+    "clone 으로 검증 가능한 묶음" 이라고 부르는 것이므로 거짓 양성이다.
+
+    absolute 하나만 막지 않는다 — `..` 로 같은 자리에 도달하기 때문이다.
+    **담김(containment)을 결과로 확인한다.**
+    """
+    txt = str(raw or "")
+    if not txt:
+        raise PreserveError("plan", f"{what} 가 비어 있다")
+    q = Path(txt)
+    if q.is_absolute():
+        raise PreserveError(
+            "plan",
+            f"{what} 가 absolute 경로다: {txt!r} — 저장소 안 상대경로여야 한다 "
+            "(clone 에서 회수할 수 없는 자리를 가리킨다)")
+    got = (root / q).resolve()
+    base = root.resolve()
+    if got != base and base not in got.parents:
+        raise PreserveError(
+            "plan",
+            f"{what} 가 저장소 밖을 가리킨다: {txt!r} → {got}")
+    return got
+
+
 def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     """선언한 묶음을 **디스크에서** 확인한다 (48차 P0-4).
 
@@ -5820,7 +5919,7 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     if missing:
         return [f"묶음 주장이 불완전하다 — 없는 필드 {missing}"]
 
-    d = root / str(evidence["bundle_uri"])
+    d = _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")
     if not d.is_dir():
         return [f"묶음 경로가 없다: {evidence['bundle_uri']}"]
     files = sorted(x for x in d.rglob("*") if x.is_file())
@@ -5829,7 +5928,8 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     nbytes = sum(x.stat().st_size for x in files)
     if nbytes != evidence["payload_bytes"]:
         bad.append(f"묶음 바이트 {nbytes} ≠ 선언 {evidence['payload_bytes']}")
-    idx = root / str(evidence["payload_index"])
+    idx = _repo_relative_or_refuse(root, evidence["payload_index"],
+                                   "payload_index")
     if not idx.is_file():
         bad.append(f"payload index 가 없다: {evidence['payload_index']}")
     else:
@@ -6021,7 +6121,12 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
       이었고, `resume_claim(None)` 은 readonly claim 을 돌려주는데 finalize 는
       그것으로도 원장을 닫았다 — 즉 다리 **이름만** 알면 남의 실행을 executed
       로 닫을 수 있었다. 원장을 닫는 것은 진단이 아니다.
+
+    ★ 58차 L10 — caller evidence 의 **도메인을 먼저 닫는다.** lifecycle 이
+      정하는 값(`verifier_origin` 등)을 호출자가 주면 원장의 provenance 가
+      호출자 의견이 된다.
     """
+    _assert_evidence_domain(evidence)
     import yaml
 
     # ★ 57차 P0-1 — `token_file` 인자를 없앴다. 소유 증명의 **필수성**은 그대로
@@ -6105,6 +6210,25 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
             raise PreserveError(
                 "plan", f"{leg_id!r} 의 phase 가 남았다: {missing} — 모든 phase 가 "
                         "끝나야 executed 로 닫는다")
+        # ★ 58차 L6 — **존재만 보지 않는다.** 소비자가 적어 둔 생산자 해시를
+        #   지금 봉인하려는 생산자 receipt 와 대조한다. 어긋나면 그 짝은
+        #   "이 fit 이 이 grid 를 보고 계산했다" 를 뜻하지 않으므로 닫을 수 없다.
+        _phases = snap.get("phases") or {}
+        _first = CLAIM_PHASES[0]
+        for _ph, _ent in _phases.items():
+            _want = (_ent.get("consumed") or {}).get(_first)
+            if not _want:
+                continue
+            _got = hashlib.sha256(
+                _canon_json((_phases.get(_first) or {}).get("receipt"))
+                .encode("utf-8")).hexdigest()
+            if not secrets.compare_digest(str(_want), _got):
+                raise PreserveError(
+                    "plan",
+                    f"{leg_id!r}: phase {_ph!r} 는 {_first!r} receipt "
+                    f"{str(_want)[:16]}… 를 보고 계산했는데 지금 봉인하려는 것은 "
+                    f"{_got[:16]}… 다 — 생산자-소비자 결속이 끊긴 채로 닫을 수 "
+                    "없다 (늦은 writer 가 덮었거나 durable state 가 어긋났다)")
         # ★ 48차 P0-6 — 읽기·수정·쓰기 **전체**가 임계 구역 안이다. 밖에서 읽고
         #   안에서 쓰면 읽은 값이 이미 낡았을 수 있으므로 의미가 없다.
         with _ledger_lock(path):
@@ -6153,6 +6277,7 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
             #   48차는 여기서 claim 을 다시 읽었으므로, 검사한 receipt 와
             #   기록한 receipt 가 다를 수 있었다.
             rec_evidence = dict(evidence)
+            rec_evidence["verifier_origin"] = "normal_finalize"
             rec_evidence["phases"] = {ph: snap["phases"][ph]
                                       for ph in CLAIM_PHASES}
             rec_evidence["attempt_id"] = claim.attempt_id

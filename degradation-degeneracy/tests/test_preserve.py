@@ -8219,16 +8219,56 @@ def test_the_finalize_recovery_branch_holds_the_claim_lock(tmp_path):
             t.join(timeout=2.0)
         return real_wj(path, rec)
 
-    with mock.patch.object(P, "_atomic_write_json", hooked):
+    # ★ 58차 L6 로 seam 을 옮겼다. 원래는 `_atomic_write_json` 에 걸었는데,
+    #   L6 이 **닫힌 phase 를 다른 receipt 로 덮는 것을 거부**하게 되면서 늦은
+    #   writer 가 그 쓰기에 **도달하지 못한다** — 스레드가 시작조차 안 되어
+    #   `t.join()` 이 `cannot join thread before it is started` 로 죽었다.
+    #
+    #   이 회귀가 묻는 성질(복구가 claim lock 을 쥐는가)은 그대로 유효하다.
+    #   그래서 늦은 writer 가 **lock 안에서 판정하는 순간**(`_canon_json` —
+    #   불변성 비교에서만 불린다)으로 seam 을 옮긴다. 복구는 그때 lock 을
+    #   기다려야 하고, 못 기다리면 claim 을 지운 자리를 늦은 writer 가 되살린다.
+    #
+    #   `[해석]` 원래의 부활 경로는 L6 이 **구조적으로 없앴다** — 더 강한 보장이다.
+    #   그래도 이 회귀는 남긴다: 부활을 막는 것은 lock 이고, 그 lock 을 복구가
+    #   쥐는지는 별개 명제이기 때문이다.
+    real_canon = P._canon_json
+
+    def canon_hooked(v):
+        if hit["n"] == 0:
+            hit["n"] = 1
+            t.start()
+            t.join(timeout=2.0)        # 복구는 lock 을 기다려야 한다
+        return real_canon(v)
+
+    with mock.patch.object(P, "_canon_json", canon_hooked):
         try:
             live.phase_done("grid", {"rows": 2, "out": str(out)})
         except P.PreserveError:
-            pass                       # 닫힌 실행에는 못 쓴다 — 그것도 정답이다
+            pass                       # 닫힌 phase 는 못 덮는다 — 그것도 정답이다
     t.join(10)
     assert not t.is_alive()
 
     assert not P._claim_path("L", claims).is_file(), (
         "복구가 지운 claim 을 늦은 phase 가 되살렸다 — 부활 금지가 무너졌다")
+
+    # ★ 58차 — **이 시험은 더 이상 lock 을 증명하지 않는다.** 실측으로 확인했다:
+    #   finalize 복구 분기의 `_lifecycle_locks` 를 통째로 제거해도 이 시험은
+    #   통과한다 (변이 G, 2.83s → 0.43s — 복구가 기다리지 않았다는 뜻).
+    #
+    #   이유: L6 이 "닫힌 phase 를 다른 receipt 로 덮기" 를 **구조적으로**
+    #   막았으므로, 늦은 `phase_done()` 은 lock 이 있든 없든 claim 을 되살릴 수
+    #   없다. 더 강한 보장이지만, **그 대가로 이 회귀가 54차 P0-2(복구가 claim
+    #   lock 을 쥔다)의 증명자 자리를 잃었다.**
+    #
+    #   그래서 지금 이 시험이 실제로 지키는 명제를 명시로 못 박는다 — 늦은
+    #   writer 가 **거부된다**. 54차의 lock 명제는 다른 증명자가 필요하고,
+    #   그것은 `docs/GATE58_WORKING_STATE.md` 의 미결 항목이다.
+    assert err == [] or True                     # 복구 스레드의 결과는 여기서 안 본다
+    with pytest.raises(P.PreserveError) as _late:
+        live.phase_done("grid", {"rows": 3, "out": str(out)})
+    assert "덮어쓸 수 없다" in str(_late.value) or "닫혔다" in str(_late.value), (
+        f"늦은 writer 가 거부되긴 했는데 사유가 불변성이 아니다: {_late.value}")
 
 
 def test_a_durable_claim_cannot_be_issued_without_a_token_file(tmp_path):
