@@ -1124,7 +1124,13 @@ MULTI = [
     #   원장이 아는 frozen 디렉터리와의 좌표 비교, 그리고 원장 밖에서 얼린
     #   tree 를 잡는 조상 marker 순회. 하나만 꺼도 다른 하나가 가린다 —
     #   이 저장소가 반복해 만나는 심층 방어 형태이고, 답은 함께 되돌리는 것이다.
+    # ★ 58차 — L5 가 **얼릴 때 좌표를 봉인**하면서 이 변이가 안 물게 됐다:
+    #   좌표 비교 두 자리를 되돌려도 봉인 조회가 **먼저** 거부한다 (실측:
+    #   조각 2 가 "안 빨개짐" 으로 RC 1). 새 방어가 옛 변이를 가리는 이
+    #   저장소의 반복 패턴이고, 답은 방어를 지우는 것이 아니라 **함께
+    #   되돌리는** 것이다 (아래 56차 주석과 같은 처리).
     ("destination-is-compared-in-filesystem-coordinates", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)", "    _sealed = None"),
         ("        if fdev == dev and (ffs == fs or ffs in fs.parents):",
          "        if False:"),
         ("            if marker is not None and anc != fs:",

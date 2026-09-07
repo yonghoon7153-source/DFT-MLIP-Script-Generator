@@ -122,19 +122,24 @@ def test_a_name_only_decorator_changes_the_identity_when_its_body_changes():
 # L9-b — 능력이 함수 scope·컨테이너·factory 로 새 나간다
 # ─────────────────────────────────────────────────────────────────────────────
 
+#: ★ 이름은 **ASCII 로 쓴다.** 한글 id 를 쓰면 pytest 가 report node id 를
+#:   `[\ucee8\ud14c\uc774\ub108]` 로 escape 하는데, 그 문자열을 EXPECT(파이썬
+#:   소스)에 적으면 파이썬이 다시 디코드해 원래 글자가 된다. 같은 시험이 두
+#:   철자를 갖게 되고 변이 재생이 "선언에 없는 실패" 로 거부한다 (실측:
+#:   조각 3 이 RC 1).
 _ESCAPES = {
     # 리뷰어 반례 그대로 — 함수 지역 별칭
-    "함수 지역 별칭":
+    "local_alias":
         "def score_canonical(df):\n"
         "    GET = getattr\n"
         "    return GET(sc, 'add_error_columns')(df)\n",
     # 튜플 풀기 — 별칭을 만드는 다른 문법
-    "튜플 풀기":
+    "tuple_unpack":
         "def score_canonical(df):\n"
         "    GET, _Z = getattr, 1\n"
         "    return GET(sc, 'add_error_columns')(df)\n",
     # 컨테이너 경유 — 이름이 아니라 값이 능력을 나른다
-    "컨테이너":
+    "container":
         "def score_canonical(df):\n"
         "    _T = (getattr,)\n"
         "    return _T[0](sc, 'add_error_columns')(df)\n",
