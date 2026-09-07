@@ -73,8 +73,29 @@ SE/solid 34.18 vol%   ·   p_frac 71.26 %
 ```bash
 mkdir -p ~/pa/kits && ln -sfn ~/Yonghoon-DEM-DFT/scripts ~/pa/kits/scripts
 #   그 다음 킷들을 ~/pa/kits/<recipe>/ 로 풀고 스캐폴드 두 개를 각 킷에 gunzip
+source ~/dem-venv/bin/activate          # ⚠ kgy 는 이것 — 아래 참조
 cd ~/pa/kits/VGCF_PTFE_1_1 && bash run_mpm.sh
 ```
+
+### ⚠⚠ kgy 환경 — `~/dem-venv` 를 **명시적으로** 켜야 한다 (2026-09-07 실측)
+
+킷의 venv 자동탐지는 `$SCR/../venv` 를 먼저 잡는데 그건 **kgy 에서 안 돈다**:
+
+```
+kgy glibc                          2.31
+~/Yonghoon-DEM-DFT/venv (py 3.13)  taichi 휠이 GLIBC_2.32 요구 → ImportError
+~/dem-venv              (py 3.8)   taichi 1.7.0  ✓ ← 이것이 작동 환경
+GPU                                RTX 3090 · 24 GB
+```
+
+⇒ `source ~/dem-venv/bin/activate` 를 **먼저** 하면 `VIRTUAL_ENV` 가 설정돼 자동탐지가
+건너뛴다.  ⚠ **`dem-venv` 에 pip install 금지** (CLAUDE.md).
+
+### ⚠ `--gpu-mem` — 기본 28 은 24 GB 카드에서 실패한다
+
+생성기가 `--gpu-mem 28` 을 **하드코딩**하고 있었다 (V100 32 GB 가정).  2026-09-07 에
+`--gpu-mem` 플래그로 빼고 이 킷들은 **20** 으로 구웠다 (3090 24 GB 기준, 4 GB 여유).
+다른 카드로 옮기면 재생성할 것: `mpm_input_from_case.py --gpu-mem <GB>`.
 
 ⚠ 심링크로 걸면 bash 가 `$SCR/..` 를 **논리 경로**로 읽어 `.git` 을 못 본다 →
 스크립트가 `git pull --ff-only` 를 건너뛴다 (*"⚠ git pull 스킵"*).  **무해하다** — 다만
