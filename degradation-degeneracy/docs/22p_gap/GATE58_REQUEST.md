@@ -145,13 +145,20 @@ $ cd degradation-degeneracy && python -m pytest tests/ -q
 
 ### 2-2 산출물 identity — g12 를 얼리고 g13 으로
 
+대상 커밋: `3a0b151203378ed7c5233d0c2b4c4bbe7d6d8a9a`
+
+> 이 줄은 장식이 아니라 **자기완결의 조건**이다. 아래에서 영수증 core sha 를
+> 인용하므로, 그것을 무엇에 대고 대조할지 요청문 안에서 정해야 한다
+> (`test_committed_gate_requests_are_self_contained`). 이 커밋의
+> `docs/22p_gap/receipts/paired_fixed5_v4.validate.yaml` 이 정본이다.
+
 ```
 compute_sha256            044a87204bfca078 → 0d3e1355383dda14
 producer_semantic_sha256  ad36d111337abd39 → 13def6a32e8d9536
 row_projection_py_sha256  ad1349257095cbd1 → f55f5ddd6fb7bd2f
 src_scoring_py_sha256     69e69cb046f4b4ae (변동 없음)
 analysis_spec_sha256      43d74dd3…        (변동 없음)
-영수증 core_sha           f24e28e76f309327… → 82f1e6521eda9cf5…
+영수증 core sha           82f1e6521eda9cf5…  (이전 값은 f24e28e76f309327…)
 validator source_digest   4a6fd2b664e6902f → 920cfd31c22ebe06
 투영                      proj_g12 → proj_g13
 ```
@@ -187,21 +194,71 @@ freeze 는 journal seq 11 로 chain 에 붙었다 (prev `e10102a38f8d1038…`).
 
 EXPECT 는 전부 관측값이다 — 13축은 `--emit-expect`, 3축은 지역 실행(§0-⑤).
 
-**지금 커밋돼 있는 `docs/22p_gap/mutation_coverage/s*.json` 12개는 57차 것이고
-이 HEAD 에서는 거부된다** (`_assert_trees_are_current` — 이 라운드가
-`src/`·`tools/`·`tests/` 를 고쳤으므로 tree digest 가 다르다). 그것이 결속이
-살아 있다는 증거이기도 하다. 새 조각 12개는 **이 HEAD 에서** 전수 재생 중이고
-뒤따르는 커밋으로 들어간다. 그 커밋 전에는 §4 의 4번 명령이 rc 1 이 정상이다.
+조각 12개를 **이 HEAD 에서 전수 재생성**했고 합집합이 등록부 전체를 정확히
+덮는다:
 
-조각을 만드는 과정 자체가 두 가지를 잡았다 (커밋 `f983401f`):
+```
+$ python3 docs/22p_gap/mutation_replay.py --check-coverage docs/22p_gap/mutation_coverage/s*.json
+모든 변이 지점이 정확히 한 번 나타난다
+등록부 scenario 186 (executable 177 · declared 9) · 조각 12개에서 관측 186
+조각 합집합이 등록부 전체를 정확히 덮었다        rc 0
+```
+
+12개 모두 `binding.head 0916c8cf4df3` · `tree_digest cd1f932343ba` 로 같다
+(§65 — 한 HEAD 에서 만든다).
+
+### 2-4 조각이 우리를 세 번 고쳤다 — 전체 회귀는 그동안 초록이었다
+
+조각을 네 번 돌렸다. 세 번은 **조각이 결함을 찾았다.**
+
+| 회차 | 결과 | 무엇이 나왔나 |
+|---|---|---|
+| 1 | 증거 오염 | 드라이버 둘이 동시에 돌아 같은 조각을 두 프로세스가 같은 파일에 썼다 — 버렸다 |
+| 2 | 8조각 RC 1 · 문제 14건 | 아래 표 |
+| 3 | 1조각 RC 1 | 증인에 임시 경로(pytest session 번호)가 들어갔다 |
+| 4 | **12/12 RC 0** | — |
+
+2회차의 14건 중 **7건이 같은 형태다: 이번 라운드가 넣은 새 층이 옛 변이를
+가린다.**
+
+| 변이 | 가린 층 |
+|---|---|
+| `frozen-target-carries-its-own-seal` | L5 좌표 봉인 |
+| `mountinfo-octal-escape-is-decoded` | 〃 |
+| `mount-identity-comes-from-the-kernel` | 〃 |
+| `mount-root-is-filesystem-relative` | 〃 |
+| `freeze-seals-the-output-directory` | 〃 |
+| `destination-is-compared-in-filesystem-coordinates` | 〃 |
+| `producer-normalizes-the-node` | L9 데코레이터 결속 |
+| `evidence-binds-the-environment` | L11 `startup` |
+
+`_assert_writable()` 의 첫 층이 된 봉인 조회가 그 아래 층(커널 mount id ·
+fs 상대 root · octal escape · `.FROZEN` marker)을 단락시킨다. 방어로는 옳지만
+**그 아래 층이 살아 있다는 증거는 사라진다.** 추측으로 고치지 않고 각 변이를
+(a) 변이만 (b) 변이+봉인 되돌림 두 조건으로 돌려 어느 층이 가리는지 **쟀다**.
+답은 41·54·56차가 이미 정한 것이다 — 방어를 지우지 않고 **함께 되돌린다**(MULTI).
+
+**명제 둘은 증명자를 잃었고, 그것을 값 갱신으로 덮지 않았다:**
+
+| 변이 | 잃은 node | 왜 |
+|---|---|---|
+| `namespace-check-rejects-symlinks` | `test_a_symlinked_path_is_not_inside_the_smoke_namespace` | L4 의 좌표 담김이 명시적 symlink 검사 없이도 막는다 (남은 node 하나는 여전히 문다) |
+| `finalize-holds-the-claim-lock` | `test_the_finalize_recovery_branch_holds_the_claim_lock` | L6 의 write-once receipt 가 늦은 writer 를 먼저 거부해 **복구 분기가 lock 없이도 초록** |
+
+둘째는 54차가 세운 명제이고 **이번 라운드에서 새 증명자를 못 만들었다.**
+§0 의 미착수 목록에 준하는 미결로 남긴다.
+
+그 밖에 조각이 잡은 것 둘:
 
 | 무엇 | 왜 |
 |---|---|
-| L5 의 봉인이 57차 변이 `destination-is-compared-in-filesystem-coordinates` 를 **가렸다** | 좌표 비교를 되돌려도 봉인이 먼저 거부한다 → MULTI 에 봉인 조회를 함께 넣었다 |
 | 한글 parametrize id 가 **두 철자**를 갖는다 | report 는 `\ucee8…` 로 escape 하고 EXPECT(파이썬 소스)는 그것을 다시 디코드한다 → id 를 ASCII 로 |
+| 증인에 임시 경로가 들어갔다 | `--emit-expect` 출력을 그대로 붙여 넣으며 "안정한 접두만 남긴다" 는 규칙을 안 지켰다 |
 
-둘째는 값이 아니라 **표기 경계**를 건넌 오류다. `--emit-expect` 가 찍어 준 것을
-그대로 붙여 넣었는데도 어긋났다.
+첫째는 값이 아니라 **표기 경계**를 건넌 오류다.
+
+**전체 회귀는 이 모든 시간 동안 1488개가 초록이었다.** 조각이 아니었으면 위
+7건을 못 봤다 — 초록은 방어가 살아 있다는 뜻이 아니라 시험이 안 죽었다는 뜻이다.
 
 ---
 
