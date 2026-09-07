@@ -32,7 +32,16 @@
        ⇒ **`methods:` 줄이 정본이다.** 같은 증상이 `kim2025_csp_metastable_edge_sharing_sse`
        에도 그대로 남아 있다(그 digest 도 §13 에 부정 목록을 둔다) — 즉 **개별 digest 로는
        못 고치는 도구 쪽 과제**다. 고치려면 `glossary_papers()` 의 토큰 스캔에
-       부정문 필터를 넣거나, `methods:` 태그가 있는 digest 는 토큰 스캔을 끄면 된다. -->
+       부정문 필터를 넣거나, `methods:` 태그가 있는 digest 는 토큰 스캔을 끄면 된다.
+
+     ✅ 해소됨 (2026-08-28 `glossary_papers()` 수정, 2026-09-07 재실측).
+       채택된 방향은 **후자** — `has_method_decl` 이면 토큰 스캔을 끈다("선언이 있으면
+       선언이 정본"). 부정문 필터는 표현이 무한하고 한·영이 섞여 못 쓴다고 판단됐다.
+       2026-09-07 실측: 이 논문은 `dft` **한 곳에만** 링크되고 neb·cohp·bader·elf·
+       bvse·phonon·esw·pdos·dos 어디에도 안 붙는다. kim2025 도 선언한 네 기법
+       (dft·md·mlip·phonon) 에만 붙는다. 회귀 방지는
+       `webapp/tests/test_webapp.py :: test_glossary_papers_declaration_beats_token_scan`.
+       ⚠ 위 문단은 **당시 기록이라 그대로 둔다** — 고쳐 쓰면 이력이 깨진다. -->
 
 <!-- ⚠ 그림 참조 표기 규약: 본문 전체에서 `Fig. 3a` / `Fig. S8` / `Table S1` 형태를 쓴다
      (webapp 이 이 표기를 잡아 오른쪽 여백에 크로핑 PNG 를 띄운다).

@@ -35,6 +35,16 @@ FORBIDDEN_CLAIMS = (
 )
 
 #: 금지 문맥 표지. 이 중 하나가 주변에 있으면 그 출현은 **주장이 아니라 금지**다.
+#:
+#: ⚠ 2026-09-07 — 이 목록은 `canonical.PROHIBITION_MARKS` 의 **사본**이고, 지금은
+#:   그보다 **좁다**(⚠ · "가/이 아니라" · "쓸 수 없다" · RETRACTED · "무효" ·
+#:   "인용 불가" 등이 여기 없다). 즉 같은 문장이 /sdcp 에서는 금지로 안 읽히고 다른
+#:   화면에서는 읽힌다 — 회신 AW P0-2(2026-09-05)가 "여러 화면이 같은 어휘를 써야
+#:   의미가 있다" 며 canonical 로 모으라고 한 바로 그 상황이다.
+#:   ⛔ 여기서 임의로 합치지 않는다. 합치면 이 화면의 검사가 **느슨해지고**(표지가
+#:   늘어나 금지로 읽히는 문맥이 많아진다), 어느 쪽이 /sdcp 마감문서에 맞는지는
+#:   과학·편집 판정이라 사람이 정할 일이다. 대신 아래 시험이 **위험한 방향의
+#:   드리프트**(여기에만 표지가 늘어 다른 화면보다 느슨해지는 것)를 막는다.
 _PROHIBITION_MARKS = ("⛔", "금지", "철회", "보류", "않는다", "가 아니다", "이 아니다",
                       "못 쓴다", "안 쓴다", "라 쓰지", "라고 쓰지", "HISTORICAL",
                       "BLOCKED", "SUPERSEDED", "미해결", "비인용")
@@ -162,6 +172,30 @@ def test_negation_guard_itself_works():
     assert not _is_prohibition("이 계는 무선호 다. 값은 +9.3 meV.")
     assert _is_prohibition("⛔ '무선호' 라고 쓰지 않는다 — 판정바닥 아래는 판정이 아니다")
     assert _is_prohibition("철회된 표현('무선호' 포함) · n=1 외삽")
+
+
+def test_prohibition_vocabulary_does_not_drift_looser_than_the_shared_one():
+    """⛔음성: 이 파일의 표지 사본이 **공용 어휘보다 느슨해지지** 않게 막는다.
+
+    회신 AW P0-2(2026-09-05)는 표지 목록을 `canonical.PROHIBITION_MARKS` 한 곳으로
+    모으라고 했다. 이 파일에는 아직 사본이 남아 있고 지금은 공용 어휘보다 **좁다**
+    (= 이 화면이 더 엄격하다). 좁은 건 안전한 방향이라 그대로 두되, 반대 방향
+    — 여기에만 표지를 더해 /sdcp 만 통과시키는 드리프트 — 는 막아야 한다.
+
+    ⛔ 이 시험이 못 하는 것: 두 어휘가 **같아야 하는지**는 판정하지 않는다.
+      그건 사람이 정할 마감문서 판정이다. 여기서는 방향만 잠근다.
+    """
+    import canonical as C
+
+    local, shared = set(_PROHIBITION_MARKS), set(C.PROHIBITION_MARKS)
+    extra = sorted(local - shared)
+    assert not extra, (
+        f"이 파일에만 있는 금지 표지 {extra} — /sdcp 에서만 금지로 읽히고 다른 화면에서는 "
+        "주장으로 읽힌다. 표지를 늘릴 거면 canonical.PROHIBITION_MARKS 에 넣을 것 "
+        "(회신 AW P0-2).")
+    # 사본이 정말 좁은 상태인지도 기록해 둔다 — 좁힘이 사라지면(=같아지면) 사람이
+    # 사본을 지우고 canonical 을 쓰면 된다는 신호다.
+    assert local <= shared
 
 
 def test_doped_is_blocked_everywhere():

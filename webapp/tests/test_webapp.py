@@ -2314,6 +2314,36 @@ def test_comment_edit_route_exists():
     assert "cmt-edit" in cjs and "cmt-save" in cjs, "수정 버튼/저장 버튼이 없다"
 
 
+def test_every_glossary_term_reaches_a_rendered_category():
+    """카테고리 오타 하나로 용어가 **말없이 사라지는** 것을 막는다.
+
+    `by_category()` 는 `setdefault` 라 CATS_G 밖 카테고리도 받아 준다. 그런데
+    glossary.html 은 `cat_order`(=CATS_G)만 순회하므로, 카테고리를 한 글자 틀리면
+    그 용어는 예외도 빈칸도 없이 **/glossary 에서 통째로 없어진다.** 없어진 항목은
+    "그런 용어가 없다" 로 읽힌다.
+
+    음성 경로: 없는 카테고리를 넣으면 실제로 화면에서 빠지는지 확인한다.
+    """
+    import glossary as G
+
+    lost = sorted({g["cat"] for g in G.GLOSSARY} - set(G.CATS_G))
+    assert not lost, f"CATS_G 에 없는 카테고리 {lost} — 그 용어들이 /glossary 에서 사라진다"
+    rendered = sum(len(v) for k, v in G.by_category().items() if k in G.CATS_G)
+    assert rendered == len(G.GLOSSARY), (
+        f"용어 {len(G.GLOSSARY)}개 중 {rendered}개만 렌더 대상이다")
+    ids = [g["id"] for g in G.GLOSSARY]
+    assert len(ids) == len(set(ids)), "glossary id 가 중복이다 — 링크가 엉뚱한 항목으로 간다"
+    # ⛔음성: 검사기가 실제로 가르는지 (항상 통과하면 아무것도 안 지킨다)
+    G.GLOSSARY.append({"id": "__probe__", "term": "probe", "full": "", "cat": "없는분류",
+                       "what": "", "how": "", "ours": ""})
+    try:
+        assert {g["cat"] for g in G.GLOSSARY} - set(G.CATS_G) == {"없는분류"}
+        assert sum(len(v) for k, v in G.by_category().items()
+                   if k in G.CATS_G) == len(G.GLOSSARY) - 1, "사라짐을 못 잡는다"
+    finally:
+        G.GLOSSARY.pop()
+
+
 def test_glossary_lit_field_is_separate_from_ours():
     """용어 카드의 **문헌에서 본 것** 칸이 「우리 계산」과 **따로** 있다.
 
