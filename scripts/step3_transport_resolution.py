@@ -33,11 +33,17 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from step3_sigma import solve_sigma_z                            # noqa: E402
+from measure_provenance import provenance                        # noqa: E402  (CL-75)
 
 SID_AM, SID_SE, SID_SDCP = 1, 6, 5
 SIGMA_ION_SE = 3.0e-3                                            # S/cm (Cronau, se_material)
 SIGMA_E_AM = 0.010                                               # S/cm (AM_S, SIGMA_DEFAULT)
-SIGMA_E_SDCP = 250.0                                             # S/cm (USER anchor 2026-07-16)
+SIGMA_E_SDCP = 250.0    # S/cm — EFFECTIVE PHASE conductivity, voxel-network convention
+#   ⚠ not a material property (ledger §15, same category as sigma_vgcf / CL-47): the grid
+#   fuses touching cells, so SDCP-SDCP contact resistance is absent from the model and any
+#   source value means only 'effective sigma under this convention'.  USER anchor 2026-07-16;
+#   cast-film vs pressed-pellet provenance is UNRECORDED.  Keep it off material-property
+#   tables and out of bare sigma_SDCP-vs-sigma_SE comparisons.
 SDCP_D_UM = 0.30
 
 
@@ -144,6 +150,15 @@ def verdict(rows, tol_pct=3.0):
          "그 지점부터 수렴" 이라고 답했다 (2 % 뒤 10 % 가 와도 통과).
     ⇒ ① 미수렴 팔이 하나라도 있으면 **None** (판정 거부).
        ② onset 이후 **모든** 더 고운 격자가 tol 안이어야 onset 으로 인정한다.
+
+    ⚠⚠ 2026-09-07 (Codex) — ② 가 **끝에서 새고 있었다**.  "onset 이후 전부" 는 onset 이
+    **마지막 행**이면 공허참(vacuously true)이라, 증분이 딱 한 번 tol 안에 들어온 것만으로
+    "그 격자부터 수렴" 을 반환했다.  반례 `50 % → 1 %` 가 통과했다 (`n_finer_levels_after
+    _onset = 0` 이 나란히 적혀 있었지만 **아무도 그것을 게이트로 쓰지 않았다**).
+    ⇒ ③ onset 뒤에 **최소 한 격자**가 더 있어야 한다.  plateau 는 두 점으로만 보인다 —
+       한 점은 plateau 가 아니라 그냥 마지막 점이다.
+    ⚠ 이것은 CDXIJ-4 계열의 false-green 이다: 보고서에 진단 필드는 있었고 판정만 그것을
+      안 읽었다.  ⇒ **진단을 적는 것과 그것으로 판정하는 것은 다른 일이다.**
     """
     bad = [r for r in rows if r.get('any_unconverged') or r.get('n_nonfinite')]
     if bad:
@@ -152,22 +167,31 @@ def verdict(rows, tol_pct=3.0):
                 'refused': (f'미수렴/비유한 solve 가 {len(bad)} 격자에 있다 '
                             f'(vox {[r["vox"] for r in bad]}) — 수렴 판정을 거부한다'),
                 'note': 'solver 가 수렴하지 않았으면 격자 수렴을 논할 수 없다'}
-    ok = None
-    for i in range(1, len(rows)):                    # onset 이후 **전부** tol 안이어야 한다
-        if all(abs(rows[j].get('inc_pct', 1e9)) <= tol_pct for j in range(i, len(rows))):
-            ok = rows[i]['feature_per_dx']
+    ok, n_after, thin = None, 0, None
+    #   onset 후보는 `len(rows) - 1` 까지 **가 아니라** 그 앞까지만이다 (③ 최소 한 격자 확인).
+    for i in range(1, len(rows)):
+        if not all(abs(rows[j].get('inc_pct', 1e9)) <= tol_pct for j in range(i, len(rows))):
+            continue
+        if i > len(rows) - 2:                 # onset 이 마지막 행 = 확인할 더 고운 격자가 없다
+            thin = rows[i]['feature_per_dx']
             break
-    return {
+        ok, n_after = rows[i]['feature_per_dx'], len(rows) - 1 - i
+        break
+    out = {
         'tol_pct': tol_pct,
         'converged_from_feature_per_dx': ok,
-        'n_finer_levels_after_onset': (len(rows) - 1 - next(
-            (i for i in range(1, len(rows)) if rows[i]['feature_per_dx'] == ok), len(rows) - 1)
-            if ok is not None else 0),
+        'n_finer_levels_after_onset': n_after,
         'max_origin_spread_pct': max(r['origin_spread_pct'] for r in rows),
         'note': ('origin-평균의 증분이 tol 안에 드는 최소 feature/dx.  ⚠ **단일 origin 은 '
                  '이 tol 을 만족하지 않는다** — origin 폭이 그보다 크다.  단일 origin σ 를 '
                  '이 tol 로 인용하지 말 것.'),
     }
+    if thin is not None:                      # 증거 부족 — 거부와 구분해 적는다
+        out['insufficient_evidence'] = (
+            f'증분이 tol 안에 든 것은 **마지막 격자 하나뿐**이다 (feature/dx {thin}).  그 뒤에 '
+            f'더 고운 격자가 없어 plateau 인지 교차점인지 구분할 수 없다 ⇒ onset 을 주지 않는다.  '
+            f'판정하려면 {thin} 보다 고운 격자를 최소 한 개 더 재라.')
+    return out
 
 
 def _selftest():
@@ -200,14 +224,30 @@ def _selftest():
     chk(f'③ 구 부피 → 4πr³/3 = {exact:.4f} (측정 {v[0]:.4f} → {v[2]:.4f})',
         abs(v[2] / exact - 1) < abs(v[0] / exact - 1) and abs(v[2] / exact - 1) < 0.03)
     # ④ verdict 가 **단일 origin 을 tol 로 인용하지 말라**고 말한다
+    #   ⚠ 2026-09-07: 옛 ④ 는 3 행이고 onset 이 **마지막 행**이었다 — 즉 이 테스트 자신이
+    #     아래 ④e 결함을 정답으로 단언하고 있었다.  onset 뒤에 격자를 하나 더 둔다.
     rows = [{'vox': 0.4, 'feature_per_dx': 2.5, 'sigma_ion_mean': 1.0, 'origin_spread_pct': 3.5},
             {'vox': 0.3, 'feature_per_dx': 3.3, 'sigma_ion_mean': 1.04, 'origin_spread_pct': 5.8,
              'inc_pct': 4.0},
             {'vox': 0.25, 'feature_per_dx': 4.0, 'sigma_ion_mean': 1.06,
-             'origin_spread_pct': 3.2, 'inc_pct': 1.7}]
+             'origin_spread_pct': 3.2, 'inc_pct': 1.7},
+            {'vox': 0.2, 'feature_per_dx': 5.0, 'sigma_ion_mean': 1.072,
+             'origin_spread_pct': 3.0, 'inc_pct': 1.1}]
     vd = verdict(rows, tol_pct=3.0)
     chk(f'④ 수렴 시작 feature/dx = 4.0 (측정 {vd["converged_from_feature_per_dx"]})',
-        vd['converged_from_feature_per_dx'] == 4.0)
+        vd['converged_from_feature_per_dx'] == 4.0 and vd['n_finer_levels_after_onset'] == 1)
+    # ★ ④e Codex 2026-09-07 반례 — 증분이 **마지막 한 번만** tol 안에 들면 onset 이 아니다.
+    #   옛 판은 `all(...)` 이 마지막 행에서 공허참이라 5.0 을 반환했다 (n_finer=0 을 적으면서도).
+    last = [{'vox': .4, 'feature_per_dx': 2.5, 'sigma_ion_mean': 1.0, 'origin_spread_pct': 1.},
+            {'vox': .3, 'feature_per_dx': 3.3, 'sigma_ion_mean': 1.5, 'inc_pct': 50.,
+             'origin_spread_pct': 1.},
+            {'vox': .2, 'feature_per_dx': 5.0, 'sigma_ion_mean': 1.515, 'inc_pct': 1.,
+             'origin_spread_pct': 1.}]
+    ve = verdict(last, 3.0)
+    chk('④e 마지막 격자 하나만 tol 안이면 onset 을 주지 않는다 (옛 판은 5.0 반환)',
+        ve['converged_from_feature_per_dx'] is None
+        and ve['n_finer_levels_after_onset'] == 0
+        and 'insufficient_evidence' in ve)
     # ★ Codex CDX-R2-02 반례 — 둘 다 fail-closed 여야 한다
     div = [{'vox': .4, 'feature_per_dx': 2.5, 'origin_spread_pct': 1.},
            {'vox': .3, 'feature_per_dx': 4.0, 'inc_pct': 2., 'origin_spread_pct': 1.},
@@ -256,5 +296,6 @@ if __name__ == '__main__':
           f'{vd["max_origin_spread_pct"]:.2f} %.  단일 origin σ 인용 금지 한계도 그만큼이다.')
     if a.out:
         json.dump({'kit': a.kit, 'len_um': a.len_um, 'se_d_um': d_se,
-                   'rows': rows, 'verdict': vd}, open(a.out, 'w'), ensure_ascii=False, indent=1)
+                   'rows': rows, 'verdict': vd, **provenance()},
+                  open(a.out, 'w'), ensure_ascii=False, indent=1)
         print(f'\n  → {a.out}')

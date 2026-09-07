@@ -1379,6 +1379,332 @@
     "docs/reviews/sdcp_bridge_prereg_20260825.md"
    ],
    "note": "생산 격자(vox 0.15, d/vox 2.00)에서 Ø0.30 SDCP 쌍은 **참 접촉의 35 % 를 놓치고**(연결확률 0.650) **10 % 물리적 틈의 32.5 % 를 가짜로 연결한다**.  두 오차는 σ 에 **반대 방향**이고 h 수렴 속도가 다르다 ⇒ `R = R∞ − C·h^p` 는 지배 오차가 하나라고 가정하므로 **원리적으로 안 맞는다**.  CL-41 의 '어떤 p > 0 도 안 맞는다'(증분비 1.773 < 최소 2.187) 는 이상 현상이 아니라 이 구조의 **예측**이다.\n★ 왜 하필 **비**가 움직이나 — 전자 격자에서 SBE↔DBE 의 유일한 차이가 SDCP 다 (CL-33 의 SBE 음성 대조 8/8 **셀 단위 완전 동일**이 증인).  ⇒ 이 오차는 **DBE 전용**이라 침대 간 공통모드 상쇄가 원리적으로 없다.  `step3_sigma.py` 의 'relative trust preserved' 는 **vox 가 같은 런들 사이**에서만 참인데, 격자 사다리는 정확히 그 전제를 깬다.\n★★ 코드는 이 문제를 **이미 알고 다른 상에는 고쳐 두었다** (`step3_sigma.py:232`: 'plain rasterization randomly DROPS touching contacts'): AM–AM 은 접촉 브리지, 섬유는 `_fibre_segment_ijk` 로 6-면 연결 보장.  **SDCP 구만 무처리**다.\n★ 해상도 기준 자기모순: 게이트는 `d/vox ≥ 2.0` 인데 리포가 확립한 실용 규칙은 `≳ 3.5` 다. Ø0.30 에서 3.5 는 vox ≤ 0.0857 = 투영 ≈ 86 GB, vox 0.10 조차 3.00 (≈54 GB) 로 미달 ⇒ **격자를 조여서 도달할 수 없다.**\n⇒ 판별 실험 = **`--step3-sdcp-bridge`** (AM–AM 브리지 기계 재사용, vox 를 안 바꾸고 접촉 검출만 고침).  h0=격자 의존 그대로 / h1=무너진다 / 음성대조=SBE 셀 단위 동일.  **미실행.**\n⚠ **상관은 인과가 아니다** — CV·누락률·R 이 전부 vox 에 단조라 CL-43 과 같은 함정이다. 노브를 vox 에서 브리지로 바꿔야 갈린다.  ⚠ §2 는 진공 속 **고립 쌍**이고 실침대의 지배 커플링은 SDCP–VGCF 일 수 있다 (SDCP 44.4 % AM-anchored) — 기전의 종류는 같지만 크기는 미측정.\n★★ **구현 완료 (같은 날) — 그리고 런 전 CPU 측정이 설계를 바꿨다.**\n`--step3-sdcp-bridge` 신설 (기본 0 = off = 바이트 동일).  초판은 **판정 반경과 목 반경을 하나로** 썼는데 재 보니 둘 다 틀렸다: 목이 0.08 µm 면 vox 0.15 에서 **0.53 복셀**이라 셀을 못 만들어 참 접촉 복원이 0.717 에 그쳤고, 동시에 판정 tol 0.08 이 0.03 µm 틈보다 커서 **가짜 연결을 오히려 키웠다**.  ⇒ AM–AM 과 같은 구조로 분리: **판정 = 물리 간극**(노브) · **목 반경 = `1.2·vox`**.\n★ 분리 후 실측 (tol 0.01 µm, 120 회): **참 접촉** 연결확률의 격자 폭이 **0.300 → 0.000** (전 격자 1.000) = 채널 A 완전 제거.  **10 % 틈 가짜 연결**은 0.333 → 0.283 = 채널 B **거의 안 바뀜** (브리지가 만드는 것이 아니라 스탬프 해상도 자체의 산물이라 연결 검출로는 못 고친다).\n⇒ **이 노브는 보장된 해결책이 아니라 판별기다.**  사전등록 `docs/reviews/sdcp_bridge_prereg_20260825.md` 의 h0/h1 은 '고쳐지나' 가 아니라 **'어느 채널이 지배하나'** 를 묻는다 (h1 = ΔR_grid 70 % 이상 축소 = 채널 A 지배 / h0 = 30 % 미만 = 채널 B 지배 / 사이 = BOTH_REJECTED).\n★ 규약 배선 완료 — `PROTOCOL_FIELDS`·`RECEIPT_AXES`·`CLI_ACCOUNTING`·`FIELD_CONTRACT`(across_dir)·매니페스트.  등재를 빠뜨렸으면 SELF-04 와 같은 결함이 된다.\n★ 회귀 4종 상주: off=바이트동일 · 끊긴 접촉을 잇는다(성분 2→1) · 배정된 셀 강등 안 함 · SBE no-op.  배터리 mutant 2종.\n⚠ **미실행** — 실침대 8팔 × 2격자 × {off, on} = GPU 필요."
+  },
+  {
+   "id": "R18-1",
+   "severity": "P1",
+   "status": "wontfix",
+   "owner": "codex",
+   "opened_in": "docs/reviews/codex_r18_verdict_20260831.md",
+   "found_by": "codex",
+   "title": "제안 A 는 **부분부피 복원이 아니라** 없던 계면층을 새로 얹는 것이다",
+   "decision_note": "제안 A 를 등록하지 않기로 했으므로 고칠 코드가 없다 (R18 = A DROP).  확인한 사실은 남긴다: `pellet_rve_sigma.build_rve` 는 **스탬프된 부피분율 자체를 표적**으로 RSA 를 돈다(`scripts/pellet_rve_sigma.py:76`) — 실측 vol_stamped 0.091792 vs vol_target 0.09174311926605504 = **+0.053 %**(`docs/data/pellet_calib_20260825/ptfe_ion_blk0.12.json`).  ⇒ PTFE 부피에는 복원할 반올림 손실이 없고, 계단은 PTFE 가 아니라 **차단 껍질**에 있다.  그 껍질은 물리적 부피가 아니라 우리가 새로 얹는 계면층이므로 (a) `b` 를 피브릴 두께로 해석 금지 (b) '연속화하면 격자 무관해진다' 주장 불가 — EDT 가 이미 복셀화된 `sid==7` 에서 출발한다(`scripts/step3_sigma.py:566`).  재도전 시 이름은 effective interphase attenuation."
+  },
+  {
+   "id": "R18-2",
+   "severity": "P1",
+   "status": "wontfix",
+   "owner": "codex",
+   "opened_in": "docs/reviews/codex_r18_verdict_20260831.md",
+   "found_by": "codex",
+   "title": "제안 B 의 **전역 순위 f** 는 PTFE 양·거리에 단조 대응하지 않는다",
+   "decision_note": "제안 B 를 등록하지 않기로 했다 (R18 = B DROP).  결함의 내용: 'PTFE 근접 순으로 정렬해 상위 f 비율의 브릿지를 스킵' 은 **전역 규칙에 고정 개수**라 ① PTFE 가 절반이든 두 배든 같은 fN 개를 지우고 ② 전부 멀어도 지우며(no-op 불가) ③ PTFE 를 더하면 순위가 바뀌어 지웠던 간선이 복구되고(비단조) ④ 이미 face-connected 인 접촉에는 효과가 0 이다.  ⇒ f 는 'PTFE 가 막은 접점 비율' 이 아니라 **수치 repair 생략률**이고, 담으려던 의미론을 원리적으로 못 담는다.  재도전 시 **국소 연산자**로 재정의하고 R18 Q4 의 대조 5종을 함께 등록할 것."
+  },
+  {
+   "id": "R18-3",
+   "severity": "P1",
+   "status": "wontfix",
+   "owner": "codex",
+   "opened_in": "docs/reviews/codex_r18_verdict_20260831.md",
+   "found_by": "codex",
+   "title": "AM-AM 브릿지는 SE 를 덮어쓴다 — 브릿지를 건드리는 연산자는 **전자 전용이 아니다**",
+   "decision_note": "제안 B 를 등록하지 않으므로 지금 고칠 것은 없다.  다만 이것은 제안이 아니라 **생산 코드의 지속적 성질**이라 남긴다: SE(sid 6)는 가장 낮은 우선순위로 먼저 찍히고(`scripts/step3_sigma.py:293`), AM-AM 브릿지는 `_ball` 로 **무조건 덮어쓴다**(`:303-314`, 호출 `:345`; 빈 셀 전용 `_ball_empty` 는 SDCP 브릿지용 `:507`).  전자·이온이 같은 sid 격자를 공유하므로 브릿지를 빼면 그 셀이 SE 로 되돌아가 **이온망이 늘어난다**.  ⇒ 앞으로 브릿지를 건드리는 어떤 연산자도 이온축과 직교하지 않는다.  이온 전용이 필요하면 shared sid 대신 별도 conductivity field 를 쓸 것 (`scripts/step3_sigma.py:1119` `sigma_field`)."
+  },
+  {
+   "id": "R19-01",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "세미나 재작성이 **긍정 계약을 잃었다** — `/api/seminar/deck` 은 검사가 아예 없었다",
+   "note": "게이트를 `if False:` 로 한 줄 바꾸면 표지 없는 철회 pptx 가 기본 경로로 나가는데 28/28 이 초록이었다.  ⇒ 네 경로를 고정했다 (슬라이드 거부 · 슬라이드 historical 스키마 · 덱 거부 · 덱 내려받기).  두 게이트 돌연변이가 각각 6·5 건을 빨간불로 만드는 것을 실행해 확인했다.  덱 거부는 평문 403 → JSON 으로 바꿨다 (화면이 content-type 만 보고 그 주소로 **이동**해 버렸다).",
+   "evidence_tests": [
+    "webapp/test_seminar_page.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-02",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "근거를 슬라이드 → platen 문서로 옮긴 것은 **바꿔치기**였다",
+   "note": "API 거부는 CLAUDE.md·claims.json 을 가리키는데 검사는 다른 트랙의 문서(스스로 rev6 에서 멈췄다고 적은)를 봤고, 검사 17 의 \"독립성 철회\" 계약은 대체 없이 사라졌다.  ⇒ 응답에 `evidence_ref`·`evidence_claim` 을 실었고, 회귀가 그 파일을 **열어** 항목 등재를 확인한다.  옛 검사 16·17 은 데이터가 있는 자리(`?historical=1`)에서 원래 계약 그대로 복구했다.",
+   "evidence_tests": [
+    "webapp/test_seminar_page.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-03",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "화면 검사가 HTML 문자열만 훑어 `renderDeck()` 을 들어내도 초록이었다",
+   "note": "`webapp/test_seminar_dom.mjs` 신설 — 템플릿의 `<script>` 를 최소 DOM·fetch 껍데기 위에서 **실제로 돌려** 거부 사유가 `#smRoot` 에 닿는지 본다.  자기 민감도를 스스로 증명한다(분기를 제거한 사본으로 재실행해 빨간불이 되는지 확인).  ★ 쓰다가 실결함 발견: 내려받기 핸들러가 content-type 만 봐서 403 이면 페이지가 그 주소로 이동했다.",
+   "evidence_tests": [
+    "webapp/test_seminar_dom.mjs"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-04",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "AST 검사도 **소스**를 읽는다 — GPU 대입 뒤에 `used = None` 을 끼워도 초록",
+   "note": "가짜 cupy·cupyx 를 numpy/scipy 위에 세워 GPU 분기를 **실제로 태운다**.  cpu / gpu / gpu-사망-폴백 세 경로에서 해와 `LAST_BACKEND` 를 함께 본다.  Codex 가 제시한 돌연변이를 그대로 넣어 59e 가 빨간불이 되는 것을 확인했다.  ⚠ 비용 논거는 접었다 — CI 가 이미 numpy·scipy 를 깐다.",
+   "evidence_tests": [
+    "webapp/test_pipeline_provenance.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-05",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "`check_doc_refs` 가 SHA **앞 7~8자만** 비교해 틀린 토큰을 통과시켰다",
+   "note": "실재 `7dbf38fb…` 때문에 `7dbf38f0` 과 `7dbf38f0abcd` 가 둘 다 통과했다 = 잡으라고 만든 그 오타를 통과시켰다.  ⇒ 토큰 전체를 `rev-list --all` **도달 가능성**에 대조한다.  ⚠ `cat-file -e` 로 바꾸지 말 것 — 리베이스로 버려진 객체가 통과한다 (원장 `_commit_exists` 항목).  얕은 클론도 `--is-shallow-repository` 로 따로 잡는다.",
+   "evidence_tests": [
+    "scripts/check_doc_refs.py --selftest",
+    "scripts/check_doc_refs.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-06",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "자연어 면제가 **무관한 SHA 를 가려** 정말 없는 커밋을 통과시켰다",
+   "note": "`codex_absorb_verdict_20260825.md` 07 행의 \"증인이 없다\" 하나로 같은 표의 `c0ac0ad8` **8건 전부**가 문서 단위로 면제됐다 (원장은 그 변경이 `8bcfbeff` 로 들어갔다고 이미 적고 있었다).  ⇒ 면제를 `doc_refs_sha_exceptions.tsv` 의 (문서, 정확한 SHA, 대체참조, 이유) 로만 받고, SHA 가 도달 가능해지거나 대체참조가 도달 불가면 **등재 자체를 지적**한다.  ★ 길이 상한(12자)도 걷었다 — 13~15자를 통째로 못 보고 40자 **진짜 커밋 3건**도 못 봤다.  표 머리글이 \"커밋\" 이면 각 행도 검사한다 (그 8행이 정확히 이 모양이다).",
+   "evidence_tests": [
+    "scripts/check_doc_refs.py --selftest"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-07",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "allowlist 22건의 **이유가 확인 불가능한 산문**이었고 여섯 건이 사실과 달랐다",
+   "note": "(경로, 종류, ref, 이유) 로 바꿔 확인 가능한 주장은 검사기가 확인한다.  ⓐ `webapp/data.py`·`db/properties/…phaseA.csv` 는 \"다른 저장소\" 가 아니라 **이 리포의 DFT 브랜치**(`claude/friendly-meitner-lldvar`)에 실재 — cross_branch 로 등재하고 그 ref 에서 실물 확인 ⓑ `xy_heatmap_summary.csv` 는 \"미실행\" 이 아니라 **실행됐고 CSV 만 미커밋** ⓒ `sdcp8_v04/v03/v025.json` 과 `sigma_electronic_stage21_close_out.md` 는 등재가 아니라 **문서를 고쳤다** (후자는 개명이 아니라 끝내 안 만들어진 파일이었다) ⓓ 1차 증거 3건은 sha256 이 없어 **보고**한다 (막지 않음 — 그 기계에서 받아야 한다).  ★ 감사 중 실데이터 오류 발견: `oh2026_bimodal_sigma_porosity.csv` 의 σ_eff_e 가 CAM7:3 ↔ CAM6:4 로 전치돼 있었다 (우리 P:S 7:3 대응점).",
+   "evidence_tests": [
+    "scripts/check_doc_refs.py --selftest",
+    "scripts/check_doc_refs.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-08",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "`--selftest` 진입점 101개 중 **72개가 어디서도 안 돌았다** — 둘은 실제로 빨간불",
+   "note": "규칙 K 는 손으로 적은 10개 목록을 대조하므로 *둘 다에 없는* 것은 원리적으로 못 잡는다.  실측으로 드러난 빨간불: ⓐ `env_db` — `MPM_S4_CG_BUDGET_S`·`MPM_S4_CG_PROBE_MAX_DOF` 가 DB 에 없었다 ⓑ `seminar_deck_extract` — 철회 배너가 1번 장이 되며 `n==1` 표지 면제가 깨졌다 (면제를 위치 → **내용**으로 바꿨다) ⓒ `step3_sigma --selftest-segstamp` — payload 가 요청·적용을 갈라 적게 **개선**됐는데 철자 검사만 빨간불 (AST 계약 검사로).  ⇒ 72개를 손으로 옮겨 적지 않고 **드라이버**(`--run-fast`)가 등재를 읽어 돈다 = 98/98, 34 s.  플래그를 등재의 한 칸으로 둔 이유는 여럿이 `--selftest` 를 안 받기 때문이다 (`--selftest-temperature` 등).",
+   "evidence_tests": [
+    "scripts/check_selftest_inventory.py --selftest",
+    "scripts/check_selftest_inventory.py",
+    "scripts/check_selftest_inventory.py --run-fast"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-09",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "CI 가 flask·requests 를 안 깔아 **웹앱 테스트 5개가 깨끗한 러너에서 import 부터 죽는다**",
+   "note": "배선해 놓고 실제로는 안 도는 상태였다 (`app.py` → `storage_sync.py` → `requests`).  ⇒ CI 가 부르는 스크립트의 **의존 폐포**를 계산해 `pip install` 줄과 대조한다.  ⚠ 진입점은 AST 전체를, 도달 모듈은 최상위만 본다 — 다섯 테스트가 전부 `def main(): import app` 꼴이라 최상위만 보면 flask 가 안 보인다.  flask 를 지우면 검사가 빨간불이 되는 것을 확인했다.",
+   "evidence_tests": [
+    "scripts/check_selftest_inventory.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "R19-10",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/codex_r19_verdict_20260901.md",
+   "title": "세미나 화면이 **배너 없는 14장짜리 옛 덱**을 보여주고 있었다 (pptx 는 15장)",
+   "note": "`56dcbca1` 이 CDXIJ-9 대응으로 pptx **1번 장에 철회 배너**를 끼웠는데 `seminar_deck.json` 을 다시 안 뽑았다 ⇒ 그 배너가 화면에 한 번도 안 떴다.  경로 비교(옛 검사 14·15)로는 못 잡는다 — 두 산출물이 같은 파일을 가리키면서 내용이 갈라진 것이라서.  ⇒ ⓐ JSON 재생성 ⓑ 추출기가 `_RETRACTED` 표지를 **이어받게** (다시 뽑으면 조용히 사라지던 값이다) ⓒ 회귀가 JSON 장 수 ↔ pptx 장 수를 대조.  옛 JSON 을 되돌리면 그 검사가 빨간불이 되는 것을 확인했다.",
+   "evidence_tests": [
+    "webapp/test_seminar_page.py"
+   ],
+   "claimed_fixed_sha": "1d3d5ac3"
+  },
+  {
+   "id": "SELF-12",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/ion_r_sensitivity_prereg_20260831.md",
+   "title": "사전등록의 설계 근거 `0.30 %` 가 **인용한 코호트에서 나오지 않는다**",
+   "note": "`ion_r_sensitivity_prereg_20260831.md` §3 이 *\"8팔이 필요 없다\"* 를 `w4_ptscenterline` **8팔 산포 0.30 %** 로 정당화한다.\n★ **2026-09-01 해시 대조로 데이터 쪽은 닫혔다**: kgy 의 `w4_ptscenterline_20260827/` (2.0 GB) 16팔이 커밋된 `w4_ptfe_centerline_20260827` 매니페스트의 `src_sha256` 과 **16/16 일치**한다.  ⇒ 없는 데이터가 아니라 **같은 코호트의 옛 이름**이고, 원본은 축소본 + 해시로 리포에 보존돼 있다 (원본 2 GB 는 커밋 대상이 아니다).\n⚠ **그래서 남은 문제가 더 뚜렷해진다**: 데이터가 있는데도 `0.30 %` 가 거기서 안 나온다.  그 16팔에서 재계산하면 쌍대응 비 SD **0.228 %** · 비 폭 0.667 % · 침대별 CV 0.554/0.653 % 다.  리포의 다른 곳에 있는 인접값은 CL-34 의 점-스탬프 쌍대응 SE 0.28 %p · CL-41 의 비대응 SE 0.354 %p 인데, **어느 것이 인용된 것인지 알 수 없다**.\n★ **결정 자체는 안전하다** — 후보 넷 중 무엇이든 문턱(10~30 %) 대비 30~100배 여유이고, 판정값도 리포만으로 재현된다 (R̄ = 1.307820).\n⇒ 처분: **사전등록 본문은 고치지 않는다** (등록문을 사후에 손대지 않는 규약).  불일치를 편집자 주로 병기하고, 어느 양이 의도였는지는 저자가 정한다.\n⚠ 이 부류를 `check_doc_refs` 는 원리적으로 못 잡는다 — 그것은 **경로**의 실재만 보고, 여기서 깨진 것은 **수치의 출처**다.  규칙 ④ 가 아직 안 닫힌 축이다.",
+   "evidence_tests": [
+    "scripts/check_doc_refs.py",
+    "docs/data/w4_ptfe_centerline_20260827/cohort_manifest.json"
+   ]
+  },
+  {
+   "id": "SELF-13",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "복셀 솔버의 **상별 σ 여섯 칸이 전부 자릿수 hook** 이다 — 측정에 묶인 것이 하나도 없다",
+   "note": "`scripts/step3_sigma.py:79` `SIGMA_DEFAULT` 의 지위를 git 으로 추적한 결과:\n· `AM_S`/`AM_P` 0.010/0.005 — 도입 커밋은 `✅ A1-locked (Trevisanello)` 였으나 **A1 close-out (2026-06-30) 이 그 귀속을 철회**했다.  지금 docstring 이 스스로 *\"corpus-fit endpoints, NOT a Trevisanello measurement\"* + *\"scale transplant … unknown multiplier\"* 라 적는다.\n· `VGCF` 100 — 도입 커밋 `087d1a07` 이 **처음부터** `⚠ literature order-of-magnitude hooks (graphitic fibre / CB compact)` 로 적었다 = 자리표시자.  게다가 라벨이 틀렸다 (`graphitic fibre` 라 적혔지만 100 은 **분말** 급) — CL-47 이 *\"유효 망 값\"* 으로 정정.\n  ⚠ **데이터시트 분말값은 83 인데 코드는 100 이다.  그 차이의 근거가 리포 어디에도 없다.**\n    영향: 비 ΔR ≈ −0.002 (CL-39 감도) · 절대 σ_e +17 % (CL-11 지수 0.858).\n· `SuperP` 10 — 같은 hook.  `SDCP` 250 — USER anchor, 원장이 `provenance unrecorded` 로 적는다.\n⇒ **여섯 칸 중 측정에 묶인 것이 0 개다.**\n★ 그리고 이것이 무해하지 않다는 것이 **09-02 에 측정됐다** (CL-48): σ_VGCF 를 데이터시트의 다른 끝값(단섬유)으로 바꾸면 비의 **부호가 뒤집힌다** (R 1.1263 → 0.8916).  비가 σ 에 둔감하다는 근거는 CL-39 의 ×1.44 창뿐이었고, 그 국소 기울기로 ×100 을 외삽하면 **5.1배 틀린다**.\n⇒ 처분은 Codex R20 판정 대기 (Q1~Q6).  우리 권고안은 σ_VGCF 를 ㉢ 근거 찾기 → 안 되면 ㉠ 데이터시트 83 으로 (비는 −0.002 만 움직인다).\n⚠ `check_doc_refs` 는 이 부류를 원리적으로 못 잡는다 — 경로가 아니라 **값의 출처**다 (SELF-12 와 같은 축).",
+   "evidence_tests": [
+    "scripts/step3_sigma.py"
+   ]
+  },
+  {
+   "id": "R20-01",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "CL-48 을 **헤드라인 규약에 일반화**해 썼다 — 그 팔은 centerline 을 시험하지 않았다",
+   "note": "CL-48 은 **PTFE 미표현** 규약에서만 돌았다.  갈라 적어야 한다: PTFE 미표현 `R≈1.124` 의 방향 강건성은 **반증**, 본문이 쓰는 centerline `R≈1.308` 의 방향 강건성은 **미식별**이다.\n★ 그런데 안심할 일이 아니다 — Codex 가 현행 centerline 팔의 **소산 분담**에서 국소 기울기를 재계산했더니 `dR/dlnσ_VGCF ≈ +0.0158` 로 **0 이 아니고 PTFE 미표현 팔(−0.0099)과 부호가 반대**다.\n⇒ centerline 도 σ_VGCF 에 불변이 아니다.  다만 그 축에서 부호가 뒤집히는지는 미측정.\n⇒ 시트 §8-1 을 정정했다 (2026-09-02).\n\n── 2026-09-02 · **구멍이 닫혔다** (CL-60) ──\n사전등록 §8-4 로 **런 전에 무조건 등록**한 단섬유 대각선 점(σ_AM_S 1.0e-4 · σ_SDCP 2.5, σ_VGCF ×100 과 수학적으로 동일)을 centerline 규약 8팔로 돌렸다.\n**R = 1.057471 · SD 0.005337 · 8/8 수렴** ⇒ `R − 3·SD = 1.0415 > 1 + δ` ⇒ **뒤집지 않는다.**\n⇒ **CL-48 의 부호 반전은 PTFE 미표현 규약 고유**이고 본문 규약은 그 축에서 순서를 지킨다.\n★ 감도 자체는 두 규약이 거의 같다 (광창 log 기울기 −0.0461 vs −0.0502) — 다른 것은 **출발점의 여유**다 (1.3078 vs 1.1237).  centerline 이 덜 민감한 것이 아니다.\n⚠⚠ 그리고 이 finding 이 인용한 **국소 기울기 `+0.0158` 은 광창에서 부호가 반대다** (실측 −0.0543).  ⇒ 그 값을 외삽 근거로 쓰지 않는다 — CL-48 이 ×1.44 를 ×100 으로 외삽해 5.1배 틀렸던 것과 같은 부류이고, 이번에 **양쪽 규약에서** 확인됐다.\n⛔ 그래도 이 점을 **헤드라인으로 쓰지 않는다** — 단섬유값은 접촉저항 0 을 두 번 가정한 상한 프로브다.",
+   "evidence_tests": [
+    "docs/reviews/sigma_closure_sweep_prereg_20260902.md",
+    "docs/reviews/claims.json"
+   ],
+   "claimed_fixed_sha": "f22338a4"
+  },
+  {
+   "id": "R20-02",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "CL-48 최종 수치가 **원자료로 재현되지 않는다** — 커밋된 파일은 옛 값·SBE 한 행뿐",
+   "note": "판정에 쓴 SBE 6.525664 / DBE 5.818477 · R = 0.891630 은 러너 stdout 이다.  커밋된 `docs/data/sdcp_runs/prereg_v2_vox015_sph_b048_sg7854_lean2.json` 에는 **SBE 한 행과 옛 값 6.546818**, 그리고 `HOLD`/`PROTOCOL_ID_MISSING` 만 있다 ⇒ 리포만으로 판정을 재도출할 수 없고, 더 나쁘게는 **낡은 값이 그 자리에 남아 있다**.\n⇒ 축소 패키지 두 팔을 반입·봉인하기 전에는 이 수치를 원고에 올리지 않는다.\n\n── 2026-09-02 처분 ──\n★ **반입 완료** — `docs/data/cl48_sg7854_arm0_20260902/` (kgy 에서 축소·푸시).  값이 판정과 **정확히 일치**한다: SBE 6.525663872491329 · DBE 5.818477164878071 · 둘 다 `cg_info=0`.\n★ 축소기가 처음엔 **거부했다** (*\"불완전한 cohort 는 감사 패키지가 아니다\"*, 2팔 vs 기대 16) — 가드가 옳게 작동한 것이고, 진단 팔용 우회로가 **이미 있었다**: `--expect-arms 2 --diagnostic` 이 원자료를 보존하면서 판정기가 `DIAGNOSTIC_TREE` 로 거부하게 표지를 박는다.  ⇒ *\"재현 가능\"* 과 *\"이 팔로 판정 금지\"* 를 동시에 만족한다.\n★ 낡은 파일 `sdcp_runs/prereg_v2_vox015_sph_b048_sg7854_lean2.json` 은 **지우지 않고** `_SUPERSEDED` 표지를 박았다 — 그것은 **1차 미수렴 시도**(SBE 6.546818, `cg_info=30000`)이고, 왜 실패했고 어떻게 고쳤는지가 CL-48 판정의 일부다.\n⚠ **부수 발견**: kgy `~/mt-push` 의 영구 dirty 는 **줄바꿈(CRLF↔LF) 잡음**이었다 (윈도우에서 만든 EIS CSV·`validation_all_cases.csv`).  커밋 안 된 코드가 아니다 ⇒ 지금까지 축소본에 붙은 `+dirty` 도장은 그렇게 읽어야 한다.  근본 해결은 `.gitattributes` 또는 `git add --renormalize` 이고 **별도 커밋**으로 분리한다.\n★ 두 팔이 `e6bd2134` 로 들어왔고 값이 판정과 **자릿수 끝까지** 일치한다 (SBE 6.525663872491329 · DBE 5.818477164878071, 둘 다 `cg_info=0`).  옛 값이 남아 있던 `prereg_v2_…_sg7854_lean2.json` 에는 `_SUPERSEDED` 표지를 박았다.\n⚠ 반입본은 **진단 패키지**다 — `.diagnostic_arms2` 가 붙어 `sdcp_gain_verdict.py` 가 `HOLD [DIAGNOSTIC_TREE]` 로 **거부**한다.  그것이 맞는 상태다: 이 팔은 탄소망 상한 프로브이지 생산 판정이 아니고, R20 이 판정에 쓰지 말라고 명시했다.  ⇒ 재현성 결손은 닫혔고, \"이 값을 헤드라인으로 쓰지 않는다\" 는 제약은 **파일 자신이 강제**한다.",
+   "evidence_tests": [
+    "docs/data/cl48_sg7854_arm0_20260902/p2_SBE_sph_a0.json",
+    "docs/data/cl48_sg7854_arm0_20260902/p2_DBE_sph_a0.json",
+    "docs/data/cl48_sg7854_arm0_20260902/verdict_receipt.txt",
+    "scripts/sdcp_gain_verdict.py"
+   ],
+   "claimed_fixed_sha": "e6bd2134"
+  },
+  {
+   "id": "R20-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "Bazzoun digest 의 **100배 단위 오류**가 우리 논거 하나를 떠받치고 있었다",
+   "note": "`lit_bazzoun2026_dem_fem_rnm.md` 가 정규화 상수를 `1 S/cm` 로 적었으나 원문은 **1 S/m** 다.\n⚠⚠ 그 오기 위에 R20 요청서가 *\"Bazzoun 은 재료값을 넣고 우리는 유효값을 넣는다\"* 는 문헌 선례 대비를 세웠다.  그들이 넣는 것은 **정규화 상수**이지 측정된 재료값이 아니므로 **그 대비 자체가 성립하지 않는다**.  게다가 같은 논문이 연속체 FEM 으로도 같은 구조를 풀어 *\"명시 접촉이 분야 단일 표준\"* 도 성립하지 않는다.\n⇒ digest 를 정정했다 (2026-09-02).  ★ 교훈: **digest 의 한 단위가 논거를 만든다** — 문헌을 근거로 세울 때 원문 단위를 다시 본다.",
+   "evidence_tests": [
+    "docs/lit_bazzoun2026_dem_fem_rnm.md"
+   ]
+  },
+  {
+   "id": "R20-04",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "`83 → 100` 유도 서사가 거짓이고, **83 으로 바꾸자는 내 권고도 반증**됐다",
+   "note": "100 은 도입 커밋(`087d1a07`)에 `order-of-magnitude hook` 으로 들어왔고 **83 문헌 감사보다 앞선다** ⇒ *\"분말값을 보고 100 을 채택했다\"* 는 서사는 성립하지 않는다 (원고 methods 초안에도 그 문장이 있다).\n⚠ 그리고 내 권고 ㉢→㉠(83 으로 교체)도 **반증**됐다: 83 은 **압착 분말의 시편-단면 유효값**이지 복셀이 요구하는 **국소 섬유 closure** 가 아니다.  `diameter_preserving_sigma` 는 `σ_bulk·A/L` 을 전제하므로 분말 유효값을 거기 넣는 것은 **범주 오류**다.\n⇒ R20 권고: ⓐ 100 을 `frozen, uncalibrated legacy voxel-network coefficient` 로만 표기 ⓑ 83 유도 문장 삭제 ⓒ 83 의 압력·밀도·측정법을 원장에 반입 ⓓ 조성·압력이 맞는 RVE 측정으로 국소 closure 를 보정하거나 명시 접촉저항으로 전환 ⓔ 값을 바꾸면 새 규약 봉인 + 전 팔 재실행.\n\n── 2026-09-02 · R20 권고 ③ (`83` 의 측정조건 반입) 실행 ──\n★★ **찾아보니 `83` 자체가 두 값 중 근거가 약한 쪽이었다.**\n· 제조사(Resonac, 구 Showa Denko) 제품 사양이 명시하는 값은 **0.017 Ω·cm — 압축밀도 `0.8 g/cm³` 에서** = **58.8 S/cm** 이고, 측정법은 4-point probe(압축분체) 다.\n· 우리가 인용해 온 **0.012 Ω·cm (= 83 S/cm)** 는 문헌에 돌아다니는 값인데 **압축조건이 붙어 있지 않다**.  ⇒ 두 분말값 중 **덜 문서화된 쪽**을 앵커라 불러 왔다.\n· 그 `0.8 g/cm³` 는 섬유 진밀도 `2.0 g/cm³` 의 **40 %** 다 (겉보기밀도 0.08 의 10배).  전극 안 VGCF 의 패킹과 아무 관계가 없다 ⇒ **범주 오류 판정이 더 강해진다**: 출처를 찾아도 그 수는 국소 섬유 closure 가 아니다.\n· 부수 확인 — 코드값 `100` 은 두 분말값 **둘 다보다 위**다 (58.8 의 1.70배 · 83 의 1.20배).  *\"분말값과 같은 자릿수\"* 는 맞지만 *\"분말값\"* 이라고 라벨하면 틀린다.\n⇒ 처분: `--sigma-vgcf` help 와 methods 에 **조건부 수치(0.017 @ 0.8 g/cm³)** 를 적고, `83` 을 무조건 앵커처럼 쓰지 않는다.  ⚠ 이것으로 closure 스윕의 **설계는 안 바뀐다** — C₂ 범위(×1/100 ~ ×100)는 두 끝의 자릿수 간격으로 정했고 10⁴/58.8 = 170배라 같은 창 안이며, 어차피 런 전에 동결됐다.\n⚠ 제조사 페이지는 이 환경의 egress 프록시가 막아 **직접 fetch 하지 못했다** — 위 값은 두 건의 독립 검색 스니펫이 같은 수치·같은 조건을 보고한 것에 근거한다.  **PDF 사양서를 받으면 원장에 붙일 것.**\n\n── 2026-09-02 저녁 · 저자 지적으로 **리포 재발굴** ──\n⚠⚠ **내 \"출처를 알 수 없다\" 서술이 과했다.**  저자가 *\"결과가 미미하더라도 찾아본 것과 아닌 것은 다르다\"* 며 재확인을 요구했고, 파 보니 **근거가 기록돼 있었다**.\n★ 도입 커밋 `087d1a07` (2026-07-09) 이 같이 만든 `docs/step3_sigma_network.md` 앵커 표:\n```\n| VGCF   | 100 | ⚠ §F1 자릿수 hook (graphitic fibre 문헌 10²-10³) |\n| SuperP |  10 | ⚠ §F1 자릿수 hook (CB compact 1-50)            |\n```\n⇒ **임의값이 아니라 \"흑연 섬유 문헌 밴드 10²–10³ 의 밑단\"** 이다.  코드 주석도 같은 커밋에서 `literature order-of-magnitude hooks (graphitic fibre / CB compact)` 라 적었다.\n★ 그런데 **그 밴드가 틀렸다** (CL-47): VGCF-H 단섬유는 1×10⁻⁴ Ω·cm = 10⁴ S/cm 이고 10² 대는 **분말/압착** 영역이다.  ⇒ 저자는 *\"섬유값의 밑단\"* 을 겨냥했고 실제로는 *\"분말 영역\"* 에 **우연히** 착지했다.  R20-04 의 핵심(=*\"분말값을 보고 골랐다\"* 는 거짓 계보)은 **그대로 유효**하다 — 오히려 더 정확해진다: 분말값을 **보지도 않았다**.\n★ 확인: `git log -S \"'VGCF': 100\"` 전체 이력에서 `087d1a07` 이 **최초**다 (그 이전 출처 없음).\n\n★ **SDCP 250 도 \"출처 없음\" 이 아니다** (SELF-13 인용 시 내가 과하게 말했다):\n· `9d8b0a0e` 0.010 → 150 — `USER-provided interim material conductivity (S-PEDOT class)`\n· `0e548ee4` 150 → 250 — `사용자 제공 업데이트 2026-07-16`\n⇒ 정확한 결손은 **\"시편 규약 미기록\"** 이다 (캐스팅 막인가 압착 펠릿인가).  `--sigma-sdcp` help 가 이미 그렇게 적고 있었다 (*\"whether that number was measured on a cast film or a pressed pellet is UNRECORDED\"*).\n⇒ Methods 문단을 **\"왜 100 인지 답이 있는데 안 적는\"** 상태에서 고쳤다 — 밴드 인용과 그 밴드가 뒤에 반증된 사실을 같이 적는다.\n★★ 교훈: **\"모른다\" 는 결론도 검증 대상이다.**  나는 R20 이 준 커밋 하나만 보고 \"출처 없음\" 으로 넘어갔는데, **같은 커밋이 만든 문서에 근거 표가 있었다**.  한 겹 더 파는 비용이 낮은 곳에서 \"미상\" 을 선언하지 않는다.",
+   "evidence_tests": [
+    "scripts/step3_sigma.py"
+   ]
+  },
+  {
+   "id": "R20-05",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "비가 공통 스케일로 보호된다는 논거가 **반증** — 불확실성은 두 독립 대비에 있다",
+   "note": "전 활성 σ 에 같은 k 를 곱하면 비가 정확히 보존되는 것은 맞다 (선형 PDE).  그러나 현재 불확실성은 공통 스케일이 아니라 **`σ_AM_S/σ_VGCF` 와 `σ_SDCP/σ_VGCF` 두 대비**에 있고 이것은 **상쇄되지 않는다**.  반례: SBE 를 σ_a 균질층, DBE 를 σ_a/σ_b 반반 직렬층으로 두면 `R = 2σ_b/(σ_a+σ_b)` 이고 `σ_b/σ_a` 가 1 을 지나면 R 도 부호를 바꾼다.\n★ 실제 활성 상은 여섯이 아니라 **셋**이다 (AM_S · VGCF · SDCP — 소산에 나타나는 상).  내 R20 요청서의 *\"여섯 hook 이 다 영향을 준다\"* 는 부정확했다.  다만 셋 다 미보정이라 결론은 살아나지 않는다.\n⇒ 방어 가능한 종료조건: 두 대비를 **사전에 독립 범위로 동결** → centerline 에서 **공동 log-space 스윕** → 각 점 8 origin 쌍대응 → origin 산포와 파라미터 범위 **별도 보고** → 전 범위에서 `R_min > 1+δ` 일 때만 방향 주장.  ⚠ 확률분포가 없으므로 **오차막대가 아니라 시나리오 범위·부호 지도**다.",
+   "evidence_tests": [
+    "scripts/step3_sigma.py"
+   ]
+  },
+  {
+   "id": "R20-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_review_request_r20_phase_sigma_20260902.md",
+   "title": "접촉망 솔버를 `physical ground truth` 라 부르는 것은 과장이다",
+   "note": "`network_conductivity.py` 는 입력 `σ_bulk` 로 스케일되는 **명시-접촉 모델 추정치**이지 물리 정본이 아니다.  게다가 **AM–AM 망만** 풀고 VGCF/SDCP 복합망은 풀지 않으므로 복셀 솔버와 **같은 estimand 가 아니다**.\n⇒ R20 권장 라벨: 접촉망 = `DEM AM-contact formation factor F_e = σ_eff/σ_AM,input [–]` · 복셀 = `Voxel-FV composite conductivity under specified local closure [S/cm]`.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "SELF-14",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/sigma_closure_sweep_prereg_20260902.md",
+   "title": "규칙 L 의 대입/참조 추출이 **우연한 표기법**에 기대고 있었다 — 한쪽은 조용히 눈이 멀었다",
+   "note": "사전등록 스윕을 위해 러너에 `SIGMA_AM_S_OVERRIDE`·`SIGMA_SDCP_OVERRIDE` 두 축을 배선하다 검사기 **두 곳이 동시에** 무력화됐다.  둘 다 뿌리가 같다 — 정규식이 기존 코드의 *우연한 표기 순서*에 기대고 있었다.\nⓐ 자동 seed 의 `_assigned` 가 **줄머리 대입만** 봤다 (`^\\s*VAR=`).  기존 축이 전부 `SBRG_FLAG=\"\"; SBRG_TAG=\"\"` 처럼 FLAG 를 **먼저** 적은 것은 규약이 아니라 우연인데, 순서를 뒤집어 `AS_TAG=\"\"; AS_FLAG=\"\"` 로 적자 `AS_FLAG` 가 unbound 로 `set -u` 프로브를 통째로 죽였다 — 이 파일이 이미 두 번 겪은(`SBRG_FLAG`·`RQG_FLAG`) **위장된 실패**의 세 번째다.\nⓑ ★★ 더 나쁜 쪽 — L-1e 의 참조 추출이 `$VAR` 만 봤다 (`\\$([A-Z]…)`).  `${VAR}` 중괄호 꼴은 집합에서 **조용히 빠져** 무조건-초기화 방어선 밖으로 나간다.  ⓐ 는 소리를 내며 죽지만 ⓑ 는 **아무 소리도 없이 검출력만 사라진다**.  같은 파일의 자동 seed 쪽은 `\\$\\{?` 라 중괄호를 이미 보고 있었다 ⇒ **두 정규식이 서로 어긋나 있었다**.\n⇒ 추출을 이름 붙은 함수 셋(`_asm_assigned`·`_asm_flag_refs`·`_asm_uncond`)으로 올려 두 소비자가 **같은 규칙**을 쓰게 했다.  넓히면서 무조건/조건부 구분(`;` 뒤 = 무조건, `&&`·`then` 뒤 = 조건부)은 그대로 지켰다 — 그것을 잃으면 L-1e 가 항상-참으로 썩는다.\n★ 검출력 실증: 세 정규식을 각각 옛 판으로 되돌려 재실행하니 L-1f·L-1i / L-1g / L-1h 가 정확히 짝지어 실패했다 (셋 다 되돌림당 의도한 시험만 문다).\n★ 교훈: **검사기가 대상의 표기 관습에 기대면 관습이 바뀌는 날 조용히 죽는다.**  CLAUDE.md 규칙 ④(\"정본은 밖으로 강제되지 않으면 새어나간다\")의 코드판이다.",
+   "evidence_tests": [
+    "scripts/check_method_discipline.py --selftest"
+   ],
+   "claimed_fixed_sha": "6cd1fb03"
+  },
+  {
+   "id": "SELF-15",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/sigma_closure_sweep_prereg_20260902.md",
+   "title": "읽지 않는 축 env 가 조용히 무시돼 **옳은 숫자를 내며 아무것도 시험하지 않는 런**이 나왔다",
+   "note": "closure 스윕 중심점(무영향 대조)을 `SIGMA_AM_S_OVERRIDE=0.01 SIGMA_SDCP_OVERRIDE=250` 으로 띄웠는데 실행 머신의 러너가 **배선 이전 커밋**(`657c2192`)이었다.  두 변수는 그냥 안 읽히는 환경변수가 됐고 — 하필 **그 값들이 프리셋 기본값과 같아서** — 런은 **정확히 옳은 σ_e 를 내며 통과했을** 것이다.\n⚠⚠ 이 부류의 위험은 *\"틀린 답\"* 이 아니라 **\"맞는 답인데 근거가 없는 것\"** 이다.  사전등록 축이 적용되지 않은 팔은 대조로도 판정으로도 쓸 수 없는데, 산출물만 보면 **구별이 안 된다**.  디렉터리 태그(`_as001_sd250`)를 눈으로 확인하지 않았다면 그대로 25 격자점 스윕에 들어갔다.\n★ 내 잘못이 정확히 어디였나: 명령을 주면서 코드 동기화를 **선행 게이트가 아니라 주의 문구**로 뒀다.  이 리포가 이미 명문화한 것(\"주의는 게이트가 아니다\", R3-CX-04)을 그대로 밟았다.\n⇒ 러너가 **자기 소스를 읽어** 실제로 `$VAR` 역참조하는 이름만 인정하고, 축 이름꼴(`SIGMA_*`·`SDCP_*`·`PTFE_*`)인데 안 읽는 것이 설정돼 있으면 **죽는다**.  손목록을 두지 않는다 — 이 리포가 그 방식으로 세 번 졌다 (`SBRG_FLAG`·`RQG_FLAG`·`AS_FLAG`, SELF-14).\n★ 검출력 실증 (L-1l): 사고 당시의 **옛 러너를 그대로 세워** 재현하니 게이트가 안 배선된 둘만 지목하고 죽었다 — `SIGMA_VGCF_OVERRIDE` 는 옛 판도 읽으므로 지목하지 않는다.  전부 거부도 전부 통과도 아닌 **가려서** 문다.\n⚠ 잔여 한계: 게이트는 접두사 `SIGMA_`·`SDCP_`·`PTFE_` 만 본다.  다른 이름꼴의 새 축은 접두사를 같이 늘려야 한다.  그리고 자기 소스를 못 읽는 경로(`bash -s`)에서 축 env 가 실려 오면 판정 불가라 그쪽도 죽인다 (fail-open 하면 사고가 그대로 재발한다).\n⚠ 오염 확인: 무효 런은 영수증에 `code_sha` 가 들어가 **생산과 다른 디렉터리**를 팠다 (`r52e5d28dfacd` ↔ 생산 `rddb33647303c`·`rd2be19ea80e4`) ⇒ 생산 산출물 손상 없음.  그 디렉터리는 `INVALID_no_axis_wiring_*` 로 이름을 바꿔 격리했다.",
+   "evidence_tests": [
+    "scripts/check_method_discipline.py --selftest"
+   ]
+  },
+  {
+   "id": "SELF-16",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/sigma_closure_sweep_prereg_20260902.md",
+   "title": "디렉터리 태그가 사전등록 격자의 두 점을 **같은 이름**으로 만든다 (`2.5` ↔ `25`)",
+   "note": "러너의 태그 규칙은 `${VAR//./}` = 점을 **지운다**.  그런데 사전등록한 σ_SDCP 격자가 정확히 `2.5 · 25 · 250 · 2500 · 25000` 이라 **앞의 둘이 똑같이 `25`** 가 된다.\n⚠⚠ 그리고 영수증이 두 축을 **안 실었으므로** digest 도 같다 ⇒ **디렉터리 이름 전체가 일치**한다.  그러면 러너는 기존 영수증을 \"지금 설정과 같다\" 로 읽고 **다른 σ 로 돈 팔을 재사용**한다 (러너의 line-475 ABORT 는 영수증에 축이 없으니 못 본다).  = 서로 다른 두 실험이 한 디렉터리에서 섞이고, 스윕 결과 25점 중 2점이 조용히 하나가 된다.\n★ 세 겹으로 고쳤다:\n  ⓐ 새 두 축만 `.`→`p` **무손실** 치환 (기존 축 규칙은 안 건드린다 — 바꾸면 이미 돈 팔의 디렉터리 이름이 어긋나 완주 산출물을 못 찾는다).\n  ⓑ 영수증이 `sigma_am_s_S_cm`·`sigma_sdcp_S_cm` 을 **러너가 정했을 때만** 싣는다 ⇒ 팔마다 매니페스트와 대조돼 \"러너가 의도한 σ 로 돌았는가\" 가 증명된다.\n  ⓒ 두 축을 `RECEIPT_AXES` 가 아니라 **`RECEIPT_AXES_NODIGEST`** 에 넣었다.  전자에 넣으면 `receipt_digest` 가 `rec.get(k)=None` 을 해시 본문에 넣어 **기존 digest 가 전부 바뀌고** `docs/data/cohorts/` 의 커밋된 디렉터리 이름까지 어긋난다.\n★ 검출력 실증: 옛 태그 규칙으로 되돌리면 등록 격자 10 값이 **9 디렉터리**로 떨어져 L-1m·L-1n 이 정확히 그 한 건을 문다.\n\n★★ 부수 발견 — `receipt_digest` 는 **내용 해시가 아니라 런타임 캐시 키**다.  커밋된 영수증 17건을 현행 코드로 재계산하면 **전부 불일치**한다.  원인은 08-30/08-31 에 늘어난 `RECEIPT_AXES` 4개이고, 그 넷을 빼면 옛 digest 가 정확히 재현된다.  코드 버전을 넘어 재현되지 않는 것이 **설계**지만(새 축 = 새 디렉터리 = 낡은 팔 재사용 차단), 값이 커밋된 디렉터리 이름에 박혀 있어 **내용 해시처럼 보인다** — 실제로 나 자신이 5분간 오염으로 오독했다.  ⇒ `run_contract` selftest 에 세 시험(`RCPT-nodigest`·`RCPT-axes`·`RCPT-disjoint`)을 넣어 그 성질을 명시로 고정했다.\n⚠ 진행 중이던 중심점 런은 **유효하다** — 축이 실제로 적용됐고(태그가 증거) 매니페스트가 두 σ 를 적는다.  다만 옛 태그·영수증 규약이라 **배선 대조로만** 쓰고, 25 격자점은 전부 새 코드로 돌린다 (스윕 안에서 코드가 섞이면 안 된다).",
+   "evidence_tests": [
+    "scripts/check_method_discipline.py --selftest",
+    "scripts/run_contract.py --selftest"
+   ]
   }
  ]
 }

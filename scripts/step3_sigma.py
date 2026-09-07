@@ -26,7 +26,16 @@ DESIGN / TRUST (docs/step3_sigma_network.md):
                                   ⚠ scale transplant: those endpoints are coefficients of a MACROSCOPIC
                                   effective form; using them as a voxel **phase** σ has an unknown
                                   multiplier (§F1 → null).  Treat as an order-of-magnitude hook.
-      VGCF 100 · SuperP 10      ⚠ VGCF 100 은 **유효 망 값** (분말 저항률 0.012 Ω·cm ≈ 83 S/cm 급;
+      VGCF 100 · SuperP 10      ⚠⚠ **frozen, uncalibrated legacy voxel-network coefficient**
+                                  (Codex R20).  ★ 이 값은 **83 에서 유도되지 않았다** — 도입
+                                  커밋 `087d1a07` 이 `order-of-magnitude hook` 으로 넣었고
+                                  그것이 83 문헌 감사보다 **앞선다**.  ⇒ *"분말값을 보고
+                                  채택했다"* 는 서사를 쓰지 말 것 (R20-04).
+                                  ⚠ 그리고 83 으로 **바꾸는 것도 답이 아니다**: 83 은 압착
+                                  분말의 시편-단면 유효값이고 복셀이 요구하는 것은 **국소
+                                  섬유 closure** 다.  `diameter_preserving_sigma` 가
+                                  `σ_bulk·A/L` 을 전제하므로 범주 오류가 된다.
+                                  ⚠ 분말 저항률 0.012 Ω·cm ≈ 83 S/cm 급;
                                   단섬유는 1e4 S/cm — 차이 = 섬유-섬유 접촉저항, CL-47).  복셀 융합이
                                   접촉저항을 0 으로 만들므로 이 낮은 σ 가 그 결손을 뭉뚱그린다 —
                                   ⚠ 재료상수가 아니라 규약이다.  단섬유값 대입 = 등전위 섬유 + 완전
@@ -78,6 +87,12 @@ def temperature_provenance(T_C=None, ea_ev=None):
 # (DBE +45.4% 등) were solved at 150 — re-run needed for the 250-anchored numbers.
 SIGMA_DEFAULT = {'AM_S': 0.010, 'AM_P': 0.005, 'VGCF': 100.0, 'SuperP': 10.0, 'SDCP': 250.0,
                  'SWCNT': 100.0}
+#: ★ 마지막 `apply_ptfe_blocking` 의 **상별 차단 셀 수** (키 = 원래 sid, 문자열).
+#    총수만으로는 "SE 를 막았나 SDCP 도 막았나" 가 안 보이고, 그 구분이 Codex R16 Q6 의
+#    쟁점이다.  매니페스트가 이것을 실어야 사후에 갈린다.
+LAST_PTFE_BLOCK = {}
+
+
 def electronic_sigma_table(sigma_am_s, sigma_am_p, sigma_vgcf, sigma_superp,
                            sigma_sdcp, sigma_ptfe=0.0, sigma_swcnt=0.0, sigma_se=0.0):
     """sid → 전자 σ 표 (**생산 규약**).  SE(6) 는 전자 절연, PTFE(7) 는 감도 훅.
@@ -108,6 +123,16 @@ def ionic_sigma_table(sigma_ion_sdcp, sigma_ion_se, swcnt_ion_block=False):
                      0.0 if swcnt_ion_block else sigma_ion_se, 0.0], float)
 
 
+#: ★★★ 2026-08-30 (Codex R13 C-5) — **선분 스탬프 원장.**  `fibre_stamp='segment'` 는
+#    "`add_fid` 가 있었다" 는 뜻일 뿐, **모든 fid 가 선분으로 구워졌다는 뜻이 아니다.**
+#    실물 seeder 는 box clipping·AM 내부점 제거 후 **한 점만 남은 fibril** 을 보존하고,
+#    그것은 아래에서 명시적으로 **점 스탬프**된다.  다른 첨가제가 하나라도 선분이면
+#    매니페스트는 전체를 `segment` 로 적는다 = 도장과 실제가 갈린다.
+#    ⇒ **phase 별로** 몇 fid 가 선분이고 몇이 점이었는지 여기 남긴다.
+#  ⚠ 키는 **phase** 다 (sid 아님) — 둘은 다른 번호계다 (phase 4 = PTFE → sid 7).
+#    `SID_NAME` 으로 찍으면 라벨이 틀린다.
+LAST_SEGSTAMP = {}
+
 SID_NAME = {1: 'AM_S', 2: 'AM_P', 3: 'VGCF', 4: 'SuperP', 5: 'SDCP', 6: 'SE', 7: 'PTFE',
             8: 'SWCNT', 9: 'SE_blk'}                       # voxel σ-id → name
 #   sid 7 (PTFE) = SENSITIVITY-ONLY: production은 PTFE를 전도 격자에 아예 안 넣음(절연 = void와
@@ -122,6 +147,17 @@ SID_NAME = {1: 'AM_S', 2: 'AM_P', 3: 'VGCF', 4: 'SuperP', 5: 'SDCP', 6: 'SE', 7:
 # multi-M-dof fine-vox solve drops from ~1 h (CPU) to minutes.  Auto-falls back to scipy CPU if
 # CuPy/CUDA is unavailable, so it is always safe to leave on.
 GPU_SOLVE = False
+
+#: ★★ GPU 폴백을 **막을** 것인가 (2026-08-26, kgy 실측 사고) — `--step3-require-gpu`.
+#   왜: `EXPECT_BACKEND=gpu` 를 선언한 런에서 GPU OOM 이 나면 이 파일은 **조용히 CPU 로
+#   내려가** 26.5 M dof 를 몇 시간 푼다.  그런데 그 결과는 `sr01_stamp_compare.py:307`
+#   (`backend 가 cpu 인데 지금 돌면 gpu — 두 팔이 갈린다`) 이 **반드시 거부**한다.
+#   ⇒ 계산을 다 하고 버리는 것이 확정된 경로다.  실측: vox 0.15 arm 15 에서 1 시간 낭비
+#   (다른 프로세스가 GPU 를 물고 있었고, 그것이 끝난 뒤에도 이 프로세스는 못 돌아온다 —
+#   폴백은 솔브 진입 시 한 번 정해진다).  a2/a4 는 dof 1.7배라 더 크게 당할 자리다.
+#   ⇒ 선언한 런에서는 **폴백 순간 즉시 중단**해 자원을 아끼고 원인을 즉시 드러낸다.
+#   ⚠ 기본 False = 현행 거동 (웹앱·CPU 전용 환경은 폴백이 정상 경로다).
+REQUIRE_GPU = False
 
 # ── SR-03: CPU CG 전처리 (기본 OFF = 현행 Jacobi 경로와 **bitwise 동일**) ─────────────────
 #   합성 침대 실측 (전자 채널 σ 대비 1e5, rtol 1e-8, scripts/sr03_precond_bench.py — STEP3 의
@@ -194,7 +230,12 @@ def _amg_M(L):
 
 def _solve_cg(L, b):
     """Preconditioned CG for the SPD Kirchhoff system L·φ = b.  GPU (CuPy) when GPU_SOLVE and
-    the import succeeds, else scipy CPU — SAME matrix + tol (1e-8) → SAME φ (backend swap only).
+    the import succeeds, else scipy CPU — same matrix + same rtol (1e-8), so φ is **expected
+    within solver tolerance** (backend swap only).
+    ⚠⚠ 2026-08-27 (Codex R7 Q4c) — 옛 문구는 *"SAME φ"* 였다.  그것은 **선언이지 측정이
+    아니다**: 이 리포는 같은 계를 CPU/GPU 양쪽에서 풀어 σ 를 비교한 적이 없다.  ⇒ 문구를
+    약화하고, **CPU/GPU 팔을 섞는 cohort 는 금지**한다 (허용오차를 사전등록하기 전까지).
+    실제 사용 backend 는 `LAST_BACKEND['used']` 로 봉인된다.
     CPU preconditioner = Jacobi (default) or AMG when AMG_SOLVE (SR-03, 해-불변 측정 완료).
     Returns (phi: np.ndarray, info: int).
 
@@ -218,6 +259,15 @@ def _solve_cg(L, b):
             return cp.asnumpy(xg), int(info)
         except Exception as _e:
             LAST_BACKEND['fallback_reason'] = f'{type(_e).__name__}: {_e}'
+            if REQUIRE_GPU:
+                #  fail-closed — 폴백 결과는 backend 봉인이 어차피 거부한다 (sr01:307).
+                #  몇 시간 CPU 를 태우고 버리는 대신 **지금** 멈춘다.
+                raise SystemExit(
+                    f'STEP3 ABORT — GPU 솔브 실패인데 `--step3-require-gpu` 다: '
+                    f'{type(_e).__name__}: {_e}\n'
+                    f'     CPU 폴백은 backend 봉인(expect gpu)이 거부하므로 계산을 버리게 된다.\n'
+                    f'     조치: GPU 를 비우고(nvidia-smi 로 점유 PID 확인) 같은 명령으로 재개하면 '
+                    f'끝난 팔은 SKIP 되고 이 팔만 다시 돈다.')
             print(f'    STEP3 GPU solve unavailable ({type(_e).__name__}: {_e}) → CPU fallback', flush=True)
     LAST_BACKEND['used'] = 'cpu'
     Minv = _amg_M(L) if AMG_SOLVE else None                # SR-03 opt-in; None → 현행 Jacobi
@@ -233,7 +283,7 @@ def _solve_cg(L, b):
 def rasterize(am_c, am_r, am_t, add_pts, add_phase, box_lo, box_hi, vox, tol_am_um=0.10, se_pts=None,
               sdcp_sphere_d_um=0.0, sdcp_yield_to_vgcf=False, sdcp_bridge_um=0.0,
               add_fid=None, fid_gap_tol=2.0, add_kind=None, bridge_um=None,
-              ptfe_block_um=0.0):
+              ptfe_block_um=0.0, ptfe_block_targets=(6,), ptfe_block_periodic=False):
     """Voxel σ-id grid: 0 = non-conductive, 1 = AM_S, 2 = AM_P, 3.. = additives (2,3,5 → 3,4,5).
     Also returns per-voxel AM particle index (-1 = not AM) for per-particle currents.
     am_t: 1 = AM_P, 2 = AM_S (LIGGGHTS type convention).  All coords in one frame (µm).
@@ -389,6 +439,21 @@ def rasterize(am_c, am_r, am_t, add_pts, add_phase, box_lo, box_hi, vox, tol_am_
         #     (SDCP–SDCP → 5 · SDCP–VGCF → 3 · SDCP–AM → 그 AM).  브리지가 없던 곳에
         #     **더 좋은 도체를 새로 깔지 않는다** = 이득을 인위로 만들지 않는다.
         _brg = []
+        #  ⚠⚠ **fail-closed** (2026-08-27) — 브리지 기하는 구 반지름 r = d/2 에서 정의된다.
+        #     점 스탬프(`sdcp_sphere_d_um = 0`)로 브리지를 요청하면 옛 코드는 이 블록을
+        #     **조용히 건너뛰어** 처리팔이 대조팔과 **바이트 동일**해졌다 (fail-open).
+        #     2026-08-27 A 트랙 4팔이 정확히 그렇게 무효화됐다 (`INVALID_TREATMENT_NOT_APPLIED`,
+        #     docs/reviews/a_track_status_20260827.md) — 매니페스트는 요청값 0.08 을 적었고
+        #     격자에는 브리지가 없었다.  ⇒ 이제 **거부한다**: "요청했는데 안 걸렸다" 를
+        #     런이 끝난 뒤 판정기가 발견하는 게 아니라 **격자를 찍기 전에** 죽인다.
+        if float(sdcp_bridge_um) > 0.0 and not sdcp_sphere_d_um:
+            raise ValueError(
+                "sdcp_bridge_um > 0 requires the SDCP sphere stamp (sdcp_sphere_d_um > 0): "
+                "the bridge geometry is defined from the sphere radius r = d/2, so under the "
+                "point stamp it would be a silent no-op.  Pass --step3-sdcp-sphere-d "
+                "(kit: SDCP_SPHERE_D=0.30) together with --step3-sdcp-bridge, or set the "
+                "bridge back to 0.  [fail-closed guard added 2026-08-27 after the A-track "
+                "treatment arms came out bit-identical to their controls]")
         if sdcp_sphere_d_um and float(sdcp_bridge_um) > 0.0:
             _tol = float(sdcp_bridge_um)
             _rs = float(sdcp_sphere_d_um) / 2.0
@@ -459,11 +524,15 @@ def rasterize(am_c, am_r, am_t, add_pts, add_phase, box_lo, box_hi, vox, tol_am_
                     sid[q[:, 0], q[:, 1], q[:, 2]] = s
     #  ★ G2 (D13 원장 ②) — 맨 마지막: 차단은 **완성된** PTFE 배치를 봐야 한다 (브리지·상
     #    루프가 끝난 뒤).  기본 0.0 = 바이트 동일 (함수 자체가 no-op 계약을 진다).
-    apply_ptfe_blocking(sid, vox, ptfe_block_um)
+    #  ⚠⚠ 2026-08-31 (Codex R17 P2) — `periodic_xy` 를 **안 넘기고 있었다**.  현행 STEP B 는
+    #    비주기라 무영향이지만 `periodic=True ∧ ptfe_block_um>0` 생산 팔에서는 x/y 경계
+    #    너머의 PTFE 가 차단에서 빠진다 (D13 은 공유 함수를 직접 부르며 True 를 줘서 무사했다).
+    apply_ptfe_blocking(sid, vox, ptfe_block_um, periodic_xy=ptfe_block_periodic,
+                        targets=ptfe_block_targets)
     return sid, pid
 
 
-def apply_ptfe_blocking(sid, vox, block_um, periodic_xy=False):
+def apply_ptfe_blocking(sid, vox, block_um, periodic_xy=False, targets=(6,)):
     """★ G2 (2026-08-25, D13 원장 ② — `sdcp_ion_calib_prereg_20260825.md`) — PTFE 표면
     피복의 이온 차단을 **스칼라 노브 1개**로 표현한다: PTFE(sid 7) 셀에서 유클리드 거리
     `block_um` 안의 **SE(sid 6) 셀만** sid 9(SE_blk) 로 바꾼다.  σ 표가 sid 9 를 이온·전자
@@ -485,7 +554,22 @@ def apply_ptfe_blocking(sid, vox, block_um, periodic_xy=False):
         한계를 목-면적 규약과 같은 방식으로 문서화한다 (보정이 vox 를 알고 이뤄져야 한다).
     `periodic_xy=True` (펠릿 RVE 전용): EDT 를 x/y wrap 패딩 위에서 계산해 경계 너머의
     PTFE 도 차단 반경에 넣는다.  기본 False = 전극 경로 비트 동일.
-    반환: 바뀐 셀 수 (매니페스트 원장용)."""
+
+    ★★★ 2026-08-31 (Codex R16 Q6 반례 2) — `targets` 신설.  **기본은 `(6,)` = 옛 거동과
+      비트 동일**이다.  왜 필요한가: 옛 판은 SE 만 죽이고 **SDCP(sid 5)를 면제**했는데,
+      SBE 는 PTFE 1.0 / SDCP 0 이고 DBE 는 0.5 / 0.5 라 *"PTFE 가 많은 SBE 가 더 깎인다"* 가
+      **연산자에 내장**돼 있었다.  그러면 R↑ 가 나와도 표면 물리인지 연산자 선택인지
+      갈리지 않는다.  ⇒ 경쟁 모델 `targets=(5, 6)` 을 **런 전에 함께 등록**해 둘 다 돌린다.
+      ⚠⚠ `5` 를 넣으면 **전자 no-op 이 깨진다** — SDCP 는 σ_e = 250 인데 sid 9 는 전자도 0 이다.
+        그것이 이 규약의 선언된 내용이다 (*"표면 피복은 양쪽 계면을 다 막는다"*, 위 σ 표 주석).
+        숨기지 않는다 — `LAST_PTFE_BLOCK` 이 상별 셀 수를 남기고 매니페스트가 그것을 싣는다.
+
+    반환: 바뀐 셀 **총수** (기존 계약 유지).  상별 내역은 `LAST_PTFE_BLOCK`."""
+    global LAST_PTFE_BLOCK
+    LAST_PTFE_BLOCK = {}
+    tg = tuple(sorted({int(t) for t in targets}))
+    if not tg or not set(tg) <= {5, 6}:
+        raise ValueError(f'targets 는 {{5,6}} 의 부분집합이어야 한다 (받음 {targets})')
     if float(block_um) <= 0.0:
         return 0
     pt = sid == 7
@@ -498,7 +582,12 @@ def apply_ptfe_blocking(sid, vox, block_um, periodic_xy=False):
         d = distance_transform_edt(~ptp, sampling=float(vox))[w:-w, w:-w, :]
     else:
         d = distance_transform_edt(~pt, sampling=float(vox))
-    blk = (d <= float(block_um)) & (sid == 6)
+    near = d <= float(block_um)
+    blk = np.zeros_like(near)
+    for t in tg:
+        m = near & (sid == t)
+        LAST_PTFE_BLOCK[str(t)] = int(m.sum())
+        blk |= m
     n = int(blk.sum())
     if n:
         sid[blk] = 9
@@ -534,6 +623,7 @@ def _fibre_segment_ijk(add_pts, add_phase, add_fid, lo, vox, n, gap_tol=2.0,
     ★ `polyline_phases` 밖의 상은 **점 스탬프로 남긴다** — 그 fid 는 경로가 아니다
       (위 POLYLINE_PHASES 주석 참조).
     """
+    LAST_SEGSTAMP.clear()          # ★ 팔마다 새로 센다 (누적하면 원장이 거짓말한다)
     from fibre_segment_raster import segment_cells          # 같은 scripts/ 안
     P = np.asarray(add_pts, np.float64)
     F = np.asarray(add_fid)
@@ -549,17 +639,26 @@ def _fibre_segment_ijk(add_pts, add_phase, add_fid, lo, vox, n, gap_tol=2.0,
         if len(Q) == 0:
             continue
         ph_f = PH[m][0]
+        _lg = LAST_SEGSTAMP.setdefault(int(ph_f), {'fid_total': 0, 'fid_segment': 0,
+                                                   'fid_point_nonpath': 0,
+                                                   'fid_point_singleton': 0,
+                                                   'split_singleton_pieces': 0})
+        _lg['fid_total'] += 1
         is_path = (int(K[m][0]) == 1) if K is not None else (int(ph_f) in poly)
         if not is_path:                                     # ★ 경로가 아닌 fid → 점 스탬프
+            _lg['fid_point_nonpath'] += 1
             cc = np.floor((Q - lo) / vox).astype(int)
             out_ijk.append(cc); out_ph.append(np.full(len(cc), ph_f)); continue
         if len(Q) == 1:
+            _lg['fid_point_singleton'] += 1                 # ★ R13 C-5: 한 점만 남은 fibril
             out_ijk.append(np.floor((Q - lo) / vox).astype(int)); out_ph.append([ph_f]); continue
+        _lg['fid_segment'] += 1
         d = np.linalg.norm(np.diff(Q, axis=0), axis=1)
         med = float(np.median(d)) if len(d) else 0.0
         brk = (np.nonzero(d > gap_tol * med)[0] + 1) if med > 0 else np.array([], int)
         for R in (np.split(Q, brk) if len(brk) else [Q]):
             if len(R) == 1:
+                _lg['split_singleton_pieces'] += 1          # ★ gap 분할 뒤 한 점만 남은 조각
                 cc = np.floor((R - lo) / vox).astype(int)
             else:
                 seg = [segment_cells(R[i] - lo, R[i + 1] - lo, vox) for i in range(len(R) - 1)]
@@ -603,7 +702,8 @@ def solve_sigma_z(sid, sigma_of_sid, vox, return_field=False, z_top_um=None, pla
     cond = sig > 0
     if not cond.any():
         return {'sigma_eff': 0.0, 'n_dof': 0, 'n_floating_dropped': 0, 'cg_info': 0, 'resid': 0.0,
-                'unconverged': False, 'reason': 'no_conductive_voxels'}
+                'unconverged': False, 'reason': 'no_conductive_voxels',
+                'periodic_xy': bool(periodic_xy)}
     occ = np.where(cond.any((0, 1)))[0]
     k_bot = int(occ[0])
     am_occ = np.where((((sid == 1) | (sid == 2)) & cond).any((0, 1)))[0]
@@ -616,7 +716,8 @@ def solve_sigma_z(sid, sigma_of_sid, vox, return_field=False, z_top_um=None, pla
     z_plate = min(z_plate, nz * vox)
     if z_plate - z_b <= 1.5 * vox:                         # degenerate (≈1-layer bed) → no through-path
         return {'sigma_eff': 0.0, 'n_dof': int(cond.sum()), 'n_floating_dropped': 0, 'cg_info': 0,
-                'resid': 0.0, 'unconverged': False, 'reason': 'degenerate_thin_bed'}
+                'resid': 0.0, 'unconverged': False, 'reason': 'degenerate_thin_bed',
+                'periodic_xy': bool(periodic_xy)}
     band = plate_band_um if plate_band_um is not None else (vox + 0.10)
     # BOTTOM band override (collector GEOMETRY axis): 'wetted/primer' = default band (vox+0.1 —
     # a conformal conductive film reaches ~0.2µm gaps, + quantization half-voxel); 'bare' passes a
@@ -664,7 +765,8 @@ def solve_sigma_z(sid, sigma_of_sid, vox, return_field=False, z_top_um=None, pla
         return {'sigma_eff': 0.0, 'n_dof': int(cond.sum()), 'n_floating_dropped': 0, 'cg_info': 0,
                 'resid': 0.0, 'unconverged': False,
                 'reason': f'no_plate_contact(bot={int(bot_m.sum())},top={int(top_m.sum())},'
-                          f'z_b={z_b:.2f},z_plate={z_plate:.2f},band={band:.2f})'}
+                          f'z_b={z_b:.2f},z_plate={z_plate:.2f},band={band:.2f})',
+                'periodic_xy': bool(periodic_xy)}
     # FLOATING ISLANDS (components touching NEITHER plate contact) = singular blocks, zero current
     # by physics → dropped (their je reads 0).
     # ★ 리뷰 B#1 caveat: 이 label 은 6-connectivity(비주기)라 periodic_xy=True 의 x/y wrap 커플링을
@@ -692,7 +794,25 @@ def solve_sigma_z(sid, sigma_of_sid, vox, return_field=False, z_top_um=None, pla
     n_plate_reachable_dof = n_dof                          # = 합집합 (이름을 정직하게)
     if n_dof == 0:
         return {'sigma_eff': 0.0, 'n_dof': 0, 'n_floating_dropped': n_float, 'cg_info': 0,
-                'resid': 0.0, 'unconverged': False, 'reason': 'all_floating_dropped'}
+                'resid': 0.0, 'unconverged': False, 'reason': 'all_floating_dropped',
+                'periodic_xy': bool(periodic_xy)}
+    #  ★★★ 2026-08-30 (Codex R13 C-4) — **관통 성분이 없으면 조기반환한다.**
+    #    `plate` 는 위 주석대로 **합집합**("한쪽에라도 닿음")이라, 양쪽 판에 각각 닿지만
+    #    서로 이어지지 않은 두 성분이 있으면 `n_dof > 0` 인 채 정상 솔브 경로를 탄다.
+    #    그 해는 `sigma_eff = 0.0 · cg_info = 0 · unconverged = False · reason = None` 이고,
+    #    payload 가 그것을 **`complete`** 로 찍는다 = **0 이 측정값으로 원장에 들어간다**
+    #    (Codex 실측 재현: sid[0,0,0]=6 · sid[1,0,4]=6 → n_dof 2 · n_through_dof 0 · complete).
+    #    `reason` 가드(mpm_webapp_payload)는 이것을 못 잡는다 — 여기엔 reason 이 **없기** 때문이다.
+    #  ⚠ **`periodic_xy` 에서는 발동하지 않는다** — 위 :710 이 이미 적었듯 이 label 은
+    #    6-connectivity **비주기**라, x/y wrap 으로 실제 이어진 두 성분을 "안 이어짐" 으로
+    #    오판한다.  거기서 fail-closed 하면 **정상 펠릿 RVE 런을 죽인다.**  주기 라벨링이
+    #    생기기 전까지 그 축은 열어 둔다 (모르는 것을 아는 척하지 않는다).
+    if n_through_dof == 0 and not periodic_xy:
+        return {'sigma_eff': 0.0, 'n_dof': n_dof, 'n_through_dof': 0,
+                'n_plate_reachable_dof': n_plate_reachable_dof,
+                'n_floating_dropped': n_float, 'cg_info': 0, 'resid': 0.0,
+                'unconverged': False, 'reason': 'no_through_component',
+                'periodic_xy': bool(periodic_xy)}
     sig = np.where(cond, sig, 0.0)
     idx = -np.ones(sid.shape, np.int64)
     idx[cond] = np.arange(n_dof)
@@ -1639,6 +1759,22 @@ def _selftest():
     r = solve_sigma_z(sid, sig_tab, 0.5)
     e = abs(r['sigma_eff'] - 1.6) < 1e-3
     ok &= e; print(f"series:   σ_eff={r['sigma_eff']:.6f}  (expect 1.6 harmonic)  {'OK' if e else 'FAIL'}")
+    # 2b) ★★ 2026-08-30 (Codex R13 C-4) — **관통 성분이 없으면 reason 을 돌려준다.**
+    #     양쪽 판에 각각 닿지만 서로 안 이어진 두 성분: 옛 판은 `reason=None · n_dof=2` 로
+    #     정상 솔브를 타 σ=0 을 냈고 payload 가 그것을 `complete` 로 찍었다 (0 이 측정값이 된다).
+    #     ⚠ 음성 대조 둘을 같이 건다 — `periodic_xy` 에서는 **발동하면 안 되고**(비주기 라벨,
+    #       :710 caveat), 정상 관통 침대는 **영향이 없어야** 한다.
+    _d = np.zeros((2, 1, 5), np.int8); _d[0, 0, 0] = 1; _d[1, 0, 4] = 1
+    _rd = solve_sigma_z(_d, sig_tab, 1.0, z_bot_um=0, z_top_um=5)
+    _rp = solve_sigma_z(_d, sig_tab, 1.0, z_bot_um=0, z_top_um=5, periodic_xy=True)
+    _ru = solve_sigma_z(np.ones((4, 4, 6), np.int8), sig_tab, 0.5)
+    e = (_rd.get('reason') == 'no_through_component' and _rd['n_dof'] == 2
+         and _rd['n_through_dof'] == 0
+         and _rp.get('reason') is None                      # 주기: 발동 금지
+         and _ru.get('reason') is None and abs(_ru['sigma_eff'] - 1.0) < 1e-6)
+    ok &= e
+    print(f"no-through: reason={_rd.get('reason')} · periodic={_rp.get('reason')} · "
+          f"uniform σ={_ru['sigma_eff']:.6f}  {'OK' if e else 'FAIL'}")
     # 3) parallel laminate (x-split) → arithmetic mean 2.5
     sid = np.ones((6, 6, 10), np.int8); sid[3:, :, :] = 2
     r = solve_sigma_z(sid, sig_tab, 0.5)
@@ -1922,6 +2058,25 @@ def _selftest():
     ok &= _e4
     print(f"sdcp-bridge-sbe-noop: SDCP 없는 침대에 셀 단위 no-op  {'OK' if _e4 else 'FAIL'}")
 
+    #  ⓔ ★ **fail-closed** — 점 스탬프 + 브리지 요청은 **거부**한다 (2026-08-27).
+    #     이 검사가 없어서 A 트랙 4팔이 무효가 됐다: 킷이 `SDCP_SPHERE_D` 를 안 넘겨
+    #     구 스탬프가 꺼진 채로 `--step3-sdcp-bridge 0.08` 만 걸렸고, 옛 가드가
+    #     `if sdcp_sphere_d_um and ...` 였던 탓에 **처리팔 = 대조팔**이 나왔다.
+    #     세 갈래를 다 문다 — 거부 · 기본값 무해 · 정상 조합 통과.
+    def _raises(**kw):
+        try:
+            rasterize(_bx, _br0, None, _pD, _phD, (0, 0, 0), (3., 3., 3.), 0.15, **kw)
+            return False
+        except ValueError:
+            return True
+    _e5a = _raises(sdcp_bridge_um=0.08)                              # 점 스탬프 + 브리지 → 거부
+    _e5b = not _raises(sdcp_bridge_um=0.0)                           # 기본 off → 통과 (바이트 동일 보존)
+    _e5c = not _raises(sdcp_sphere_d_um=0.30, sdcp_bridge_um=0.08)   # 정상 조합 → 통과
+    _e5 = _e5a and _e5b and _e5c
+    ok &= _e5
+    print(f"sdcp-bridge-failclosed: 점 스탬프+브리지 거부 (거부 {_e5a} · 기본 {_e5b} · 정상 {_e5c})  "
+          f"{'OK' if _e5 else 'FAIL'}")
+
     # ── ★ G2 (D13 원장 ②) — PTFE 이온 차단 노브 `ptfe_block_um` ──────────────────────
     #   계약 7개: ⓐ 기본 off = 바이트 동일 ⓑ 0.0 = off (변환 0 셀) ⓒ 반경이 셀 수를
     #   정확히 정한다 (face 6 / +edge 18) ⓓ **SE(6)만** 바꾼다 ⓔ PTFE 없는 침대 no-op
@@ -2002,6 +2157,60 @@ def _selftest():
     ok &= _e5f
     print(f"ptfe-block-ion-drop: σ_ion {_rQ['sigma_eff']:.4f} → {_rB['sigma_eff']:.4f} "
           f"(차단이 솔브까지 관통)  {'OK' if _e5f else 'FAIL'}")
+    #  ── ★ GPU 폴백 fail-closed (`REQUIRE_GPU`, 2026-08-26) ─────────────────────────
+    #  ⚠⚠ **2026-08-27 — 옛 판은 GPU 의 "부재"를 전제로 썼고 그래서 공허했다.**
+    #    옛 주석: "이 환경엔 CuPy 가 없으므로 GPU_SOLVE=True 면 import 가 실패한다."
+    #    그 전제가 참인 곳(CPU 전용 컨테이너)에서는 초록이었지만, **정작 이 가드가 지켜야 할
+    #    GPU 기계(kgy)에서는 GPU 로 그냥 풀려서 `_e6a`·`_e6b` 가 둘 다 False = FAIL** 이었다
+    #    (실측 2026-08-27, W4 착수 전 예행에서 잡힘).  검사가 필요한 자리에서만 안 도는 것은
+    #    false-green 의 환경판이다 (CDXIJ-4/9 가 매체에서 겪은 것과 같은 부류).
+    #    ⇒ **부재에 기대지 않는다.**  `sys.modules['cupy'] = None` 로 import 를 강제로 실패시켜
+    #      GPU 유무와 무관하게 **같은 경로**를 타게 한다.  (`import cupy as cp` 가 GPU 분기의
+    #      첫 줄이므로 이 하나로 충분하다.)
+    #    ⚠ **잔여 한계 (원리적)**: 주입을 지워도 CPU 전용 기계에서는 여전히 초록이다 —
+    #      거기선 cupy 가 원래 없어서 "주입이 작동함" 과 "cupy 가 없음" 을 구분할 수 없다.
+    #      ⇒ 이 시험의 **비공허성은 GPU 기계에서만 검증된다**.  W4 급 런 전 예행에
+    #      `~/dem-venv/bin/python3 …/step3_sigma.py --selftest` 를 GPU 호스트에서 돌리는 것이
+    #      그 검증이고, 2026-08-27 에 실제로 그 자리에서 결함이 잡혔다.
+    global GPU_SOLVE, REQUIRE_GPU
+    _g0, _r0 = GPU_SOLVE, REQUIRE_GPU
+    _La = sparse.diags([2.0, 2.0]).tocsr(); _ba = np.array([1.0, 1.0])
+    import sys as _sys
+    _ABSENT = object()
+    _cupy_saved = _sys.modules.get('cupy', _ABSENT)
+    _sys.modules['cupy'] = None                     # → `import cupy` 가 ImportError (결정적)
+    try:
+        GPU_SOLVE, REQUIRE_GPU = True, False
+        _x, _i = _solve_cg(_La, _ba)                    # 폴백 허용 → CPU 로 푼다
+        _e6a = (LAST_BACKEND['used'] == 'cpu' and LAST_BACKEND['fallback_reason'] is not None
+                and np.allclose(_x, 0.5))
+        GPU_SOLVE, REQUIRE_GPU = True, True
+        try:
+            _solve_cg(_La, _ba)                         # 폴백 금지 → 즉시 중단해야 한다
+            _e6b = False
+        except SystemExit as _se:
+            _e6b = 'require-gpu' in str(_se) or 'GPU' in str(_se)
+        GPU_SOLVE, REQUIRE_GPU = False, True
+        _x2, _ = _solve_cg(_La, _ba)                    # GPU 미요청이면 가드가 안 문다
+        _e6c = np.allclose(_x2, 0.5)
+    finally:
+        GPU_SOLVE, REQUIRE_GPU = _g0, _r0
+        #  cupy 를 원래대로 — 막아 둔 채 두면 **이후 모든 GPU 솔브가 조용히 CPU 로 떨어진다**
+        #  (이 함수가 프로덕션 프로세스 안에서 불릴 수 있다).  부재였으면 부재로 되돌린다.
+        if _cupy_saved is _ABSENT:
+            _sys.modules.pop('cupy', None)
+        else:
+            _sys.modules['cupy'] = _cupy_saved
+    #  ★★ 기본값 계약 — 세 하위시험이 값을 **명시로** 덮으므로 기본값 경로를 안 지난다
+    #    (브리지 `sdcp-bridge-zero-is-off` 와 같은 부류: 배터리가 잡았다).  ⇒ 직접 단언한다.
+    #    `_r0` 는 selftest 진입 시점 값 = 모듈 기본값 (그 전에 아무도 안 바꾼다).
+    _e6d = (_r0 is False)
+    _all6 = _e6a and _e6b and _e6c and _e6d
+    ok &= _all6
+    print(f"require-gpu: 폴백 허용 시 CPU 로 푼다 ({_e6a}) · **금지 시 즉시 중단** ({_e6b}) · "
+          f"GPU 미요청이면 무해 ({_e6c}) · **기본 = 폴백 허용** ({_e6d}, 웹앱·CPU 환경 불변)  "
+          f"{'OK' if _all6 else 'FAIL'}")
+
     #  ⓗ 주기 wrap (펠릿 RVE 전용) — x 경계의 PTFE 가 **반대편 끝** SE 를 wrap 거리로
     #    차단한다.  비주기에서는 같은 배치가 (실거리 > 반경이라) 아무것도 안 바꾼다.
     _wp = np.full((8, 4, 4), 6, np.int8); _wp[0, 1, 1] = 7
@@ -2567,9 +2776,28 @@ def _selftest_segstamp():
             'add_fid=_afid' in _src)
         chk('8) ★ payload CLI 에 --step3-fibre-stamp 가 있고 기본이 point 다',
             "'--step3-fibre-stamp'" in _src and "default='point'" in _src)
-        chk('9) ★ manifest 에 fibre_stamp 가 기록된다 (어느 방식으로 돌았는지 추적)',
-            "'fibre_stamp': a.step3_fibre_stamp" in _src
-            and "'fibre_stamp_applied'" in _src)
+        #  ★★ 2026-09-01 — 이 검사는 `'fibre_stamp': a.step3_fibre_stamp` 라는 **철자**를
+        #    찾고 있었다.  그 사이 payload 가 **더 좋아져서** 요청값과 적용값을 갈라 적게
+        #    됐고 (`fibre_stamp` = 실제 적용, `fibre_stamp_requested` = 요청), 검사만
+        #    빨간불이 됐다.  이 selftest 가 어느 레인에도 없어 그대로 남아 있었다 (R19 Q6).
+        #  ⇒ 철자가 아니라 **계약**을 본다: 세 칸이 다 있고, 적용값이 요청값의 **복사가
+        #    아닐 것** — 요청을 실제인 양 적는 것이 RC6-08 이 잡은 바로 그 결함이다.
+        import ast as _ast
+        _keys, _applied_is_copy = set(), False
+        for _n in _ast.walk(_ast.parse(_src)):
+            if not isinstance(_n, _ast.Dict):
+                continue
+            for _k, _v in zip(_n.keys, _n.values):
+                if not (isinstance(_k, _ast.Constant) and isinstance(_k.value, str)):
+                    continue
+                if _k.value.startswith('fibre_stamp'):
+                    _keys.add(_k.value)
+                    if (_k.value == 'fibre_stamp' and isinstance(_v, _ast.Attribute)
+                            and _v.attr == 'step3_fibre_stamp'):
+                        _applied_is_copy = True
+        chk('9) ★ manifest 가 요청·적용을 갈라 적는다 (어느 방식으로 **돌았는지** 추적)',
+            {'fibre_stamp', 'fibre_stamp_requested', 'fibre_stamp_applied'} <= _keys
+            and not _applied_is_copy)
     except OSError as _e:
         chk(f'7-9) ⚠ payload 배선 확인 생략 ({_e})', True)
 

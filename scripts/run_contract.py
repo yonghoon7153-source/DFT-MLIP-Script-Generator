@@ -91,6 +91,17 @@ CLI_ACCOUNTING = {
     '--step3-sdcp-bridge': ('protocol', ('sdcp_bridge_um',)),
     #  ★ 2026-08-25 (G2, D13 원장 ②) — PTFE 이온 차단.  σ 침대(sid 6→9)를 바꾸므로 규약 축.
     '--step3-ptfe-block-um': ('protocol', ('ptfe_block_um',)),
+    #  ★★ 2026-08-31 (Codex R16 Q6) — 차단이 **무엇을** 끊는가.  기본 'se' = 옛 거동 비트 동일,
+    #    'ion' 은 SDCP(sid 5)도 끊는다 (⇒ 전자 no-op 이 아니다).
+    #  ⚠⚠ **물리적으로는 protocol 축인데 `record` 로 둔다 — 그 이유를 여기 남긴다.**
+    #    `PROTOCOL_FIELDS` 에 넣으면 위 주석의 규칙대로 `PROTOCOL_SCHEMA` 를 p2 → p3 로
+    #    올려야 하고, 그러면 **봉인된 p2 코호트 32팔**(`docs/data/w4_ptfe_centerline_20260827`
+    #    · `w4b_ptfe_off_20260827`, Fig 4b 전자값의 감사 근거)이 전부 다른 규약 id 가 된다.
+    #    이 축은 `ptfe_block_um = 0`(생산 기본)에서 **무의미**하므로 생산 규약을 바꾸지 않는다.
+    #  ⇒ 대신 두 겹으로 막는다: ⓐ `RECEIPT_AXES` 가 코호트 안에서 값이 갈리면 거부하고
+    #    ⓑ 매니페스트가 `ptfe_block_cells` 로 **상별 실제 차단 셀 수**를 싣는다 (도장≠실물).
+    #  ⛔ **이 축을 생산 규약으로 채택하려면 그때 p3 로 올린다** — 그것이 이 항목의 청구서다.
+    '--step3-ptfe-block-scope': ('record', ('ptfe_block_scope',)),
     #  ★ `ptfe_zero_dof` = (스탬프 ON) ∧ (σ_PTFE == 0) — 두 옵션이 함께 정한다.
     '--ptfe-stamp': ('protocol', ('ptfe_stamp', 'ptfe_zero_dof')),
     '--sigma-ptfe': ('protocol', ('sigma_ptfe_S_cm', 'ptfe_zero_dof')),
@@ -131,6 +142,15 @@ CLI_ACCOUNTING = {
     # ── numeric (수치 방법.  해에 영향은 있으나 규약은 아니다) ──────────────
     '--step3-gpu': ('numeric', None), '--step3-amg': ('numeric', None),
     '--step3-maxiter': ('numeric', None),
+    #  ★ `--step3-require-gpu` = **numeric** 이다 (규약 아님).  근거는 "backend 가 σ 를 안
+    #    바꾼다" 가 **아니라** — 그것은 미측정이다 (Codex R7 Q4c) — backend 를 **고르는**
+    #    플래그가 `--step3-gpu` 이고 이 플래그는 **성공한 GPU 계산을 바꾸지 않기** 때문이다.
+    #    GPU 가 죽었을 때 어차피 backend 봉인이 거부할 CPU 결과를 미리 중단할 뿐이다.
+    #    ⇒ physics hash 에 넣지 않고, 실제 component backend 는 계속 봉인한다.
+    #    ⚠ CPU/GPU σ parity 는 이 리포에서 **측정된 적이 없다** ⇒ 두 backend 를 섞은 cohort
+    #      는 금지 (섞으려면 허용오차를 사전등록해야 한다).
+    #    ⇒ 규약 해시에 들어가면 안 된다 (넣으면 같은 물리가 두 규약으로 갈린다).
+    '--step3-require-gpu': ('numeric', None),
     # ── solve (σ_e/σ_ion 밖 채널) ───────────────────────────────────────────
     '--k-carbon': ('solve', None),        # thermal k 표 (`_s3.thermal_k_table`)
     '--i0-a-m2': ('solve', None),         # STEP4 교환전류 (σ_e 를 다시 풀지 않는다)
@@ -212,9 +232,39 @@ EVIDENCE_SINCE_SCHEMA = 3
 #    갈렸는지까지 말할 수 있다 (해시 하나만 비교하면 "다르다" 밖에 못 말한다).
 RECEIPT_AXES = ('vox_um', 'bridge_um', 'fibre_stamp', 'sdcp_stamp', 'sdcp_sphere_d_um',
                 'sdcp_yield_to_vgcf', 'sdcp_bridge_um', 'ptfe_stamp', 'sigma_ptfe_S_cm',
-                'sigma_vgcf_S_cm', 'periodic_xy')
+                'sigma_vgcf_S_cm', 'periodic_xy',
+                #  ★ 2026-08-30 (R13 C-7 ⓒ/ⓑ) — 두 이온 σ.  물리 축이므로 digest 에 들어간다
+                #    (다른 σ = 다른 실험 = 다른 디렉터리).  매니페스트가 이미 같은 이름으로 적는다.
+                #  ⚠ SE 는 **기준(T_ref) 키**로 대조한다 — 러너가 선언하는 것이 기준값이고
+                #    적용값은 payload 가 온도로 만든다.  적용값 키로 대조하면 25 °C 밖에서
+                #    거짓 불일치가 난다 (R14 D-1).  SDCP 는 온도 스케일링을 안 받으므로
+                #    (§F1: SDCP Eₐ 앵커 없음) 적용값 = 기준값이라 키가 하나다.
+                'sigma_ion_sdcp_S_cm', 'sigma_ion_se_ref_S_cm',
+                'ptfe_block_um', 'ptfe_block_scope')
 #: 영수증이 담지만 **매니페스트 축이 아닌** 것 (따로 대조한다).
 RECEIPT_META = ('code_sha', 'origins', 'arms', 'expect_backend')
+
+#: ★★★ 2026-08-30 — **대조는 하되 digest 에는 안 넣는 축.**
+#    왜 따로 두나: `receipt_digest` 는 `RECEIPT_AXES | RECEIPT_META` 를 통째로 해시하므로
+#    거기에 키를 하나만 더해도 **모든 기존 설정의 digest 가 바뀐다** → OUTDIR 이름이 바뀌고
+#    → 이미 완주한 팔을 못 찾아 **전부 재실행**된다 (이 리포가 `_lean` 접미사를 못 바꾼 이유와
+#    같은 제약).  그런데 대조는 필요하다 ⇒ **해시 밖 + 검사 안**.
+#  ⚠ `field_requested` 가 첫 사례다.  `--no-field` 는 `component_plan` 에 **없고**
+#    (`plan_ok` 이 모르는 키를 거부하므로 거기에 못 넣는다 — 기존 매니페스트가 다 깨진다)
+#    러너 접미사 `_lean3`/`_lean4` 로만 갈렸다.  즉 `OUTDIR=` 을 명시하면 **필드 없는
+#    lean3 팔이 lean4 요청에 SKIP 으로 통과**한다 (코드리뷰 2026-08-30 지적 1).
+#  ⚠ **선언한 축만 검사한다** — 러너가 안 적으면 건너뛴다 (`RECEIPT_AXES` 와 같은 규약).
+#    그래야 이 키를 모르는 옛 팔이 통째로 무효가 되지 않는다.
+#  ★★ 2026-09-02 — closure 스윕의 두 대비 축 (`σ_AM_S/σ_VGCF` · `σ_SDCP/σ_VGCF`).
+#    **왜 여기(해시 밖)인가**: `receipt_digest` 는 `RECEIPT_AXES` 를 `rec.get(k)` 로 훑어
+#    **없는 키도 `null` 로 해시 본문에 넣는다** ⇒ 목록에 이름 하나만 더해도 기존 설정의
+#    digest 가 전부 바뀌고 `docs/data/cohorts/` 의 **커밋된 디렉터리 이름**까지 어긋난다.
+#  ⇒ 디렉터리를 가르는 일은 러너의 **무손실 태그**(`_as…`·`_sd…`)가 하고, 여기서는 팔마다
+#    영수증↔매니페스트를 대조해 *"러너가 의도한 σ 로 돌았는가"* 를 증명한다.
+#  ⚠ 안전 조건 확인함 — payload 가 이미 두 키를 매니페스트에 적으므로
+#    (`mpm_webapp_payload.py`: `sigma_am_s_S_cm` · `sigma_sdcp_S_cm`) 기존 팔이
+#    `RCPT|missing` 으로 무너지지 않는다.  그래도 **러너가 선언한 팔만** 검사한다.
+RECEIPT_AXES_NODIGEST = ('field_requested', 'sigma_am_s_S_cm', 'sigma_sdcp_S_cm')
 
 
 def expected_origins_for(vox):
@@ -245,7 +295,7 @@ def receipt_match(rec, man, origin=None):
     """
     if not isinstance(rec, dict) or not isinstance(man, dict):
         return False, 'RCPT|shape| 영수증이나 매니페스트가 dict 가 아니다'
-    for k in RECEIPT_AXES:
+    for k in tuple(RECEIPT_AXES) + RECEIPT_AXES_NODIGEST:
         if k not in rec:
             continue                       # 러너가 그 축을 안 정했다 (킷 기본값을 쓴다)
         if k not in man:
@@ -254,6 +304,16 @@ def receipt_match(rec, man, origin=None):
         if _canon_num(man[k]) != _canon_num(rec[k]):
             return False, (f'RCPT|{k}|differ| 러너 선언 `{rec[k]!r}` ≠ 결과 `{man[k]!r}` — '
                            f'이 팔은 러너가 의도한 규약으로 돌지 않았다')
+    #  ★★★ 2026-08-30 (Codex R13 C-3) — **요청 플래그는 증거가 아니다.**
+    #    `field_requested` 는 `--no-field` 의 반대일 뿐이라, `--field-max-points 0` 이면
+    #    빈 필드를 정상 반환하면서도 True 다.  ⇒ 러너가 필드를 요구했으면 **실물 점 수**를
+    #    본다.  ⚠ 매니페스트에 그 키가 없으면 통과가 아니라 **거부**다 (옛 팔은 증명 불가).
+    if rec.get('field_requested') is True:
+        _n = man.get('electronic_field_pts')
+        if not isinstance(_n, int) or isinstance(_n, bool) or _n <= 0:
+            return False, (f'RCPT|electronic_field_pts|{"missing" if _n is None else "empty"}| '
+                           f'러너가 필드를 요구했는데 전자 필드 점이 `{_n!r}` 이다 — '
+                           f'요청 플래그만으로는 필드가 있다고 말할 수 없다 (R13 C-3)')
     _rs, _ms = rec.get('code_sha'), man.get('code_sha')
     if _rs and _ms and not (str(_ms).startswith(str(_rs)) or str(_rs).startswith(str(_ms))):
         return False, (f'RCPT|code_sha|differ| 러너 `{_rs}` ≠ 결과 `{_ms}` — '
@@ -928,7 +988,9 @@ def _selftest():
              'sigma_vgcf_S_cm': 78.54, 'periodic_xy': False,
              'code_sha': 'edec17a2', 'arms': 8, 'expect_backend': 'gpu',
              'origins': _h8}
-    _hman = {k: _hrec[k] for k in RECEIPT_AXES}
+    #  ⚠ 영수증은 **러너가 정한 축만** 담는다 — 전 축을 강제로 미러링하면
+    #    새 축이 생길 때마다 픽스처가 KeyError 로 죽는다 (2026-08-30 실사고).
+    _hman = {k: _hrec[k] for k in RECEIPT_AXES if k in _hrec}
     _hman['code_sha'] = 'edec17a2'
     chk(receipt_match(_hrec, _hman, origin=_h8[3])[0],
         'H1 정상 증인 — 러너 선언과 결과가 같으면 통과')
@@ -1000,6 +1062,39 @@ def _selftest():
         _s3 = _pay._code_sha(_sd)
         chk(bool(_s3) and _s3.endswith('+dirty'), 'RCPT-sha-modified tracked 수정은 dirty')
         _sl.rmtree(_d, ignore_errors=True)
+
+    #  ── ★★ 2026-09-02 — `receipt_digest` 가 **무엇인지** 를 시험으로 박는다 ────────────
+    #    계기: NODIGEST 에 두 축을 더한 뒤 커밋된 영수증 17건을 재계산했더니 **전부 불일치**
+    #    했다.  5분간 오염으로 읽었는데, 원인은 내 변경이 아니라 08-30/08-31 에 늘어난
+    #    `RECEIPT_AXES` 4개였다 (그 넷을 빼면 옛 digest 가 정확히 재현된다).
+    #  ⇒ digest 는 **런타임 캐시 키**이지 내용 해시가 아니다.  코드 버전을 넘어 재현되지
+    #    않는 것이 **설계**다 (새 축 = 새 디렉터리 = 낡은 팔 재사용 차단).  그런데 값이
+    #    커밋된 디렉터리 이름에 박혀 있어 **내용 해시처럼 보인다** ⇒ 다음 사람이 같은
+    #    오독을 한다.  두 성질을 각각 고정한다.
+    _rc_fix = {'vox_um': 0.15, 'bridge_um': 0.48, 'fibre_stamp': 'segment',
+               'sdcp_stamp': 'sphere', 'sdcp_sphere_d_um': 0.30, 'ptfe_stamp': 'centerline',
+               'arms': 8, 'expect_backend': 'gpu', 'code_sha': 'deadbeef', 'origins': []}
+    _d_before = receipt_digest(_rc_fix)
+    _saved_nd = globals()['RECEIPT_AXES_NODIGEST']
+    try:
+        globals()['RECEIPT_AXES_NODIGEST'] = _saved_nd + ('zz_new_nodigest_axis',)
+        chk(receipt_digest(_rc_fix) == _d_before,
+            'RCPT-nodigest ★★ `RECEIPT_AXES_NODIGEST` 에 축을 더해도 digest 는 **안 움직인다** '
+            '— 이것이 그 목록의 존재 이유다 (움직이면 커밋된 코호트 디렉터리 이름이 어긋난다)')
+    finally:
+        globals()['RECEIPT_AXES_NODIGEST'] = _saved_nd
+    _saved_ax = globals()['RECEIPT_AXES']
+    try:
+        globals()['RECEIPT_AXES'] = _saved_ax + ('zz_new_hashed_axis',)
+        chk(receipt_digest(_rc_fix) != _d_before,
+            'RCPT-axes ★★ 반대로 `RECEIPT_AXES` 에 더하면 digest 가 **반드시 움직인다** — '
+            '없는 키도 `rec.get(k)=None` 으로 해시 본문에 들어가기 때문이다.  ⇒ digest 는 '
+            '런타임 캐시 키이지 내용 해시가 아니고, **옛 영수증의 digest 는 재계산으로 '
+            '재현되지 않는 것이 정상**이다 (오염이 아니다)')
+    finally:
+        globals()['RECEIPT_AXES'] = _saved_ax
+    chk(len(set(RECEIPT_AXES) & set(RECEIPT_AXES_NODIGEST)) == 0,
+        'RCPT-disjoint ★ 두 목록이 겹치지 않는다 (겹치면 NODIGEST 의 약속이 거짓이 된다)')
 
     print(f'\nrun_contract selftest: {ok}/{ok + fail} PASS'
           + ('' if not fail else '   ✗ 실패 있음'))

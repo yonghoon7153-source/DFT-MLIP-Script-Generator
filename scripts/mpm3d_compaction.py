@@ -585,6 +585,12 @@ def parse_args(argv):
     ap.add_argument('--sub', type=int, default=40)
     ap.add_argument('--dt', type=float, default=2.0e-4)
     ap.add_argument('--seed', type=int, default=3)
+    ap.add_argument('--add-rng-per-phase', action='store_true',
+                    help='첨가제 상마다 독립 RNG 스트림 [seed, phase_code] 을 쓴다 (common random '
+                         'numbers).  기본(off)은 상들이 한 스트림을 ADD 순서대로 소비해서 '
+                         '**VGCF 개수만 바꿔도 뒤따르는 PTFE 형상이 달라진다** — 조성을 축으로 '
+                         '쓰는 캠페인에서는 그 교락 때문에 반드시 켜고 사전등록할 것 (CL-71).  '
+                         '⚠ 켜면 씨딩이 달라져 기존 침대와 바이트 비교가 깨진다')
     ap.add_argument('--gpu-mem', type=float, default=3.0)
     ap.add_argument('--lateral-box', type=float, default=0.05,
                     help='REAL LIGGGHTS lateral box size (the x,y RVE width in dump units; default 0.05 '
@@ -1393,6 +1399,30 @@ def _selftest():
     chk('#3: 전부 AM 이면 표면 0 → 0 % (0 나눗셈 안전)',
         coverage_fraction(_pinF, _occF, (_pinF == 1), periodic_xy=False)[2] == 0)
 
+    # ── #4 상별 RNG 스트림 (CL-71, Codex 2026-09-07) ────────────────────────────
+    #  결함: `ADD` 는 VGCF 를 PTFE **앞**에 두고 **같은 `rng` 객체**를 상마다 순서대로 넘긴다
+    #  ⇒ VGCF 개수만 바꿔도 스트림 위치가 달라져 **뒤따르는 PTFE 형상이 바뀐다**.
+    #  그러면 "VGCF 1 % vs 4 %" 비교가 **VGCF 양 + PTFE 형상**을 같이 바꾼 비교가 된다 = 교락.
+    #  ⚠ 이 테스트는 시더를 부르지 않는다 — 결함은 **스트림 소비 구조**에 있으므로 그 구조를
+    #    그대로 흉내 내 잰다 (실제 시딩은 GPU/taichi 가 필요해 selftest 에서 못 돈다).
+    def _ptfe_draw(n_vgcf, per_phase, seed=3):
+        """VGCF 를 먼저 그리고 이어서 PTFE 를 그린다 — 생산 루프와 같은 순서."""
+        if per_phase:
+            np.random.default_rng([seed, 2]).random(n_vgcf)          # VGCF: 자기 스트림
+            return np.random.default_rng([seed, 4]).random(5)        # PTFE: 자기 스트림
+        r = np.random.default_rng(seed)
+        r.random(n_vgcf)                                             # VGCF 가 공용 스트림을 소비
+        return r.random(5)                                           # PTFE 가 그 다음을 이어받는다
+    chk('#4: 공용 스트림이면 VGCF 개수가 PTFE 를 바꾼다 (결함 재현)',
+        not np.array_equal(_ptfe_draw(10, False), _ptfe_draw(20, False)))
+    chk('#4: 상별 스트림이면 VGCF 개수가 PTFE 를 **안** 바꾼다',
+        np.array_equal(_ptfe_draw(10, True), _ptfe_draw(20, True)))
+    chk('#4: 상별 스트림도 seed 를 바꾸면 PTFE 가 바뀐다 (재현성은 살아 있다)',
+        not np.array_equal(_ptfe_draw(10, True, seed=3), _ptfe_draw(10, True, seed=4)))
+    chk('#4: 상끼리는 서로 다른 스트림이다 (VGCF code 2 ≠ PTFE code 4)',
+        not np.array_equal(np.random.default_rng([3, 2]).random(5),
+                           np.random.default_rng([3, 4]).random(5)))
+
     print(f"selftest: {ok}/{ok + len(fail)} PASS" + (f"   FAILED: {fail}" if fail else ""))
     return 1 if fail else 0
 
@@ -2114,6 +2144,16 @@ def main(argv):
                 # seed_coat — so SuperP thinky ≢ ballmill FROM NOW ON (pre-A4 campaign rows were merged).
                 # VGCF 'coat_embed' is NOT yet coat-seeded (fibre branch wins) — still ≡ ballmill.
                 _proc_regime = _ad.additive_regime(nm, args.mixing)
+                # ★★ CL-71 (Codex 2026-09-07) — **상별 RNG 스트림**.
+                #   기본(`rng`)은 상들이 **한 스트림을 순서대로** 소비한다: `ADD` 가 VGCF 를 PTFE
+                #   앞에 두므로 **VGCF 개수만 바꿔도 뒤따르는 PTFE 형상이 달라진다** (동일 seed 에서
+                #   VGCF 1→2 만 바꾸자 PTFE SHA 가 변했다).  ⇒ 조성 비교가 morphology 교란과
+                #   **교락**된다 — 이것이 6 mAh Phase A 설계를 RUN HOLD 시킨 두 이유 중 하나다.
+                #   `--add-rng-per-phase` 를 주면 상마다 `[seed, phase_code]` 로 독립 스트림을 판다
+                #   = common random numbers: 다른 상은 조성이 변해도 **바이트 동일**하게 유지된다.
+                #   ⚠ 기본은 **off** 다 — 켜면 씨딩이 달라져 기존 침대와 바이트 비교가 깨진다.
+                #     조성을 축으로 쓰는 캠페인에서는 **켜고 사전등록**할 것 (selftest #4).
+                _rng = np.random.default_rng([args.seed, code]) if args.add_rng_per_phase else rng
                 nobj = cnt[nm]['n']                          # target PRIMARY-fibre count (VGCF/PTFE centreline
                 #   skeleton; SuperP = aggregate count) — recipe wt%/vol% tracked in metrics + per-point pvs
                 #   (branching adds children but the mean-1 weight normalisation preserves the recipe volume).
@@ -2143,13 +2183,13 @@ def main(argv):
                         if _f > 0.0:
                             _nam = (int(round(_f / (1.0 - _f) * _ncarb)) if (_ncarb > 0 and _f < 1.0)
                                     else 4 * len(am_c))                          # PTFE-only / f→1: AM = whole pool
-                            _amsurf = _am_surface_pts(am_c - off, am_r, min(max(_nam, 0), 500000), rng, bx)
+                            _amsurf = _am_surface_pts(am_c - off, am_r, min(max(_nam, 0), 500000), _rng, bx)
                             if len(_amsurf):
                                 _nuc_parts.append(_amsurf); _am_fired = True
                     nuc = np.concatenate(_nuc_parts) if (_nuc_parts and (nucf > 0.0 or brgf > 0.0)) else None
                     _bk_lam = _buckle_lam if code == 2 else 0.0     # physics buckle = VGCF only (PTFE = drawn web)
                     _amfn = (lambda q: _am_frac_abs(q + off)) if (code == 2 and _bk_lam > 0.0) else None
-                    pts, _fid, _w = _ad.seed_fibres(nobj, bx, dx, rng, L=L_um / um_box, L_cv=args.add_l_cv,
+                    pts, _fid, _w = _ad.seed_fibres(nobj, bx, dx, _rng, L=L_um / um_box, L_cv=args.add_l_cv,
                                                     curl=curl, vol_conserve=(vcv > 0.0),   # Ø-spread = drawing (PTFE vcv>0) ONLY; VGCF gets waviness (curl>0) but keeps a uniform manufactured Ø
                                                     vol_cv=vcv, nucleate=nuc, nucleate_frac=nucf,
                                                     branch_frac=brf, bridge_frac=brgf,
@@ -2172,7 +2212,7 @@ def main(argv):
                     _clump = max(1, int(args.sdcp_clump) if args.sdcp_clump > 0 else int(_row.get('clump', 1)))
                     _aggd = (float(args.sdcp_agg_d) if args.sdcp_agg_d >= 0.0
                              else float(_row.get('agg_d', 0.0)))               # µm; 0 = milled singles (S3)
-                    pts, _fid, _seedinfo = _ad.seed_sdcp(nobj, bx, dx, rng, am=am_box,
+                    pts, _fid, _seedinfo = _ad.seed_sdcp(nobj, bx, dx, _rng, am=am_box,
                                                          in_am=lambda q: _in_am_abs(q + off),
                                                          surface_frac=_sfrac, clump=_clump,
                                                          agg_d=_aggd / um_box, d=_ad.SDCP_D / um_box,
@@ -2190,7 +2230,7 @@ def main(argv):
                     _row = _ad.additive_process(nm, args.mixing)
                     _wrap = (float(args.swcnt_wrap) if args.swcnt_wrap >= 0.0
                              else float(_row.get('wrap_frac', 1.0)))
-                    pts, _fid = _ad.seed_sheath(nobj, bx, dx, rng, am=am_box,
+                    pts, _fid = _ad.seed_sheath(nobj, bx, dx, _rng, am=am_box,
                                                 in_am=lambda q: _in_am_abs(q + off),
                                                 wrap_frac=_wrap,
                                                 shell_um=_ad.SWCNT_SHELL / um_box,
@@ -2205,7 +2245,7 @@ def main(argv):
                     _tro = None
                     if len(pts) and am_box is not None and len(_se0_box):
                         _sub = (_se0_box if len(_se0_box) <= 300000
-                                else _se0_box[rng.choice(len(_se0_box), 300000, replace=False)])
+                                else _se0_box[_rng.choice(len(_se0_box), 300000, replace=False)])
                         #   300k subsample → SE NN spacing ~0.19µm (Tabor 0.26 band 근해상, Hertz 0.13
                         #   미해상) — 밀도 한계는 tradeoff의 n_se_used/se_nn_spacing_um/trust에 자기기술
                         _tro = _ad.sheath_ion_tradeoff(pts.astype(np.float64) * um_box,
@@ -2223,13 +2263,13 @@ def main(argv):
                     _row = _ad.additive_process(nm, args.mixing)          # single source: process matrix
                     _sfrac = (float(args.sdcp_surface_frac) if (code == 5 and args.sdcp_surface_frac >= 0.0)
                               else float(_row.get('surface_frac', 1.0)))    # SuperP thinky 0.70 (SDCP never routes here — kind='particle')
-                    pts, _fid = _ad.seed_coat(nobj, bx, dx, rng, am=am_box, shell_um=_ad.SDCP_SHELL / um_box,
+                    pts, _fid = _ad.seed_coat(nobj, bx, dx, _rng, am=am_box, shell_um=_ad.SDCP_SHELL / um_box,
                                               surface_frac=_sfrac, in_am=lambda q: _in_am_abs(q + off),
                                               return_ids=True)              # µm shell → seed-frame units; buried/out-of-box DROPPED
                     _w = np.ones(len(pts), np.float32)
                     _coated = True
                 else:                                        # carbon black: branched chains coating the AM
-                    pts, _fid = _ad.seed_carbon_black(nobj, bx, dx, rng, in_am=lambda q: _in_am_abs(q + off),
+                    pts, _fid = _ad.seed_carbon_black(nobj, bx, dx, _rng, in_am=lambda q: _in_am_abs(q + off),
                                                       am=am_box, mixing=args.mixing, return_ids=True)
                     _w = np.ones(len(pts), np.float32)
                 if len(pts) == 0:
@@ -3401,6 +3441,11 @@ def main(argv):
             #   명시하지 않아 코드 기본값에 의존했고, 그 값이 바뀌면 같은 킷이 다른
             #   morphology 를 냈다 (재현성 계약 구멍).  이제 실제로 쓴 값을 기록한다.
             'seed': int(args.seed),
+            # ★ CL-71 — seed 만으로는 씨딩을 재현하지 못한다.  상별 스트림 여부가 같이 있어야
+            #   한다: off 면 상들이 한 스트림을 ADD 순서로 소비해 **VGCF 개수가 PTFE 형상을
+            #   바꾼다**.  규약 축이므로 매니페스트에 남긴다 (규칙 M — 침대를 바꾸는 축이
+            #   봉인 밖에 있으면 나중에 "그 침대가 어느 규약이었나" 에 답할 수 없다).
+            'add_rng_per_phase': bool(args.add_rng_per_phase),
             'sub': int(args.sub),
             'frames_budget': int(args.frames),
             'compact_to_pct': (float(args.compact_to) if args.compact_to > 0 else None),

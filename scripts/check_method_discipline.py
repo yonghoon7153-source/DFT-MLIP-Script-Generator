@@ -794,6 +794,11 @@ K_REQUIRED_SELFTESTS = (
     ('scripts/sr01_stamp_compare.py', '--selftest'),
     ('scripts/mpm_webapp_payload.py', '--selftest-temperature'),
     ('scripts/step3_sigma.py', '--selftest'),
+    #  ★ LHS 확장 분석기 둘 (2026-08-29, Codex R11 B1) — 분석기가 **결과 전에** 커밋돼야
+    #    사전등록의 `perc_i` 규약이 실재한다.  여기 넣는 것은 그 둘이 나중에 조용히
+    #    배선에서 빠지는 것을 막는다 (규칙 K 의 원래 사고와 같은 부류).
+    ('scripts/lhs_perc_extract.py', '--selftest'),
+    ('scripts/lhs_perc_fit.py', '--selftest'),
 )
 K_CHECK_ALL = 'scripts/check_all.sh'
 K_CI_YML = '.github/workflows/discipline.yml'
@@ -895,7 +900,19 @@ L_MARKER = 'RUNNER_CONFIG_END'
 #:   이라 처음에 한쪽만 고쳤다가 같은 오탐이 남았다.  그래서 헬퍼로 뽑았다.
 _RUNNER_AXES = ('LEAN', 'VOX', 'ARMS', 'SIGMA_PTFE', 'PTFE_STAMP', 'FIBRE_STAMP',
                 'SDCP_SPHERE_D', 'SDCP_YIELD_VGCF', 'SDCP_BRIDGE', 'SIGMA_VGCF_OVERRIDE',
-                'P2_EXTRA', 'EXPECT_PROTOCOL', 'EXPECT_BACKEND', 'OUTDIR', 'BRIDGE_UM')
+                'P2_EXTRA', 'EXPECT_PROTOCOL', 'EXPECT_BACKEND', 'OUTDIR', 'BRIDGE_UM',
+                #  ★ 2026-08-30 (Codex R14 D-1) — 새 축을 여기 안 넣으면 **생산이 막힌다**.
+                #    호출 환경의 값이 격리를 뚫고 내부 LEAN=2 probe 로 새면 러너의
+                #    `SIGMA_ION_* + LEAN=2` 가드가 발동해 `runner_config` 가 abort 를
+                #    돌려주고, `LEAN_FLAGS` 가 None 이 돼 `L_LEAN2` 오류가 난다.
+                #    ⇒ 러너 축을 늘리면 **이 목록도 같이** 늘린다 (검사 대상과 같은 축).
+                'SIGMA_ION_SDCP', 'SIGMA_ION_SE',
+                #  ★ 2026-08-31 (Codex R16 P1-5) — PTFE 이온 차단 축.
+                'PTFE_BLOCK_UM', 'PTFE_BLOCK_SCOPE',
+                #  ★ 2026-09-02 — closure 스윕의 두 대비 축 + 게이트 전용 문.
+                #    ⚠ 이제 안 넣으면 **두 겹으로** 막힌다: 격리가 뚫리는 옛 경로에 더해,
+                #    러너의 새 env fail-closed 가 `bash -s` 경로에서 ABORT 를 낸다.
+                'SIGMA_AM_S_OVERRIDE', 'SIGMA_SDCP_OVERRIDE', 'P2_ENV_GUARD_ONLY', 'P2_SELF')
 
 
 def _hermetic_env(env):
@@ -924,7 +941,7 @@ def runner_config(env, runner=None):
     if L_MARKER not in src:
         raise RuntimeError(f'{L_MARKER} 표지가 러너에 없다 — 어디까지가 설정인지 알 수 없다')
     head = src[:src.index(L_MARKER)].rsplit('\n', 1)[0]
-    _keys = ('LEAN_FLAGS', 'PREREG_ARMS', 'ARMS', 'OUTDIR', 'FIBRE_STAMP')
+    _keys = ('LEAN_FLAGS', 'LEAN_TAG', 'PREREG_ARMS', 'ARMS', 'OUTDIR', 'FIBRE_STAMP')
     #  ⚠ `${V-…}` 는 **콜론 없이** — `${V:-…}` 는 빈 문자열도 미설정으로 읽어
     #    "기본에서 LEAN_FLAGS 가 비었는가" 를 물을 수 없게 만든다 (초판이 그랬다).
     probe = head + '\n' + '\n'.join(
@@ -949,6 +966,49 @@ def runner_config(env, runner=None):
             if k in _keys:
                 out[k] = v
     return out
+
+
+#: ── 러너 대입/참조 추출 (2026-09-02, 규칙 L 의 두 사각지대) ──────────────────────
+#:   실측: `SIGMA_AM_S_OVERRIDE` 축을 배선하며 러너에 두 줄을 넣었더니 **검사기 두 곳이
+#:   동시에 눈이 멀었다**.  둘 다 "우연한 표기법에 기대고 있었다" 는 같은 뿌리다.
+#:
+#:   ⓐ 자동 seed 의 `_assigned` 가 **줄머리 대입만** 봤다 (`^\s*VAR=`).  기존 축이 전부
+#:      `SBRG_FLAG=""; SBRG_TAG=""` 처럼 **FLAG 를 먼저** 적은 것은 규약이 아니라 우연인데,
+#:      순서를 뒤집어 `AS_TAG=""; AS_FLAG=""` 로 적자 `AS_FLAG` 가 unbound 로 프로브를
+#:      통째로 죽였다 — 이 파일이 이미 두 번 겪은 그 위장된 실패다.
+#:   ⓑ L-1e 의 참조 추출이 `$VAR` 만 봤다 (`\$([A-Z]…)`).  `${VAR}` 중괄호 꼴은 **조용히
+#:      집합에서 빠져** 무조건-초기화 방어선 밖으로 나간다 — ⓐ 와 달리 **소리도 안 난다**.
+#:      (자동 seed 쪽은 `\$\{?` 라 중괄호를 이미 봤다 ⇒ 두 정규식이 어긋나 있었다.)
+#:   ⇒ 추출을 이름 붙은 함수로 올려 **두 소비자가 같은 규칙을 쓰게** 하고 fixture 로 고정한다.
+
+#: 문장 경계에서의 대입 — 줄머리 · `;` · `&&` · `||` · `then` · `do` · `else` 뒤.
+#: 용도: "러너가 이 이름을 **텍스트로 대입하기는 하는가**" (자동 seed 의 오타 방어 조건).
+_RE_ASSIGN_ANY = re.compile(
+    r'(?:^|;|&&|\|\||\bthen\b|\bdo\b|\belse\b)[ \t]*(?:local[ \t]+)?([A-Z][A-Z0-9_]*)=', re.M)
+
+#: 조립 줄이 참조하는 변수 — `$VAR` 과 `${VAR}` 을 **둘 다** 본다.
+_RE_SHELL_REF = re.compile(r'\$\{?([A-Z][A-Z0-9_]*)')
+
+
+def _asm_assigned(src):
+    """러너 소스가 문장 경계에서 대입하는 대문자 변수 이름 집합."""
+    return set(_RE_ASSIGN_ANY.findall(src))
+
+
+def _asm_flag_refs(src_line):
+    """조립 줄이 참조하는 FLAG 변수 이름 집합 (`$X` · `${X}` 양쪽)."""
+    return {m for m in _RE_SHELL_REF.findall(src_line)
+            if m.endswith(('_FLAG', '_FLAGS'))}
+
+
+def _asm_uncond(src, name):
+    """`name` 이 **무조건** 대입되는가 — 줄머리 또는 `;` 뒤.
+
+    ⚠ `&&` · `then` · `do` · `else` 뒤는 **조건부**라 일부러 뺀다: 조건이 거짓이면 그
+      플래그는 러너 자신에게서 `set -u` 로 죽는다.  그것이 L-1e 가 지키는 것이다.
+    """
+    return re.search(r'(?:^|;)[ \t]*(?:local[ \t]+)?' + re.escape(name) + r'=',
+                     src, re.M) is not None
 
 
 def runner_extra_flags(env, runner=None):
@@ -982,6 +1042,21 @@ def runner_extra_flags(env, runner=None):
              #    그 죽음이 L_LEANDEFAULT('None') 같은 엉뚱한 오류로 위장된다 (실측).
              'SBRG_FLAG=',
              'LEAN_FLAGS=', 'P2_EXTRA=', 'XP_FLAG=']
+    #  ★★★ 2026-08-27 — **손으로 유지하는 seed 목록은 이 부류를 두 번 놓쳤다**
+    #    (`SBRG_FLAG` 2026-08-25 · `RQG_FLAG` 오늘).  조립 줄에 새 변수를 넣을 때마다
+    #    여기를 같이 고쳐야 하는데, 안 고치면 `set -u` 프로브가 통째로 죽고 그 죽음이
+    #    **엉뚱한 오류로 위장**된다 (실측: L_LEANDEFAULT('None') · L_EXPECT 빈 문자열).
+    #    ⇒ 리포의 반복 교훈 그대로 **목록을 다시 적지 않는다**: 조립 줄이 참조하는 변수 중
+    #    **러너가 실제로 대입하는 것**만 자동으로 빈 값 seed 한다.
+    #    ⚠ "러너가 대입한다" 는 조건이 오타 검출력을 지킨다 — 러너에 없는 이름은 그대로
+    #    unbound 로 죽어 프로브가 **소리 내어** 실패한다 (자동 seed 가 오타를 덮지 않는다).
+    #  ⚠ 대입 추출은 **문장 경계** 기준이다 (`_RE_ASSIGN_ANY`) — 줄머리만 보던 첫 판은
+    #    `AS_TAG=""; AS_FLAG=""` 처럼 한 줄에 둘을 적으면 뒤엣것을 놓쳤다 (2026-09-02).
+    _seeded = {x.split('=', 1)[0] for x in _seed}
+    _assigned = _asm_assigned('\n'.join(lines))
+    for _v in sorted(set(_RE_SHELL_REF.findall(_lit + ' '.join(_ep + _xp)))):
+        if _v not in _seeded and _v in _assigned:
+            _seed.append(f'{_v}=')
     probe = '\n'.join(['set -u', *_seed, *_ep, *_xp,
                         'printf "%s\\n" "' + _lit + '"'])
     _env = _hermetic_env(env)
@@ -998,12 +1073,14 @@ def check_runner_integration(verbose=True, runner=None):
     _p = os.path.join(ROOT, runner or L_RUNNER)
     if not os.path.exists(_p):
         return [f'L_MISSING| 러너가 없다 ({_p})'], warns
-    _bn = _sp.run(['bash', '-n', _p], capture_output=True, text=True, timeout=60)
+    _bn = _sp.run(['bash', '-n', _p], capture_output=True, text=True, timeout=60, stdin=_sp.DEVNULL)
     if _bn.returncode != 0:
         return [f'L_SYNTAX| 러너가 문법 오류다 — {(_bn.stderr or "").strip()[-200:]}'], warns
     try:
         _std = runner_config({}, runner)
         _l2 = runner_config({'LEAN': '2'}, runner)
+        _l3 = runner_config({'LEAN': '3'}, runner)
+        _l4 = runner_config({'LEAN': '4'}, runner)
         _ep = runner_config({'EXPECT_PROTOCOL': 'p1-deadbeefdeadbeef'}, runner)
     except Exception as e:                                  # noqa: BLE001
         return [f'L_PROBE| 러너 설정 조립부를 실행할 수 없다 ({type(e).__name__}: {e}) — '
@@ -1018,6 +1095,65 @@ def check_runner_integration(verbose=True, runner=None):
     if _std.get('LEAN_FLAGS', '<UNSET>').strip():
         problems.append(f'L_LEANDEFAULT| LEAN 미지정인데 LEAN_FLAGS 가 비어 있지 않다 '
                         f'(`{_std.get("LEAN_FLAGS")}`) — 기본이 조용히 LEAN 이 된다')
+    #  ⓐ-3 (2026-09-01) — **진단 런의 OUTDIR 이 팔 수를 정확히 한 번 담는가.**
+    #    실측 결함: 기본 OUTDIR 은 이미 `${AR_TAG}` 로 `_arm1` 을 담는데, 강제-접미사
+    #    가드가 **끝자리만** 보느라 뒤의 `_lean2_r…` 때문에 "없다" 로 읽고 또 붙였다
+    #    (`…_sg7854_arm1_lean2_r5ef6da47ca4e_arm1`).  디렉터리 이름은 이 리포에서
+    #    **규약의 일부**다 (판정기가 태그로 팔을 짝짓는다) — 중복은 조용한 오독의 씨앗이다.
+    for _lv in ('1', '2'):
+        _c = runner_config({'ARMS': _lv}, runner)
+        _od = _c.get('OUTDIR', '')
+        if _c.get('_aborted') or not _od or _od == '<UNSET>':
+            continue
+        _n = os.path.basename(_od).count(f'_arm{_lv}')
+        if _n != 1:
+            problems.append(f'L_ARMTAG| ARMS={_lv} 의 기본 OUTDIR 이 `_arm{_lv}` 를 '
+                            f'{_n}번 담는다 (정확히 1번이어야 한다) — '
+                            f'`{os.path.basename(_od)}`')
+    #  ★ 8팔 생산은 그 접미사를 **달면 안 된다** (진단 산출물과 섞이지 않게)
+    _c8 = runner_config({'ARMS': '8'}, runner)
+    if not _c8.get('_aborted') and '_arm' in os.path.basename(_c8.get('OUTDIR', '') or ''):
+        problems.append(f'L_ARMTAG| 8팔 생산 OUTDIR 에 `_arm` 접미사가 붙었다 — '
+                        f'`{os.path.basename(_c8.get("OUTDIR", ""))}`')
+    #  ⓐ-2 (2026-08-30, 코드리뷰 지적 4) — LEAN=3·4 도 단언한다.  여태 LEAN=2 와 미지정만
+    #    봤고, 그래서 새 레벨의 **한 토큰 회귀가 초록으로 나간다**.  두 레벨의 정의는
+    #    "LEAN=2 에서 무엇을 빼느냐" 이므로 **차집합으로** 적어 오타가 드러나게 한다.
+    #      LEAN=3 = LEAN=2 − {--no-ion}                (σ_e + σ_ion)
+    #      LEAN=4 = LEAN=3 − {--no-field}              (σ_e + σ_ion + 필드)
+    #    ⚠ **있어야 할 것**과 **없어야 할 것**을 둘 다 본다 — 있어야 할 것만 보면
+    #      `--no-field` 가 되살아나도 통과한다 (그러면 Figure 4a 가 다시 사라진다).
+    for _lv, _cfg, _want, _forbid in (
+            ('3', _l3, ('--no-step4', '--no-thermal', '--no-trackb',
+                        '--no-field', '--no-pore', '--no-collector'), ('--no-ion',)),
+            ('4', _l4, ('--no-step4', '--no-thermal', '--no-trackb',
+                        '--no-pore', '--no-collector'), ('--no-ion', '--no-field'))):
+        _fl = _cfg.get('LEAN_FLAGS', '')
+        _tok = _fl.split()
+        _m = [f for f in _want if f not in _tok]
+        _x = [f for f in _forbid if f in _tok]
+        if _m:
+            problems.append(f'L_LEAN{_lv}| LEAN={_lv} 가 {_m} 를 켜지 않는다 '
+                            f'(조립 결과 `{_fl}`)')
+        if _x:
+            problems.append(f'L_LEAN{_lv}| LEAN={_lv} 가 {_x} 를 켠다 — 그 레벨의 정의는 '
+                            f'그것을 **끄지 않는 것**이다 (조립 결과 `{_fl}`)')
+        if _cfg.get('LEAN_TAG', '') != f'_lean{_lv}':
+            problems.append(f'L_LEAN{_lv}TAG| LEAN={_lv} 의 OUTDIR 접미사가 '
+                            f'`{_cfg.get("LEAN_TAG")}` — `_lean{_lv}` 여야 산출물이 안 섞인다')
+    #  ⓐ-3 — **잘못된 LEAN 값은 멈춰야 한다.**  검증이 없으면 `LEAN=9` 가 LEAN 미지정과
+    #    같은 OUTDIR 을 쓰면서 전체 파이프라인을 돈다 (요청과 실행이 다른데 이름이 같다).
+    #  ⚠ `runner_config` 는 의도된 abort 를 **예외가 아니라 `_aborted` 키**로 돌려준다
+    #    (R4-CX-08).  초판이 `try/except` 로 썼다가 네 값이 전부 "거부 안 됨" 으로 나왔다.
+    for _bad in ('9', '04', 'abc', '3.0'):
+        try:
+            _bc = runner_config({'LEAN': _bad}, runner)
+        except Exception:                                   # noqa: BLE001
+            continue                                        # 조립 자체가 실패 = 거부됨
+        if not _bc.get('_aborted'):
+            problems.append(f'L_LEANGATE| LEAN={_bad!r} 이 거부되지 않는다 — '
+                            f'모르는 값이 조용히 LEAN 미지정처럼 돈다 '
+                            f'(LEAN_FLAGS=`{_bc.get("LEAN_FLAGS")}` '
+                            f'TAG=`{_bc.get("LEAN_TAG")}`)')
     #  ⓑ EXPECT_PROTOCOL 통과 — 요청↔적용 봉인의 **유일한** 배선점이다 (CDXR3-3).
     #    `EP_FLAG` 은 함수 안 `local` 이라 설정 프리픽스에 없다 ⇒ 러너에서 그 조립 줄과
     #    `--extra-flags` 문자열을 **그대로 떼어 셸에 전개**시킨다 (진짜 확장이라
@@ -1100,7 +1236,7 @@ def check_runner_integration(verbose=True, runner=None):
                    f'set -e; sed -n "1,/{L_MARKER}/p" {_p!r} > "$0"; '
                    f'P2_EXTRA="--periodic" bash "$0"',
                    os.path.join(_tf.gettempdir(), 'l_p2extra_probe.sh')],
-                  capture_output=True, text=True, timeout=120)
+                  capture_output=True, text=True, timeout=120, stdin=_sp.DEVNULL)
     if 'P2_EXTRA' not in (_pb.stdout or '') + (_pb.stderr or ''):
         problems.append('L_P2EXTRA| `P2_EXTRA="--periodic"` 가 **거부되지 않는다** — '
                         'P2_EXTRA 는 조립 문자열 맨 뒤라 러너의 `--expect-physics` 선언을 '
@@ -1164,7 +1300,7 @@ def _payload_options(payload):
     _mod = os.path.splitext(os.path.basename(payload))[0]
     _out = _sp.run([sys.executable, '-c', _M_PROBE % _mod],
                           cwd=os.path.dirname(payload), capture_output=True,
-                          text=True, timeout=180)
+                          text=True, timeout=180, stdin=_sp.DEVNULL)
     if _out.returncode != 0:
         return [], (f'M_INTROSPECT| 파서를 못 잡았다 (rc={_out.returncode}) '
                     f'{(_out.stderr or "").strip().splitlines()[-1:] or ""}')
@@ -1592,6 +1728,7 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
     errs, warns = [], []
     import json as _json
     import subprocess as _sp
+    import time as _tm
     import tempfile as _tf
     pay = payload or os.path.join(ROOT, 'scripts', 'mpm_webapp_payload.py')
     if not os.path.exists(pay):
@@ -1638,11 +1775,22 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
             out = os.path.join(d, 'p_%d.json' % len(errs))
             cmd = [sys.executable, pay, *extra, '--n-vox', _SMOKE_NVOX,
                    '--step3-vox', _SMOKE_VOX, '--no-ion', '--no-pore', '--out', out]
+            #  ★ 어느 팔을 도는지 **먼저** 찍는다.  규칙 J 는 실물 엔트리포인트를 돌리고
+            #    팔당 상한이 timeout 초라, 느린 기계에서는 아무 출력 없이 수십 분이 간다.
+            #    2026-08-30 에 ibb 로그인 노드(부하 15.7 · SLURM 40잡)에서 실제로 20분을
+            #    **매달림으로 오진**했다 — 사용자도 나도.  원인은 침묵이었지 결함이 아니었다.
+            #  ⚠ `verbose` 로 감싸지 **않는다** — 두 호출자가 모두 verbose=False 이고,
+            #    사용자가 20분을 기다린 것이 정확히 그 경로다.  진행 표시는 보고가 아니라
+            #    **살아 있다는 신호**라 침묵시킬 대상이 아니다.
+            print(f'      · J 스모크 [{label}] 실행 중 … '
+                  f'(상한 {timeout}s — 느린 기계에서는 수 분 걸린다)', flush=True)
+            _t0 = _tm.time()
             try:
-                r = _sp.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=d)
+                r = _sp.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=d, stdin=_sp.DEVNULL)
             except Exception as e:                              # noqa: BLE001
                 errs.append(f'J_RUN| {label}: 실행 자체가 실패 ({type(e).__name__}: {e})')
                 continue
+            print(f'        완료 {_tm.time() - _t0:.0f}s', flush=True)
             log = (r.stdout or '') + (r.stderr or '')
             if r.returncode != 0:
                 errs.append(f'J_EXIT| {label}: exit {r.returncode} — {log.strip()[-200:]}')
@@ -1671,7 +1819,7 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
         if os.path.exists(_arm):
             _chk = os.path.join(ROOT, 'scripts', 'sr01_stamp_compare.py')
             _cr = _sp.run([sys.executable, _chk, '--check-arm', _arm, '--stamp', 'point'],
-                          capture_output=True, text=True, timeout=300, cwd=d)
+                          capture_output=True, text=True, timeout=300, cwd=d, stdin=_sp.DEVNULL)
             if _cr.returncode != 0:
                 errs.append(f'J_ARMCHK| **실제 producer 산출물을 `check_arm` 이 거부한다** '
                             f'(exit {_cr.returncode}: '
@@ -1683,7 +1831,7 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
             #  ★ 판별력 자기증명 — 스탬프를 **틀리게** 주면 거부해야 한다 (관대해서 통과가
             #    아니라 정말 읽고 있다는 증거).
             _cw = _sp.run([sys.executable, _chk, '--check-arm', _arm, '--stamp', 'segment'],
-                          capture_output=True, text=True, timeout=300, cwd=d)
+                          capture_output=True, text=True, timeout=300, cwd=d, stdin=_sp.DEVNULL)
             if _cw.returncode == 0:
                 errs.append('J_ARMCHK_BLIND| `check_arm` 이 **틀린 스탬프**(segment vs 실제 '
                             'point)도 통과시킨다 — 자리를 못 찾아 조용히 넘어가는 것과 '
@@ -1702,9 +1850,9 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
                '--n-vox', _SMOKE_NVOX, '--step3-vox', _SMOKE_VOX,
                '--no-ion', '--no-pore', '--out', _blind_out]
         try:
-            _rb = _sp.run(_bc, capture_output=True, text=True, timeout=timeout, cwd=d)
+            _rb = _sp.run(_bc, capture_output=True, text=True, timeout=timeout, cwd=d, stdin=_sp.DEVNULL)
             _rs = _sp.run(_bc[:-2] + ['--show-results', '--out', _blind_out + '.s'],
-                          capture_output=True, text=True, timeout=timeout, cwd=d)
+                          capture_output=True, text=True, timeout=timeout, cwd=d, stdin=_sp.DEVNULL)
         except Exception as e:                              # noqa: BLE001
             errs.append(f'J_BLINDRUN| 봉인 팔 실행 실패 ({type(e).__name__}: {e})')
         else:
@@ -1781,7 +1929,7 @@ def check_entrypoint_smoke(verbose=True, timeout=900, payload=None):
                    '--n-vox', _SMOKE_NVOX, '--step3-vox', _SMOKE_VOX,
                    '--no-ion', '--no-pore', *extra, '--out', out]
             try:
-                r = _sp.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=d)
+                r = _sp.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=d, stdin=_sp.DEVNULL)
             except Exception as e:                          # noqa: BLE001
                 errs.append(f'J_FAILRUN| {label}: 실행 자체가 실패 ({type(e).__name__}: {e})')
                 continue
@@ -2229,6 +2377,13 @@ def _selftest():
     import tempfile as _tl, shutil as _sl
     _RSRC = open(os.path.join(ROOT, L_RUNNER), encoding='utf-8').read()
 
+    #  ── ★ 프로브 자동 seed (2026-08-27) — 두 축을 **따로** 시험한다 ─────────────────
+    #    이 부류가 두 번 났다 (`SBRG_FLAG` · `RQG_FLAG`): 조립 줄에 변수를 넣고 seed 를
+    #    안 고치면 `set -u` 프로브가 죽고, 그 죽음이 엉뚱한 오류로 위장된다.
+    #    ⓐ 러너가 **대입하는** 새 변수는 자동 seed 되어 통과해야 한다 (재발 방지)
+    #    ⓑ 러너에 **없는** 이름(오타)은 여전히 죽어야 한다 (자동 seed 가 오타를 덮으면
+    #       이 수정이 검출력을 판 것이다 — 실제로 확인한다)
+
     #  ★★ 변이 러너 파일명은 **프로세스-고유**여야 한다 (2026-08-25 실측 사고):
     #    고정 이름 `mutant_runner.sh` 를 쓰던 시절, 이 selftest 두 인스턴스가 같은 리포에서
     #    **동시에** 돌자 서로의 변이체를 읽고 지워 L-11 이 `(0건)` 오탐 FAIL — check_all 과
@@ -2259,13 +2414,153 @@ def _selftest():
             return check_runner_integration(verbose=False, runner=_rel)[0]
         finally:
             os.remove(_abs)
+    _m0a = _rmut('$SBRG_FLAG$RQG_FLAG', '$SBRG_FLAG$RQG_FLAG$NEWAXIS_FLAG')
+    _seed_ok = any('NEWAXIS_FLAG' in str(x) for x in _m0a)
+    chk(f'L-1b: ★ 러너에 **없는** 변수를 조립 줄에 넣으면 프로브가 죽는다 (오타 검출력 '
+        f'유지 — 자동 seed 가 덮지 않는다)', _seed_ok)
+    _src_new = _RSRC.replace('RQG_FLAG=""', 'RQG_FLAG=""\nNEWAXIS_FLAG=""', 1).replace(
+        '$SBRG_FLAG$RQG_FLAG', '$SBRG_FLAG$RQG_FLAG$NEWAXIS_FLAG', 1)
+    chk('L-1c: ★★ 러너가 **대입하는** 새 축은 seed 목록을 안 고쳐도 통과한다 '
+        '(SBRG·RQG 에서 두 번 난 부류의 재발 방지)', _rmut_src(_src_new) == [])
+    #  ⓓ ★★ Codex R7 Q4b — **자동 seed 의 false-pass**: 정규식은 제어흐름을 모르므로
+    #    죽은 가지 안의 대입(`if false; then VAR=…; fi`)이나 **호출되지 않는 함수** 안의
+    #    대입도 "러너가 대입한다" 로 센다.  그러면 프로브는 빈 값으로 통과하는데 **실제
+    #    러너에서는 unbound** 가 될 수 있다.  현재 러너는 관련 flag 를 무조건 `VAR=""` 로
+    #    먼저 초기화해 판정 영향은 없지만(Codex: P 없음), 그 구조에 기대는 것은 보증이
+    #    아니므로 **그 상태를 시험으로 고정**한다.
+    #  ⇒ 지금은 "자동 seed 가 이 부류를 통과시킨다" 를 **알려진 한계로 명시**하고,
+    #    러너가 무조건 초기화를 유지하는지를 대신 강제한다 (그것이 진짜 방어선이다).
+    #  ⚠ **여러 줄** 형태여야 한다 — 자동 seed 의 `^\s*` 앵커가 한 줄짜리
+    #    `if false; then VAR=…; fi` 는 이미 배제한다 (첫 판이 그것으로 시험해 오보했다).
+    _dead = _RSRC.replace(
+        'RQG_FLAG=""',
+        'RQG_FLAG=""\nif false; then\n  DEADAXIS_FLAG=" --dead"\nfi', 1).replace(
+        '$SBRG_FLAG$RQG_FLAG', '$SBRG_FLAG$RQG_FLAG$DEADAXIS_FLAG', 1)
+    chk('L-1d: ★ 알려진 한계 — 죽은 가지의 대입도 자동 seed 된다 (제어흐름 미인식).  '
+        '이 시험은 그 사실을 **고정**한다: 통과하면 한계가 그대로, 실패하면 누군가 '
+        '제어흐름 인식을 넣었다는 뜻이니 이 주석을 지울 것 (Codex R7 Q4b)',
+        _rmut_src(_dead) == [])
+    #  ★ 진짜 방어선 — 조립 줄이 참조하는 모든 FLAG 변수를 러너가 **무조건** 초기화하는가
+    #    (`VAR=""` 가 조건 밖에 있는가).  이것이 깨지면 죽은 가지 문제가 실물이 된다.
+    #  ⚠ 두 가지를 조심한다 (첫 판이 둘 다 틀렸다): ⓐ `local VAR=""` 도 무조건 초기화다
+    #    (러너의 팔 함수 안 EP/XP 가 그 꼴) ⓑ `$LEAN_FLAGS` 를 `LEAN_FLAG` 로 잘라 잡으면
+    #    없는 변수를 만든다 ⇒ 전체 이름을 잡고 접미사로 거른다.
+    _asm = [ln for ln in _RSRC.splitlines() if '--extra-flags "' in ln]
+    #  ⚠ 참조 추출은 `${VAR}` 중괄호 꼴도 본다 (`_asm_flag_refs`).  `$VAR` 만 보던 첫 판은
+    #    중괄호 꼴 플래그를 **집합에서 조용히 빼** 방어선 밖으로 내보냈다 (2026-09-02).
+    _refs = _asm_flag_refs(_asm[0] if _asm else '')
+    #  기준 = **무조건 대입** = 줄머리 또는 `;` 뒤 (옵션 `local`).  조건부 형태
+    #  (`[ x ] && VAR=…` · `if …; then VAR=…`)는 일부러 뺀다 ⇒ "조건부 대입만 있고
+    #  기본값이 없는" 플래그를 정확히 골라낸다 (그런 플래그는 조건이 거짓일 때 러너
+    #  자신이 `set -u` 로 죽는다).
+    #  ⚠ 여러 줄 죽은 가지는 이 기준으로도 통과한다 — 그것이 L-1d 가 고정한 잔여 한계다.
+    _uncond = {m for m in _refs if _asm_uncond(_RSRC, m)}
+    chk(f'L-1e: ★★ 조립 줄의 FLAG {len(_refs)}개가 전부 **무조건 대입**을 갖는다 '
+        f'({len(_uncond)}개) — 조건부 대입만 있으면 조건이 거짓일 때 러너가 죽는다',
+        bool(_refs) and _uncond == _refs)
+    #  ── ★★ 2026-09-02 — 위 두 추출이 **우연한 표기법에 기대고 있었다** (실측 2건) ──────
+    #    `SIGMA_AM_S_OVERRIDE` 축 배선 중 러너에 `AS_TAG=""; AS_FLAG=""` 와 `${AS_FLAG}` 를
+    #    넣자 ⓐ 자동 seed 가 `AS_FLAG` 를 못 봐 프로브가 unbound 로 죽고 ⓑ L-1e 의 참조
+    #    집합에서 중괄호 꼴이 조용히 빠졌다.  ⓑ 는 **소리도 안 나는** 검출력 손실이라 더 나쁘다.
+    #  ⇒ 두 부류를 각각 고정한다.  ⓐ 는 러너 변이로, ⓑ 는 fixture 로 (L-1e 는 실러너를
+    #    직접 읽으므로 변이 경로가 없다).
+    _src_semi = _RSRC.replace(
+        'RQG_FLAG=""', 'RQG_FLAG=""\nSEMI_TAG=""; SEMI_FLAG=""', 1).replace(
+        '$SBRG_FLAG$RQG_FLAG', '$SBRG_FLAG$RQG_FLAG$SEMI_FLAG', 1)
+    chk('L-1f: ★★ 한 줄에 `TAG=""; FLAG=""` 로 적어도 자동 seed 가 **뒤엣것을 본다** '
+        '(줄머리 앵커가 FLAG 를 먼저 적는 우연한 순서에 기대고 있었다)',
+        _rmut_src(_src_semi) == [])
+    _fx = 'A_FLAG=""; B_FLAG=""\n[ -n "$X" ] && C_FLAG=" --c"\nif true; then D_FLAG=" --d"; fi\n'
+    chk('L-1g: ★ 참조 추출이 `${VAR}` 중괄호 꼴을 본다 (안 보면 그 플래그가 L-1e '
+        '방어선 **밖으로 조용히** 나간다)',
+        _asm_flag_refs('--extra-flags "$A_FLAG${B_FLAG}${LEAN_FLAGS}"')
+        == {'A_FLAG', 'B_FLAG', 'LEAN_FLAGS'})
+    chk('L-1h: ★★ 무조건/조건부 판별이 살아 있다 — 줄머리·`;` 뒤는 무조건, '
+        '`&&`·`then` 뒤는 **조건부**로 남는다 (넓히면서 이 구분을 잃으면 L-1e 가 '
+        '항상-참으로 썩는다)',
+        _asm_uncond(_fx, 'A_FLAG') and _asm_uncond(_fx, 'B_FLAG')
+        and not _asm_uncond(_fx, 'C_FLAG') and not _asm_uncond(_fx, 'D_FLAG'))
+    chk('L-1i: ★ 대입 추출이 네 꼴을 다 본다 (줄머리·`;`·`&&`·`then`) — 자동 seed 의 '
+        '조건은 "러너가 **텍스트로** 대입하는가" 이므로 조건부도 포함이다',
+        _asm_assigned(_fx) == {'A_FLAG', 'B_FLAG', 'C_FLAG', 'D_FLAG'})
+    #  ── ★★ 2026-09-02 — **읽지 않는 축 env 는 조용히 무시되면 안 된다** (실측 사고) ──
+    #    closure 스윕 중심점을 `SIGMA_AM_S_OVERRIDE=0.01 SIGMA_SDCP_OVERRIDE=250` 으로
+    #    띄웠는데 실행 머신의 러너가 **배선 이전 커밋**이었다.  두 변수는 안 읽히는
+    #    환경변수가 됐고, 값이 마침 프리셋 기본값과 같아 런은 **정확히 옳은 σ_e 를 내며
+    #    통과**했다 — 아무것도 시험하지 않은 채로.  ⚠ 이 부류의 위험은 "틀린 답" 이 아니라
+    #    **"맞는 답인데 근거가 없는 것"** 이다.  주의 문구로는 못 막으므로 러너가 죽는다.
+    #  ⇒ 게이트는 **자기 소스의 `$VAR` 역참조**를 본다 (손목록 아님 — 이 리포가 그 방식으로
+    #    세 번 졌다).  아래 세 시험이 "죽는가 / 안 죽는가 / **가려서** 죽는가" 를 고정한다.
+    _envg_rel = os.path.join('scripts', 'sdcp_gain_vox015_8arm.sh')
+
+    def _env_guard(extra, src=None):
+        _e = _hermetic_env(dict(extra, P2_ENV_GUARD_ONLY='1'))
+        _p = _sp.run(['bash', src or os.path.join(ROOT, _envg_rel)],
+                     capture_output=True, text=True, env=_e, timeout=120, cwd=ROOT)
+        return _p.returncode, _p.stdout + _p.stderr
+
+    _rc_b, _o_b = _env_guard({'SIGMA_BOGUS_OVERRIDE': '1'})
+    chk('L-1j: ★★ 러너가 **읽지 않는** 축 env 를 받으면 죽는다 (조용히 무시되면 그 팔은 '
+        '옳은 숫자를 내면서 아무것도 시험하지 않는다 — 2026-09-02 실측)',
+        _rc_b == 2 and '읽지 않는' in _o_b and 'SIGMA_BOGUS_OVERRIDE' in _o_b)
+    _rc_g, _o_g = _env_guard({'SIGMA_AM_S_OVERRIDE': '0.01', 'SIGMA_SDCP_OVERRIDE': '250',
+                              'SIGMA_VGCF_OVERRIDE': '100'})
+    chk('L-1k: ★ 러너가 **읽는** 축 env 셋은 통과한다 — 게이트가 전부를 막으면 생산이 선다',
+        _rc_g == 0 and '게이트 통과' in _o_g)
+    #  ⓒ ★★ **가려서** 죽는가 — 사고 당시의 옛 러너를 그대로 세워 재현한다.
+    #    옛 판은 `SIGMA_VGCF_OVERRIDE` 는 배선했고 나머지 둘은 안 했다 ⇒ 게이트가 그 둘만
+    #    지목해야 한다.  전부 거부하거나 전부 통과하면 이 시험이 문다.
+    _old = _RSRC
+    for _drop in ('AS_FLAG', 'SD_SIG_FLAG'):
+        _old = re.sub(r'^.*SIGMA_(?:AM_S|SDCP)_OVERRIDE.*$', '', _old, flags=re.M)
+    _rel_old, _abs_old = _rmut_path()
+    with open(_abs_old, 'w', encoding='utf-8') as _f:
+        _f.write(_old)
+    try:
+        _rc_o, _o_o = _env_guard({'SIGMA_AM_S_OVERRIDE': '0.01', 'SIGMA_SDCP_OVERRIDE': '250',
+                                  'SIGMA_VGCF_OVERRIDE': '100'}, src=_abs_old)
+    finally:
+        os.remove(_abs_old)
+    chk('L-1l: ★★ 배선 **이전** 러너를 세우면 안 배선된 둘만 지목하고 죽는다 '
+        '(SIGMA_VGCF_OVERRIDE 는 옛 판도 읽으므로 지목 대상이 아니다 = 가려서 문다)',
+        _rc_o == 2 and 'SIGMA_AM_S_OVERRIDE' in _o_o and 'SIGMA_SDCP_OVERRIDE' in _o_o
+        and 'SIGMA_VGCF_OVERRIDE' not in _o_o.split('받았다:', 1)[-1].splitlines()[0])
+    #  ── ★★ 2026-09-02 — **태그가 격자점을 가르지 못하면 스윕이 조용히 합쳐진다** ─────
+    #    기존 태그 규칙은 `${VAR//./}` = 점을 **지운다**.  그런데 사전등록 격자의 σ_SDCP 가
+    #    정확히 `2.5, 25, 250, 2500, 25000` 이라 앞의 둘이 **똑같이 `25`** 가 된다.
+    #    영수증 digest 도 두 축을 안 실었으므로 **디렉터리 이름 전체가 같아지고**, 러너는
+    #    기존 영수증을 "맞다" 로 읽어 **다른 σ 의 팔을 재사용**한다.  = 다른 실험 둘이
+    #    한 디렉터리에서 섞인다.  ⇒ 새 두 축만 `.`→`p` 무손실로 바꿨다 (기존 축의 규칙은
+    #    안 건드린다 — 이미 돈 팔의 디렉터리 이름이 바뀌면 완주 산출물을 못 찾는다).
+    #  ⚠ 중간 변수가 아니라 **실제 OUTDIR** 을 본다 — 섞이는 것은 디렉터리이지 태그 문자열이
+    #    아니다.  (`_RCPT_TAG` 는 두 축이 `RECEIPT_AXES_NODIGEST` 라 안 움직이므로, OUTDIR 이
+    #    갈리면 그것은 **오로지 태그 덕**이다 = 이 시험이 정확히 태그를 잰다.)
+    #  ⚠ `runner_config` 는 `bash -s` 라 러너가 자기 소스를 못 읽는다 ⇒ env 게이트가 발동한다.
+    #    `P2_SELF` 로 경로를 알려 준다 (게이트가 그러라고 적어 둔 그대로).
+    _rp = os.path.join(ROOT, 'scripts', 'sdcp_gain_vox015_8arm.sh')
+
+    def _outdir_for(sdcp):
+        _c = runner_config({'VOX': '0.15', 'ARMS': '8', 'SDCP_SPHERE_D': '0.30',
+                            'PTFE_STAMP': 'centerline', 'LEAN': '2',
+                            'SIGMA_SDCP_OVERRIDE': sdcp, 'P2_SELF': _rp})
+        return (_c or {}).get('OUTDIR', '')
+    _o25, _o2p5 = _outdir_for('25'), _outdir_for('2.5')
+    chk(f'L-1m: ★★ 사전등록 격자의 `2.5` 와 `25` 가 **다른 디렉터리**로 간다 — 같으면 러너가 '
+        f'기존 영수증을 맞다고 읽고 **다른 σ 의 팔을 재사용**한다 (실험 둘이 한 곳에서 섞인다)',
+        bool(_o25) and bool(_o2p5) and _o25 != _o2p5)
+    _grid = ['0.000333333', '0.00182574', '0.01', '0.0547723', '0.3',
+             '2.5', '25', '250', '2500', '25000']
+    _outs = [_outdir_for(g) for g in _grid]
+    chk(f'L-1n: ★ 등록된 격자값 {len(_grid)}개가 **전부 서로 다른** 디렉터리를 받는다 '
+        f'({len(set(_outs))}개) — 무손실 규칙의 전수 확인',
+        len(set(_outs)) == len(_grid) and all(_outs))
     _m1 = _rmut('LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-field --no-ion --no-pore --no-collector"',
                 'LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-field --no-ion --no-pore"')
     chk(f'L-2: ★ LEAN=2 에서 `--no-collector` 를 빼면 **잡는다** ({len(_m1)}건)',
         any(x.startswith('L_LEAN2') and 'no-collector' in x for x in _m1))
     #  ⚠ 조립 문자열에 SBRG_FLAG(SDCP_BRIDGE 축, 2026-08-25)가 끼면서 리터럴 갱신 —
     #    변이의 **의도는 불변**(EP_FLAG 를 빼도 검사기가 무는가)
-    _m2 = _rmut('$SBRG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG', '$SBRG_FLAG$XP_FLAG$FS_FLAG')
+    _m2 = _rmut('$SBRG_FLAG$RQG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG', '$SBRG_FLAG$RQG_FLAG$XP_FLAG$FS_FLAG')
     chk(f'L-3: ★★ `$EP_FLAG` 를 인자열에서 빼면 **잡는다** — 변수는 그대로 있고 '
         f'**쓰이지 않을 뿐**이라 grep 으로는 안 보인다 ({len(_m2)}건)',
         any(x.startswith('L_EXPECT') for x in _m2))
@@ -2276,13 +2571,13 @@ def _selftest():
     #  ⚠ 2026-08-25: 진단 분리는 이제 **두 겹**이다 — 조립 태그(`AR_TAG`) 와 R3-CX-09 의
     #    강제 접미사.  한 겹만 지우면 다른 겹이 막으므로(정상), 돌연변이는 **둘 다** 지운다.
     #    그래야 "분리가 실제로 사라진 상태" 를 시험한다.
-    _m4 = _rmut('${FS_TAG}${AR_TAG}${LEAN_TAG}', '${FS_TAG}${LEAN_TAG}')
+    _m4 = _rmut('${FS_TAG}${SION_TAG}${PB_TAG}${AR_TAG}${LEAN_TAG}', '${FS_TAG}${SION_TAG}${PB_TAG}${LEAN_TAG}')
     _m4b = [x for x in _m4 if x.startswith(('L_ARMTAG', 'L_ARMNS'))]
     chk(f'L-5a ★ 조립 태그만 지우면 **강제 접미사가 막는다** (과잉차단 아님, {len(_m4)}건)',
         not _m4b)
-    _both = _RSRC.replace('${FS_TAG}${AR_TAG}${LEAN_TAG}', '${FS_TAG}${LEAN_TAG}')
+    _both = _RSRC.replace('${FS_TAG}${SION_TAG}${PB_TAG}${AR_TAG}${LEAN_TAG}', '${FS_TAG}${SION_TAG}${PB_TAG}${LEAN_TAG}')
     _m4c = _rmut_src(_both.replace(
-        'if [ "$ARMS" -ne 8 ] && [ "${OUTDIR%_arm$ARMS}" = "$OUTDIR" ]; then', 'if false; then'))
+        'if [ "$ARMS" -ne 8 ] && [ "${OUTDIR#*_arm$ARMS}" = "$OUTDIR" ]; then', 'if false; then'))
     chk(f'L-5: ★★ 두 겹을 **다** 지우면 잡는다 — 진단 런이 생산 OUTDIR 에 쓴다 '
         f'({len(_m4c)}건)',
         any(x.startswith(('L_ARMTAG', 'L_ARMNS')) for x in _m4c))
@@ -2296,7 +2591,7 @@ def _selftest():
     #  ★ R3-CX-08 — `echo` 안내문이 순서 증거가 되면 안 된다 (옛 판은 됐다).
     #  실제 봉인 호출을 **안내문으로 바꾼다** — 옛 판은 그 echo 를 순서 증거로 셌다.
     _m14 = _rmut('''  if ! python3 "$SCR/sdcp_gain_verdict.py" --dir "$OUTDIR" --seal-only \\
-       --require-arms "$PREREG_ARMS" --require-digest; then''',
+       --require-arms "$PREREG_ARMS" --require-digest $_RQI; then''',
                  '''  echo "먼저 돌릴 것: python3 $SCR/sdcp_gain_verdict.py --seal-only"
   if false; then''')
     chk(f'L-14: ★★ `echo "… --seal-only"` 안내문은 순서 증거가 아니다 (live 호출만 센다) '
@@ -2308,7 +2603,7 @@ def _selftest():
     chk(f'L-12: ★★ 봉인 **실패** 경로가 원값을 자동으로 찍으면 잡는다 — metadata 를 '
         f'일부러 깨뜨려 raw table 을 보는 경로 (R3-CX-02) ({len(_m12)}건)',
         any(x.startswith('L_FAILDUMP') for x in _m12))
-    _m13 = _rmut('''if [ "$ARMS" -ne 8 ] && [ "${OUTDIR%_arm$ARMS}" = "$OUTDIR" ]; then''',
+    _m13 = _rmut('''if [ "$ARMS" -ne 8 ] && [ "${OUTDIR#*_arm$ARMS}" = "$OUTDIR" ]; then''',
                  'if false; then')
     chk(f'L-13: ★★ 진단 런이 **사용자 OUTDIR** 을 그대로 쓰면 잡는다 — 2팔이 8팔 '
         f'디렉터리에 섞인다 (R3-CX-09) ({len(_m13)}건)',
@@ -2391,7 +2686,7 @@ def _selftest():
     chk(f'L-11: ★★ `P2_EXTRA` 금지 검사를 무력화하면 **잡는다** — 주의 주석은 게이트가 '
         f'아니다 ({len(_m11)}건)',
         any(x.startswith('L_P2EXTRA') for x in _m11))
-    _m7 = _rmut('$SBRG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG', '$SBRG_FLAG$EP_FLAG$FS_FLAG')
+    _m7 = _rmut('$SBRG_FLAG$RQG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG', '$SBRG_FLAG$RQG_FLAG$EP_FLAG$FS_FLAG')
     chk(f'L-8: ★★ 러너 자기설정 선언(`$XP_FLAG`)이 인자열에서 빠지면 **잡는다** — '
         f'첫 팔의 id 를 베끼면 첫 팔이 진리가 된다 (조건 4) ({len(_m7)}건)',
         any(x.startswith('L_EXPECTPHYS') for x in _m7))

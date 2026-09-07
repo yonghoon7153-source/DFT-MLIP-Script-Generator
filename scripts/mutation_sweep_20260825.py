@@ -32,6 +32,7 @@ DISC = ('check_method_discipline.py', '--selftest')
 STEP3 = ('step3_sigma.py', '--selftest')
 SR01 = ('sr01_stamp_compare.py', '--selftest')
 RC = ('run_contract.py', '--selftest')
+PAYSEL = ('mpm_webapp_payload.py', '--selftest-temperature')
 
 #: (라벨, 대상파일, 옛코드, 새코드, 시험 명령, **기대 시험 id 접두사들**)
 #  ⚠ 기대 id 는 **정확히** 그 시험이 물어야 한다는 선언이다.  다른 시험이 대신 물면
@@ -234,6 +235,28 @@ MUTANTS = [
      "        sub[m & (sub == 0)] = s",
      "        sub[m] = s",
      STEP3, ('sdcp-bridge-no-downgrade',)),
+    #  ── ★ fail-open 복원 (2026-08-27) — A 트랙 4팔을 무효화한 **바로 그 결함** ────
+    #    옛 코드는 점 스탬프에서 브리지 요청을 조용히 버렸다 ⇒ 처리팔 = 대조팔 (바이트 동일).
+    #    이 변이는 가드를 죽여 그 시절로 되돌린다.  **무는 것은 새 시험 하나뿐**이므로
+    #    이 항목이 초록이면 그 시험이 실효가 없다는 뜻이다.
+    ('SELF-11b 브리지 fail-closed 가드 무력화 (2026-08-27 A 트랙 결함 복원)', 'step3_sigma.py',
+     "        if float(sdcp_bridge_um) > 0.0 and not sdcp_sphere_d_um:",
+     "        if False and float(sdcp_bridge_um) > 0.0 and not sdcp_sphere_d_um:",
+     STEP3, ('sdcp-bridge-failclosed',)),
+    #    ⚠⚠ **반대 방향(과발화)은 이 배터리로 못 문다 — 한계를 적어 둔다** (2026-08-27).
+    #    fail-closed 를 붙일 때 흔한 부작용은 가드가 **과발화**해 기본값·정상 조합까지
+    #    죽이는 것이다.  그 방향의 변이를 실제로 넣어 봤고(`and` → `or`) 결과는
+    #    **HARNESS_ERROR** 였다: 과발화한 가드는 `sdcp-bridge-connect` ·
+    #    `sdcp-bridge-no-downgrade` · `sdcp-bridge-sbe-noop` 같은 **다른 시험**이
+    #    rasterize 를 부르는 순간 잡히지 않은 `ValueError` 로 스크립트 자체를 죽인다
+    #    ⇒ 이름 붙은 FAIL 이 아니라 크래시라, 배터리가 (설계대로) "시험이 문 게 아니다" 로
+    #    분류한다.  좁게 무는 변이는 **존재하지 않는다** — legit 조합에 걸면 브리지 시험이,
+    #    기본값에 걸면 점 스탬프 시험 전부가 죽는다.
+    #    ⇒ 이 항목을 억지로 초록으로 만들면 HARNESS_ERROR 신호 자체가 무뎌진다(거짓 경보를
+    #      정상으로 학습시킨다) → **넣지 않는다**.  대신 두 가지로 방어한다:
+    #        ① `sdcp-bridge-failclosed` 안의 `_e5b`(기본 off) · `_e5c`(정상 조합) 양성 대조
+    #        ② 과발화는 **조용하지 않다** — selftest 가 통째로 크래시하므로 check_all 에서
+    #           즉시 빨간불이다 (fail-open 과 달리 눈에 안 띌 수가 없다).
     #  ── G2 / D13 원장 ② (PTFE 이온 차단 노브) ───────────────────────────────────
     #  ⚠ 페이로드 CLI→rasterize 배선(_pbl3)은 이 배터리의 selftest 명령으로는 못 문다
     #    (payload 실행이 필요) — 그 층은 규율 J(초소형 픽스처 실행)와 L-13(P2_EXTRA
@@ -271,6 +294,30 @@ MUTANTS = [
      "        if not dirty:\n            un = _sp.run(['git', '-C', script_dir, 'ls-files', '--others',\n                          '--exclude-standard', '--', script_dir],\n                         capture_output=True, text=True, timeout=20)\n            dirty = bool((un.stdout or '').strip())            # scripts/ 안 untracked = shadowing 위험\n",
      "",
      RC, ('RCPT-sha-shadow',)),
+    #  ── GPU 폴백 fail-closed (kgy 실측: 거부될 CPU 결과를 몇 시간 계산) ─────────────
+    ('폴백 가드 제거 (선언해도 조용히 CPU 로 내려간다)', 'step3_sigma.py',
+     "            if REQUIRE_GPU:",
+     "            if False:",
+     STEP3, ('require-gpu',)),
+    ('폴백 가드를 GPU 미요청에도 물게 (과잉차단 — CPU 전용 환경을 막는다)', 'step3_sigma.py',
+     "\nREQUIRE_GPU = False\n",
+     "\nREQUIRE_GPU = True\n",
+     #  기본이 True 면 ⓒ(GPU 미요청 무해)는 그대로지만 ⓐ(폴백 허용 팔)가 중단된다.
+     STEP3, ('require-gpu',)),
+    #  ── Q4a 실행환경 영수증 (code_sha 가 못 보는 축) ─────────────────────────────
+    ('Q4a 스캔 실패를 "untracked 없음" 으로 (모름 ≠ 없음 혼동 복원)',
+     'mpm_webapp_payload.py',
+     "        if _r.returncode != 0:\n            raise RuntimeError(f'git ls-files rc={_r.returncode}')\n",
+     "",
+     PAYSEL, ('execenv-unknown-not-empty',)),
+    ('Q4a PYTHONPATH 를 risk 에서 빼기 (조용한 환경 오염)', 'mpm_webapp_payload.py',
+     "    if out['pythonpath']:\n        out['risk'].append('PYTHONPATH set')",
+     "    if False:\n        out['risk'].append('PYTHONPATH set')",
+     PAYSEL, ('execenv-risk-pythonpath',)),
+    ('Q4a 로드된 프로젝트 모듈 해시 제거 (영수증이 코드를 안 본다)', 'mpm_webapp_payload.py',
+     "    out['project_module_digest'] = _h.hexdigest()[:16] if _n_mod else None",
+     "    out['project_module_digest'] = None",
+     PAYSEL, ('execenv-modules',)),
     ('R5-CX-05 미등록 component 조용한 통과 복원', 'run_contract.py',
      "            return False, (f'EVID|{comp}|unregistered| 이 component 의 증거 계약이 ",
      "            continue\n        if False:\n            return False, (f'EVID|{comp}|unregistered| 이 component 의 증거 계약이 ",

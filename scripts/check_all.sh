@@ -61,6 +61,51 @@ run 'sdcp_phase_ledger_match --selftest' python3 scripts/sdcp_phase_ledger_match
 run 'sr01_stamp_compare     --selftest' python3 scripts/sr01_stamp_compare.py --selftest
 run 'mpm_webapp_payload     --selftest-temperature' python3 scripts/mpm_webapp_payload.py --selftest-temperature
 run 'step3_sigma            --selftest' python3 scripts/step3_sigma.py --selftest
+#  ★ 축소본 계약 (R8 Q6 ⓐ) — 원본 payload 는 팔당 127 MB 라 커밋할 수 없다.  커밋되는 것은
+#    축소본이고, 그 selftest 의 마지막 항목이 **판정기가 축소본을 원본과 동일하게 읽는다**를
+#    단언한다.  이것이 깨지면 커밋된 증거로 §9 provenance 대조를 재실행할 수 없다 —
+#    즉 "증거를 넣었다" 가 조용히 거짓이 된다.
+run 'reduce_arm_payloads     --selftest' python3 scripts/reduce_arm_payloads.py --selftest
+#  ★★ A 트랙 판정식 (개정 A3 / R9 Q1) — A1 은 `1 − u/v` 였고 브리지가 격자 효과의
+#    **부호만 뒤집어도** A = 2 로 h1 을 통과했다.  원 사전등록 정의는 절댓값이다.
+#    `regr-sign-flip` 이 u = −v → A = 0 → h0 을 단언한다 (옛 식이 2.0 을 냈을 것도 함께).
+run 'bridge_grid_verdict    --selftest' python3 scripts/bridge_grid_verdict.py --selftest
+#  ★ 2026-08-31 — STEP B 판정기.  사전등록 문턱(0.10/0.30)이 **파일 안에서 동결**돼
+#    있고 selftest 첫 줄이 그 값을 대조한다 ⇒ 결과를 보고 문턱을 옮기면 여기서 터진다.
+run 'ion_r_verdict          --selftest' python3 scripts/ion_r_verdict.py --selftest
+#  ★ 2026-08-31 — 접점 분포 그림.  라벨이 `CBD` 로 되돌아가면(= 바인더 포함 함의) 정의와
+#    어긋나고, 규약이 다른 두 침대를 한 그림에 섞으면 74→86 과 89→112 가 합쳐진다.
+#    selftest 가 그 둘을 문다.
+run 'plot_cbd_contacts       --selftest' python3 scripts/plot_cbd_contacts.py --selftest
+#  ★ σ_e 막대 그림.  옛 패널 (b) 의 `1.98 → 3.00 S/cm` 는 철회값이고 **단위까지 달랐다**
+#    (현 세대는 mS/cm).  selftest 가 축 단위와 팔 수 대응을 문다.
+run 'plot_sigma_e_bars       --selftest' python3 scripts/plot_sigma_e_bars.py --selftest
+#  ★ 2026-08-31 — 컬러바 PNG 는 **논문 그림에 그대로 들어가는데** 평문·pptx 스윕이
+#    PNG 속 글자를 못 읽는다.  제목이 폭을 넘어 잘리면 하필 경고 문구가 사라지고
+#    그림은 여전히 그럴듯해 보인다 = 조용한 실패.  여기가 유일한 방어선이다.
+if command -v node >/dev/null 2>&1; then
+  run 'colorbar_fit (JS 문법)'  node --check webapp/static/js/viewer3d.js
+  run 'colorbar_fit (라벨 폭)'  node scripts/check_colorbar_fit.mjs
+else
+  echo '  — colorbar_fit  건너뜀 (node 없음)'
+fi
+#  ★★ LHS 확장 분석기 둘 (2026-08-29, Codex R11 B1) — **결과가 나오기 전에** 배선한다.
+#    R11: "추출기와 적합기를 결과 전에 커밋해야 사전등록의 규약이 실재한다."  런이 끝난 뒤
+#    분석기를 짜면 규약이 데이터를 보고 정해지고, 그때는 사전등록이 아니다.
+#    extract = AM 접촉 그래프의 z-퍼콜 (1차 관측량) · fit = Firth 문턱 + 프로파일 구간.
+run 'lhs_perc_extract       --selftest' python3 scripts/lhs_perc_extract.py --selftest
+run 'lhs_perc_fit           --selftest' python3 scripts/lhs_perc_fit.py --selftest
+
+#  ★ 2026-08-30 — 이 둘은 selftest 가 **있었는데 배선이 없었다**.  `make_heckel_manifest.scan()`
+#    이 심볼릭 링크 중복을 독립 대조로 세어 인계 문서에 가짜 확인이 적혔고, 그 회귀가
+#    여기 안 걸려 있으면 다음에 또 조용히 풀린다 ("존재하고 수동 실행이 녹색인 것만으로는
+#    자동 규율이 아니다" — 위 §57 과 같은 규칙).
+run 'make_heckel_manifest   --selftest' python3 scripts/make_heckel_manifest.py --selftest
+run 'oat_sensitivity        --selftest' python3 scripts/oat_sensitivity.py --selftest
+#  ★ 2026-08-30 — 이 selftest 는 draft 파일을 **실제로 열어** docx 상수와 대조한다
+#    (옛 docstring 이 "draft 가 정본" 이라 적으면서 한 번도 안 읽어 두 산출물이 갈라졌다).
+run 'build_methods_docx     --selftest' python3 scripts/build_methods_docx.py --selftest
+run 'check_cohort_packages  --selftest' python3 scripts/check_cohort_packages.py --selftest
 
 echo "── 리포 실물 (리포가 맞나 — selftest 가 **대신해 주지 않는다**) ──"
 #  ★★ 2026-08-25 — 배터리는 느려서 여기 없지만(~20분), **문법이라도** 본다.
@@ -70,6 +115,44 @@ run 'mutation_sweep (문법 — 배터리 자신이 도는가)' \
   python3 -c "import ast,sys; ast.parse(open('scripts/mutation_sweep_20260825.py',encoding='utf-8').read())"
 run 'check_review_findings   (원장 + 철회값 스윕)' python3 scripts/check_review_findings.py
 run 'check_method_discipline (규칙 A~M + claims 원장)' python3 scripts/check_method_discipline.py
+#  ★★ 2026-08-30 — 원장이 "제3자가 리포만으로 재도출한 값이 이 문서와 일치한다" 고 적는데
+#    그것은 08-29 에 손으로 한 번 돌린 결과였고 **아무것도 다시 확인하지 않았다**.
+#    비·산포를 팔의 σ_e 에서 재계산해 원장 산문과 대조한다 (저장된 판정 필드를 읽지 않는다).
+#  ★★ 2026-08-31 — 웹앱 테스트 5개가 **어디에도 배선돼 있지 않았다.**  그래서 둘이
+#    빨간불인 채로 남아 있었고, 그중 하나는 앱이 **더 안전해졌기 때문에**(철회 게이트)
+#    난 실패였다.  돌지 않는 검사는 없는 것과 같다 (규칙 K).
+run 'webapp: pipeline_provenance' python3 webapp/test_pipeline_provenance.py
+run 'webapp: predictor_ui'        python3 webapp/test_predictor_ui_and_sigma_grain.py
+run 'webapp: security_phase_a'    python3 webapp/test_security_phase_a.py
+run 'webapp: seminar_page'        python3 webapp/test_seminar_page.py
+run 'webapp: temp_pressure'       python3 webapp/test_temp_pressure_wiring.py
+run 'check_doc_refs          --selftest' python3 scripts/check_doc_refs.py --selftest
+run 'check_cohort_packages  (커밋된 패키지 ↔ 원장)' python3 scripts/check_cohort_packages.py
+#  ★★ 2026-08-31 — 문서가 **없는 파일·없는 커밋**을 가리키는 자리를 잡는다.
+#    깨진 참조는 조용하다: 열어 보기 전에는 안 보이고, 열어 봤을 때는 이미 그 문서를
+#    믿고 판단한 뒤다.  예외는 `docs/reviews/doc_refs_allowlist.tsv` 에 **이유와 함께**
+#    등재하고, 그 파일이 생기면 검사기가 등재 자체를 낡았다고 지적한다.
+run 'check_doc_refs         (문서가 가리키는 것이 실재하는가)' python3 scripts/check_doc_refs.py --quiet
+#  ★★ 2026-08-30 — 봉인된 설계를 **매번** 다시 검증한다 (R14 조건 6·7).
+#    상자는 기존 130 런에서 유도되고 CSV 는 해시로 사전등록에 묶여 있는데, 08-29~30 에는
+#    사람이 한 번 돌려 보고 끝이었다.  손으로만 도는 검사는 없는 것과 같다 (규칙 K).
+#    ⚠ 해시를 여기 박아 두는 것이 요점이다 — CSV 가 바뀌면 이 줄이 **빨간불**이 되고,
+#      그때 사전등록의 봉인도 같이 고쳐야 한다는 것이 강제된다.
+run 'lhs_ext_materialize     --selftest' python3 scripts/lhs_ext_materialize.py --selftest
+run 'lhs_ext_submit_gate     --selftest' python3 scripts/lhs_ext_submit_gate.py --selftest
+run 'lhs_ext_design (봉인 CSV ↔ 상자 ↔ 해시)' \
+  python3 scripts/lhs_ext_design.py --verify docs/data/lhs_ext_design_v2_20260829.csv \
+    --box docs/data/lhs_ext_box_v2_20260829.json \
+    --expect-sha256 bc72b8bf274842b7c54e319ceac70f5cb2804aa3635f329dfed34697bd52ea19
+
+#  ★★ 2026-09-01 (Codex R19 Q6) — **어디에서도 안 돌던 검사기 72개**를 여기서 돈다.
+#    규칙 K 는 이 파일 ↔ CI 를 손목록으로 대조하는데, *둘 다에 없는* 것은 원리적으로
+#    못 잡았다.  실측 101개 중 72개가 그 상태였고 그중 둘은 **실제로 빨간불**이었다
+#    (`env_db` 노브 누락 · `seminar_deck_extract` 표지 면제가 배너 삽입에 깨졌다).
+#    ⚠ 여기 이름을 72개 적지 않는 것이 요점이다 — 손목록은 또 낡는다.  드라이버가
+#      `docs/reviews/selftest_inventory.tsv` 를 읽고 돈다 (실측 합계 ~5 분).
+run 'selftest_inventory     (분류·레인·CI 의존)' python3 scripts/check_selftest_inventory.py --quiet
+run 'fast 자기검사 전수     (등재 기반 드라이버)' python3 scripts/check_selftest_inventory.py --run-fast
 
 echo
 if [ "$FAIL" = 0 ]; then

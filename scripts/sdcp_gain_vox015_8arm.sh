@@ -56,6 +56,45 @@ SDCP_SPHERE_D="${SDCP_SPHERE_D:-}"
 #  ★ 2026-08-25 — `bash -s`(stdin) 로 설정부만 돌리면 `BASH_SOURCE` 가 없다 (규칙 L 이 그렇게 돈다).
 #    `P2_SCR` 를 먼저 보고, 없으면 `$0` 로 떨어진다 — 리포에 이미 있는 규약이다.
 SCR="${P2_SCR:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)}"
+
+#  ★★★ 2026-09-02 — **읽지 않는 축 env 는 조용히 무시되면 안 된다** (실측 사고).
+#    사고: closure 스윕 중심점을 `SIGMA_AM_S_OVERRIDE=0.01 SIGMA_SDCP_OVERRIDE=250` 으로
+#    띄웠는데 kgy 의 `~/dem-mt` 가 **배선 이전 커밋**이었다.  두 변수는 그냥 안 읽히는
+#    환경변수가 됐고, 그 값들이 마침 프리셋 기본값과 같아서 런은 **정확히 옳은 σ_e 를
+#    내며 통과**했다 — 아무것도 시험하지 않은 채로.  디렉터리 태그를 눈으로 확인하지
+#    않았다면 그대로 25 격자점 스윕에 들어갔다.
+#  ⚠ 이 부류의 위험은 "틀린 답" 이 아니라 **"맞는 답인데 근거가 없는 것"** 이다.
+#    사전등록 축이 적용되지 않은 팔은 대조로도 판정으로도 쓸 수 없다.
+#  ⇒ **목록을 손으로 유지하지 않는다** (이 리포가 그 방식으로 세 번 졌다 —
+#    `SBRG_FLAG`·`RQG_FLAG`·`AS_FLAG`).  러너가 **자기 소스를 읽어** 실제로 역참조하는
+#    이름만 인정하고, 축 이름꼴(`SIGMA_*`·`SDCP_*`·`PTFE_*`)인데 안 읽는 것이 설정돼
+#    있으면 **죽는다**.  주석에 이름이 적힌 것만으로는 통과하지 않는다 (`$VAR` 역참조를 본다).
+_SELF="${P2_SELF:-${BASH_SOURCE[0]:-$0}}"
+if [ -r "$_SELF" ]; then
+  _p2_unread=""
+  for _v in $(env | sed -n 's/^\(SIGMA_[A-Z0-9_]*\|SDCP_[A-Z0-9_]*\|PTFE_[A-Z0-9_]*\)=.*/\1/p'); do
+    grep -qE '\$\{?'"$_v"'\b' "$_SELF" || _p2_unread="$_p2_unread $_v"
+  done
+  if [ -n "$_p2_unread" ]; then
+    echo "[p2] ABORT — 이 러너가 **읽지 않는** 축 env 를 받았다:$_p2_unread"
+    echo "     그대로 돌면 그 축이 조용히 무시된 채 런이 통과한다 — 값이 우연히 기본값과"
+    echo "     같으면 **옳은 숫자를 내면서 아무것도 시험하지 않는다** (2026-09-02 실측)."
+    echo "     원인 대개: 러너 코드가 배선 이전 커밋이다.  고치는 법:"
+    echo "       git -C \"\$(dirname \"$SCR\")\" fetch origin claude/stoic-knuth-NObVQ"
+    echo "       git -C \"\$(dirname \"$SCR\")\" merge --ff-only origin/claude/stoic-knuth-NObVQ"
+    echo "     오타라면 이름을 고칠 것.  러너: $_SELF"
+    exit 2
+  fi
+elif env | grep -qE '^(SIGMA_|SDCP_|PTFE_)[A-Z0-9_]*='; then
+  #  자기 소스를 못 읽는 경로(`bash -s` 등)에서 축 env 가 실려 오면 **판정 불가**다.
+  #  fail-open 하면 위 사고가 그대로 재발하므로 여기서도 죽는다.
+  echo "[p2] ABORT — 축 env 가 설정됐는데 러너가 자기 소스($_SELF)를 못 읽어 배선을 확인할 수 없다."
+  echo "     `P2_SELF=<러너 경로>` 를 주거나 파일로 직접 실행할 것."
+  exit 2
+fi
+#  ★ 위 게이트만 돌려 보고 나가는 문 (규율 검사기가 GPU 없이 거동을 시험한다).
+[ -n "${P2_ENV_GUARD_ONLY:-}" ] && { echo "[p2] env 게이트 통과"; exit 0; }
+
 SD_FLAG=""; SD_TAG=""
 if [ -n "$SDCP_SPHERE_D" ]; then
   SD_FLAG=" --step3-sdcp-sphere-d $SDCP_SPHERE_D"; SD_TAG="_sph"
@@ -71,6 +110,18 @@ if [ -n "${SDCP_BRIDGE:-}" ]; then
   case "$SDCP_BRIDGE" in
     *[!0-9.]*|"") echo "[p2] ABORT — SDCP_BRIDGE 는 µm 숫자여야 한다 (받은 값: $SDCP_BRIDGE)"; exit 2;;
   esac
+  #  ⚠⚠ **fail-closed (2026-08-27)** — 브리지는 구 반지름 r = d/2 에서 정의된다.
+  #     `SDCP_SPHERE_D` 없이 브리지만 주면 점 스탬프가 되고 브리지는 **조용히 사라진다**.
+  #     2026-08-27 A 트랙 4팔이 정확히 그렇게 무효화됐다 (처리팔이 대조팔과 바이트 동일,
+  #     `INVALID_TREATMENT_NOT_APPLIED`).  step3 안에도 같은 가드가 있지만 그쪽은 격자를
+  #     찍는 시점 = 이미 DEM·MPM 을 몇 시간 돌린 뒤다.  여기서 **초 단위로** 죽인다.
+  if [ -z "${SDCP_SPHERE_D:-}" ]; then
+    echo "[p2] ABORT — SDCP_BRIDGE=$SDCP_BRIDGE 인데 SDCP_SPHERE_D 가 비었다."
+    echo "      브리지 기하는 구 반지름 r=d/2 에서 정의된다 → 점 스탬프에서는 **no-op** 이고"
+    echo "      처리팔이 대조팔과 바이트 동일해진다 (2026-08-27 A 트랙 무효화 원인)."
+    echo "      고치는 법:  SDCP_SPHERE_D=0.30 SDCP_BRIDGE=$SDCP_BRIDGE ... 로 **둘 다** 줄 것."
+    exit 2
+  fi
   SBRG_FLAG=" --step3-sdcp-bridge $SDCP_BRIDGE"; SBRG_TAG="_sbrg${SDCP_BRIDGE//./}"
   echo "[p2] ★ **판별 팔** — SDCP 접촉 브리지 tol=$SDCP_BRIDGE µm.  생산 규약 아님"        "(sdcp_bridge_prereg_20260825 — 진단 전용, 기본 off)"
 fi
@@ -82,6 +133,74 @@ fi
 BR_TAG="_b${BRIDGE_UM/./}"
 #  σ_VGCF 를 명시로 고정한 런은 **다른 실험**이다 — 디렉터리를 갈라 SKIP 이 섞이지 않게.
 SG_TAG=""; [ -n "${SIGMA_VGCF_OVERRIDE:-}" ] && SG_TAG="_sg${SIGMA_VGCF_OVERRIDE//./}"
+#  ★★ 2026-09-02 (사전등록 `sigma_closure_sweep_prereg_20260902.md`) — **두 대비를 축으로.**
+#    R20-05: 비의 불확실성은 공통 스케일이 아니라 `σ_AM_S/σ_VGCF` · `σ_SDCP/σ_VGCF` **두
+#    독립 대비**에 있고 그것은 상쇄되지 않는다.  그 스윕을 하려면 두 σ 도 러너 축이어야
+#    한다 (payload CLI 에는 `--sigma-am-s`·`--sigma-sdcp` 가 이미 있었고 러너만 안 넘겼다).
+#  ⚠ 값을 고정한 런은 **다른 실험**이므로 디렉터리를 가른다 (SG_TAG 와 같은 규칙).
+AS_TAG=""; AS_FLAG=""
+if [ -n "${SIGMA_AM_S_OVERRIDE:-}" ]; then
+  case "$SIGMA_AM_S_OVERRIDE" in ''|*[!0-9.eE+-]*)
+    echo "ABORT — SIGMA_AM_S_OVERRIDE 는 수치여야 한다 (받은 값: $SIGMA_AM_S_OVERRIDE)"; exit 2;; esac
+  #  ⚠⚠ 점을 **지우면 안 된다** — `${V//./}` 는 `2.5` 와 `25` 를 똑같이 `25` 로 만든다.
+  #    사전등록 격자의 σ_SDCP 가 정확히 `2.5, 25, 250, 2500, 25000` 이라 두 점이 **같은
+  #    디렉터리**로 떨어진다 ⇒ 러너가 기존 영수증을 맞다고 보고 팔을 재사용한다.
+  #    ⇒ `.` → `p` 로 **무손실** 치환.  (기존 축의 규칙은 안 건드린다 — 이미 돈 팔의
+  #    디렉터리 이름이 바뀌면 완주한 산출물을 못 찾는다.)
+  AS_TAG="_as${SIGMA_AM_S_OVERRIDE//./p}"; AS_FLAG=" --sigma-am-s $SIGMA_AM_S_OVERRIDE"
+fi
+SD_SIG_TAG=""; SD_SIG_FLAG=""
+if [ -n "${SIGMA_SDCP_OVERRIDE:-}" ]; then
+  case "$SIGMA_SDCP_OVERRIDE" in ''|*[!0-9.eE+-]*)
+    echo "ABORT — SIGMA_SDCP_OVERRIDE 는 수치여야 한다 (받은 값: $SIGMA_SDCP_OVERRIDE)"; exit 2;; esac
+  SD_SIG_TAG="_sd${SIGMA_SDCP_OVERRIDE//./p}"; SD_SIG_FLAG=" --sigma-sdcp $SIGMA_SDCP_OVERRIDE"
+fi
+
+#  ★★★ 2026-08-30 (Codex R13 C-7 ⓒ) — **두 이온 σ 를 정식 축으로 올린다.**
+#    여태 배선이 없었다: `P2_EXTRA="--sigma-ion-sdcp 0.00062"` 는 허용목록(수치 전용)에서
+#    **exit 2** 였다.  그래서 D13 펠릿 보정이 낸 값을 전극에서 시험할 **수단 자체가 없었다.**
+#  ⚠ **둘을 함께** 노브로 둔다 (C-7 ⓑ).  SDCP 만 바꾸면 상대비가 안 옮겨간다 —
+#    동결값은 `0.62/3.57 = 0.1737` 인데 SE 를 생산 `0.003` 에 두고 SDCP 만 `0.00062` 로
+#    하면 `0.2067` 이다.  어느 쪽을 의도했는지 **런이 스스로 선언**해야 한다.
+#  ⚠ 기본은 빈 값 = 기존 거동 그대로 (payload 기본값 SE 0.003 · SDCP 0.001).
+SION_FLAG=""; SION_TAG=""
+if [ -n "${SIGMA_ION_SDCP:-}" ]; then
+  case "$SIGMA_ION_SDCP" in ''|*[!0-9.eE+-]*) echo "ABORT — SIGMA_ION_SDCP 는 수치여야 한다 (받은 값: $SIGMA_ION_SDCP)"; exit 2;; esac
+  SION_FLAG="$SION_FLAG --sigma-ion-sdcp $SIGMA_ION_SDCP"; SION_TAG="${SION_TAG}_isd${SIGMA_ION_SDCP//./}"
+fi
+if [ -n "${SIGMA_ION_SE:-}" ]; then
+  case "$SIGMA_ION_SE" in ''|*[!0-9.eE+-]*) echo "ABORT — SIGMA_ION_SE 는 수치여야 한다 (받은 값: $SIGMA_ION_SE)"; exit 2;; esac
+  SION_FLAG="$SION_FLAG --sigma-ion-se $SIGMA_ION_SE"; SION_TAG="${SION_TAG}_ise${SIGMA_ION_SE//./}"
+fi
+#  ★★★ 2026-08-31 (Codex R16 P1-5) — **PTFE 이온 차단을 정식 축으로 배선한다.**
+#    `run_contract.py` 는 `--step3-ptfe-block-um` 을 이미 규약 축으로 알고 있는데
+#    **러너에 env·tag·receipt 배선이 없었다.**  `P2_EXTRA` 로 주면 허용목록(수치 전용)이
+#    거부하고, 억지로 우회하면 OUTDIR 이름이 안 갈려 **SKIP 캐시가 옛 팔을 재활용**한다.
+#    ⇒ SION 과 같은 모양으로 축을 만든다.  기본 빈 값 = 기존 거동 그대로.
+#  ⚠ `PTFE_BLOCK_SCOPE` 는 `se`(기본, 옛 거동 비트 동일) 또는 `ion`(SDCP 도 차단).
+#    ⚠⚠ `ion` 은 **전자 no-op 이 아니다** (SDCP σ_e 250 → 차단 셀 0) — 그 팔의 σ_e 를
+#    centerline 팔과 나란히 놓지 말 것.  왜 두 규약이 필요한가: `se` 만 쓰면 SBE(PTFE 1.0/
+#    SDCP 0) 가 DBE(0.5/0.5) 보다 더 깎이는 방향이 **연산자에 내장**된다 (Codex R16 Q6 반례 2).
+PB_FLAG=""; PB_TAG=""
+if [ -n "${PTFE_BLOCK_UM:-}" ]; then
+  case "$PTFE_BLOCK_UM" in ''|*[!0-9.eE+-]*) echo "ABORT — PTFE_BLOCK_UM 는 수치여야 한다 (받은 값: $PTFE_BLOCK_UM)"; exit 2;; esac
+  PB_FLAG="$PB_FLAG --step3-ptfe-block-um $PTFE_BLOCK_UM"; PB_TAG="${PB_TAG}_pb${PTFE_BLOCK_UM//./}"
+fi
+if [ -n "${PTFE_BLOCK_SCOPE:-}" ]; then
+  case "$PTFE_BLOCK_SCOPE" in
+    se|ion) ;;
+    *) echo "ABORT — PTFE_BLOCK_SCOPE 는 se 또는 ion 이어야 한다 (받은 값: $PTFE_BLOCK_SCOPE)"; exit 2;;
+  esac
+  #  ⚠ scope 만 주고 두께를 안 주면 **아무 일도 안 일어난다** — 조용한 no-op 을 막는다.
+  if [ -z "${PTFE_BLOCK_UM:-}" ]; then
+    echo "ABORT — PTFE_BLOCK_SCOPE 를 주려면 PTFE_BLOCK_UM 도 줘야 한다 (두께 0 이면 scope 는 무의미)."
+    exit 2
+  fi
+  PB_FLAG="$PB_FLAG --step3-ptfe-block-scope $PTFE_BLOCK_SCOPE"; PB_TAG="${PB_TAG}_${PTFE_BLOCK_SCOPE}"
+fi
+#  ⚠ 차단은 **이온 축**이다 — 이온을 안 푸는 LEAN 과 함께 주면 모순이다 (아래 게이트가 잡는다).
+
+#  ⚠ 이온 축을 건드리면서 이온을 안 푸는 것은 **모순**이다 — 조용히 넘기지 않는다.
 #  ★ σ-치환 진단 팔 (2026-08-18, CL-43/44 · prereg v3 §4b) — SDCP 가 VGCF 셀에 양보한다.
 #    **생산 규약이 아니다.**  디렉터리·태그를 갈라 SKIP 캐시가 생산 팔과 섞이지 않게 한다
 #    (판정기 게이트가 잡긴 하지만, 애초에 안 섞이는 것이 낫다 — H4 와 같은 이유).
@@ -90,6 +209,15 @@ if [ "${SDCP_YIELD_VGCF:-0}" = "1" ]; then
   YV_FLAG=" --step3-sdcp-yield-to-vgcf"; YV_TAG="_yvgcf"
   echo "[p2] ★ **진단 팔** — SDCP 가 VGCF 셀에 양보 (σ-치환 채널 OFF).  생산 규약 아님"
 fi
+# ── ★ GPU 폴백 fail-closed (2026-08-26, kgy 실측 사고) ────────────────────────────
+#   `EXPECT_BACKEND=gpu` (기본) 로 봉인하는 런에서 GPU OOM 이 나면 STEP3 는 **조용히
+#   CPU 로 내려가** 수 시간을 풀고, 그 결과는 `sr01_stamp_compare --expect-backend` 가
+#   **반드시 거부**한다 = 계산을 다 하고 버린다.  실측: vox 0.15 arm 15 에서 1 시간 낭비
+#   (다른 프로세스가 GPU 를 물고 있었고, 그것이 끝난 뒤에도 폴백은 되돌릴 수 없다 —
+#   backend 는 솔브 진입 시 한 번 정해진다).  ⇒ 기대가 gpu 면 폴백을 **막는다**.
+#   ⚠ `EXPECT_BACKEND=cpu` 로 돌리는 런은 영향 없음 (폴백이 정상 경로다).
+RQG_FLAG=""
+[ "${EXPECT_BACKEND:-gpu}" = "gpu" ] && RQG_FLAG=" --step3-require-gpu"
 #  ★ PTFE 스탬프 감도 팔 (2026-08-18, CL-49 · CL-46 편차 검증) — **생산 규약이 아니다.**
 #    `SIGMA_PTFE=1e-16` 이면 payload 가 phase-4 점을 격자에 찍는다 (`_cond_ph` 게이트).
 #    PTFE 는 상 루프에서 VGCF·SDCP **뒤**라 그 셀을 덮는다 = 탄소망을 실제로 끊는다.
@@ -189,6 +317,13 @@ if [ -n "${MPM_PERIODIC_SIGMA:-}" ] && [ "${MPM_PERIODIC_SIGMA}" != "1" ] \
   exit 2
 fi
 PERIODIC_ON=0; [ "${MPM_PERIODIC_SIGMA:-0}" = "1" ] && PERIODIC_ON=1
+#  ★★★ 2026-08-30 — **LEAN 값 검증**.  여태 없었다: `LEAN=9` 를 주면 `LEAN_FLAGS` 도
+#    `LEAN_TAG` 도 빈 값이라 **LEAN 미지정과 같은 OUTDIR** 을 쓰면서 전체 파이프라인을 돈다
+#    = 요청한 것과 도는 것이 다른데 이름이 같다 (FIBRE_STAMP 가 이미 막은 것과 같은 부류).
+case "${LEAN:-0}" in
+  0|1|2|3|4) ;;
+  *) echo "ABORT — LEAN 은 0(미지정)·1·2·3·4 중 하나여야 한다 (받은 값: ${LEAN})"; exit 2;;
+esac
 LEAN_FLAGS=""
 [ "${LEAN:-0}" = "1" ] && LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-field"
 #     ★ 2026-08-18 2차: `--no-collector` 도 넣는다.  1차 LEAN=2 시도가 **집전체 기하 솔브**
@@ -196,6 +331,29 @@ LEAN_FLAGS=""
 #       shift 팔에서 `_bot_mask` 가 origin 을 안 더해 **어차피 무효**다 (위 주석 참조).
 [ "${LEAN:-0}" = "2" ] && { LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-field --no-ion --no-pore --no-collector"; \
   echo "[p2] ★ LEAN=2 (σ_e 전용) — 이온·pore-τ·집전체기하 를 전부 끈다 (팔당 솔브 3회 → 1회)"; }
+#  ★★ LEAN=3 (2026-08-29) — **σ_e + σ_ion**.  LEAN=2 에서 `--no-ion` 하나만 뺀다.
+#    왜 축을 새로 만드나: `P2_EXTRA="--step3-ion"` 은 허용목록(수치 전용)에 없어 거부된다
+#    (`:174` 게이트).  물리를 바꾸는 것은 **러너 노브여야** 매니페스트·OUTDIR·영수증에
+#    같이 기록된다 — 그 게이트가 없었으면 "요청한 것 ≠ 쓰인 것" 이 또 났다.
+#    ⚠ pore-τ·집전체는 계속 끈다 (DR3-07/08 로 이 침대에서 pore-τ 가 무의미하고, 집전체
+#      기하는 shift 팔에서 `_bot_mask` 가 origin 을 안 더해 어차피 무효다).
+#    비용: 팔당 솔브 1 → 2회.
+[ "${LEAN:-0}" = "3" ] && { LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-field --no-pore --no-collector"; \
+  echo "[p2] ★ LEAN=3 (σ_e + σ_ion) — pore-τ·집전체기하만 끈다 (팔당 솔브 2회)"; }
+#  ★★ LEAN=4 (2026-08-30) — **σ_e + σ_ion + 필드**.  LEAN=3 에서 `--no-field` 만 뺀다.
+#    왜 필요한가: 3D 뷰어 그림(Figure 4a)은 **필드 점군**으로 그리는데, LEAN 1·2·3 이
+#    **전부** `--no-field` 를 붙인다 ⇒ 필드를 남기는 레벨이 하나도 없었다.  그렇다고
+#    `LEAN` 을 안 주면 **pore-τ 가 required** 가 되고(`run_contract.required_components()`),
+#    이 침대는 pore-τ 가 `None` 을 내서 `STEP3_EVIDENCE` 로 **payload 전체가 게시 거부**된다
+#    (2026-08-27 kit_SBE 실측: `EVID|pore|result| tau=None` → `mpm_payload.json.failed`).
+#    DR3-07/08 이 그 이유를 이미 적었다 — 격자를 조일수록 `closed-from-top` 28.5 → 99.2 %.
+#    ⇒ "필드는 남기고 pore 는 끄는" 조합이 **원리적으로 없었다**.  이것이 그 조합이다.
+#    ⚠ `P2_EXTRA="--no-pore"` 로는 못 한다 — 허용목록(`_P2_ALLOWED`)이 수치 전용이라 거부된다.
+#      물리를 바꾸는 축은 러너 노브여야 매니페스트·OUTDIR·영수증에 같이 기록된다.
+#    ⚠ `--no-step4` 는 켠 채로 둔다 (STEP4 가 이 침대의 OOM 원인, prereg v3 STEP 4).
+#      뷰어가 step4 격자를 요구하면 그때 LEAN=5 로 따로 만든다 — 지금 짐작으로 켜지 않는다.
+[ "${LEAN:-0}" = "4" ] && { LEAN_FLAGS=" --no-step4 --no-thermal --no-trackb --no-pore --no-collector"; \
+  echo "[p2] ★ LEAN=4 (σ_e + σ_ion + 필드) — pore-τ·집전체·STEP4 만 끈다 (뷰어 그림용)"; }
 #  ⚠ LEAN=1 은 **옛 접미사 `_lean` 그대로** 둔다 — 이미 끝난 팔(STEP 2/3/5)이 살아 있는
 #    디렉터리라 이름을 바꾸면 전부 다시 돈다.  LEAN=2 만 새 접미사를 받는다.
 #  ★★ 2026-08-20 (게이트 ⑤ factorial) — **섬유 스탬프 축**.  CL-19 가 retired 된 이유가
@@ -214,6 +372,20 @@ esac
 FS_TAG=""; [ "$FIBRE_STAMP" = "point" ] && FS_TAG="_fspt"
 FS_FLAG=""; [ "$FIBRE_STAMP" = "point" ] && FS_FLAG=" --step3-fibre-stamp point"
 LEAN_TAG=""; [ "${LEAN:-0}" = "1" ] && LEAN_TAG="_lean"; [ "${LEAN:-0}" = "2" ] && LEAN_TAG="_lean2"
+#  ⚠ 새 접미사 — LEAN=2 산출물과 **섞이면 안 된다** (이온 유무가 다른 런이다)
+[ "${LEAN:-0}" = "3" ] && LEAN_TAG="_lean3"
+[ "${LEAN:-0}" = "4" ] && LEAN_TAG="_lean4"   # ⚠ 필드 유무가 달라 lean3 과 섞이면 안 된다
+
+#  ⚠⚠ **이 가드는 `LEAN_FLAGS` 가 조립된 *뒤*에 있어야 한다** (R14 D-1 수정 중 실사고):
+#    초판을 파일 앞쪽(SION 파싱 직후)에 뒀는데 거기서는 `LEAN_FLAGS` 가 아직 빈 문자열이라
+#    **조용히 아무것도 안 막았다** — 과잉차단보다 나쁘다 (있는 줄 알고 믿게 된다).
+#    레벨 번호를 다시 적지 않고 **조립된 flags** 를 보는 이유도 같다: 레벨이 늘면 갈라진다.
+if [ -n "$SION_FLAG$PB_FLAG" ] && case "$LEAN_FLAGS" in *--no-ion*) true;; *) false;; esac; then
+  echo "ABORT — 이온 축(SIGMA_ION_* 또는 PTFE_BLOCK_*)을 줬는데 LEAN=${LEAN:-0} 의 조립 flags 에 --no-ion 이 있다."
+  echo "  이온 σ 를 바꾸면서 이온을 안 푸는 런은 아무것도 재지 않는다.  LEAN=3 또는 4 로."
+  echo "  (조립 결과: ${LEAN_FLAGS})"
+  exit 2
+fi
 #  ★★★ 2026-08-25 (R5-CX-03, Codex 5차) — **런 영수증**.  러너가 무엇으로 돌라고 했는지
 #    한 곳에 적고, cache/fresh/final 이 전부 이 값을 요구한다.
 #    ⚠ 왜: Codex 실측에서 HEAD·vox·구경·code SHA·input digest 가 전부 달라도 캐시된 팔이
@@ -227,12 +399,22 @@ LEAN_TAG=""; [ "${LEAN:-0}" = "1" ] && LEAN_TAG="_lean"; [ "${LEAN:-0}" = "2" ] 
 _RCPT_JSON="$(python3 - "$SCR" "$VOX" "$BRIDGE_UM" "$FIBRE_STAMP" "${SDCP_SPHERE_D:-}" \
                   "${SDCP_YIELD_VGCF:-0}" "${PTFE_STAMP:-off}" "${SIGMA_PTFE:-}" \
                   "${SIGMA_VGCF_OVERRIDE:-}" \
-                  "$PERIODIC_ON" "$ARMS" "${EXPECT_BACKEND:-gpu}" "${SDCP_BRIDGE:-}" <<'PYRCPT'
+                  "$PERIODIC_ON" "$ARMS" "${EXPECT_BACKEND:-gpu}" "${SDCP_BRIDGE:-}" \
+                  "${LEAN:-0}" "${SIGMA_ION_SDCP:-}" "${SIGMA_ION_SE:-}" \
+                  "${PTFE_BLOCK_UM:-}" "${PTFE_BLOCK_SCOPE:-}" \
+                  "${SIGMA_AM_S_OVERRIDE:-}" "${SIGMA_SDCP_OVERRIDE:-}" <<'PYRCPT'
 import json, os, sys
 sys.path.insert(0, sys.argv[1])
 import run_contract as RC
 _scr, _vox, _br, _fs, _sd, _yv, _ps, _pt, _sg, _per, _arms, _bk = sys.argv[1:13]
 _sbrg = sys.argv[13] if len(sys.argv) > 13 else ''
+_lean = sys.argv[14] if len(sys.argv) > 14 else '0'
+_isd  = sys.argv[15] if len(sys.argv) > 15 else ''
+_ise  = sys.argv[16] if len(sys.argv) > 16 else ''
+_pbu  = sys.argv[17] if len(sys.argv) > 17 else ''
+_pbs  = sys.argv[18] if len(sys.argv) > 18 else ''
+_ams  = sys.argv[19] if len(sys.argv) > 19 else ''
+_sdsg = sys.argv[20] if len(sys.argv) > 20 else ''
 vox = float(_vox)
 rec = {'vox_um': vox, 'bridge_um': float(_br), 'fibre_stamp': _fs,
        'sdcp_stamp': ('sphere' if _sd else 'point'),
@@ -243,10 +425,49 @@ rec = {'vox_um': vox, 'bridge_um': float(_br), 'fibre_stamp': _fs,
        'origins': [list(o) for o in RC.expected_origins_for(vox)]}
 if _sbrg:
     rec['sdcp_bridge_um'] = float(_sbrg)   # 판별 축 — 러너가 정한 것만 선언
+#  ★ 두 이온 σ — **러너가 정했을 때만** 선언한다 (RECEIPT_AXES 규약).  기본값으로 돌면
+#    선언하지 않아 기존 팔이 그대로 산다.
+if _isd:
+    rec['sigma_ion_sdcp_S_cm'] = float(_isd)
+if _ise:
+    #  ★★★ 2026-08-30 (Codex R14 D-1 온도 계약) — **기준값을 적용값 키에 쓰지 않는다.**
+    #    payload 는 `--sigma-ion-se` 를 **T_ref 선언값**으로 받아 Arrhenius 로 보정한 뒤
+    #    매니페스트에 `sigma_ion_se_S_cm`(적용 후) 와 `sigma_ion_se_ref_S_cm`(기준) 을
+    #    **나눠** 적는다 (mpm_webapp_payload.py:2625-2626).  러너가 준 것은 **기준값**이다.
+    #    옛 판은 그것을 적용값 키에 써서, 25 °C 가 아니면 대조가 거짓 불일치를 냈다
+    #    (60 °C: 0.003 → 0.0143553 ⇒ SDCP/SE 비 0.1737 → 0.04319).
+    rec['sigma_ion_se_ref_S_cm'] = float(_ise)
+#  ★ 2026-08-31 (Codex R16 P1-5) — PTFE 차단 축을 영수증에 싣는다.
+#    `ptfe_block_um` 은 규약 축이고 `ptfe_block_scope` 는 `record` 축이다 (p2 보존 —
+#    `run_contract.CLI_ACCOUNTING` 의 주석 참조).  둘 다 `RECEIPT_AXES` 에 있어
+#    코호트 안에서 값이 갈리면 거부된다.
+if _pbu:
+    rec['ptfe_block_um'] = float(_pbu)
+if _pbs:
+    rec['ptfe_block_scope'] = str(_pbs)
+#  ★★★ 2026-08-30 (코드리뷰 지적 1) — **LEAN=4 일 때만** 필드 유무를 선언한다.
+#    `field_requested` 는 `RECEIPT_AXES_NODIGEST` 라 **digest 를 안 바꾼다** (기존 팔 전부 보존).
+#    ⚠ 왜 LEAN=4 에만: 이 레벨은 오늘 만든 것이라 **혼동될 기존 팔이 없다** ⇒ 거짓 경보 0.
+#      LEAN 미지정(전체 파이프라인)도 필드를 쓰지만, 거기서 선언하면 이 키를 모르는
+#      **오늘 이전 팔이 전부 `missing` = HOLD** 가 된다 (돌고 있는 진단 런 포함).
+#    ⚠ 남는 구멍: LEAN 미지정 팔은 여전히 매니페스트로 필드 유무를 증명하지 못한다.
+#      그 팔을 쓰려면 JSON 안의 필드 배열을 직접 확인해야 한다 (자동 검사 밖).
+if _lean == '4':
+    rec['field_requested'] = True
 if _pt:
     rec['sigma_ptfe_S_cm'] = float(_pt)
 if _sg:
     rec['sigma_vgcf_S_cm'] = float(_sg)      # 명시 override 일 때만 (러너가 정한 것)
+#  ★★ 2026-09-02 — closure 스윕의 두 대비 축.  **러너가 정했을 때만** 선언한다
+#    (RECEIPT_AXES 규약: 기본값으로 돈 기존 팔은 그대로 산다).
+#  ⚠ 둘은 `RECEIPT_AXES_NODIGEST` 다 — digest 에 넣으면 `rec.get(k)=None` 이 해시 본문에
+#    들어가 **기존 digest 가 전부 바뀌고** 커밋된 코호트 디렉터리 이름까지 어긋난다.
+#    디렉터리를 가르는 일은 위의 무손실 태그(`_as`·`_sd`)가 하고, 여기서는 **팔마다
+#    매니페스트와 대조**해 '러너가 의도한 σ 로 돌았는가' 를 증명한다.
+if _ams:
+    rec['sigma_am_s_S_cm'] = float(_ams)
+if _sdsg:
+    rec['sigma_sdcp_S_cm'] = float(_sdsg)
 #  ★ code SHA 는 payload 와 **같은 함수**로 (사본을 두면 갈라진다)
 try:
     import mpm_webapp_payload as _P
@@ -258,10 +479,18 @@ print(json.dumps(rec, ensure_ascii=False, sort_keys=True))
 PYRCPT
 )" || { echo "[p2] ABORT — 런 영수증을 못 만들었다"; exit 2; }
 _RCPT_TAG="_r$(printf '%s' "$_RCPT_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["receipt_digest"])')"
-OUTDIR="${OUTDIR:-$PWD/prereg_v2_vox${VOX/./}${SD_TAG}${BR_TAG}${SG_TAG}${YV_TAG}${PT_TAG}${PS_TAG}${SBRG_TAG}${FS_TAG}${AR_TAG}${LEAN_TAG}${_RCPT_TAG}}"
+OUTDIR="${OUTDIR:-$PWD/prereg_v2_vox${VOX/./}${SD_TAG}${BR_TAG}${SG_TAG}${AS_TAG}${SD_SIG_TAG}${YV_TAG}${PT_TAG}${PS_TAG}${SBRG_TAG}${FS_TAG}${SION_TAG}${PB_TAG}${AR_TAG}${LEAN_TAG}${_RCPT_TAG}}"
 #  ★★★ R3-CX-09 — 진단 런(ARMS≠8)은 **사용자가 준 OUTDIR 에도** 접미사를 강제한다.
 #    안 그러면 `ARMS=2 OUTDIR=<생산경로>` 로 2팔 산출물이 8팔 디렉터리에 섞인다.
-if [ "$ARMS" -ne 8 ] && [ "${OUTDIR%_arm$ARMS}" = "$OUTDIR" ]; then
+#  ★ 2026-09-01 — 검사를 **끝자리**에서 **포함**으로 바꾼다.  기본 OUTDIR 은 이미
+#    `${AR_TAG}` 로 팔 수를 담는데 그 뒤에 `${LEAN_TAG}${_RCPT_TAG}` 가 붙으므로 끝자리
+#    검사가 "없다" 로 읽고 **또** 붙였다 (실측: `…_arm1_lean2_r5ef6da47ca4e_arm1`).
+#    디렉터리 이름은 이 리포에서 규약의 일부라(판정기가 태그로 팔을 짝짓는다) 중복은
+#    조용한 오독의 씨앗이다.
+#  ⚠ **"사용자가 준 경우만" 으로 좁히지 말 것** — 처음에 그렇게 고쳤다가 L-5a 가 잡았다.
+#    그 시험이 지키는 것은 **이중 방어**다: 조립에서 `${AR_TAG}` 가 지워져도 이 줄이
+#    여전히 진단 산출물을 격리해야 한다.  포함 검사는 두 요구를 동시에 만족한다.
+if [ "$ARMS" -ne 8 ] && [ "${OUTDIR#*_arm$ARMS}" = "$OUTDIR" ]; then
   OUTDIR="${OUTDIR}_arm${ARMS}"
   echo "[p2] ⚠ 진단 런($ARMS 팔) — OUTDIR 에 강제 접미사: $OUTDIR"
 fi
@@ -269,7 +498,7 @@ fi
 #    production 디렉터리로 가리키는 junction/symlink 를 만들면 문자열 검사는 통과하고
 #    **resolved path 는 production** 이 된다 (Codex 실측).  ⇒ 실경로로 충돌을 본다.
 if [ "$ARMS" -ne 8 ]; then
-  _PROD="$PWD/prereg_v2_vox${VOX/./}${SD_TAG}${BR_TAG}${SG_TAG}${YV_TAG}${PT_TAG}${PS_TAG}${SBRG_TAG}${FS_TAG}${LEAN_TAG}"
+  _PROD="$PWD/prereg_v2_vox${VOX/./}${SD_TAG}${BR_TAG}${SG_TAG}${AS_TAG}${SD_SIG_TAG}${YV_TAG}${PT_TAG}${PS_TAG}${SBRG_TAG}${FS_TAG}${SION_TAG}${PB_TAG}${LEAN_TAG}"
   mkdir -p "$OUTDIR" 2>/dev/null || true
   _R_OUT="$(cd "$OUTDIR" 2>/dev/null && pwd -P || echo "$OUTDIR")"
   _R_PROD="$([ -d "$_PROD" ] && cd "$_PROD" && pwd -P || echo "$_PROD")"
@@ -453,7 +682,7 @@ PY
   local SHF="$RUN/${TAG}.$$.sh"
   ( cd "$RUN" && P2_SCR="$SCR" python3 "$SCR/sr01_stamp_compare.py" \
       --extract-payload "$KIT/run_mpm.sh" --stamp "$FIBRE_STAMP" \
-      --extra-flags "--sigma-vgcf $SIGMA --step3-vox $VOX --step3-bridge-um $BRIDGE_UM --step3-origin-shift $SH$SD_FLAG$YV_FLAG$PT_FLAG$PS_FLAG$SBRG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG$LEAN_FLAGS${P2_EXTRA:+ $P2_EXTRA}" \
+      --extra-flags "--sigma-vgcf $SIGMA${AS_FLAG}${SD_SIG_FLAG} --step3-vox $VOX --step3-bridge-um $BRIDGE_UM --step3-origin-shift $SH$SD_FLAG$YV_FLAG$PT_FLAG$PS_FLAG$SBRG_FLAG$RQG_FLAG$EP_FLAG$XP_FLAG$FS_FLAG$SION_FLAG$PB_FLAG$LEAN_FLAGS${P2_EXTRA:+ $P2_EXTRA}" \
       --tag "$TAG" --out-name "$(basename "$OUT")" > "$SHF.body" ) || return 1
   { echo 'set -uo pipefail'; echo "KIT=\"$KIT\""; echo "SCR=\"$SCR\"";
     #  ★ R4-CX-03 — `:+` 는 값 `0` 도 nonempty 라 켰다.  `= 1` 만 켠다.
@@ -569,8 +798,20 @@ if [ "$ARMS" -eq "$PREREG_ARMS" ]; then
   #    옛 판은 안 넘겨서, 같은 침대라는 증거도 재현 가능한 코드라는 증거도 없이 통과했다.
   #  ⚠ `--require-ionic` 은 **넘기지 않는다** — LEAN=2 는 σ_e 전용이고 이온을 안 푼다.
   #    이온축이 결론인 트랙은 LEAN 을 끄고 그 옵션을 켠 채로 따로 봉인한다.
+  #  ★ LEAN=3 (2026-08-29) 은 이온을 **푼다**.  그래도 여기서 `--require-ionic` 을 자동으로
+  #    켜지 않는다 — 이 봉인은 σ_e 축의 계약이고, 이온이 결론인 트랙은 여전히 그 옵션을
+  #    **명시적으로** 붙여 따로 봉인해야 한다 (자동으로 켜면 어느 축이 결론인지가 흐려진다).
+  #  ★★★ 2026-08-30 (Codex R13 C-2) — **LEAN=3/4 는 이온 증거를 요구한다.**
+  #    위 문단은 "어느 축이 결론인지 흐려진다" 며 자동 부착을 거부했는데, 그 논리는
+  #    LEAN=2(σ_e 전용)에서만 맞다.  LEAN=3/4 는 **이온을 풀려고 켠 모드**이고, 지금
+  #    영수증은 이온 계획을 선언하지 않는다 ⇒ producer 가 `component_plan.ionic=False`
+  #    로 자기신고하면 `required_components()` 가 그것을 정본으로 받아 이온을 요구하지
+  #    않는다 (Codex 실측: `--no-ion` 이 최종 argv 에 남아도 `check_arm = None`).
+  #    ⇒ 그 모드에서는 봉인이 **양의 σ_ion 존재**를 직접 요구한다.
+  _RQI=""; case "${LEAN:-0}" in 3|4) _RQI="--require-ionic"; \
+    echo "[p2] ★ LEAN=${LEAN} — 봉인에 --require-ionic 부착 (이온이 이 모드의 존재 이유다)";; esac
   if ! python3 "$SCR/sdcp_gain_verdict.py" --dir "$OUTDIR" --seal-only \
-       --require-arms "$PREREG_ARMS" --require-digest; then
+       --require-arms "$PREREG_ARMS" --require-digest $_RQI; then
     echo "[p2] ✗ 계약 봉인이 깨졌다 — 위 근거를 고치고 다시 돌 것"
     #  ★★★ 2026-08-25 (R3-CX-02, Codex 3차) — **실패해도 원값을 자동으로 찍지 않는다.**
     #    옛 판은 여기서 `--collect-only` 를 돌렸다.  "이미 기각됐으니 안전" 이라고 봤지만

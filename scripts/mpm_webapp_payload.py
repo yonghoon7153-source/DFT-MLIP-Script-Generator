@@ -386,6 +386,33 @@ def _selftest_temperature():
     _p('ptfe-dia-early  ★ --fibre-dia 를 solve **전에** 읽는다 (뷰어 블록은 재사용)',
        '_dia_all = np.load(a.fibre_dia)' in _txt and 'dia = _dia_all' in _txt)
 
+    #  ── ★ 실행환경 영수증 `_exec_env` (2026-08-27, Codex R7 Q4a) ─────────────────
+    #    계약 넷: ⓐ 필수 키가 다 있다 ⓑ 로드된 **프로젝트 모듈**을 세고 해시한다
+    #    ⓒ `PYTHONPATH` 가 설정돼 있으면 **risk 로 표시**한다 (조용히 넘어가지 않는다)
+    #    ⓓ untracked 스캔이 **불가**하면 `None` 이다 (빈 목록 ≠ 모름 — 그 구분이 요점)
+    _ee = _exec_env(_THIS_DIR)
+    _p('execenv-keys ★ 영수증이 필수 축을 다 담는다 (Q4a)',
+       all(k in _ee for k in ('python', 'py_version', 'pythonpath', 'sitecustomize',
+                              'usercustomize', 'untracked_codelike',
+                              'loaded_project_modules', 'project_module_digest', 'risk')))
+    _p(f"execenv-modules ★ 로드된 프로젝트 모듈을 센다 ({_ee['loaded_project_modules']}개) "
+       f"— `code_sha` 가 못 보는 축",
+       _ee['loaded_project_modules'] >= 1 and bool(_ee['project_module_digest']))
+    _old_pp = _os.environ.get('PYTHONPATH')
+    try:
+        _os.environ['PYTHONPATH'] = '/tmp/execenv-probe'
+        _p('execenv-risk-pythonpath ★ PYTHONPATH 가 있으면 **risk 로 표시**한다 '
+           '(조용히 넘어가면 Q4a 시나리오가 안 보인다)',
+           any('PYTHONPATH' in r for r in _exec_env(_THIS_DIR)['risk']))
+    finally:
+        if _old_pp is None:
+            _os.environ.pop('PYTHONPATH', None)
+        else:
+            _os.environ['PYTHONPATH'] = _old_pp
+    _p('execenv-unknown-not-empty ★ 스캔 불가는 `None` 이지 빈 목록이 아니다 '
+       '(모름 ≠ 없음)',
+       _exec_env('/nonexistent-dir-for-probe')['untracked_codelike'] is None)
+
     print('PAYLOAD TEMPERATURE SELFTEST', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 
@@ -414,6 +441,70 @@ def _sha256_file(path, _chunk=1 << 22):
         return None
 
 
+def _exec_env(script_dir):
+    """이 런이 **어떤 실행 환경**에서 돌았나 (2026-08-27, Codex R7 Q4a).
+
+    ★ 왜: `_code_sha` 는 **git tracked state** 이지 hermetic execution hash 가 아니다.
+      repo root 의 untracked `sitecustomize.py` + `PYTHONPATH` 로 import hook 을 갈아끼우면
+      **실행은 달라지는데 SHA 는 깨끗하다** (Codex 가 제시한 최소 시나리오).
+      ⇒ 봉인이 그것을 **덮을 수는 없어도 기록할 수는 있다** — 리뷰어가 볼 수 있게 남긴다.
+
+    ⚠ 이것은 **게이트가 아니라 기록**이다 (`MANIFEST_RESULT_KEYS`).  런마다 달라질 수 있고
+      (다른 기계·다른 venv) 그 사실 자체가 정보다.  판정을 막지 않는다 — 진행 중인 런을
+      죽이지 않기 위해서다 (이 리포에서 내 게이트가 생산을 막은 것이 이미 여섯 번이다).
+
+    담는 것: 인터프리터·버전 · `PYTHONPATH` · repo **밖** sys.path 항목 수 ·
+      `sitecustomize`/`usercustomize` 가 실제로 로드됐다면 그 파일 경로 ·
+      repo 전역의 **untracked code-like 파일**(.py/.so/.pyd/.pth/.zip/.sh) 목록 ·
+      실제 로드된 **프로젝트 모듈**(script_dir 밑)의 내용 해시.
+    """
+    import hashlib as _hl
+    import subprocess as _sp
+    out = {'python': _sys.executable, 'py_version': _sys.version.split()[0],
+           'pythonpath': _os.environ.get('PYTHONPATH', ''),
+           'sitecustomize': None, 'usercustomize': None,
+           'untracked_codelike': [], 'loaded_project_modules': 0,
+           'project_module_digest': None, 'risk': []}
+    for _n in ('sitecustomize', 'usercustomize'):
+        _m = _sys.modules.get(_n)
+        if _m is not None:
+            out[_n] = getattr(_m, '__file__', '<no file>')
+            out['risk'].append(f'{_n} loaded')
+    if out['pythonpath']:
+        out['risk'].append('PYTHONPATH set')
+    try:                                                   # repo 전역 untracked code-like
+        _r = _sp.run(['git', '-C', script_dir, 'ls-files', '--others', '--exclude-standard'],
+                     capture_output=True, text=True, timeout=30)
+        #  ⚠ **모름 ≠ 없음** — git 이 실패하면 stdout 이 비는데, 그것을 "untracked 없음" 으로
+        #    적으면 스캔 실패가 **깨끗함으로 위장**된다 (이 리포의 반복 결함 부류; 이 줄은
+        #    내가 붙인 회귀 `execenv-unknown-not-empty` 가 실제로 잡아서 추가됐다).
+        if _r.returncode != 0:
+            raise RuntimeError(f'git ls-files rc={_r.returncode}')
+        _ex = ('.py', '.so', '.pyd', '.pth', '.zip', '.sh')
+        _u = sorted(x for x in (_r.stdout or '').split('\n') if x.endswith(_ex))
+        out['untracked_codelike'] = _u[:20]
+        if _u:
+            out['risk'].append(f'{len(_u)} untracked code-like file(s)')
+    except Exception:                                      # noqa: BLE001
+        out['untracked_codelike'] = None                   # 모름 ≠ 없음
+        out['risk'].append('untracked scan unavailable')
+    #  실제로 **로드된** 프로젝트 모듈의 내용 해시 — import 된 것만 센다 (경로가 아니라 내용).
+    _root = _os.path.abspath(_os.path.join(script_dir, _os.pardir))
+    _h, _n_mod = _hl.sha256(), 0
+    for _name in sorted(_sys.modules):
+        _f = getattr(_sys.modules.get(_name), '__file__', None) or ''
+        if _f and _os.path.abspath(_f).startswith(_root + _os.sep):
+            try:
+                with open(_f, 'rb') as _fh:
+                    _h.update(_name.encode()); _h.update(_fh.read())
+                _n_mod += 1
+            except OSError:
+                pass
+    out['loaded_project_modules'] = _n_mod
+    out['project_module_digest'] = _h.hexdigest()[:16] if _n_mod else None
+    return out
+
+
 def _code_sha(script_dir):
     """이 코드가 어느 커밋인가 (+ dirty 여부).  git 이 없으면 None.
 
@@ -428,6 +519,18 @@ def _code_sha(script_dir):
         실행된 코드를 바꿀 수 없는 파일이 재현성 딱지를 바꾸면 안 된다.
       실사고: kgy 의 상주 로컬 디렉터리(anchor_params/ db/ tools/)가 porcelain 에 잡혀
       **모든 생산 런이 `+dirty` → 판정기 무조건 HOLD** — GPU 8팔이 완주하고도 버려졌다.
+
+    ⚠⚠ **한계 (Codex R7 Q4a) — 이 값은 `git tracked state` 이지 hermetic execution hash 가
+      아니다.**  scripts/ **밖**의 untracked 파일도 거동을 바꿀 수 있다.  최소 시나리오:
+        ① repo root 에 untracked `sitecustomize.py` 를 둔다
+        ② `PYTHONPATH=$REPO` 이거나 repo root 에서 `python -c`/`python -` 로 실행한다
+        ③ 그 `sitecustomize` 가 import hook 이나 `numpy.load` 를 바꾼다
+        ④ 실행은 달라지는데 이 함수는 scripts/ 밖 untracked 를 무시해 **plain SHA** 를 낸다
+      (`.pth` 의 실행행도 site 디렉터리에 있으면 매 시작마다 돈다.)
+    ⇒ **`code_sha` 가 clean 이라는 것 하나를 판정 증거로 쓰지 말 것.**  현재 오염 증거는
+      없지만 봉인의 강도는 여기까지다.  더 강하게 하려면 영수증에 `PYTHONPATH`·`sys.path`·
+      인터프리터·실제 로드된 프로젝트 모듈 해시·`sitecustomize/usercustomize` 위치를 같이
+      남기고, repo 전역의 untracked code-like 파일(`.py/.so/.pyd/.pth/.zip/.sh`)을 봐야 한다.
     """
     import subprocess as _sp
     try:
@@ -764,6 +867,13 @@ def main():
                          '(0.24× @0.15 ~ 4.53× @0.4).  구 스탬프는 2.4 %% 안이다.  '
                          '⚠ d/vox ≥ 2 필요 — 그 아래는 fail-closed 로 거부한다.  '
                          'prereg v2 판정(h1) 의 대응, CL-33')
+    ap.add_argument('--step3-ptfe-block-scope', choices=('se', 'ion'), default='se',
+                    help='PTFE 차단이 무엇을 끊는가.  se(기본) = SE(sid 6)만 — **옛 거동과 '
+                         '비트 동일**.  ion = SE + SDCP(sid 5) 둘 다.  ⚠ ion 은 **전자 no-op 이 '
+                         '아니다** (SDCP σ_e 250 → 차단 셀 0).  왜 필요한가 (Codex R16 Q6): '
+                         'se 규약은 SBE(PTFE 1.0/SDCP 0) 를 DBE(0.5/0.5) 보다 더 깎는 방향을 '
+                         '**연산자에 내장**한다 — DBE 의 SDCP 만 차단에서 면제되기 때문이다.  '
+                         '두 규약을 함께 돌려야 표면 물리인지 연산자 선택인지 갈린다.')
     ap.add_argument('--step3-ptfe-block-um', type=float, default=0.0, metavar='UM',
                     help='★ G2 (D13 원장 ②) — PTFE 표면 피복의 **이온 차단 두께**(µm).  PTFE '
                          '셀에서 이 유클리드 거리 안의 SE 셀을 sid 9(SE_blk, 이온·전자 양쪽 '
@@ -811,15 +921,34 @@ def main():
     ap.add_argument('--sigma-am-p', type=float, default=None,
                     help='σ_e AM_P (S/cm) — 미지정 시 --cam 프리셋 (nmc811: 0.005 / nca: 0.010)')
     ap.add_argument('--sigma-vgcf', type=float, default=100.0,
-                    help='σ_e VGCF (S/cm).  ⚠ NOT a material property — this is an EFFECTIVE '
-                         'NETWORK constant (CL-47): voxel fusion deletes fibre-fibre contact '
-                         'resistance, so 100 lumps that missing loss (powder 83, single fibre '
-                         '1e4 S/cm).  Same epistemology as the DEM E_eff 18x softening.')
+                    help='σ_e VGCF (S/cm).  ⚠ NOT a material property — FROZEN, UNCALIBRATED '
+                         'legacy voxel-network coefficient (R20-04).  It entered as an explicit '
+                         'order-of-magnitude hook BEFORE any powder-value audit, so it was NOT '
+                         'derived from a datasheet number: do not write that lineage.  Voxel '
+                         'fusion deletes fibre-fibre contact resistance, but that is only ONE of '
+                         'several contributions (packing fraction, orientation, network '
+                         'tortuosity, contact number, compaction density, method) separating '
+                         'single-fibre 1e-4 ohm.cm (1e4 S/cm) from compressed-powder values.  '
+                         '⚠ The manufacturer states 0.017 ohm.cm AT 0.8 g/cm3 compaction '
+                         '(58.8 S/cm); the 0.012 ohm.cm (83 S/cm) figure common in the '
+                         'literature carries no stated condition.  0.8 g/cm3 is 40 percent of '
+                         'the fibre true density and unrelated to fibre packing in an electrode, '
+                         'so substituting either into the diameter-preserving sigma_bulk*A/L is '
+                         'a CATEGORY ERROR, not a fix.  ⚠ Not the same epistemic grade as the '
+                         'DEM E_eff softening: that was calibrated against a densification '
+                         'target, this was calibrated against nothing.')
     ap.add_argument('--sigma-superp', type=float, default=10.0, help='σ_e SuperP (S/cm) — lit order ⚠hook')
     ap.add_argument('--sigma-sdcp', type=float, default=250.0,
-                    help='σ_e SDCP material (S/cm) — 250 = USER-provided anchor UPDATE (2026-07-16, '
-                         'supersedes interim 150 of 2026-07-10, S-PEDOT-class); pellet ×5.1 stays '
-                         'COMPOSITE-level.  Doped/neutral split = future.')
+                    help='σ_e SDCP (S/cm).  ⚠ NOT a material property — like --sigma-vgcf this is '
+                         'an EFFECTIVE PHASE conductivity in the VOXEL-NETWORK convention (ledger '
+                         '§15): the grid fuses touching cells, so SDCP-SDCP contact resistance is '
+                         'not represented and any source value only means "effective σ under this '
+                         'convention".  250 = USER anchor 2026-07-16 (supersedes interim 150 of '
+                         '2026-07-10, S-PEDOT-class); whether that number was measured on a cast '
+                         'film or a pressed pellet is UNRECORDED.  Do NOT tabulate it next to '
+                         'material anchors (σ_SE, E) and do not compare it to σ_SE without the '
+                         '"within this convention" qualifier.  Sensitivity: CL-11 measured a '
+                         'sub-linear (saturating) response over a 5-point σ_SDCP sweep.')
     ap.add_argument('--sigma-ptfe', type=float, default=0.0,
                     help='σ_e PTFE (S/cm) — SENSITIVITY hook (default 0 = production: PTFE는 전도 격자에 '
                          '아예 미스탬프, bulk PTFE ~1e-16 S/cm 절연체).  >0이면 PTFE phase-4 점을 sid7로 '
@@ -890,7 +1019,12 @@ def main():
                          '항목에 pristine 짝값(시간-일관 BOL)을 병기하기 위한 단일-출처 키')
     ap.add_argument('--sigma-ion-sdcp', type=float, default=0.001,
                     help='σ_ion SDCP (S/cm) — NOT an ion-insulator (user principle: Li-hopping keeps it '
-                         'conducting; pellet ×0.80 vs PTFE ×0.27).  1 mS/cm ⚠F1 hook; Li⁺ DFT 패키지가 앵커 예정.')
+                         'conducting; pellet x0.80 vs PTFE x0.27).  1 mS/cm = UNCALIBRATED F1 hook.  '
+                         '⚠ A pellet-RVE calibration DOES exist and froze a different number '
+                         '(sigma_ion(SDCP)* = 0.62e-3 S/cm; confirmation run 2.8655 vs target 2.86 mS/cm, '
+                         '+0.19 %%, 4/4 seeds — docs/reviews/pellet_calib_freeze_20260825.md).  It is NOT '
+                         'the default here because that value is convention-bound to the pellet RVE and '
+                         'transplanting it into electrode runs is forbidden (freeze doc §14-3).')
     ap.add_argument('--field-max-points', type=int, default=90000,
                     help='max points per current-density FIELD cloud (electronic=AM+carbon, ionic=SE+SDCP). '
                          'High for paper figures; ~90k/field ≈ a few MB JSON.  Hottest 35%% always kept.')
@@ -913,6 +1047,13 @@ def main():
     ap.add_argument('--step3-gpu', action='store_true',
                     help='run the STEP3 Kirchhoff CG on GPU (CuPy cuSPARSE) — ~10-50× faster, esp. fine '
                          'vox; auto-falls back to scipy CPU if CuPy/CUDA missing (same σ either way).')
+    ap.add_argument('--step3-require-gpu', action='store_true',
+                    help='★ GPU 폴백을 **막는다** (fail-closed).  `EXPECT_BACKEND=gpu` 로 봉인된 '
+                         '런에서 GPU OOM 이 나면 STEP3 는 조용히 CPU 로 내려가 수 시간을 푸는데, '
+                         '그 결과는 backend 봉인(`sr01_stamp_compare` --expect-backend)이 **반드시 '
+                         '거부**한다 = 계산을 다 하고 버린다.  이 플래그는 폴백 순간 중단해 자원을 '
+                         '아끼고 원인을 즉시 드러낸다.  ⚠ 기본 off (웹앱·CPU 환경은 폴백이 정상 '
+                         '경로).  2026-08-26 kgy 실측(vox 0.15 arm 15 에서 1 h 낭비) 대응.')
     ap.add_argument('--step3-maxiter', type=int, default=0,
                     help='STEP3 CG 최대 반복 (기본 0 = 코드 기본 30000 유지).  조건수가 나쁜 '
                          '진단 팔(예: --sigma-vgcf 7854 → σ 대비 785,400x)이 rtol 1e-8 에 '
@@ -989,6 +1130,21 @@ def main():
             '--fibre-dia 는 뷰어 전용이고 로드가 solve 뒤다).\n'
             '  ⇒ D-1 source census 를 먼저 돌려 표현법을 정한 뒤 구현한다.  '
             '지금은 `--ptfe-stamp {off,centerline}` 만 쓸 것.')
+    #  ★★★ 2026-08-30 (코드리뷰 지적 3) — **centerline 은 선분 경로에서만 성립한다.**
+    #    `--step3-fibre-stamp point` 면 `_afid = None` 이 되고(:1512) raster 가 `np.floor`
+    #    점 경로를 타므로(step3_sigma.py:350) PTFE 는 **조각난 점**으로 찍힌다.  그런데
+    #    매니페스트의 `ptfe_stamp` 는 여전히 `'centerline'` 이라 요청과 실행이 갈린 채
+    #    **성공한 것처럼** 끝난다 — 2026-08-12 `--fibre` 실사고와 **같은 부류**이고,
+    #    바로 아래 :1513 이 그 사고를 막으려고 세운 가드의 짝이 여기 없었다.
+    #  ⚠ `--step3-fibre-stamp` 의 **기본값이 `point`** 라 이 조합은 기본 설정으로 도달한다.
+    if a._ptfe_stamp != 'off' and getattr(a, 'step3_fibre_stamp', 'point') != 'segment':
+        raise SystemExit(
+            f'ABORT — --ptfe-stamp {a._ptfe_stamp} 는 **선분 스탬프에서만** 1-셀 중심선이 '
+            f'된다.  지금 --step3-fibre-stamp 는 `{getattr(a, "step3_fibre_stamp", "point")}` '
+            f'(기본값)이라 PTFE 가 조각난 점으로 찍히는데 매니페스트에는 '
+            f'`ptfe_stamp={a._ptfe_stamp}` 로 적힌다 = 요청과 실행이 다른데 성공으로 끝난다.\n'
+            f'  ⇒ `--step3-fibre-stamp segment` 를 (--fibre npy 와 함께) 주거나, '
+            f'`--ptfe-stamp off` 로 명시할 것.')
     if a.selftest_temperature:
         _sys.exit(_selftest_temperature())
     # ── σ_ion(T) ────────────────────────────────────────────────────────────────
@@ -1378,6 +1534,7 @@ def main():
             import time as _time
             import step3_sigma as _s3
             _s3.GPU_SOLVE = a.step3_gpu                     # CuPy CG backend (auto CPU fallback)
+            _s3.REQUIRE_GPU = bool(getattr(a, 'step3_require_gpu', False))   # 폴백 fail-closed
             _s3.AMG_SOLVE = a.step3_amg                     # SR-03: CPU 전처리 (기본 OFF=Jacobi)
             _t0 = _time.time()
             _off = np.array([SW[0], SW[0], FLOOR])
@@ -1456,6 +1613,9 @@ def main():
             _yv3 = bool(getattr(a, 'step3_sdcp_yield_to_vgcf', False))
             _sbr3 = float(getattr(a, 'step3_sdcp_bridge', 0.0) or 0.0)
             _pbl3 = float(getattr(a, 'step3_ptfe_block_um', 0.0) or 0.0)
+            #  ★ 2026-08-31 (Codex R16 Q6) — 차단 대상 규약.  기본 'se' = 옛 거동 비트 동일.
+            _pbs3 = str(getattr(a, 'step3_ptfe_block_scope', 'se') or 'se')
+            _pbt3 = (5, 6) if _pbs3 == 'ion' else (6,)
             if _sbr3 > 0:
                 print(f'  STEP3: ★ **진단 팔** — SDCP 접촉 브리지 {_sbr3:g} µm (SELF-11 / '
                       f'Q-B2).  ⚠ 생산 규약 아님', flush=True)
@@ -1470,6 +1630,8 @@ def main():
                                        sdcp_sphere_d_um=getattr(a, 'step3_sdcp_sphere_d', 0.0),
                                        sdcp_yield_to_vgcf=_yv3,
                                        sdcp_bridge_um=_sbr3, ptfe_block_um=_pbl3,
+                                       ptfe_block_targets=_pbt3,
+                                       ptfe_block_periodic=bool(a.periodic),
                                        # ⚠ 도메인은 `se` 다 — `_m` 은 se 위의 마스크라
                                        #   `_kind_all[_m]` 이 성립하려면 len(_kind_all)==len(se).
                                        #   옛 코드는 `len(_fid_all)` 과 비교해 ⓐ 길이 불일치로
@@ -1487,6 +1649,8 @@ def main():
                 _led = {'vox_um': a.step3_vox, 'origin_shift_um': [float(x) for x in _osh],
                         'bridge_um': _bru, 'sdcp_yield_to_vgcf': _yv3,
                         'sdcp_bridge_um': _sbr3, 'ptfe_block_um': _pbl3,
+                        'ptfe_block_scope': _pbs3,
+                        'ptfe_block_cells': dict(getattr(_s3, 'LAST_PTFE_BLOCK', {}) or {}),
                         'sdcp_sphere_d_um': float(
                             getattr(a, 'step3_sdcp_sphere_d', 0.0) or 0.0),
                         'grid_shape': [int(x) for x in sid3.shape],
@@ -1501,7 +1665,8 @@ def main():
                         _am_c, _am_r, t, _apts, _aph, _lo3, _hi, a.step3_vox, se_pts=_septs,
                         add_fid=_afid, bridge_um=_bru, sdcp_sphere_d_um=0.0,
                         sdcp_yield_to_vgcf=_yv3, sdcp_bridge_um=_sbr3,   # 양쪽 같은 규약 (like-for-like)
-                        ptfe_block_um=_pbl3,
+                        ptfe_block_um=_pbl3, ptfe_block_targets=_pbt3,
+                        ptfe_block_periodic=bool(a.periodic),
                         add_kind=(_kind_all[_m] if _kind_all is not None
                                   and len(_kind_all) == len(se) else None))   # 도메인 = se (위 주석)
                     #  결함판 재현: 구 셀을 **나중에** 덮어쓴다 (SDCP 가 PTFE/SWCNT 를 먹는다)
@@ -1907,6 +2072,21 @@ def main():
                 else:
                     _res3i = _s3.solve_sigma_z(sid3, _sig3i, a.step3_vox, return_field=True,
                                                z_top_um=_zt3, z_bot_um=_zb3, periodic_xy=a.periodic)
+                #  ★★★ 2026-08-30 (코드리뷰) — **`reason` 가드**.  전자 분기(:1660)에는 있고
+                #    이온 분기에는 **없었다**.  `solve_sigma_z` 의 조기반환 중 `no_plate_contact`
+                #    는 `n_dof = cond.sum()` = **양수**를 그대로 돌려주면서 `sigma_eff = 0.0`,
+                #    `unconverged = False`, `cg_info = 0` 을 낸다 (step3_sigma.py:706).
+                #    ⇒ 옛 판은 `if _res3i['n_dof']:` 가 참이 되어 **σ_ion = 0 을 `complete` 로**
+                #      찍었다.  이온축이 결론인 트랙에서 0 이 측정값으로 원장에 들어간다.
+                #    ⚠ 아래 먼 `elif` (n_dof=0 → 'SE 미퍼콜')가 이 마크를 덮어쓰면 **거짓 진단**이
+                #      된다 (플레이트 접촉 문제를 퍼콜레이션 문제로 적는 것) ⇒ 센티널로 막는다.
+                _ion_reason_marked = False
+                if not a.no_ion and _res3i.get('reason'):
+                    print(f"  ⚠ STEP3 σ_ion not solvable: {_res3i['reason']}")
+                    _s3mark('ionic', 'not_solvable', _res3i['reason'])
+                    step3['ion_reason'] = _res3i['reason']
+                    _ion_reason_marked = True
+                    _res3i = {'n_dof': 0, 'reason': _res3i['reason']}
                 if _res3i['n_dof']:
                     _sharei = _s3.phase_current_share(_res3i, sid3, _sig3i)
                     if not a.no_field:                      # IONIC field (SE+SDCP {5,6}) — Li⁺ |J| cloud,
@@ -2085,8 +2265,11 @@ def main():
                             step3['trackb'] = {**_tb, 'error': f'{type(_e_tb).__name__}: {_e_tb}'}
                             print(f'  ⚠ Track-B failed ({type(_e_tb).__name__}: {_e_tb}) — '
                                   'step3.trackb.error 기록, STEP3 결과는 유지')
-                elif not a.no_trackb and not a.no_ion:
+                elif not a.no_trackb and not a.no_ion and not _ion_reason_marked:
                     #  ⚠ `and not a.no_ion` — 끈 것을 "SE 미퍼콜" 로 적으면 거짓 진단이 원장에 남는다.
+                    #  ⚠ `and not _ion_reason_marked` (2026-08-30) — 위에서 `reason` 으로 이미
+                    #    not_solvable 을 적었으면 여기서 덮지 않는다.  `no_plate_contact` 를
+                    #    "SE 미퍼콜" 로 다시 적으면 원인이 바뀐 채 원장에 남는다.
                     # 심화리뷰 minor: 이온 n_dof=0 (SE 미퍼콜 퇴화) — trackb 키가 아예 없으면
                     # exporter 가 "구세대 trackb 부재 → 재실행" 으로 오진한다.  재실행해도 같으니
                     # 원인을 스텁으로 명시 (§F1 정직 null 관례)
@@ -2379,6 +2562,9 @@ def main():
             'sdcp_bridge_um': float(getattr(a, 'step3_sdcp_bridge', 0.0) or 0.0),
             #  ★ 2026-08-25 (G2, D13 원장 ②) — PTFE 차단도 σ 침대를 바꾼다 = 규약 축.
             'ptfe_block_um': float(getattr(a, 'step3_ptfe_block_um', 0.0) or 0.0),
+            'ptfe_block_scope': str(getattr(a, 'step3_ptfe_block_scope', 'se') or 'se'),
+            #  ⚠ **실물 증거** — 도장(scope)과 실제 차단 셀을 가른다 (R13 C-5 와 같은 부류).
+            'ptfe_block_cells': dict(getattr(_s3, 'LAST_PTFE_BLOCK', {}) or {}),
             #  ★★ 2026-08-25 (A1 2차) — 침대 기하(z 늘림)와 SE 점구름 **출처**.
             #    둘 다 `_s3.rasterize` 로 들어가는데 규약에 없었다 (digest 는 파일
             #    내용만 덮는다).  `se_source` 는 합성일 때만 모양(frac@n_vox)을 싣는다.
@@ -2402,6 +2588,10 @@ def main():
             'input_digest': _in_dig,
             'input_files': _in_files,
             'code_sha': _code_sha(_os.path.dirname(_os.path.abspath(__file__))),
+            #  ★ 2026-08-27 (Codex R7 Q4a) — `code_sha` 는 tracked state 일 뿐이라
+            #    실행 환경(sitecustomize·PYTHONPATH·untracked code-like·로드된 모듈 해시)을
+            #    **따로 기록**한다.  게이트가 아니라 기록이다 (MANIFEST_RESULT_KEYS).
+            'exec_env': _exec_env(_os.path.dirname(_os.path.abspath(__file__))),
             #  ★★★ 2026-08-25 (자체발견, R3-F2 검증 중) — **`vox_um` 이 매니페스트에 없었다.**
             #    `PROTOCOL_FIELDS` 는 그것을 요구하는데 producer 가 안 써서 `physics_protocol_id`
             #    가 **모든 런에서 `unknown:vox_um`** 이 됐다.  팔끼리는 그 상수로 일치하므로
@@ -2420,6 +2610,25 @@ def main():
                                'thermal': not bool(a.no_thermal),
                                'pore': not bool(a.no_pore),
                                'collector': not bool(a.no_collector)},
+            #  ★★★ 2026-08-30 (코드리뷰 지적 1) — **필드 유무는 `component_plan` 에 못 넣는다**
+            #    (`plan_ok` 이 모르는 키를 거부 → 기존 매니페스트가 전부 `PLAN|extra` 로 깨진다).
+            #    그렇다고 기록을 안 하면 `--no-field` 만 다른 두 런이 **매니페스트상 구별 불가**다
+            #    = 필드 없는 팔이 필드 요청에 SKIP 으로 통과한다.  ⇒ 최상위 키로 따로 적는다.
+            #  ⚠ **이것은 요청 플래그다** (`--no-field` 의 반대), 실물 증거가 아니다.
+            #    Codex R13 C-3 이 정확히 그 이름을 깼다 — `--field-max-points 0` 이면 빈 필드가
+            #    정상 반환되는데 옛 이름 `field_written` 은 계속 True 였다.  이름을 정직하게
+            #    바꾸고, **실물 증거는 아래 두 개수**로 따로 낸다 (검사기가 그것을 본다).
+            'field_requested': not bool(a.no_field),
+            #  ★★★ 2026-08-30 (Codex R13 C-5) — **선분 도장과 실제를 가른다.**
+            #    `fibre_stamp='segment'` 는 `add_fid` 가 있었다는 뜻일 뿐이다.  실물 seeder 가
+            #    clipping 후 남긴 **한 점짜리 fibril** 은 선분 경로 안에서도 점으로 찍히는데
+            #    (step3_sigma._fibre_segment_ijk), 다른 첨가제가 하나라도 선분이면 도장은
+            #    전체를 `segment` 로 적는다.  ⇒ phase 별 실제 내역을 같이 싣는다.
+            #  ⚠ 키는 **phase** 다 (sid 아님).
+            'fibre_segment_ledger': {str(k): v for k, v in
+                                     (getattr(_s3, 'LAST_SEGSTAMP', {}) or {}).items()},
+            'electronic_field_pts': (len(elec_field) if elec_field else 0),
+            'ionic_field_pts': (len(ion_field) if ion_field else 0),
             #  ★ **관측 sid7 수** — PTFE 가 격자에 **실제로 몇 셀** 찍혔는가.
             #    `ptfe_stamp='centerline'` 이라고 적혀 있어도 0 셀이면 아무 일도 안 났다
             #    (스탬프 도장과 실제 효과를 가르는 유일한 증거).

@@ -133,24 +133,28 @@ body.push(new Paragraph({ children: [ new TextRun({
   text: 'Replaces the single “Discrete element method:” paragraph.',
   font: FONT, size: 19, italics: true, color: '555555' }) ], spacing: { after: 160 } }));
 
-body.push(RunIn('Microstructure reconstruction:',
-  'Three-dimensional SBE and DBE microstructures were reconstructed in two stages. '
+body.push(RunIn('Microstructure generation:',
+  'Three-dimensional SBE and DBE microstructures were generated in two stages. '
 + 'Rigid-sphere packing was computed by the discrete element method (DEM) in LIGGGHTS,^[33]^ '
 + 'using 1,271 NCM811 spheres (*r* = 2.5 μm) and 146,420 LPSCl spheres (*r* = 0.5 μm) sized '
 + 'after the experimental powders, mixed at 70:27 by weight in a 50 × 50 μm^2^ domain and '
-+ 'compacted under displacement control to 300 MPa. Because rigid-sphere contacts cannot '
-+ 'reproduce the plastic flattening, particle rearrangement and grain-boundary sliding that '
-+ 'densify sulfide powders, the contact Young’s modulus of LPSCl was softened from the '
-+ 'dense-material value of 24 GPa^[34]^ to 1.35 GPa, which reproduces the ~10 % porosity and '
-+ '11–12 % contact overlap reported for cold-pressed LPSCl at 300 MPa.^[9]^ Plastic deformation '
-+ 'of the electrolyte was then resolved on the fixed DEM skeleton by a GPU-accelerated material '
-+ 'point method (MPM)^[35]^ with von Mises plasticity (*E* = 1.53 GPa, *ν* = 0.49, yield strength '
-+ '0.30 GPa); the high Poisson’s ratio confines the softening to shear, retaining a dense-solid '
-+ 'bulk modulus (*K* = 25.5 GPa) while lowering the shear modulus to *μ* = 0.51 GPa. The two '
-+ 'models were calibrated independently against the same experimental porosity rather than '
-+ 'against each other. VGCF fibres, PTFE fibrils and SDCP particles were then seeded into the '
-+ 'pore space at the experimental weight fractions. All inputs are listed in Table S2, and the '
-+ 'resulting thicknesses and porosities in Table S3.'));
++ 'compacted under displacement control to 300 MPa. Rigid spheres do rearrange but cannot '
++ 'flatten, fracture or deform grain boundaries, so the contact stiffness of LPSCl was selected '
++ 'against a densification target for sulfide cold pressing rather than taken from the dense '
++ 'material. The 1.35 GPa value is an empirical contact-law input, not an intrinsic LPSCl '
++ 'modulus and not an independent validation of the present beds; the dense-material value '
++ '(24 GPa)^[34]^ is listed beside it in Table S2. The ~10 % target is derived from composite '
++ 'and glass literature rather than measured directly on pure LPSCl, and the 11–12 % contact '
++ 'overlap is a pure-SE simulation consistency result rather than a measured target.^[9]^ '
++ 'Plastic deformation was then resolved on the fixed DEM skeleton by a GPU-accelerated material '
++ 'point method (MPM)^[35]^ with J2 plasticity (yield strength 0.30 GPa); the elastic pair '
++ '*E* = 1.53 GPa and *ν* = 0.49 is a model choice that sets *K* = 25.5 GPa and *μ* = 0.51 GPa, '
++ 'confining the softening to shear. VGCF fibres, PTFE fibrils and SDCP particles were present '
++ 'in the material-point cloud during this stage at the experimental weight fractions, so their '
++ 'stiffness enters the compaction rather than being added afterwards. The resulting beds are '
++ 'more compacted than the experimental porosity anchor, so this parameterisation is not a '
++ 'validation of the present SBE/DBE geometry. All inputs are listed in Table S2, and the '
++ 'resulting thicknesses and geometric diagnostics in Table S3.'));
 
 body.push(RunIn('Effective transport simulations:',
   'Each microstructure was rasterized onto a cubic grid with a voxel edge of 0.15 μm. Adjacent '
@@ -160,12 +164,22 @@ body.push(Eq('∇·(*σ*∇*φ*) = 0', 1));
 body.push(P('where *σ* is the local conductivity of each voxel and *φ* the electric potential. A '
 + 'potential difference was applied between the separator and current-collector faces with the '
 + 'remaining boundaries insulating, and the effective conductivity was taken from the total current. '
-+ 'NCM811, VGCF and SDCP carried the electronic network and LPSCl and SDCP the ionic network; PTFE '
-+ 'was not resolved on the conduction grid. Phase conductivities are listed in Table S2, in which '
-+ 'the VGCF value is rescaled so that a fiber resolved as a one-voxel-wide tube retains its axial '
-+ 'conductance. Each electrode was solved at eight half-voxel grid-origin shifts (2 × 2 × 2), the '
-+ 'SBE and DBE sharing the same origins, and conductivity ratios are reported as the paired mean '
-+ 'with its standard error. The Joule dissipation of a phase was evaluated as'));
++ 'NCM811, VGCF and SDCP carried the electronic network and LPSCl and SDCP the ionic network. The '
++ 'insulating binder was treated under two conventions, reported as equivalent sensitivity points '
++ 'rather than one primary result: omitted from the electronic grid, and with its centerline '
++ 'voxels excluded from conduction. Neither is established as closer to a real thin coating — the '
++ 'one-cell centerline under-represents the coating’s spatial extent while over-blocking where it '
++ 'is stamped — and omitting the binder removes only its electronic exclusion, its mass and '
++ 'stiffness remaining in the DEM–MPM bed. Phase conductivities are listed in Table S2; the VGCF '
++ 'value is an effective network conductivity rather than a fibre material constant, since '
++ 'voxelisation removes the fibre–fibre contact resistance that separates the compressed-powder '
++ 'and single-filament values, and it is rescaled so that a fibre resolved as a one-voxel-wide '
++ 'tube retains its axial conductance. Each electrode was solved at all eight half-voxel '
++ 'grid-origin shifts (2 × 2 × 2), the SBE and DBE sharing the same origins so that ratios are '
++ 'paired. These eight phases are a complete factorial of a single bed rather than independent '
++ 'replicates, so ratios are given as the mean over the prescribed phases with the spread across '
++ 'them and the observed range; no standard error and no confidence interval are implied. The '
++ 'Joule dissipation of a phase was evaluated as'));
 body.push(Eq('*P* = Σ *g*_k_ (Δ*φ*_k_)^2^', 2));
 body.push(P('where *g*_k_ and Δ*φ*_k_ are the conductance of and the potential difference across the '
 + '*k*-th voxel-to-voxel connection, summed over the connections belonging to that phase.'));
@@ -205,24 +219,44 @@ body.push(Cap('**Table S2.** Material parameters used for the microstructure and
 }
 body.push(new Paragraph({ children: [], spacing: { after: 80 } }));
 
-body.push(Cap('**Table S3.** Structural and transport parameters obtained from the simulations.'));
+body.push(Cap('**Table S3.** Structural metrics from the DEM–MPM geometry and transport metrics '
++ 'from the voxel finite-volume solver.'));
 {
-  const w = [1400, 3400, 1500, 1500, 1200];
+  const w = [1200, 3600, 1500, 1500, 1200];
+  // Values: docs/reviews/table_s3_data_20260827.md (canon).  A bracketed cell is NOT a small
+  // number — it is a quantity that has not been measured on the present beds.
   const rows = [
-   ['Structure','Thickness','—','—','μm'],
-   ['','Porosity','—','—','%'],
-   ['','Areal capacity','—','—','mAh cm^−2^'],
-   ['','LPSCl coverage of NCM811','—','—','%'],
-   ['','VGCF coverage of NCM811','—','—','%'],
-   ['','Median conductive-additive contacts per NCM811 particle','—','—','–'],
-   ['','Electronic connectivity','—','—','%'],
-   ['Transport','Effective electronic conductivity','—','—','S cm^−1^'],
-   ['','Effective ionic conductivity','—','—','S cm^−1^'],
-   ['','DBE / SBE electronic conductivity ratio','SPAN:—','','–'],
-   ['','DBE / SBE ionic conductivity ratio','SPAN:—','','–'],
+   ['Structure','Thickness','72.53','72.53','μm'],
+   ['','ε~union~ (simulation-geometry diagnostic)','7.86','7.37','%'],
+   ['','Areal capacity','[not yet measured]','[not yet measured]','mAh cm^−2^'],
+   ['','LPSCl coverage of NCM811','[not yet measured]','[not yet measured]','%'],
+   ['','VGCF coverage of NCM811','[not yet measured]','[not yet measured]','%'],
+   ['','Median conductive-additive contacts per NCM811 particle',
+     '[not yet measured]','[not yet measured]','–'],
+   ['','Electronic connectivity','[not yet measured]','[not yet measured]','%'],
+   ['Transport','Effective electronic conductivity — PTFE omitted from the electronic grid '
+     + '(legacy/default convention)','72.3','81.3','mS cm^−1^'],
+   ['','Effective electronic conductivity — PTFE centerline voxels excluded '
+     + '(exact-zero sensitivity convention)','54.0','70.6','mS cm^−1^'],
+   ['','DBE / SBE electronic conductivity ratio — omitted convention',
+     'SPAN:1.124  (spread 0.003; range 1.120–1.127 over the eight origin phases)','','–'],
+   ['','DBE / SBE electronic conductivity ratio — centerline-excluded convention',
+     'SPAN:1.308  (spread 0.003; range 1.302–1.310 over the eight origin phases)','','–'],
+   ['','Effective ionic conductivity','[not evaluated in this cohort]',
+     '[not evaluated in this cohort]','mS cm^−1^'],
+   ['','DBE / SBE ionic conductivity ratio','SPAN:[not evaluated in this cohort]','','–'],
   ];
   body.push(mkTable(w, ['Category','Parameter','SBE','DBE','Unit'], rows, 2));
 }
+body.push(Cap('The two binder conventions were evaluated on the same beds with the same code and '
++ 'grid, differing only in whether the insulating binder occupies conduction cells; a '
++ 'machine-checked contract confirms that no other parameter differs.  Neither is designated '
++ 'primary: the one-cell centerline under-represents the spatial extent of a thin coating while '
++ 'over-blocking the cells it occupies, and the diameter-aware variant is not implemented.  The '
++ 'direction of the change is common to both conventions, its magnitude is not.  The eight origin '
++ 'phases are a complete factorial of a single bed rather than independent replicates, so the '
++ 'spread is not a standard error and no confidence interval is implied.  Bracketed entries are '
++ 'quantities that have not been measured on the present beds, not quantities that are small.'));
 body.push(new Paragraph({ children: [], spacing: { after: 80 } }));
 
 // ---------------- C. References -----------------------------------------
@@ -272,15 +306,21 @@ NOTE('D2.', '**수송 수치 전면 교체 (잠정).** v5.1 의 값(전자 1.98 
 + '그 수치는 p1 plate rule 로 푼 것이라 **철회 상태**이고 (원장 `docs/reviews/claims.json`, '
 + 'CL-33 / CL-41 status hold), 격자 수렴도 확인되지 않았다.  p2 재측정 뒤에 채운다.');
 
-NOTE('D3.', '**Table S2 의 기계 물성 = AFM 값 (PTFE 1.8 · SDCP 9.0 GPa).  값은 확정이고, 아직 그 값으로 '
-+ '돌린 모델이 없을 뿐이다.** 여기 실린 미세구조는 그 이전 세대(PTFE 0.30 · SDCP 23.6 GPa)로 압밀한 '
-+ '것이므로 투고 전 재압밀이 필요하다.  ⚠ 그때 **Table S3 에서 바뀌는 칸**: 두께 · porosity · 면적용량 · '
-+ 'σ_e (절대값 2개와 비).  침대 기하가 바뀌기 때문이다.  앞의 셋은 **표에서 비웠고** 본문은 수치 대신 '+ 'Table S3 을 가리킨다 — ⚠ **그 포인터와 표의 세 행은 같이 채워져야 한다.**  투고 시점에 표가 여전히 '+ '비어 있으면 본문이 빈 칸을 가리키게 된다.  전도도 비의 이동이 '
-+ '8팔 산포(±0.7 %) 안이면 무시 가능으로 닫히고, 벗어나면 새 침대 값으로 갱신한다.');
+NOTE('D3.', '**재압밀 완료 (2026-08-27, W2).** Table S2 의 기계 물성이 AFM 값(PTFE 1.8 · '
++ 'SDCP 9.0 GPa)인데 미세구조가 그 이전 세대(PTFE 0.30 · SDCP 23.6 GPa)로 압밀돼 있던 어긋남은 '
++ '해소됐다 — 두 침대를 `ADD_E_SET_20260818` 세대로 다시 압밀하고 (`w2_bed_regeneration_20260827.md`), '
++ '그 침대 위에서 원점 8팔을 다시 냈다.  ⇒ Table S3 의 **두께 · ε_union · σ_e** 는 지금 침대의 값이다.  '
++ '⚠ 남은 어긋남은 방향이 반대다 — 표에 **아직 못 채운 칸**(면적용량 · coverage · 접촉수 · 연결률 · '
++ 'σ_ion)이 있고, 그것들은 옛 값을 옮겨 적지 않고 대괄호로 비워 두었다.  옛 값을 넣으면 한 표 안에 '
++ '두 세대가 섞이고 독자가 그것을 구별할 수 없기 때문이다.');
 
-NOTE('D4.', '**Table S3 — 구조 항목은 v5.1 에서 그대로 가져왔다.** 두께 · porosity · 면적용량 · '
-+ 'coverage · 접촉수 · 연결률은 옛 0.4 μm 래스터에서 뽑은 값이다.  특히 coverage 와 접촉수는 '
-+ '복셀 크기에 직접 의존하므로 **표에서 비워 두었다**(각주 b) — 0.15 μm 에서 다시 뽑아 채울 것.  두께 · porosity · 면적용량은 래스터가 아니라 압밀 결과라 그대로 두었고, porosity 는 논문 전체에서 한 가지 규약(구 부피 기준)으로 통일해 보고할 것.');
+NOTE('D4.', '**Table S3 의 대괄호 칸 = 아직 재지 않은 양이지 작은 값이 아니다.**  coverage · 접촉수 · '
++ '연결률은 복셀 크기에 직접 의존하므로 옛 0.4 μm 래스터 값을 0.15 μm 표에 옮길 수 없고, 면적용량도 '
++ '침대 기하가 바뀌어 다시 뽑아야 한다.  σ_ion 은 이번 cohort 가 전자 전용 설정으로 돌아 **풀지 '
++ '않았다** — 지금 같은 침대·같은 8원점으로 이온까지 푸는 런이 돌고 있다.  ⚠⚠ **본문이 이 중 하나를 '
++ '직접 인용한다** — “the median number of conductive-binder-domain contacts per active material '
++ 'particle increases from 433 for the SBE to 517 for the DBE (Table S3)”.  그 문장과 표의 그 행은 '
++ '**같이 채워지거나 같이 빠져야 한다**; 지금처럼 두면 본문이 빈 칸을 가리킨다.');
 
 NOTE('D5.', '**용어를 "Young’s modulus (*E*)" 로 통일했다.** v5.1 은 "elastic modulus"(AFM · '
 + 'Table S2 · Figure S6–S7 캡션)와 "Young’s modulus"(DEM 본문)를 섞어 쓴다.  AFM 절과 '

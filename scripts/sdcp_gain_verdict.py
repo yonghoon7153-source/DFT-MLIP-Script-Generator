@@ -7,7 +7,10 @@
 
 ★ 판정 순서 (prereg §5, 여기서 바꾸면 사전등록 위반):
   1. 미수렴 팔(cg_info ≠ 0)이 하나라도 → **판정 보류**
-  2. 8 팔 표준오차 > 1.17 %p       → **판정 보류**, origin 16 으로
+  2. 8 팔 origin-위상 산포 > 1.17 %p → **판정 보류**, origin 16 으로
+     ⚠ 이 양은 `sd/√n` 이지만 **표준오차가 아니다** — 8 위상은 한 침대의 완전 {0,½}³
+       factorial 이라 복제 오차 자유도가 0 이다 (R8 Q1).  게이트로서의 뜻(산포가 크면
+       판정을 미룬다)은 그대로이고, **이름만** 고쳤다.  문턱·변수명·판정 로직 불변.
   3. 비 ≥ 1.05                      → h0 채택
   4. 비 ≤ 1.025                     → h1 채택 ⇒ SDCP 전자 이득 원고에서 철회
   5. 그 사이                        → 둘 다 기각, 제3 기전
@@ -190,6 +193,11 @@ MANIFEST_RESULT_KEYS = {
     'ptfe_cells_observed': '침대 **측정치** — 스탬프 규약이 바뀌면 따라 바뀐다',
     'input_files': '경로는 디렉터리마다 다르다.  **내용**은 `input_digest` 가 덮는다',
     'schema_version': '세대 표시.  세대 계약은 `schema_of` 가 따로 본다',
+    #  ★ 2026-08-27 (Codex R7 Q4a) — 실행 환경 기록.  **게이트 아님**: 기계·venv 가
+    #    다르면 당연히 다르고 그 사실 자체가 정보다.  `code_sha` 가 못 덮는 축
+    #    (sitecustomize·PYTHONPATH·repo 전역 untracked code-like·로드된 모듈 해시)을
+    #    리뷰어가 볼 수 있게 남긴다.  ⚠ 옛 팔에는 이 키가 **없다** — 필수가 아니다.
+    'exec_env': '실행 환경 기록 (Q4a) — code_sha 가 못 덮는 축.  판정을 막지 않는다',
     'component_plan': '무엇을 돌렸나 — LEAN 팔과 전량 팔이 섞이면 `_XDIR_FIELDS` 밖의 '
                       '증거 계약이 잡는다 (여기서 고정하면 정상 LEAN 대조가 막힌다)',
 }
@@ -427,6 +435,23 @@ def collect(d):
     if _rej:
         rows = [dict(r, _rejected=[os.path.basename(x) for x in _rej]) for r in rows] or [
             {'file': '<none>', '_rejected': [os.path.basename(x) for x in _rej]}]
+    #  ★★★ 2026-08-31 — **진단 tree 는 이 판정기의 대상이 아니다.**
+    #    `reduce_arm_payloads.py --diagnostic` 이 만든 패키지는 팔 수를 줄인 단일-origin
+    #    런이고 소비자는 `ion_r_verdict.py` 다.  그런데 축소본 파일명이 `p2_*.json` 이고
+    #    이 판정기는 아래 factorial 게이트 주석대로 *"팔 수를 줄인 진단 런은 막지 않는다"*
+    #    ⇒ 표지가 없으면 부분 cohort 에 **판정이 난다**.  표지를 읽고 격리한다.
+    #    ⚠ 표지가 **둘**인 이유: 트리 파일만 보면 `p2_*.json` 만 복사해 간 순간 표지가
+    #      사라진다 — `.rejected_*` 가 정확히 그렇게 유실됐다 (R5-CX-08 위 주석).
+    _dgf = sorted(os.path.basename(x) for x in glob.glob(os.path.join(d, '.diagnostic_*')))
+    _rows = []
+    for r in rows:
+        _marks = list(_dgf)
+        if ((r.get('_step3') or {}).get('_reduced') or {}).get('diagnostic'):
+            _marks.append(f'payload:{r["file"]}')
+        _rows.append(dict(r, _diagnostic=sorted(set(_marks))) if _marks else r)
+    rows = _rows
+    if _dgf and not rows:
+        rows = [{'file': '<none>', '_diagnostic': _dgf}]
     #  ★ 2026-08-18 (리뷰 ① M1) — 옛 판은 `_SBE_`/`_DBE_` 로만 갈랐다.  구 팔 파일명
     #    `p2_DBE_sph_a0` 도 `_DBE_` 를 포함하므로 점 팔과 구 팔이 **한 디렉터리에 섞이면
     #    조용히 합쳐진다**.  매니페스트의 `sdcp_stamp` 가 정본이므로 그것도 고정 인자에
@@ -510,6 +535,21 @@ def _validate_contract_raw(arms, seed_ensemble=False, require_arms=None,
     ⚠ 순서는 prereg §5 의 전제 집행 순서 그대로다 — **바꾸지 말 것**.
     ⚠ `where` 는 사유 문자열의 접두사다 (어느 디렉터리가 깼는지 말해 준다).
     """
+    #  ★★★★ 2026-08-31 — **진단 패키지는 이 판정기의 대상이 아니다 (가장 먼저 본다).**
+    #    이것은 데이터 결함이 아니라 **범주 오류**다 — "이 tree 로는 cohort 판정을 내지
+    #    않는다".  그래서 다른 어떤 게이트보다 먼저 답한다.  뒤에 두면 최소 픽스처처럼
+    #    다른 사유가 먼저 물어 **표지가 가려지고**, 그러면 "표지를 박았다" 는 주장 자체가
+    #    검증되지 않는다 (실측: selftest 에서 그 상태가 났다).
+    #    표지 ① `.diagnostic_*` 트리 파일 · ② payload 의 `step3._reduced.diagnostic`
+    #    — 둘 중 하나만 남아도 문다 (`p2_*.json` 만 복사해 가면 ① 이 사라진다).
+    _dg = sorted({x for k in arms for r in arms[k] for x in (r.get('_diagnostic') or ())})
+    if _dg:
+        return dict(decision='HOLD', hold_code='DIAGNOSTIC_TREE',
+                    reason=f'이 디렉터리는 **진단 패키지** 다 ({_dg[:2]}) — '
+                           f'`reduce_arm_payloads.py --diagnostic` 이 팔 수를 줄여 만든 '
+                           f'단일-origin tree 이고, 소비자는 `ion_r_verdict.py` 다.  '
+                           f'cohort 판정은 8팔 factorial 을 전제하므로 여기서 내지 않는다'), {}
+
     info = {}
     # ① 미수렴 — 하나라도 있으면 보류.  ★ **fail-closed**: 수렴 정보가 **없어도** 보류한다.
     #   실사고 2026-08-16: `cg_info` 를 안 싣는 payload 를 None 으로 읽고 통과시켰다 =
@@ -939,7 +979,8 @@ def verdict(arms, seed_ensemble=False, require_arms=None, require_ionic=False,
         #    초판이 정확히 그것을 했다 — 같은 커밋에서 '누설 없음' 을 주장하면서.
         #    절대값은 `out['se_ratio_abs_pp']` 로 JSON 에 남는다 (비-blind 소비자용).
         return dict(out, decision='HOLD', hold_code='SE_EXCEEDED',
-                    reason=f'비의 상대 표준오차 {se_ratio_rel_pct:.2f} % > {SE_MAX_REL_PCT} % — '
+                    reason=f'비의 상대 origin-위상 산포 {se_ratio_rel_pct:.2f} % > '
+                           f'{SE_MAX_REL_PCT} % — '
                            f'prereg §5-2 (origin 16 으로 늘릴 것)')
     # ③④⑤ 본 판정
     if ratio >= H0_MIN_RATIO:
@@ -1080,8 +1121,8 @@ def _selftest():
     chk(f'③ 비 1.015 → h1 ({v1["ratio"]})', v1['decision'] == 'h1')
     chk('④ 비 1.035 (중간대) → 둘 다 기각',
         verdict(mk(base, [v * 1.035 for v in base]))['decision'] == 'BOTH_REJECTED')
-    noisy = [1.0, 1.10, 0.90, 1.08, 0.92, 1.06, 0.94, 1.0]      # SE 큼
-    chk('⑤ 표준오차가 크면 판정 보류 (origin 을 늘리라고 말한다)',
+    noisy = [1.0, 1.10, 0.90, 1.08, 0.92, 1.06, 0.94, 1.0]      # 산포 큼
+    chk('⑤ origin-위상 산포가 크면 판정 보류 (origin 을 늘리라고 말한다)',
         verdict(mk(noisy, [v * 1.08 for v in noisy]))['decision'] == 'HOLD')
     chk('⑥ 팔 수가 다르면 HOLD',
         verdict(mk(base, base[:4]))['decision'] == 'HOLD')
@@ -1238,6 +1279,8 @@ def _selftest():
     #     (6필드 중 4개만 실제로 닫혀 있었다).  ⇒ 이제 **실제 JSON 파일을 쓰고 collect() 를 거쳐**
     #     한 키씩 지운다 = 생산과 같은 경로.  ("실제 경로를 안 타는 테스트" 부류의 재발 차단.)
     import tempfile as _tf22
+    import glob as _gl22
+    import json as _js22
     #  ★ 2026-08-20 (Codex 재검증) — 픽스처가 **실제 payload 모양**이어야 한다.
     #    정본 backend 는 `components[c]['backend']` 이고, 이것이 없는 픽스처로는 그 게이트가
     #    검증되지 않는다 (앞선 두 사고와 같은 뿌리 = 실제 경로를 안 타는 픽스처).
@@ -2074,6 +2117,32 @@ def _selftest():
         chk(f'㊻b ★★ 기각 receipt 가 있으면 **판정하지 않는다** '
             f'({_v1["decision"]}/{_v1.get("hold_code")})',
             _v1['decision'] == 'HOLD' and _v1.get('hold_code') == 'REJECTED_TREE')
+
+    #  ── ㊼ 2026-08-31 — **진단 패키지는 판정 대상이 아니다** ────────────────────────────
+    #    `reduce_arm_payloads.py --diagnostic` 산출물은 팔 수를 줄인 단일-origin tree 이고
+    #    소비자는 `ion_r_verdict.py` 다.  그런데 축소본 파일명이 `p2_*.json` 이라 이 판정기가
+    #    **그대로 읽는다** (㊺f 대로 ARMS<8 은 막지 않는다) ⇒ 표지 없이는 부분 cohort 에
+    #    판정이 난다.  표지 **둘**을 각각 단독으로 시험한다 — 하나만 남아도 물어야 한다.
+    with _tf22.TemporaryDirectory() as _D:
+        _mk2(_D, yvgcf=False, dbe_mul=1.12, n=8)
+        _rd0, _ad0 = collect(_D)
+        chk(f'㊼a 정상 증인 — 표지가 없으면 판정이 난다',
+            verdict(_ad0).get('hold_code') != 'DIAGNOSTIC_TREE')
+        #  ⓐ 표지 ① 트리 파일만
+        with open(os.path.join(_D, '.diagnostic_arms2'), 'w', encoding='utf-8') as _df:
+            _df.write('{"arms": 2}\n')
+        _vd1 = verdict(collect(_D)[1])
+        chk(f'㊼b ★★ 트리 표지만 있어도 거부 ({_vd1.get("hold_code")})',
+            _vd1['decision'] == 'HOLD' and _vd1.get('hold_code') == 'DIAGNOSTIC_TREE')
+        os.remove(os.path.join(_D, '.diagnostic_arms2'))
+        #  ⓑ 표지 ② payload 내부만 (`p2_*.json` 만 복사해 간 경로 = 트리 표지 유실)
+        _pq = sorted(_gl22.glob(os.path.join(_D, 'p2_*.json')))[0]
+        _pj = _js22.load(open(_pq, encoding='utf-8'))
+        _pj.setdefault('step3', {}).setdefault('_reduced', {})['diagnostic'] = {'arms': 2}
+        _js22.dump(_pj, open(_pq, 'w'))
+        _vd2 = verdict(collect(_D)[1])
+        chk(f'㊼c ★★ 트리 표지가 없어도 payload 표지로 거부 ({_vd2.get("hold_code")})',
+            _vd2['decision'] == 'HOLD' and _vd2.get('hold_code') == 'DIAGNOSTIC_TREE')
     #  ⚠ 행의 값과 매니페스트를 **둘 다** 합성으로 둔다 — 실제 `_read` 는 매니페스트에서
     #    행 필드를 채우므로, 하나만 바꾸면 픽스처가 실제 경로와 어긋난다.
     _vpx = verdict(mk(base, [v * 1.12 for v in base], se_source='proxy:0.27@192',
@@ -2328,6 +2397,18 @@ def _selftest():
         chk(f'㉘b 팔 수를 보고한다 ({_sc[0][1]})', _sc[0][1] == '2/2')
         chk('㉘c ★ 빈/무관 디렉터리는 목록에 안 뜬다 (없는 경로를 고르게 두지 않는다)',
             all(r[0] != 'noise_dir' for r in _sc))
+        #  ── ㉘d 2026-08-25 실사고 — `--collect-only --out x.json` 이 **파일을 안 만들고**
+        #     exit 0 을 냈다.  18개 런을 그렇게 돌려 "✓" 18번을 보고 커밋했는데 실제로는
+        #     아무것도 없었다 = 백업이 없는 상태에서 백업을 뜬 줄 알았다.
+        import subprocess as _sub
+        _od = os.path.join(_sr, 'digest.json')
+        _rr = _sub.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        'sdcp_gain_verdict.py'), '--dir',
+                        os.path.join(_sr, 'prereg_v2_vox015_sph_b048_lean'),
+                        '--collect-only', '--out', _od], capture_output=True, text=True)
+        chk(f'㉘d ★★ `--collect-only --out` 이 **파일을 실제로 만든다** (조용한 no-op 금지)',
+            _rr.returncode == 0 and os.path.exists(_od)
+            and len(json.load(open(_od, encoding='utf-8')).get('rows') or []) == 4)
 
     #  ── ㉙ FA-06 — **침대 정체성 필드**를 침대 사이에서 비교하면 안 된다 ────────────────
     #     실사고 (2026-08-20): 도핑 baseline 8팔이 `additive_E_GPa` 로 HOLD 를 맞았다.
@@ -2671,6 +2752,16 @@ if __name__ == '__main__':
                   f'{str(r["n_dof"]):>12} {str(r["origin_shift_um"]):>22} {str(r["cg_info"]):>4}')
     print(f'\n  수집: SBE {len(arms["SBE"])} 팔 · DBE {len(arms["DBE"])} 팔')
     if a.collect_only:
+        #  ⚠⚠ 2026-08-25 실사고 — 옛 판은 여기서 **`--out` 을 쓰기 전에** 빠져나갔다.
+        #    `--collect-only --out x.json` 이 파일을 **하나도 안 만들고 exit 0** 을 냈고,
+        #    18개 런을 그렇게 돌려 "✓" 18번을 보고 커밋했더니 실제로는 아무것도 없었다
+        #    (백업이 없는 상태에서 백업을 뜬 줄 알았다 = 가장 나쁜 종류의 조용한 no-op).
+        #    ⇒ 수집만 해도 `--out` 은 **쓴다** (판정이 없을 뿐이다).
+        if a.out:
+            json.dump({'rows': rows, 'dir': os.path.abspath(a.dir),
+                       'verdict': None, 'collect_only': True},
+                      open(a.out, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+            print(f'  → {a.out} ({len(rows)} 팔, 판정 없음)')
         print('  (--collect-only — 판정하지 않는다)')
         raise SystemExit(0)
     if a.seal_only:
@@ -2682,19 +2773,27 @@ if __name__ == '__main__':
     v = verdict(arms, seed_ensemble=a.seed_ensemble,
                 require_arms=a.require_arms, require_ionic=a.require_ionic,
                 require_digest=a.require_digest)
-    print(f'\n══ 판정 (prereg §5) ══\n  결정: **{v["decision"]}**\n  근거: {v["reason"]}')
+    #  ★ 2026-08-31 — `hold_code` 를 **출력에 싣는다.**  이전에는 사람이 읽는 `reason` 만
+    #    나가서, 기계(축약기·패키지 검사기)가 "어느 사유로 막혔는지" 를 stdout 에서
+    #    **읽을 수 없었다** — 실측: 진단 tree 격리를 확인하려는 두 검사가 사유 문자열을
+    #    못 찾아 둘 다 거짓 실패를 냈다.  코드가 계약이면 코드가 나가야 한다.
+    print(f'\n══ 판정 (prereg §5) ══\n  결정: **{v["decision"]}**'
+          + (f'  [{v["hold_code"]}]' if v.get('hold_code') else '')
+          + f'\n  근거: {v["reason"]}')
     if 'ratio' in v:
         print(f'  σ_e 비 = {v["ratio"]}   (h0 ≥ {H0_MIN_RATIO} · h1 = {H1_RATIO})')
     _rel = v.get('se_ratio_rel_pct', v.get('se_ratio_pct'))     # 옛 payload 호환
     if _rel is not None:
         _abs = v.get('se_ratio_abs_pp')
         _abs_s = f' = 절대 {_abs} %p' if _abs is not None else ''
-        print(f'  비의 상대 표준오차 = {_rel} % (문턱 {SE_MAX_REL_PCT} %, 비대응 = 게이트 '
-              f'규약){_abs_s}')
+        print(f'  비의 상대 origin-위상 산포 = {_rel} % (문턱 {SE_MAX_REL_PCT} %, 비대응 = '
+              f'게이트 규약){_abs_s}')
     _prel = v.get('se_ratio_paired_rel_pct', v.get('se_ratio_paired_pct'))
     if _prel is not None:
         print(f'  쌍대응(origin-key join) 평균 = {v.get("ratio_paired_mean")} · '
-              f'SE = {_prel} % · n = {v.get("n_origin")}')
+              f'산포 {_prel} % · n = {v.get("n_origin")} 위상')
+        print('  ⚠ 이 산포는 **표준오차가 아니다** — 8 위상은 한 침대의 완전 {0,½}³ '
+              'factorial 이라 복제 오차 자유도가 0 이다 (R8 Q1).  신뢰구간을 함의하지 않는다.')
     if a.out:
         json.dump({'rows': rows, 'verdict': v}, open(a.out, 'w'), ensure_ascii=False, indent=1)
         print(f'\n  → {a.out}')

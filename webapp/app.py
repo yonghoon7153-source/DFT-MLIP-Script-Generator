@@ -511,7 +511,14 @@ def list_cases():
             #   gap < −4  → SE-rich: DEM ε_sphere over-compresses          → use MPM   (blue)
             #   |gap| ≤ 4 → cross-validated (in-envelope)                  → use MPM   (green ✓)
             # docs/data/mpm_dem_porosity_reliability.csv + troubleshooting §16/§17.
-            if meta.get('has_mpm'):
+            #  ⚠⚠ 2026-08-25 — 게이트가 **틀린 것을 보고 있었다**.  `has_mpm` 은
+            #    `mpm_payload.json`(3D 점군, 수백 MB) 존재 여부인데, 아래 계산에 필요한 것은
+            #    `mpm_metrics.json` 의 `porosity_mpm_pct` **하나**다.  payload 없이 metrics 만
+            #    있는 케이스(복원분 146건)에서 regime(SE-rich/SE-poor/cross-validated)이
+            #    통째로 안 떴다.  ⇒ **필요한 것의 존재**로 연다.
+            #    ★ `has_mpm`(3D 버튼·배지)은 그대로 payload 기준이다 — 그건 진짜로 없다.
+            _mm_exists = os.path.exists(os.path.join(results_dir, 'mpm_metrics.json'))
+            if meta.get('has_mpm') or _mm_exists:
                 _dem_por = m.get('porosity_spheresum')
                 if _dem_por is None:
                     _dem_por = m.get('porosity')
@@ -3958,6 +3965,14 @@ _SEMINAR_SLIDES = 'docs/seminar/seminar_deck.json'
 _SEMINAR_SRC_PREFIX = ('docs/', 'scripts/', 'webapp/')
 _SEMINAR_SRC_EXT = ('.md', '.py', '.csv', '.json', '.html', '.sh', '.txt')
 
+#: 철회 게이트가 **가리키는 근거**.  거부 사유가 산문으로만 있으면 그 주장을 확인할
+#: 자리가 없다 (R19 Q1b) — 응답이 리포 안의 등록부를 지목하고, 회귀가 그 파일의 실재와
+#: 이 SDCP 항목의 등재를 함께 본다.
+#: ⚠ 정본은 `claims.json` 이다.  `mpm_platen_kinematic_stop_defect.md` 는 스스로 rev6
+#:   에서 멈췄다고 적고 있어 **이 철회의 근거가 아니다** (다른 트랙의 문서다).
+_SEMINAR_EVIDENCE = 'docs/reviews/claims.json'
+_SEMINAR_EVIDENCE_CLAIM = 'CL-24'
+
 
 def _repo_path(rel):
     """리포 루트 기준 경로 (webapp/ 의 부모).  경로 탈출은 거부한다."""
@@ -4021,10 +4036,14 @@ def api_seminar_slides():
              '격자 수렴 미확인).  정본: CLAUDE.md SR-01 · docs/reviews/claims.json.')
     if (request.args.get('historical') or '') != '1':
         return jsonify({'ok': False, 'retracted': True, 'error': _RETR,
+                        'evidence_ref': _SEMINAR_EVIDENCE,
+                        'evidence_claim': _SEMINAR_EVIDENCE_CLAIM,
                         'hint': '이력으로 열람하려면 ?historical=1 (재발표 금지)'}), 200
     data['ok'] = True
     data['retracted'] = True
     data['retracted_banner'] = _RETR
+    data['evidence_ref'] = _SEMINAR_EVIDENCE
+    data['evidence_claim'] = _SEMINAR_EVIDENCE_CLAIM
     return jsonify(data)
 
 
@@ -4062,11 +4081,19 @@ def api_seminar_deck():
       (Codex 재검증 NEW-DEFECT).  ⇒ 같은 fail-closed 규약: `?historical=1` 없이는 안 준다.
     """
     if (request.args.get('historical') or '') != '1':
-        return Response(
-            '⛔ 이 덱(2026-08-06)의 SDCP 수치는 2026-08-13 적대 리뷰로 철회됐고, pptx 파일 '
-            '안에는 그 표지가 없습니다.  재발표 금지.  이력으로 받으려면 ?historical=1 를 '
-            '붙이세요.  정본: CLAUDE.md SR-01 · docs/reviews/claims.json (CL-24).',
-            mimetype='text/plain; charset=utf-8', status=403)
+        #  ⚠ 거부를 **JSON 으로** 준다 (2026-09-01).  평문 403 이면 화면의 내려받기
+        #    핸들러가 content-type 만 보고 `window.location` 으로 그 주소에 **이동**해
+        #    버려 사용자는 맥락 없는 403 본문을 보게 된다 — 거부가 안내가 아니라 사고로
+        #    보인다.  기계도 사람도 읽을 수 있는 형태로 준다.
+        return jsonify({
+            'ok': False, 'retracted': True,
+            'error': '⛔ 이 덱(2026-08-06)의 SDCP 수치는 2026-08-13 적대 리뷰로 철회됐고, '
+                     'pptx 파일 안에는 그 표지가 없습니다.  재발표 금지.',
+            'evidence_ref': _SEMINAR_EVIDENCE,
+            'evidence_claim': _SEMINAR_EVIDENCE_CLAIM,
+            'hint': '이력으로 받으려면 ?historical=1 를 붙이세요.  '
+                    '정본: CLAUDE.md SR-01 · docs/reviews/claims.json (CL-24).',
+        }), 403
     try:
         path = _repo_path(_SEMINAR_DECK)
     except ValueError as e:
@@ -10481,6 +10508,34 @@ def predictor_structure():
             am_pct=float(d.get('am_pct', 80.0)), ps_frac=float(d.get('ps_frac', 0.5)),
             rve=float(d.get('rve', 50.0)), loading=float(d.get('loading', 6.0)),
             include_weak=bool(d.get('include_weak', True))))
+    except Exception as e:                                     # noqa: BLE001
+        return jsonify({'ready': False, 'error': f'{type(e).__name__}: {e}'}), 200
+
+
+@app.route('/predictor/structure/shap', methods=['POST'])
+def predictor_structure_shap():
+    """설계 노브의 **정확 Shapley** 중요도 (타깃별 100 % 정규화 히트맵).
+
+    ★ 양수영 세미나(2026-08-18) 방법의 이식 — 단 근사 대신 **2⁶ 연합 전수 열거**이고,
+      유도 특징이 아니라 **자유노브**에만 건다.  litdb `talks/yang2026_bml_ml_radial_cathode`.
+    """
+    d = request.get_json() or {}
+    try:
+        return jsonify(structure_predictor.shap_importance(
+            n_explain=int(d.get('n_explain', 48)), n_bg=int(d.get('n_bg', 24)),
+            seed=int(d.get('seed', 0)), include_weak=bool(d.get('include_weak', True))))
+    except Exception as e:                                     # noqa: BLE001
+        return jsonify({'ready': False, 'error': f'{type(e).__name__}: {e}'}), 200
+
+
+@app.route('/predictor/structure/pareto', methods=['POST'])
+def predictor_structure_pareto():
+    """다목적 Pareto front + 하이퍼볼륨 추이.  추천은 **물리 경계 안**에서만 고른다."""
+    d = request.get_json() or {}
+    try:
+        return jsonify(structure_predictor.pareto(
+            objectives=d.get('objectives'), n=int(d.get('n', 1200)),
+            seed=int(d.get('seed', 0)), include_weak=bool(d.get('include_weak', True))))
     except Exception as e:                                     # noqa: BLE001
         return jsonify({'ready': False, 'error': f'{type(e).__name__}: {e}'}), 200
 

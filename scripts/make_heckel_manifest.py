@@ -57,16 +57,68 @@ def plate_z_from_stl(path):
     return min(zs)
 
 
-def scan(root, pattern='post_SE_heckel_*'):
+def pressure_key(name):
+    """기본 색인: 폴더 이름 끝의 정수 = 압력(MPa).  → (색인값, 정렬키) 또는 None(건너뜀)."""
+    m = re.search(r'_(\d+)\s*$', name)
+    return None if not m else (int(m.group(1)), float(m.group(1)))
+
+
+def scan(root, pattern='post_SE_heckel_*', key_fn=None, key_name='P_MPa',
+         key_err='폴더 이름에서 압력을 못 읽음'):
+    """덤프 폴더들 → 기점이 잡힌 레코드 목록.
+
+    `key_fn`: 폴더 이름 → (색인값, 정렬키) 또는 None(=그 폴더는 건너뛴다).  기본 = 압력.
+    ★ **색인만** 갈아끼우게 한 이유: 기점 선택·plate_z·건너뜀 사유는 축과 무관하게
+      공유돼야 한다.  압력이 아닌 축(OAT 파라미터 등)을 재는 도구가 이 함수를 다시 짜면
+      아래 contact-기점 규약이 조용히 갈라진다 — 이 파일이 이미 한 번 당한 실수다.
+    """
+    key_fn = key_fn or pressure_key
     pts, skipped = [], []
-    for d in sorted(glob.glob(os.path.join(root, pattern))):
-        if not os.path.isdir(d):
+    #  ★★ 심볼릭 링크 중복 제거 (2026-08-30).  실사고: `post_SE_heckel_300 -> post_oat_esweep_E24p0`
+    #     이 실재했고 glob 이 **같은 런을 두 번** 냈다.  OAT 집계에서 한 번은 `(대조)`, 한 번은
+    #     `E=24` 로 나와 두 행의 값이 자리 끝까지 같았고, 그것이 인계 문서에 *"세 번째 대조가
+    #     통과한 셈"* 이라는 **가짜 확인**으로 적혔다.  중복은 독립 대조가 아니다.
+    #     ⇒ realpath 로 접되 **접었다는 사실을 `skipped` 에 남긴다** — 조용히 지우면 같은
+    #       착시가 다시 생기고, 이번엔 "왜 폴더가 하나 줄었지" 로도 안 보인다.
+    #     ⚠ 실체 디렉터리를 남기고 **링크를 버린다** — 이름이 거짓말하는 쪽이 링크다.
+    _dirs = [d for d in sorted(glob.glob(os.path.join(root, pattern))) if os.path.isdir(d)]
+    #  ★★★ 심볼릭 링크는 **무조건 거부**한다 (2026-08-30, Codex R12 §1).
+    #  ⚠⚠ 초판(같은 날 오전)은 realpath 로 **묶어서** 중복을 걸렀는데, **실제 사고 형태를
+    #    못 잡았다**: `post_SE_heckel_300 -> post_oat_esweep_E24p0` 에서 **대상 이름이 glob
+    #    밖**이라 그룹에 링크 하나만 남고 그것이 승자가 된다 ⇒ 독립 300 MPa 런으로 통과한다.
+    #    내가 붙인 회귀는 대상도 glob 안인 **다른 상황**을 시험했다 — 구현과 시험의 경계가
+    #    실제 사고와 어긋나 있었다.  (`pts=[(300, 2000)] · skipped=[]` 로 재현했다.)
+    #  ⇒ 묶는 것이 아니라 **거부**가 기본이다.  링크는 이름이 실체를 속이는 장치이고,
+    #    이 스캐너는 이름에서 색인(압력·축)을 읽으므로 링크를 신뢰할 근거가 없다.
+    #    서술적인 별칭이 필요하면 metadata 로 남기지 스캔 대상에 두지 않는다.
+    for _d in list(_dirs):
+        if os.path.islink(_d):
+            skipped.append((os.path.basename(_d),
+                            f'심볼릭 링크다 → `{os.path.basename(os.path.realpath(_d))}` '
+                            f'(realpath {os.path.realpath(_d)}).  이름이 실체를 속일 수 있고 '
+                            f'이 스캐너는 이름에서 색인을 읽으므로 **거부**한다'))
+            _dirs.remove(_d)
+    _groups = {}
+    for _d in _dirs:
+        _groups.setdefault(os.path.realpath(_d), []).append(_d)
+    _keep = set()
+    for _rp, _g in _groups.items():
+        _real = [x for x in _g if not os.path.islink(x)]
+        _win = (_real or _g)[0]
+        _keep.add(_win)
+        for _x in _g:
+            if _x != _win:
+                skipped.append((os.path.basename(_x),
+                                f'같은 실체를 가리킨다 — `{os.path.basename(_win)}` 와 동일 '
+                                f'(realpath {_rp}).  링크는 독립 런이 아니다'))
+    for d in _dirs:
+        if d not in _keep:
             continue
-        m = re.search(r'_(\d+)\s*$', os.path.basename(d))
-        if not m:
-            skipped.append((os.path.basename(d), '폴더 이름에서 압력을 못 읽음'))
+        kv = key_fn(os.path.basename(d))
+        if kv is None:
+            skipped.append((os.path.basename(d), key_err))
             continue
-        p_mpa = int(m.group(1))
+        keyval, sortkey = kv
         atoms = sorted(glob.glob(os.path.join(d, 'atom_*.liggghts')), key=_step)
         meshes = sorted(glob.glob(os.path.join(d, 'mesh_*.stl')), key=_step)
         cons = sorted(glob.glob(os.path.join(d, 'contact_*.liggghts')), key=_step)
@@ -102,11 +154,14 @@ def scan(root, pattern='post_SE_heckel_*'):
             skipped.append((os.path.basename(d), f'STL 파싱 실패 ({type(e).__name__})'))
             continue
         cc = [c for c in cons if _step(c) == st]
-        pts.append(dict(P_MPa=p_mpa, plate_z=pz, atom=os.path.abspath(atom),
-                        contacts=[os.path.abspath(c) for c in cc], step=st, anchor=anchor,
-                        last_atom_step=(max(a_steps) if a_steps else None),
-                        n_contact_files=len(cons), mesh=os.path.abspath(mesh)))
-    return sorted(pts, key=lambda r: r['P_MPa']), skipped
+        rec = dict(plate_z=pz, atom=os.path.abspath(atom),
+                   contacts=[os.path.abspath(c) for c in cc], step=st, anchor=anchor,
+                   name=os.path.basename(d),
+                   last_atom_step=(max(a_steps) if a_steps else None),
+                   n_contact_files=len(cons), mesh=os.path.abspath(mesh))
+        rec[key_name] = keyval
+        pts.append((sortkey, rec))
+    return [r for _, r in sorted(pts, key=lambda t: t[0])], skipped
 
 
 def main(argv=None):
@@ -227,6 +282,50 @@ def _selftest():
     # 실제 heckel_analysis 가 읽는 스키마인지 (키 이름 오타 회귀 방지)
     need = {'P_MPa', 'plate_z', 'atom', 'contacts'}
     chk('manifest 스키마가 heckel_analysis 요구와 일치', need <= set(pts[0]))
+
+    # ── ★★ 심볼릭 링크 중복 (2026-08-30 실사고 회귀) ────────────────────────────────
+    #    `post_SE_heckel_300 -> post_oat_esweep_E24p0` 이 실재했고, 중복이 **독립 대조**로
+    #    읽혀 인계 문서에 가짜 확인이 적혔다.  여기서 잡는다.
+    td9 = tempfile.mkdtemp(prefix='hm_link_')
+
+    def mkcase9(p, steps, z):
+        d = os.path.join(td9, f'post_SE_heckel_{p}')
+        os.makedirs(d, exist_ok=True)
+        for s in steps:
+            open(os.path.join(d, f'atom_{s}.liggghts'), 'w').write('x\n')
+            open(os.path.join(d, f'contact_{s}.liggghts'), 'w').write('x\n')
+            stl(os.path.join(d, f'mesh_{s}.stl'), z)
+        return d
+
+    #  ★★ 실제 사고 형태 — **대상 이름이 pattern 밖**이다 (`post_oat_esweep_E24p0`).
+    #     초판은 이것을 못 잡았다: 그룹에 링크 하나뿐이라 그것이 승자가 됐다.
+    _out = os.path.join(td9, 'post_oat_esweep_E24p0')
+    os.makedirs(_out, exist_ok=True)
+    for s in (1000,):
+        open(os.path.join(_out, f'atom_{s}.liggghts'), 'w').write('x\n')
+        open(os.path.join(_out, f'contact_{s}.liggghts'), 'w').write('x\n')
+        stl(os.path.join(_out, f'mesh_{s}.stl'), 0.02)
+    os.symlink(_out, os.path.join(td9, 'post_SE_heckel_600'))
+    p_out, s_out = scan(td9)
+    chk('★★★ 실제 사고 형태 — 대상이 pattern 밖인 링크도 거부한다',
+        not any(x['P_MPa'] == 600 for x in p_out)
+        and any('심볼릭 링크다' in r for n, r in s_out if n.endswith('_600')))
+    os.remove(os.path.join(td9, 'post_SE_heckel_600'))
+
+    _r9 = mkcase9(100, (1000,), 0.041)
+    os.symlink(_r9, os.path.join(td9, 'post_SE_heckel_300'))   # 이름은 300, 실체는 100
+    #  ⚠ 기본 pattern 으로 센다 — `post_oat_esweep_E24p0`(위 사고 재현용 실체)는 그 밖이다
+    chk('★ 음성 대조 — glob 은 둘로 본다 (중복이 실재한다)',
+        len([x for x in glob.glob(os.path.join(td9, 'post_SE_heckel_*'))
+             if os.path.isdir(x)]) == 2)
+    p9, s9 = scan(td9)
+    chk('★★ 링크 중복을 접는다 — 같은 실체는 한 번만 센다', len(p9) == 1)
+    chk('★ 실체를 남기고 링크를 버린다 (이름이 거짓말하는 쪽이 링크)',
+        bool(p9) and p9[0]['P_MPa'] == 100)
+    _s9 = [r for (_n, r) in s9 if '심볼릭 링크다' in r or '같은 실체' in r]
+    chk('★ 접었다는 사실을 skipped 에 남긴다 (조용히 지우지 않는다)', len(_s9) == 1)
+    chk('★ 사유가 realpath 를 지목한다 (무엇과 같은지 추적 가능)',
+        bool(_s9) and 'realpath' in _s9[0] and 'post_SE_heckel_100' in _s9[0])
 
     print(f'selftest: {ok}/{ok + len(fail)} PASS' + (f'   FAILED: {fail}' if fail else ''))
     return 0 if not fail else 1

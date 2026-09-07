@@ -1070,10 +1070,131 @@ def main():
             "_s3mark('_step3', 'failed'" in _pay)
         chk('58) ★ manifest 가 payload 에 실제로 박힌다 (배선)',
             "'schema_version': 2," in _pay)
-        chk('59) ★ RC6-08 실제 backend 를 기록한다 (요청≠실제일 수 있다)',
-            'LAST_BACKEND' in _s3s and "LAST_BACKEND['used'] = 'cpu'" in _s3s
-            and "LAST_BACKEND['used'] = 'gpu'" in _s3s
-            and "fallback_reason" in _s3s)
+        #  ★★ 2026-08-31 — 이 검사는 **소스 문자열의 철자**를 보고 있었다.
+        #    `LAST_BACKEND['used'] = 'cpu'` 는 있는데 gpu 쪽이 `update(used='gpu', …)` 로
+        #    쓰이자 기능은 멀쩡한데 검사만 빨간불이 됐다.  철자를 보는 검사는 구현이
+        #    조금만 다르게 쓰여도 거짓 실패를 내고, 반대로 **주석에 그 문자열을 적어도
+        #    통과**한다 (규율 4번: 자기 신고를 읽지 마라).
+        #  ⇒ AST 로 **대입을 실제로 찾는다** — 주석·문자열은 안 세고, 표기 차이는 무시한다.
+        import ast as _ast
+        _tree = _ast.parse(_s3s)
+        _assigned = set()
+        for _n in _ast.walk(_tree):
+            #  `LAST_BACKEND['used'] = 'gpu'`
+            if isinstance(_n, _ast.Assign):
+                for _t in _n.targets:
+                    if (isinstance(_t, _ast.Subscript)
+                            and getattr(_t.value, 'id', None) == 'LAST_BACKEND'
+                            and isinstance(_n.value, _ast.Constant)
+                            and getattr(_t.slice, 'value', None) == 'used'):
+                        _assigned.add(_n.value.value)
+            #  `LAST_BACKEND.update(used='gpu', …)`
+            if (isinstance(_n, _ast.Call)
+                    and isinstance(_n.func, _ast.Attribute)
+                    and _n.func.attr == 'update'
+                    and getattr(_n.func.value, 'id', None) == 'LAST_BACKEND'):
+                for _kw in _n.keywords:
+                    if _kw.arg == 'used' and isinstance(_kw.value, _ast.Constant):
+                        _assigned.add(_kw.value.value)
+        chk('59) ★ RC6-08 실제 backend 를 기록한다 — cpu·gpu 둘 다 대입된다 (AST)',
+            {'cpu', 'gpu'} <= _assigned)
+        #  선언에 fallback 사유 자리가 있는가 — 이것도 AST 로 본다 (모듈을 import 하면
+        #  numpy·scipy 를 끌어와 이 테스트가 무거워진다).
+        _decl_keys = set()
+        for _n in _ast.walk(_tree):
+            if (isinstance(_n, _ast.Assign)
+                    and any(getattr(_t, 'id', None) == 'LAST_BACKEND' for _t in _n.targets)
+                    and isinstance(_n.value, _ast.Dict)):
+                _decl_keys = {k.value for k in _n.value.keys
+                              if isinstance(k, _ast.Constant)}
+        chk('59b) ★ 선언에 requested·used·fallback_reason 자리가 있다',
+            {'requested', 'used', 'fallback_reason'} <= _decl_keys)
+
+        #  ══ 59c~ ★★ R19 Q2 — AST 도 여전히 **소스**를 읽는다 ═════════════════
+        #    Codex 반례: GPU 대입 **바로 뒤에** `LAST_BACKEND['used'] = None` 을 끼워도
+        #    59 는 초록이다 (대입이 사라진 게 아니라 덮인 것이라서).  ⇒ 솔버를 **돌려서**
+        #    무엇이 남는지 본다.  GPU 가 없으니 cupy·cupyx 를 numpy/scipy 위에 흉내내어
+        #    분기를 실제로 태운다 — 여기서 보는 것은 수치가 아니라 **기록**이다.
+        #    (비용 걱정은 접었다: CI 가 이미 numpy·scipy 를 깐다.)
+        import types as _types
+
+        import numpy as _np
+        from scipy import sparse as _sp
+        from scipy.sparse.linalg import cg as _cg_cpu
+
+        def _fake_cupy(fail=False):
+            _cp = _types.ModuleType('cupy')
+            _cp.asarray = lambda a, dtype=None: _np.asarray(a, dtype=dtype)
+            _cp.asnumpy = lambda a: _np.asarray(a)
+            _cp.float64 = _np.float64
+            _cxs = _types.ModuleType('cupyx.scipy.sparse')
+
+            def _boom(*a, **k):
+                raise RuntimeError('CUDA out of memory (fake)')
+            _cxs.csr_matrix = _boom if fail else _sp.csr_matrix
+            _cxs.diags = _sp.diags
+            _lin = _types.ModuleType('cupyx.scipy.sparse.linalg')
+
+            def _cg_gpu(A, b, tol=None, maxiter=None, M=None, rtol=None, atol=None):
+                if tol is not None:      # 새 CuPy 는 rtol — 그 TypeError 경로도 태운다
+                    raise TypeError('tol was renamed to rtol')
+                return _cg_cpu(A, b, rtol=rtol or 1e-8, maxiter=maxiter, M=M)
+            _lin.cg = _cg_gpu
+            _cxs.linalg = _lin
+            _cpx = _types.ModuleType('cupyx')
+            _sci = _types.ModuleType('cupyx.scipy')
+            _sci.sparse = _cxs
+            _cpx.scipy = _sci
+            return {'cupy': _cp, 'cupyx': _cpx, 'cupyx.scipy': _sci,
+                    'cupyx.scipy.sparse': _cxs, 'cupyx.scipy.sparse.linalg': _lin}
+
+        sys.path.insert(0, _sc)
+        import step3_sigma as _s3mod
+        _L = _sp.csr_matrix(_np.array([[2.0, -1.0], [-1.0, 2.0]]))
+        _b = _np.array([1.0, 0.0])
+        _want = _np.array([2.0 / 3.0, 1.0 / 3.0])
+        _g0, _r0 = _s3mod.GPU_SOLVE, _s3mod.REQUIRE_GPU
+        _saved = {k: sys.modules.get(k) for k in _fake_cupy()}
+
+        def _restore():
+            for _k, _v in _saved.items():
+                if _v is None:
+                    sys.modules.pop(_k, None)
+                else:
+                    sys.modules[_k] = _v
+        try:
+            _s3mod.GPU_SOLVE, _s3mod.REQUIRE_GPU = False, False
+            _x, _ = _s3mod._solve_cg(_L, _b)
+            _cpu = dict(_s3mod.LAST_BACKEND)
+            chk("59c) ★★ CPU 로 풀면 used='cpu' 가 **실제로** 남는다 (소스가 아니라 실행)",
+                _cpu.get('used') == 'cpu' and _cpu.get('requested') == 'cpu')
+            chk('59d) ★ 그 팔이 옳은 해를 낸다 (기록만 남기고 안 푸는 것이 아니다)',
+                _np.allclose(_x, _want, atol=1e-6))
+
+            _s3mod.GPU_SOLVE = True
+            sys.modules.update(_fake_cupy())
+            _x, _ = _s3mod._solve_cg(_L, _b)
+            _gpu = dict(_s3mod.LAST_BACKEND)
+            _restore()
+            chk("59e) ★★ GPU 분기를 태우면 used='gpu' 가 남는다 "
+                '(대입을 None 으로 덮으면 여기서 걸린다)',
+                _gpu.get('used') == 'gpu' and _gpu.get('requested') == 'gpu')
+            chk('59f) ★ GPU 팔도 옳은 해를 낸다', _np.allclose(_x, _want, atol=1e-6))
+            chk('59g) ★ 성공한 GPU 팔은 폴백 사유를 남기지 않는다',
+                _gpu.get('fallback_reason') is None)
+
+            sys.modules.update(_fake_cupy(fail=True))
+            _x, _ = _s3mod._solve_cg(_L, _b)
+            _fb = dict(_s3mod.LAST_BACKEND)
+            _restore()
+            chk('59h) ★★ GPU 가 죽으면 requested=gpu·used=cpu 로 **어긋남이 보인다**',
+                _fb.get('requested') == 'gpu' and _fb.get('used') == 'cpu')
+            chk('59i) ★★ 그리고 사유가 남는다 (조용한 폴백 금지)',
+                'CUDA out of memory' in str(_fb.get('fallback_reason') or ''))
+        finally:
+            _restore()
+            _s3mod.GPU_SOLVE, _s3mod.REQUIRE_GPU = _g0, _r0
+
         chk('60) ★ 그 backend 가 manifest 로 흘러간다 (배선)',
             "'backend': dict(getattr(_s3, 'LAST_BACKEND'" in _pay)
 
