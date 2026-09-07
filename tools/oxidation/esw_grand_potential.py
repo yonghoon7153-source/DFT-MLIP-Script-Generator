@@ -103,6 +103,10 @@ O2_REFERENCE_CAVEAT = (
 DEFAULT_LANDMARKS = ("Li,Li2O", "Li2S,Li2SO4", "Li3PS4,Li3PO4")
 
 
+class _BadFormula(ValueError):
+    """화학식을 못 읽었다 — 예외로 죽지 않고 사유로 돌려주기 위한 내부 신호."""
+
+
 def landmark_mu(entries, red_formula, ox_formula, open_symbol="O"):
     """`A + n/2 X₂ → B` 의 평형 μ_X. 비-X 조성이 맞도록 A 를 스케일한다.
 
@@ -117,7 +121,12 @@ def landmark_mu(entries, red_formula, ox_formula, open_symbol="O"):
     X = Element(open_symbol)
 
     def best(f):
-        c = Composition(f)
+        # ⚠ 2026-09-07 — 여기서 그냥 Composition(f) 를 불러 **예외로 죽었다**.
+        #   사용자가 오타를 내면 도구가 traceback 을 뱉는다. 못 읽는 것은 사유를 말한다.
+        try:
+            c = Composition(f)
+        except Exception as ex:
+            raise _BadFormula(f"화학식을 못 읽는다: {f!r} ({type(ex).__name__})") from ex
         cand = [e for e in entries
                 if e.composition.reduced_formula == c.reduced_formula]
         if not cand:
@@ -126,8 +135,11 @@ def landmark_mu(entries, red_formula, ox_formula, open_symbol="O"):
         n = c.num_atoms                       # 요청한 화학식 단위로 환산
         return e.energy_per_atom * n, c
 
-    E_red, c_red = best(red_formula)
-    E_ox, c_ox = best(ox_formula)
+    try:
+        E_red, c_red = best(red_formula)
+        E_ox, c_ox = best(ox_formula)
+    except _BadFormula as ex:
+        return None, str(ex)
     if E_red is None or E_ox is None:
         return None, f"hull 에 없다: {red_formula if E_red is None else ox_formula}"
 
@@ -337,15 +349,15 @@ def main():
         if "," not in spec:
             print(f"  [landmark] 건너뜀 — '환원형,산화형' 형식이 아니다: {spec}"); continue
         red, ox = [t.strip() for t in spec.split(",", 1)]
-        mu, why = landmark_mu(entries, red, ox, open_symbol)
+        mu, why = landmark_mu(entries, red, ox, args.open_element)
         landmarks[f"{red}->{ox}"] = (None if mu is None else
                                      {"mu_eV": round(mu, 4),
-                                      f"dmu_{open_symbol}_eV": round(mu - mu_ref, 4)})
+                                      f"dmu_{args.open_element}_eV": round(mu - mu_ref, 4)})
         if mu is None:
             print(f"  [landmark] {red}→{ox}: 못 냄 — {why}")
         else:
             print(f"  [landmark] {red:>10s} → {ox:<10s}  "
-                  f"μ_{open_symbol} = {mu:+.4f}  (Δμ {mu - mu_ref:+.4f} eV)")
+                  f"μ_{args.open_element} = {mu:+.4f}  (Δμ {mu - mu_ref:+.4f} eV)")
     if landmarks:
         print("  ⇒ 개시점을 이 기준 대비로 읽으면 **기준이 양쪽에서 지워진다** "
               "(절대값보다 훨씬 낫다. 완전 상쇄는 아니다 — O 결합환경이 다르면 잔차가 남는다)")
