@@ -1,6 +1,6 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 358
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 360
 
 규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
@@ -26,7 +26,7 @@
 - `kb/physics/vacancy_effects.md` — Vacancy Effects in Argyrodite
 - `kb/physics/vacancy_mechanism_corrected_2026_05_08.md` — Vacancy + Halogen Distribution → Adhesion: Corrected Mechanism
 
-## methodology/ (49)
+## methodology/ (50)
 - `kb/methodology/PHASE1_QUICKSTART_doping.md` — Phase 1 Quickstart Guide
 - `kb/methodology/adhesion_calibration_decision_2026_05_17.md` — Adhesion Calibration Decision — 2026-05-17
 - `kb/methodology/adhesion_energy.md` — Adhesion Energy (Wad) Calculation
@@ -64,6 +64,7 @@
 - `kb/methodology/litdb_shared_branch_convention_2026_08_19.md` — litdb 는 브랜치를 넘어 공유된다 — DEM 세션과 같은 서랍을 쓴다 ○미열람
 - `kb/methodology/llm_wiki_adoption_2026_08_11.md` — LLM 위키 규율 채택 기록 — Karpathy 패턴(llm-wiki-kit 260730)의 이 repo 번안 ○미열람
 - `kb/methodology/md_adaptive_v2_protocol_2026_08_27.md` — MD 생산길이 표준 — `MDadaptive-v2` (200 ps 고정을 순차 연장으로 바꾼다) ○미열람
+- `kb/methodology/md_axis_status_2026_09_07.md` — MD 축 현황 — 무엇이 살아있고 무엇이 죽었나 (2026-09-07 정리) ○미열람
 - `kb/methodology/md_conductivity_protocol.md` — MD 이온전도도 추출 프로토콜 (논문용 — 고정 설정)
 - `kb/methodology/microstructure_ml_transfer_to_cascade_2026_08_25.md` — 미세구조 ML 세미나에서 cascade 로 이전 가능한 것 — 화학이 아니라 설계·평가 방법론 ○미열람
 - `kb/methodology/modelC_v2_slab_fix.md` — modelC v2 Slab Construction — Convention Fix
@@ -173,7 +174,7 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (101)
+## reviews/ (102)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
 - `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) ○미열람
 - `kb/reviews/codex_AA_prompt_stageA_v5_regate_2026_08_29.md` — Codex 재검토 요청 AA — 회신 Z 의 P0 8건 처리 후 Stage A v5 재게이트 ○미열람
@@ -212,6 +213,7 @@
 - `kb/reviews/codex_BF_prompt_c12_v29_2026_09_03.md` — 리뷰 요청 BF — C-12 v29 (회신 BE P0 4건 + P1 3건 이행 · clean tree 재생성) ○미열람
 - `kb/reviews/codex_BF_reply_c12_v29_2026_09_03.md` — 회신 BF — C-12 v29 VASP 외주 번들 (실행 NO-GO · P0 4 · P1 4 · Q1–Q3)
 - `kb/reviews/codex_BG_prompt_webapp_aw_release_2026_09_07.md` — 리뷰 요청 BG — AW(웹앱 NO-GO) 해제 판정 + 그날 새로 만든 판정 셋 ○미열람
+- `kb/reviews/codex_BH_prompt_md_axis_audit_2026_09_07.md` — 리뷰 요청 BH — MD 축 전수 감사: 90런에 인용 가능한 Ea 가 0개다 ○미열람
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서) ○미열람
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료) ○미열람
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서) ○미열람
