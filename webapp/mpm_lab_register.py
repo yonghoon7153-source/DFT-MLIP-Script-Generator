@@ -64,8 +64,24 @@ def compute_trust(mm: dict) -> dict:
     s3 = mm.get('step3') or {}
     badges: list[dict] = []
 
-    def _add(key, label, present, unconv, resid=None, detail=''):
+    #  ★★ 2026-09-07 — `component_plan` 을 읽는다.  payload 는 *"무엇을 돌리기로 했는가"* 를
+    #    적고 있는데(매니페스트 주석: "이것이 없으면 `disabled` 가 의도적으로 껐다인지 조용히
+    #    죽었다인지 구분할 근거가 없다", M-R3-03) 이 함수는 **`present` 만 봤다** — 그래서
+    #    계획해 놓고 결과가 없는 채널이 **침묵으로 통과**했다.  present-only 는 false-green 이다.
+    #  ⚠ 옛 payload 에는 `component_plan` 이 없다 → 그때는 **기존 동작 그대로** (매니페스트가
+    #    "옛 payload 에 새 필드를 소급 요구하면 과잉차단" 이라고 세대별 적용을 명시).
+    _plan = ((s3.get('manifest') or {}).get('component_plan') or None)
+
+    def _add(key, label, present, unconv, resid=None, detail='', plan_key=None):
         if not present:
+            if _plan is None or plan_key is None or plan_key not in _plan:
+                return                                   # 옛 payload = 판단 근거 없음 → 침묵
+            if _plan.get(plan_key):
+                badges.append({'key': key, 'label': label, 'status': 'warn', 'resid': None,
+                               'detail': '계획됐는데 결과가 없다 (조용한 실패 의심)'})
+            else:
+                badges.append({'key': key, 'label': label, 'status': 'skip', 'resid': None,
+                               'detail': '계획에서 제외됨 (LEAN)'})
             return
         # ★F1(리뷰): resid 문턱(solver 규약 1e-6)도 unconv 로 판정 — payload 가 trust 문자열을 안 넣는
         #   채널(σ_ion 은 ion_resid 만 방출, trust 문자열 없음)이 항상 'ok' 로 새는 false-green 방어.
@@ -82,21 +98,21 @@ def compute_trust(mm: dict) -> dict:
     _add('sigma_e', 'σ_e (전자)',
          present=('sigma_e_eff_S_cm' in s3),
          unconv=_has_unconverged(s3.get('trust')),
-         resid=s3.get('cg_resid'))
+         resid=s3.get('cg_resid'), plan_key='electronic')
     _add('sigma_ion', 'σ_ion (이온)',
          present=('sigma_ion_eff_S_cm' in s3),
          unconv=_has_unconverged(s3.get('ion_trust')),   # payload 미방출 → _add 의 resid 문턱(1e-6)이 판정
-         resid=s3.get('ion_resid'))
+         resid=s3.get('ion_resid'), plan_key='ionic')
     _th = s3.get('thermal') or {}
     _add('thermal', 'κ (열전도)',
          present=bool(_th) and ('kappa_eff_mW_cmK' in _th or 'cg_resid' in _th),
          unconv=_has_unconverged(_th.get('trust')),
-         resid=_th.get('cg_resid'))
+         resid=_th.get('cg_resid'), plan_key='thermal')
     _po = s3.get('pore') or {}
     _add('pore', 'τ (기공확산)',
          present=bool(_po) and ('tau' in _po or 'resid' in _po),
          unconv=_has_unconverged(_po.get('trust')),
-         resid=_po.get('resid'))
+         resid=_po.get('resid'), plan_key='pore')
     _rx = s3.get('rxn') or {}
     _add('rxn', 'STEP4 반응분포',
          present=bool(_rx) and ('resid' in _rx or 'kcl_err' in _rx),
@@ -134,10 +150,52 @@ def build_meta(data: dict, name: str, *, uploaded_at: str | None = None,
     _sel = ((mm.get('step3') or {}).get('collector') or {}).get('selected') or {}
     collector = (f"{_sel.get('name')} (R_int {_sel.get('R_int_ohm_cm2'):g}Ωcm²)"
                  if _sel.get('name') else '')
+    _man = ((mm.get('step3') or {}).get('manifest') or {})
     _vox_um = (mm.get('step3') or {}).get('vox_um')
+    if _vox_um is None:
+        _vox_um = _man.get('vox_um')
+    #  ★★ 2026-09-07 — **규약을 meta 로 끌어올린다.**  payload 는 스탬프·σ 표·origin 위상을
+    #    `step3.manifest` 에 이미 적는데 meta 가 안 읽어서, 목록에서 규약이 다른 런이 구분 없이
+    #    나란히 보였다.  같은 침대라도 PTFE 규약 하나로 σ_e 비가 1.12↔1.31 로 갈린다(CL-49)
+    #    ⇒ 표시 문제가 아니라 **비교 가능성**의 문제다.  값은 만들지 않고 있는 것만 옮긴다.
+    convention = {k: _man[k] for k in (
+        'ptfe_stamp', 'sdcp_stamp', 'fibre_stamp', 'vox_um', 'periodic_xy',
+        'origin_shift_um', 'plate_rule', 'schema_version', 'sdcp_sphere_d_um',
+        'sdcp_yield_to_vgcf', 'ptfe_zero_dof',
+        'sigma_vgcf_S_cm', 'sigma_sdcp_S_cm', 'sigma_ptfe_S_cm',
+    ) if k in _man}
+    #  ⚠ 요청 ≠ 실제 = **도장만 찍히고 규약이 안 걸린** 회귀의 유일한 증인 (CDXR2-6).
+    #    `legacy-unversioned` 는 옛 런이라 불일치가 아니다.
+    mismatch = [f'{lbl}: 요청 {_man[req]} ≠ 실제 {_man[act]}'
+                for act, req, lbl in (('ptfe_stamp', 'ptfe_stamp_requested', 'ptfe'),
+                                      ('fibre_stamp', 'fibre_stamp_requested', 'fibre'))
+                if act in _man and req in _man
+                and _man[req] not in (None, 'legacy-unversioned')
+                and _man[act] != _man[req]]
+    #  표시 문자열도 **여기서** 만든다 — Jinja 와 JS 가 각자 조립하면 그것이 이 모듈이
+    #  경고하는 바로 그 drift 다 (렌더러 둘, 규약 하나).
+    _cl = []
+    if convention.get('ptfe_stamp') and convention['ptfe_stamp'] != 'off':
+        _cl.append(f"PTFE {convention['ptfe_stamp']}")
+    if convention.get('sdcp_stamp') == 'sphere':
+        _cl.append(f"SDCP 구 Ø{convention.get('sdcp_sphere_d_um')}")
+    for _k, _lab in (('sigma_vgcf_S_cm', 'σ_VGCF'), ('sigma_sdcp_S_cm', 'σ_SDCP'),
+                     ('sigma_ptfe_S_cm', 'σ_PTFE')):
+        if convention.get(_k):
+            _cl.append(f'{_lab} {convention[_k]:g}')
+    _osh = convention.get('origin_shift_um') or []
+    if any(_osh):
+        _cl.append('origin ' + ','.join(f'{float(x):g}' for x in _osh))
+    if convention.get('periodic_xy'):
+        _cl.append('periodic-xy')
+    if convention.get('sdcp_yield_to_vgcf'):
+        _cl.append('⚠ SDCP→VGCF 양보(진단팔)')
     if size_mb is None:
         size_mb = round(len(json.dumps(data)) / 1e6, 1)
     return {
+        'convention': convention,
+        'convention_mismatch': mismatch,
+        'convention_label': ' · '.join(_cl),
         'name': name,
         'source_case': data.get('case', ''),
         'porosity': mm.get('porosity_mpm_pct'),
@@ -315,6 +373,61 @@ def _selftest() -> int:
               'uploaded_at', 'size_mb', 'mpm_metrics', 'trust'):
         assert k in m, f'meta missing {k}'
     assert m['recipe'] == 'VGCF 100' and m['has_additives'], m
+
+    # ★★ 2026-09-07 — **규약을 meta 로 올린다.**  payload 는 `step3.manifest` 에 스탬프·σ 표·
+    #   origin 위상을 이미 적고 있는데 meta 가 그것을 **안 읽어서**, mpm_lab 목록에서 규약이
+    #   다른 런이 구분 없이 나란히 보였다.  같은 침대라도 PTFE 규약 하나로 σ_e 비가 1.12↔1.31
+    #   로 갈리므로(CL-49) 이것은 표시 문제가 아니라 **비교 가능성**의 문제다.
+    def _mk(man, **mm_extra):
+        return {'kind': 'mpm', 'case': 'c', 'particles': [[0, 0, 0, 1]],
+                'mpm_metrics': dict({'porosity_mpm_pct': 15, 'step3': dict(
+                    {'sigma_e_eff_S_cm': 0.054, 'cg_resid': 1e-9,
+                     'manifest': man}, **mm_extra)})}
+    _man = {'ptfe_stamp': 'centerline', 'ptfe_stamp_requested': 'centerline',
+            'sdcp_stamp': 'point', 'sdcp_sphere_d_um': 0.0,
+            'fibre_stamp': 'segment', 'fibre_stamp_requested': 'segment',
+            'vox_um': 0.15, 'periodic_xy': False,
+            'origin_shift_um': [0.075, 0.0, 0.0],
+            'sigma_vgcf_S_cm': 78.5398, 'sigma_sdcp_S_cm': 0.0, 'sigma_ptfe_S_cm': 0.0,
+            'component_plan': {'electronic': True, 'ionic': False,
+                               'thermal': False, 'pore': False, 'collector': False}}
+    mc = build_meta(_mk(_man), 'conv')
+    cv = mc.get('convention') or {}
+    for k in ('ptfe_stamp', 'sdcp_stamp', 'fibre_stamp', 'vox_um',
+              'periodic_xy', 'origin_shift_um', 'sigma_vgcf_S_cm'):
+        assert k in cv, f'convention missing {k}: {cv}'
+    assert cv['ptfe_stamp'] == 'centerline' and cv['sigma_vgcf_S_cm'] == 78.5398, cv
+    assert not mc.get('convention_mismatch'), mc.get('convention_mismatch')
+    # 표시 문자열은 build_meta 가 만든다 (렌더러 둘이 각자 조립하면 drift)
+    lab = mc.get('convention_label') or ''
+    assert 'PTFE centerline' in lab and 'σ_VGCF 78.5398' in lab and 'origin 0.075' in lab, lab
+    assert 'σ_SDCP' not in lab, lab            # 0 인 항은 싣지 않는다 (빈 값 노이즈 방지)
+
+    # ★ 요청 ≠ 실제 → **경고**.  이 쌍이 payload 에 있는 이유가 그것이다 (CDXR2-6):
+    #   스탬프가 조용히 안 걸려도 매니페스트는 요청값을 적어 도장을 달던 회귀가 있었다.
+    _bad = dict(_man, ptfe_stamp='off', ptfe_stamp_requested='centerline')
+    mb = build_meta(_mk(_bad), 'conv-bad')
+    assert mb.get('convention_mismatch'), mb.get('convention')
+    assert any('ptfe' in s for s in mb['convention_mismatch']), mb['convention_mismatch']
+
+    # ★ LEAN=2 (--no-ion) — 계획에 없으니 σ_ion 부재는 **정상**.  warn 내지 않는다.
+    tl = compute_trust(_mk(_man)['mpm_metrics'])
+    assert tl['overall'] == 'ok', tl
+    assert any(b['key'] == 'sigma_ion' and b['status'] == 'skip' for b in tl['badges']), tl
+
+    # ★★ 반대로 **계획했는데 결과가 없으면** = 조용히 죽은 것 → warn.
+    #   현행은 `present` 만 보므로 이 경우를 **침묵으로 통과**시킨다 (M-R3-03 과 같은 혼동).
+    _plan_ion = dict(_man, component_plan=dict(_man['component_plan'], ionic=True))
+    tm = compute_trust(_mk(_plan_ion)['mpm_metrics'])
+    assert tm['overall'] == 'warn', tm
+    assert any(b['key'] == 'sigma_ion' and b['status'] == 'warn' for b in tm['badges']), tm
+
+    # ★ 소급 금지 — `component_plan` 없는 옛 payload 는 기존 동작 그대로 (과잉차단 안 함).
+    _old = {k: v for k, v in _man.items() if k != 'component_plan'}
+    to = compute_trust(_mk(_old)['mpm_metrics'])
+    assert to['overall'] == 'ok', to
+    assert not any(b['key'] == 'sigma_ion' for b in to['badges']), to
+
     # register_local roundtrip (임시폴더)
     import tempfile
     with tempfile.TemporaryDirectory() as td:
