@@ -520,8 +520,17 @@ def validate_governance(reg: dict = None, root=None) -> list:
             bad.append(f"결정 {d['id']} 의 decision_state({d['decision_state']!r}) 와 "
                        f"status({d['status']!r}) 가 어긋난다 — 어느 쪽이 정본인지 알 수 없다")
         # ⛔ 상태 어휘 (AW P0-4) — 모르는 상태는 검사를 조용히 건너뛰게 한다
+        # ⛔⛔ 2026-09-07 회신 BG ④ — 종전 판은 **두 구멍**이 있었다:
+        #   ① 위 부재 검사가 `"decision_state" not in d` 라 **키가 있고 값이 null** 이면 통과
+        #   ② 여기서도 `if _st is not None` 이라 **null 이면 enum 검사를 건너뛴다**
+        #   ⇒ `{"decision_state": null}` 은 어느 검사에도 안 걸리고, 그 상태로
+        #      `_dstate(d) == "active"` 비교만 피하면 사람 승인 없이 흘러간다.
+        #   상태는 "키가 있음" 이 아니라 **비어 있지 않은 문자열 + 허용 어휘**여야 한다.
         _st = _dstate(d)
-        if _st is not None and _st not in DECISION_STATES:
+        if not isinstance(_st, str) or not _st.strip():
+            bad.append(f"결정 {d['id']} 의 상태가 문자열이 아니거나 비어 있다 "
+                       f"({_st!r}) — null·숫자·리스트·빈 문자열은 상태가 아니다")
+        elif _st not in DECISION_STATES:
             bad.append(f"결정 {d['id']} 의 상태 {_st!r} 가 허용 어휘 밖이다 "
                        f"({sorted(DECISION_STATES)})")
         for f in ("supersedes", "does_not_supersede", "open_conflicts", "evidence"):

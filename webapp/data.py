@@ -188,9 +188,19 @@ def _wave1_gate() -> dict:
     #   **AttributeError 로 죽었다.** 즉 "원장이 없으면 전부 BLOCKED" 라는 fail-closed
     #   설계가 실제로는 **fail-crash** 였고, 화면 전체가 500 이 됐다. 500 은 게이트가
     #   아니다 — 지위를 못 읽었다는 사실을 화면이 말해야 한다.
+    # ⛔ 2026-09-07 회신 BG ① — hazard 원장을 **안 읽고 있었다.** 인용 위험이 등록돼도
+    #   /sdcp 화면은 아무 영향을 안 받았다. 여기서 fragment 별로 걸어 준다.
+    hz = _load_json(DB / "properties" / "citation_hazards.json") or {}
+    hz_by_frag = {}
+    for h in (hz.get("hazards") or []):
+        blob = " ".join(str(h.get(k, "")) for k in ("file", "what", "why"))
+        for frag in ("sdcp_neutral", "sdcp_doped", "ptfe_dimer", "ptfe_c10"):
+            if frag in blob and str(h.get("level", "")).upper() in ("BLOCKED", "HOLD"):
+                hz_by_frag.setdefault(frag, f"{h.get('level')} — {h.get('what')}")
     missing = not (cit and neu and dop)
     cit, neu, dop = cit or {}, neu or {}, dop or {}
     g = {"source_missing": missing,
+         "hazards_by_fragment": hz_by_frag,
          "citable_dE": set((cit.get("dE_site_meV") or {}).keys()),
          "not_citable": cit.get("not_citable") or [],
          "caveats": cit.get("⚠_caveats_MUST_QUOTE_WITH_VALUES") or [],
@@ -216,6 +226,17 @@ def _wave1_status(fragment: str, kind: str, gate: dict) -> tuple:
     if fragment == "sdcp_neutral":
         return "NO_VERDICT", ("사전등록 판정바닥 30 meV 아래 — **미해결**이다. "
                               "'무선호' 라고 쓰지 않는다")
+    # ⛔⛔ 2026-09-07 회신 BG ① — 여기가 **fail-open** 이었다.
+    #   위에서 `citable_dE` allow-list 를 만들어 놓고 **쓰지 않은 채** 마지막 줄이
+    #   무조건 `CITABLE` 을 돌려줬다. 새 fragment 가 들어오거나 citable 키가 잘못
+    #   추가·삭제돼도 화면은 그냥 통과시킨다. **모르는 것은 통과가 아니다.**
+    if fragment not in gate.get("citable_dE", ()):
+        return "UNKNOWN", (f"`{fragment}` 가 인용 원장(sdcp_wave1_citable.json 의 "
+                           f"dE_site_meV)에 **등록돼 있지 않다** — 지위 불명이므로 "
+                           f"인용하지 않는다. 등록하거나, 왜 없는지 원장에 적어라")
+    hz = gate.get("hazards_by_fragment", {}).get(fragment)
+    if hz:
+        return "BLOCKED", (f"인용 위험 원장에 걸려 있다: {hz}")
     return "CITABLE", gate["dE_notes"].get(fragment, "허용 문구와 함께만 인용한다")
 
 

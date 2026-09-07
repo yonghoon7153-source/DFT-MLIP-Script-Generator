@@ -212,6 +212,77 @@ def test_ratification_gate_cannot_be_bypassed_by_field_name():
         C.registry, C.artifacts = real_reg, real_art
 
 
+def test_decision_state_must_be_a_real_string_not_just_present():
+    """⛔음성 (회신 BG ④) — `decision_state: null` 이 **어느 검사에도 안 걸렸다.**
+
+    구멍이 둘이었다: ① 부재 검사가 `"decision_state" not in d` 라 **키가 있고 값이
+    null** 이면 통과 ② enum 검사가 `if _st is not None` 이라 null 이면 건너뛴다.
+    ⇒ 상태 없는 결정이 조용히 흘러간다. 상태는 "키가 있음" 이 아니라
+    **비어 있지 않은 문자열 + 허용 어휘**여야 한다.
+    """
+    real = (C.decisions, C.assessments, C.registry, C.artifacts)
+    try:
+        C.assessments = lambda root=None: {}
+        C.registry = lambda root=None: {"entries": []}
+        C.artifacts = lambda root=None: {}
+
+        def _bad(d):
+            C.decisions = lambda root=None: {d["id"]: d}
+            return [x for x in C.validate_governance() if d["id"] in x]
+
+        for val, why in ((None, "null"), ("", "빈 문자열"), ("   ", "공백뿐"),
+                         (3, "숫자"), (["active"], "리스트"), (True, "불리언")):
+            assert _bad({"id": f"D-{why}", "slot": "s", "decision_state": val}), \
+                f"decision_state 가 {why} 인데 통과한다"
+        # ⛔음성: 별칭 status 로도 같은 구멍이 나면 안 된다
+        assert _bad({"id": "D-alias", "slot": "s", "status": None}), \
+            "status 가 null 인데 통과한다 (별칭 경로의 같은 구멍)"
+        # 양성: 정상 상태는 오탐하지 않는다
+        assert not _bad({"id": "D-ok", "slot": "s", "decision_state": "proposed"}), \
+            "정상 상태를 위반으로 낸다"
+    finally:
+        C.decisions, C.assessments, C.registry, C.artifacts = real
+
+
+def test_sdcp_wave1_status_is_allowlist_not_default_citable():
+    """⛔음성 (회신 BG ①) — `/sdcp` 지위 판정이 **fail-open** 이었다.
+
+    `_wave1_gate()` 가 `citable_dE` allow-list 를 만들어 놓고 `_wave1_status()` 가
+    **쓰지 않은 채** 마지막 줄에서 무조건 `CITABLE` 을 돌려줬다. 새 fragment 가
+    들어오거나 citable 키가 잘못 지워져도 화면은 통과시킨다.
+    **모르는 것은 통과가 아니다.**
+
+    ⛔ 이 시험이 못 하는 것: 어떤 fragment 가 인용 가능해야 옳은지는 안 본다.
+      **등록되지 않은 것이 기본 통과가 되는지**만 본다.
+    """
+    from data import _wave1_status
+    gate = {"source_missing": False, "citable_dE": {"ptfe_dimer", "ptfe_c10"},
+            "dE_notes": {}, "hazards_by_fragment": {}}
+
+    # 양성: 원장에 등록된 fragment 만 CITABLE
+    assert _wave1_status("ptfe_dimer", "dE", gate)[0] == "CITABLE", \
+        "등록된 fragment 를 인용 불가로 막는다 (과교정)"
+
+    # ⛔음성: 등록 안 된 새 fragment 는 기본 통과 금지
+    st, why = _wave1_status("brand_new_fragment", "dE", gate)
+    assert st != "CITABLE", f"미등록 fragment 가 기본 CITABLE 이다 (fail-open): {why}"
+
+    # ⛔음성: citable 키가 통째로 사라져도 통과하면 안 된다
+    st2, _ = _wave1_status("ptfe_dimer", "dE", dict(gate, citable_dE=set()))
+    assert st2 != "CITABLE", "citable 원장이 비었는데 CITABLE 을 돌려준다"
+
+    # ⛔음성: hazard 원장에 걸린 fragment 는 BLOCKED
+    st3, why3 = _wave1_status("ptfe_dimer", "dE",
+                              dict(gate, hazards_by_fragment={"ptfe_dimer": "BLOCKED — x"}))
+    assert st3 == "BLOCKED", f"hazard 가 걸렸는데 {st3} 다 — 원장이 화면을 못 막는다"
+
+    # 양성: 기존 세 특례는 그대로 (강등이 아니라 추가여야 한다)
+    assert _wave1_status("sdcp_doped", "dE", gate)[0] == "BLOCKED"
+    assert _wave1_status("ptfe_dimer", "eads", gate)[0] == "HOLD"
+    assert _wave1_status("sdcp_neutral", "dE", gate)[0] == "NO_VERDICT"
+    assert _wave1_status("x", "dE", dict(gate, source_missing=True))[0] == "BLOCKED"
+
+
 def test_slot_uniqueness_uses_applicability_not_slot_name():
     """slot 유일성은 **겹치는 applicability** 에서만 충돌이다 (2026-09-07).
 
