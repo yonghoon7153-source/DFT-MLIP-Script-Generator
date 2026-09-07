@@ -10,7 +10,8 @@
   "prefer:'registry' 는 **원자료가 반올림 사본일 때만** 쓰는 예외다. 기본은 원자료를 live 로 읽어 db 수정이 화면에 바로 반영되게 한다.",
   "★ **수치 대조는 의미 일치를 보증하지 않는다.** 새 항목을 넣을 때 method_id 가 그 source_path 안의 계산을 실제로 서술하는지 사람이 읽고 확인한다 — comp2 가 값은 맞는데 method_id 가 다른 계산(disorder ensemble)을 가리켰다(2026-08-07 Codex 4라운드).",
   "finite_duration_2026_08_27: 이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
-  "status: non_citable — 값은 존재하고 재현되지만 **원자료가 인용을 금지**한 항목. citable:false + why_non_citable + allowed_sentence 를 반드시 함께 둔다. canonical/provisional 과 같은 표에 올리지 않는다 (2026-09-07 Codex BH P0-1)."
+  "status: non_citable — 값은 존재하고 재현되지만 **원자료가 인용을 금지**한 항목. citable:false + why_non_citable + allowed_sentence 를 반드시 함께 둔다. canonical/provisional 과 같은 표에 올리지 않는다 (2026-09-07 Codex BH P0-1).",
+  "R9: protocol_generation — metric 이 `MD_` 로 시작하면 필수. `comparison_group` 이 프로토콜을 가른다면 이건 **잣대**(게이트 세대)를 가른다. 세대가 다른 값은 같은 표·직선·순위에 올리지 않는다 (2026-09-07). 정의: db/properties/md_protocol_generations.json"
  ],
  "_history": {
   "2026-08-07": "Codex 코드리뷰 P1 대응으로 신설. 이전에는 webapp/data.py 의 CANONICAL 딕셔너리가 정본이었다. 이관 중 MD_Ea_eV 안에서 단일시드(comp1 0.253 / modelc 0.224)와 4-seed(lpsocl 0.287)가 한 딕셔너리에 섞여 있던 것을 발견 — 대시보드의 '최저값' 순위가 프로토콜을 넘나들고 있었다. group 을 나눠 분리했다.",
@@ -328,7 +329,9 @@
     "label": "MD_Ea_eV_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "b2o3",
@@ -405,7 +408,9 @@
     "label": "MD_Ea_eV_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "lpsocl",
@@ -444,7 +449,9 @@
     "label": "MD_Ea_eV_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "modelc",
@@ -471,7 +478,9 @@
     "label": "MD_Ea_eV_singleseed_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "b2o3",
@@ -536,7 +545,9 @@
     "label": "MD_Ea_eV_singleseed_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "comp1",
@@ -573,7 +584,9 @@
     "label": "MD_Ea_eV_singleseed_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "comp2",
@@ -602,7 +615,9 @@
     "label": "MD_Ea_eV_ordered_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "comp2",
@@ -637,7 +652,9 @@
     "label": "MD_Ea_eV_disorder_200, provisional",
     "wording": "이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
-   }
+   },
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "lpsocl",
@@ -961,7 +978,9 @@
    },
    "_ratio_display": "1.08 ± 0.18",
    "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
-   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다.",
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "b2o3_vs_modelc",
@@ -1003,7 +1022,9 @@
    },
    "_ratio_display": "0.82 ± 0.15",
    "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
-   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다.",
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   },
   {
    "system": "b2o3_vs_modelc",
@@ -1045,7 +1066,9 @@
    },
    "_ratio_display": "1.15 ± 0.12",
    "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
-   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다.",
+   "protocol_generation": "gen0_pre_gate",
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
   }
  ],
  "_provenance_audit": {
@@ -1062,6 +1085,18 @@
   "2026-08-25b": "SDCP wave1 인용 확정분 등록 (basin 일치 · pm1 정본): dE_site 4건 + Eads 7건. comparison_group 을 sdcp-wave1-* 로 분리해 argyrodite 4축과 절대 섞이지 않게. sdcp_doped·net4 Eads·50 meV offset 은 등록하지 않음 (citable.json not_citable). 원자료 재유도 파이프라인: sdcp_wave1_results.json → citable.json → registry.",
   "2026-08-28-eads-hold": "SDCP_Eads_eV__* 7건 canonical → provisional (절대값 보류). 사유: 기준-대상 비대칭 2건(δ_m 스핀제약 · δ_LREAL 실공간투영). dE_site 4건은 복합체끼리 차라 canonical 유지",
   "2026-08-28-seed-wording": "회신 P 반영: seed '재현' 문구를 realized-basin '일치' 로 강등 (입력 INCAR 미회수 — seed 투입 미검증)",
-  "2026-09-07-bh": "Codex BH 해제조건 ②: b2o3/modelc σ 비 3항목을 **non_citable** 로 신설. status 어휘에 non_citable 추가. 배경 — MD 축 색인이 CSV 의 FORBIDDEN 문구('statistically EQUIVALENT transport')를 번역해 §1 '살아있는 것' 에 올렸다. **원자료가 이긴다.**"
+  "2026-09-07-bh": "Codex BH 해제조건 ②: b2o3/modelc σ 비 3항목을 **non_citable** 로 신설. status 어휘에 non_citable 추가. 배경 — MD 축 색인이 CSV 의 FORBIDDEN 문구('statistically EQUIVALENT transport')를 번역해 §1 '살아있는 것' 에 올렸다. **원자료가 이긴다.**",
+  "2026-09-07-protocol-generation": "MD_* 항목 11개에 `protocol_generation` 을 붙였다 — 전부 `gen0_pre_gate`. 1저자 지시(2026-09-07): '예전 잣대면 예전 잣대라고 db 에도 표시해두고'. 계기: '이것들은 지금 잣대로 봤을 때도 유효한 것들이야?' 에 답하려니 게이트 정의가 다섯 문서에 흩어져 있었다. ⚠ 세대는 **품질 등급이 아니다** — gen0 은 '현행 게이트로 검증되지 않았다' 이지 '틀렸다' 가 아니다."
+ },
+ "_protocol_generations": {
+  "_ref": "db/properties/md_protocol_generations.json",
+  "_왜": "MD 축은 2026-07~09 사이에 **판정 규칙 자체**가 세 번 바뀌었다. comparison_group 이 프로토콜(시드 수·온도 집합)을 가르는 축이라면, protocol_generation 은 **잣대**(어떤 게이트가 존재했는가)를 가르는 축이다. 둘은 직교한다 — 같은 group 안에서도 세대가 다를 수 있고, 그러면 한 표에 올리면 안 된다.",
+  "_기계_규칙": "metric 이 `MD_` 로 시작하는 항목은 `protocol_generation` 을 반드시 갖는다. 값은 위 파일 `generations[].id` 중 하나. 없거나 어휘 밖이면 validate() 가 오류를 낸다 (fail-closed).",
+  "vocabulary": [
+   "gen0_pre_gate",
+   "gen1_traj_mto_200ps",
+   "gen2_400ps_4window"
+  ],
+  "★_현황_2026_09_07": "MD_* 항목 11개가 **전부 gen0_pre_gate** 다 (MD_Ea_eV 3 · MD_Ea_eV_singleseed 3 · ordered 1 · disorder 1 · MD_sigma_ratio_* 3). gen1·gen2 로 만들어진 값은 아직 하나도 등록되지 않았다."
  }
 }

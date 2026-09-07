@@ -781,7 +781,9 @@ CANONICAL_META = {
     "E_VRH_GPa": "DFT relaxed-ion USPP·k444(comp1·comp2)/셀별·0.005 — comp1↔comp2만 완전비교쌍",
     "MD_Ea_eV":  "UMA-s-1p1 · 600/800/1000 K 3점 피팅 · ⚠절대값 인용 금지. "
                  "시드 프로토콜 혼재: comp1/modelc=단일 궤적(오차막대 없음), lpsocl=4-seed×3-T, "
-                 "comp2=3-seed(잠정) — 조성 간 비교는 같은 프로토콜끼리만",
+                 "comp2=3-seed(잠정) — 조성 간 비교는 같은 프로토콜끼리만. "
+                 "★ 등록된 MD 값은 **전부 gen0(구 잣대)** 다 — G3(4창 plateau)·G4(골격 게이트) "
+                 "평가 이전 자료다(평가불가지 통과가 아니다). 세대: md_protocol_generations.json",
     "ICOHP_PS":  "LOBSTER all-PAW ext-basis (comp2 = comp2_icohp_origin.csv, 2026-07-25 커밋)",
     "MD_Ea_eV_ordered":    "UMA 3-seed · **ordered single-champion baseline** — disorder ensemble 과 "
                            "다른 계산이다(원자료가 'anion disorder 를 샘플링하지 않았다'고 명시)",
@@ -1067,6 +1069,64 @@ _STATUS_BADGE = {
     "non_citable":      ("인용불가", "#b91c1c", "#fee2e2",
                          "⛔ 값은 있으나 **원자료가 인용을 금지**했다."),
 }
+
+# ── 잣대 세대 배지 (2026-09-07) ──────────────────────────────────────────
+# 왜: MD 축은 2026-07~09 사이에 **판정 규칙 자체**가 세 번 바뀌었다. 상태 배지(정본/잠정/
+#   철회)는 *그 값이 지금 쓸 수 있는가* 를 말하지만, *어느 시절 규칙으로 만들어졌는가* 는
+#   말하지 않는다. 1저자가 세미나 값을 보고 "생각보다 옛날 값 아니야?" 라고 물었을 때
+#   화면에는 그걸 알려 줄 표식이 하나도 없었다.
+# ⛔ 이 배지가 뜻하지 **않는** 것: 'gen0 = 틀린 값'. gen0 은 **현행 게이트로 검증되지
+#   않았다**(G3·G4 는 평가불가)는 뜻이지 반증됐다는 뜻이 아니다. 철회는 status 배지가 따로 낸다.
+_GEN_BADGE = {
+    "gen0_pre_gate":       ("구 잣대", "#92400e", "#fef3c7"),
+    "gen1_traj_mto_200ps": ("중간 잣대", "#1d4ed8", "#dbeafe"),
+    "gen2_400ps_4window":  ("현행 잣대", "#047857", "#d1fae5"),
+}
+
+
+def generation_badge(e: dict, gens: dict | None = None) -> dict | None:
+    """항목 하나 → 세대 배지. 세대 필드가 없으면 None.
+
+    ⛔ 세대를 **추론하지 않는다** — 항목이 `protocol_generation` 을 스스로 들고 있어야 한다.
+      날짜로 자동 판정하면 재실행·소급 승격이 조용히 틀린 라벨을 받는다.
+    ★ `canonical_generation_for` 에서 분리해 둔 이유: 그쪽은 `CANONICAL_ENTRY`(lazy 프록시)를
+      훑기 때문에 시험이 항목을 끼워 넣을 수 없다. 판정 로직만 순수 함수로 떼어 놔야
+      **어휘 밖 입력의 음성 시험**이 가능하다 (2026-09-07, 시험을 쓰다 발견).
+    """
+    gid = e.get("protocol_generation")
+    if not gid:
+        return None
+    if gens is None:
+        import canonical as _C
+        gens = _C.protocol_generations()
+    g = gens.get(gid) or {}
+    # ⛔ 어휘 밖은 **조용히 빠지지 않는다** — 배지 표에 없어서 배지가 통째로 안 붙고
+    #   철회값이 정상 카드처럼 뜬 사고가 2026-09-07 `retracted` 로 이미 한 번 났다.
+    b = _GEN_BADGE.get(gid) or ("세대?", "#b91c1c", "#fee2e2")
+    gates = g.get("gates") or {}
+    why = (f"{g.get('라벨_ko', gid)} ({g.get('시기','?')}, 생산 {g.get('생산길이_ps','?')} ps). "
+           + " · ".join(f"{k.split('_')[0]}={'✓' if v is True else '✗' if v is False else v}"
+                        for k, v in gates.items())
+           + ". " + (e.get("protocol_generation_why") or ""))
+    if not g:
+        why = (f"⚠ 세대 {gid!r} 가 원장 어휘 밖이다 — "
+               f"db/properties/md_protocol_generations.json 에 정의가 없다. " + why)
+    return {"gen": gid, "label": b[0], "fg": b[1], "bg": b[2],
+            "why": why[:400], "footnote_en": g.get("영문_각주", "")}
+
+
+def canonical_generation_for(cid: str) -> dict:
+    """조성 하나의 metric 별 **잣대 세대** 배지. 세대가 없으면 항목이 없다."""
+    import canonical as _C
+    gens = _C.protocol_generations()
+    out = {}
+    for (metric, system), e in CANONICAL_ENTRY.items():
+        if system != cid:
+            continue
+        b = generation_badge(e, gens)
+        if b:
+            out[metric] = b
+    return out
 
 
 #: 게이트 문구는 canonical.gate_prefix() 가 **단일 출처**다 (2026-08-20 codex 동결감사).

@@ -7,6 +7,16 @@ R = pathlib.Path("/home/user/Yonghoon-DEM-DFT")
 sys.path.insert(0, str(R/"tools/figures")); import house_style as H
 DB, OUT = R/"db/properties", R/"docs/figures/seminar_2026_09_07"
 
+# ── 잣대 세대 각주 (2026-09-07) ──────────────────────────────────────────
+#   그림·CSV 는 슬라이드로 옮겨지면 대화 맥락이 떨어져 나간다 → 각주를 산출물 안에 박는다.
+#   문구는 세대 원장이 단일 출처다 (여기 손으로 적으면 갈라진다).
+import json as _json
+GEN_ID = "gen0_pre_gate"
+GEN_NOTE = {g["id"]: g for g in _json.loads(
+    (DB/"md_protocol_generations.json").read_text(encoding="utf-8"))["generations"]
+}[GEN_ID]["영문_각주"]
+assert GEN_NOTE, "세대 원장에 영문 각주가 없다"
+
 rows=[r for r in open(DB/"msd_3sys_200ps_origin.csv") if not r.lstrip().startswith(('#','"#'))]
 rd=list(csv.reader(rows)); hdr=rd[0]
 dat=np.array([[float(x) for x in r] for r in rd[1:] if r and all(c.strip() for c in r)])
@@ -37,10 +47,11 @@ for ax in axes:   # 곡선과 안 겹치게 음영 위쪽에
 # y 축을 계마다 자유롭게 두되 세 계의 최대를 주석으로 (스케일 착시 방지)
 fig.suptitle(f"Li MSD per composition — seed-ensemble means · UMA-s-1p1 (omat) · 0–{TMAX:.0f} ps",
              fontsize=12,color=H.INK)
-fig.text(.5,.005,"y-axes are independent per panel (see values) · "
+fig.text(.5,.032,"y-axes are independent per panel (see values) · "
          "B2O3@LPSCl1.6: UMA-MD transport axis RETRACTED 2026-08-25 — context only, not citable",
          ha="center",fontsize=8.5,color="#be123c")
-fig.tight_layout(rect=[0,.035,1,.94])
+fig.text(.5,.004,GEN_NOTE,ha="center",fontsize=7.8,color=H.MUT)
+fig.tight_layout(rect=[0,.062,1,.94])
 fig.savefig(OUT/"msd_per_composition.png",dpi=300); plt.close(fig)
 
 # ── 같은 y 축 판 (계 간 비교용) ────────────────────────────────────────
@@ -57,9 +68,10 @@ for ax,(key,lab,st) in zip(axes,SYS):
     ax.set_xlim(0,TMAX); ax.set_ylim(0,ymax)
 axes[0].legend(frameon=False,fontsize=9.5,loc="upper left")
 fig.suptitle(f"Li MSD per composition — SHARED y-axis · 0–{TMAX:.0f} ps",fontsize=12,color=H.INK)
-fig.text(.5,.005,"same y-scale across panels — use this one to compare compositions",
+fig.text(.5,.032,"same y-scale across panels — use this one to compare compositions",
          ha="center",fontsize=8.5,color=H.MUT)
-fig.tight_layout(rect=[0,.035,1,.94])
+fig.text(.5,.004,GEN_NOTE,ha="center",fontsize=7.8,color=H.MUT)
+fig.tight_layout(rect=[0,.062,1,.94])
 fig.savefig(OUT/"msd_per_composition_sharedY.png",dpi=300); plt.close(fig)
 
 # ── 조성별 CSV ─────────────────────────────────────────────────────────
@@ -75,6 +87,8 @@ for key,lab,st in SYS:
         w.writerow([ "#   but the data is truncated to the common length across temperatures."])
         w.writerow([f"# {NOTE[key]}"])
         w.writerow([ "# Fit window 2-50 ps, free intercept: MSD = 6Dt + c."])
+        w.writerow([f"# PROTOCOL GENERATION: {GEN_ID}. {GEN_NOTE}"])
+        w.writerow([ "#   -> db/properties/md_protocol_generations.json (gates G1-G5)"])
         if st=="RETRACTED":
             w.writerow(["# !! UMA-MD transport axis RETRACTED 2026-08-25 (anion-sublattice mobility)."])
             w.writerow(["#    D / Ea / sigma from these curves are NOT citable. Context only."])

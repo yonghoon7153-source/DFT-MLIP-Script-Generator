@@ -449,6 +449,40 @@ def artifacts(root=None) -> dict:
     return _by_id(raw.get("artifacts", []), "id", "산출물", "db/governance/artifacts.json")
 
 
+def protocol_generations(root=None) -> dict:
+    """MD 잣대 세대 원장. {generation_id: record}. 없으면 빈 dict.
+
+    왜 (2026-09-07, 1저자 지시 "예전 잣대면 예전 잣대라고 db 에도 표시해두고")
+      `comparison_group` 이 **프로토콜**(시드 수·온도 집합)을 가른다면, 이건 **잣대**를
+      가른다 — 그 값이 만들어질 당시 어떤 게이트가 **존재했는가**. 둘은 직교한다.
+      같은 group 안에서도 세대가 다를 수 있고, 그러면 한 표에 올리면 안 된다.
+
+    ⛔ 이 함수가 못 하는 것
+      · 세대를 **추론하지 않는다.** 항목이 스스로 `protocol_generation` 을 들고 있어야 한다.
+        날짜로 자동 판정하면 재실행·소급 승격이 조용히 틀린 라벨을 받는다.
+      · 세대는 **품질 등급이 아니다.** gen0 은 "현행 게이트로 검증되지 않았다" 이지
+        "틀렸다" 가 아니다 (원장 `_이_파일이_못_하는_것` 참조).
+    """
+    base = Path(root) if root else Path(__file__).resolve().parent.parent
+    p = base / "db/properties/md_protocol_generations.json"
+    if not p.exists():
+        return {}
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except Exception as exc:                        # noqa: BLE001
+        raise RuntimeError(f"⛔ md_protocol_generations.json 을 못 읽는다 "
+                           f"(fail-closed): {exc!r}") from exc
+    return {g["id"]: g for g in raw.get("generations", []) if isinstance(g, dict) and g.get("id")}
+
+
+def generation_of(e: dict, root=None) -> dict | None:
+    """레지스트리 항목의 세대 기록. 세대가 없거나 어휘 밖이면 None."""
+    gid = e.get("protocol_generation")
+    if not gid:
+        return None
+    return protocol_generations(root).get(gid)
+
+
 def validate_artifacts(root=None) -> list:
     """산출물 원장의 내부 일관성. 위반 문자열 리스트.
 
@@ -685,6 +719,24 @@ def validate(reg: dict, root=None) -> list:
         if e.get("_index_conflict"):
             bad.append((e, f"색인 충돌 — {e['_index_conflict']}. 배지·툴팁이 어느 항목을 "
                            f"보여줄지 정해져 있지 않다 (회신 AW P0-4)"))
+        # ── protocol_generation (2026-09-07) ────────────────────────────────
+        # ⛔ fail-closed. MD 축은 2026-07~09 사이에 **판정 규칙 자체**가 세 번 바뀌었다.
+        #   세대 표시가 없으면 화면은 gen0(구 잣대) 값을 현행 값처럼 보여준다 — 어제
+        #   1저자가 세미나 값을 보고 "생각보다 옛날 값 아니야?" 라고 물은 그 구멍이다.
+        #   빠뜨림을 **통과로 읽지 않는다**: 없어도 오류, 어휘 밖이어도 오류.
+        _gid = e.get("protocol_generation")
+        _vocab = protocol_generations(root)
+        if str(e.get("metric", "")).startswith("MD_") and not _gid:
+            bad.append((e, "MD_* 항목인데 protocol_generation 이 없다 — 이 값이 어느 "
+                           "잣대(게이트 세대)로 만들어졌는지 원장 밖에 있다는 뜻이다. "
+                           "db/properties/md_protocol_generations.json 참조"))
+        elif _gid and not _vocab:
+            bad.append((e, f"protocol_generation={_gid!r} 인데 세대 원장을 못 읽는다 "
+                           f"(db/properties/md_protocol_generations.json) — 어휘를 대조할 "
+                           f"수 없으므로 통과시키지 않는다"))
+        elif _gid and _gid not in _vocab:
+            bad.append((e, f"protocol_generation 이 어휘 밖이다: {_gid!r} "
+                           f"(허용: {sorted(_vocab)})"))
         # ── status=retracted ────────────────────────────────────────────────
         # ⛔ 2026-08-25 — 철회된 값은 **원자료에 살아 있으면 안 된다**(철회하면서 키를
         #   _RETRACTED_… 로 옮기거나 문자열로 바꾼다). 그래서 수치 대조가 성립하지 않는다.

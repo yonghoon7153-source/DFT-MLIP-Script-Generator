@@ -125,5 +125,7 @@
   "confidence": "medium",
   "note": "⚠_DIFFUSIVE_GATE_2026_08_01 통과 전까지 Ea 인용 보류",
   "caveat": "이 블록은 **사후 추적** 결과다. 원본 계산 시점에 기록된 것이 아니라 repo·git·파일 내용에서 역추적했다. confidence 를 같이 보라."
- }
+ },
+ "protocol_generation": "gen0_pre_gate",
+ "protocol_generation_note": "⚠ 이 파일의 Ea·D 는 **gen0(게이트 이전) 잣대**로 만들어졌다 — G1(MTO)·G2(원궤적) 없이 200 ps 생산이라 G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**다(통과가 아니다). 세대 정의·캠페인 감사·영문 각주: db/properties/md_protocol_generations.json. ⛔ gen1·gen2 값과 한 표·한 직선·한 순위에 올리지 않는다."
 }

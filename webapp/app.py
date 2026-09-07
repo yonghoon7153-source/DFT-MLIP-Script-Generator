@@ -245,6 +245,8 @@ def composition(cid):
         cascade_rows=D.cascade_rows_for(dop) if dop else None,
         canonical=D.canonical_values(cid),
         canonical_status=D.canonical_status_for(cid), MM=D.metric_meta(),
+        # 잣대 세대 — 어느 시절 규칙으로 만들어진 값인가 (2026-09-07)
+        canonical_gen=D.canonical_generation_for(cid),
         canonical_prov={k: v for (k, c), v in D.canonical_provenance_flags().items() if c == cid},
         canonical_meta=D.CANONICAL_META,
         canonical_provisional={k: r for (k, c), r in D.CANONICAL_PROVISIONAL.items() if c == cid},

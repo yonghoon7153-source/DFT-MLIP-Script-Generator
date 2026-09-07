@@ -1,3 +1,6 @@
+"# PROTOCOL GENERATION: gen0_pre_gate (pre-gate protocol, <= 2026-08-19). Predates the 2026-08 MTO / trajectory-retention / 4-window standard. Ea values are protocol-conditioned; not comparable to the 400 ps campaign."
+"#   Gates G1(MTO)=NO, G2(traj retained)=NO -> G3(4-window D_inc plateau) and G4(framework beta) are NOT ASSESSED (that is not a pass)."
+"#   Definition / campaign audit: db/properties/md_protocol_generations.json"
 system,Ea_eV,Ea_err,D0_cm2_s,n_Li_cm3,D600_mean,D600_std,D800_mean,D800_std,D1000_mean,D1000_std,sig600_mScm,sig800,sig1000
 b2o3,0.199,0.034,4.625e-04,2.381e+22,1.041e-05,2.07e-06,2.163e-05,4.08e-06,5.081e-05,9.21e-06,768,1197,2249
 LPSCl1.6,0.197,0.032,4.791e-04,2.220e+22,1.037e-05,2.14e-06,2.845e-05,7.51e-06,4.728e-05,2.17e-06,713,1468,1951

@@ -1287,12 +1287,20 @@ def test_evrh_group_respects_source_pairing():
 
 
 def test_status_badge_is_not_duplicated():
-    """★ 레지스트리 status 와 옛 PROV 배지가 겹쳐 '잠정' 이 두 번 찍혔다 (Codex 4라운드)."""
+    """★ 레지스트리 status 와 옛 PROV 배지가 겹쳐 '잠정' 이 두 번 찍혔다 (Codex 4라운드).
+
+    ⛔ 2026-09-07 정정 — 첫 판의 정규식은 `>잠정</span>` **뒤에 오는 배지를 전부** 중복으로
+      셌다. 그래서 잣대 세대 배지('구 잣대')를 추가하자 곧바로 거짓양성이 났다.
+      잡으려던 불변식은 *'같은 라벨이 연달아 두 번'* 이지 *'배지가 두 개'* 가 아니다 —
+      배지 축은 status·출처·세대로 **여러 개가 정상**이다. 라벨 비교로 좁힌다.
+    """
     c = A.app.test_client()
+    pair = re.compile(r"<span class=\"badge\"[^>]*>([^<]*)</span>\s*"
+                      r"<span class=\"badge\"[^>]*>([^<]*)</span>")
     for u in ("/explorer", "/composition/comp2", "/composition/lpsocl"):
         t = c.get(u).get_data(as_text=True)
-        dup = re.findall(r">잠정</span>\s*<span class=\"badge\"[^>]*>[^<]*</span>", t)
-        assert not dup, f"{u} 에서 배지가 중복된다: {dup[:2]}"
+        dup = [(a, b) for a, b in pair.findall(t) if a.strip() == b.strip()]
+        assert not dup, f"{u} 에서 같은 배지가 두 번 찍힌다: {dup[:2]}"
     cmp_ = c.get("/compare").get_data(as_text=True)
     # compare 는 JS 로 그리므로 '둘 다 붙이는' 코드 형태가 남아 있지 않은지 본다
     assert "else if(pr)cell+=" in cmp_, "compare 가 배지를 배타적으로 안 고른다"
@@ -2764,3 +2772,86 @@ def test_retraction_binding_check_can_actually_fail():
     # 파생 경로가 살아 있는가 — 하드코딩이면 레지스트리를 고쳐도 안 바뀐다
     got = {(v["metric"], v["system"]) for v in C.retracted_values()}
     assert ("MD_Ea_eV", "b2o3") in got, got
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 잣대 세대 (protocol_generation) — 2026-09-07
+#   왜: MD 축은 2026-07~09 사이에 **판정 규칙 자체**가 세 번 바뀌었다. 화면이 그걸
+#   말해 주지 않으면 gen0(구 잣대) 값이 현행 값처럼 보인다 — 1저자가 세미나 값을 보고
+#   "생각보다 옛날 값 아니야?" 라고 물은 그 구멍.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_protocol_generation_ledger_is_wellformed():
+    gens = C.protocol_generations()
+    assert gens, "세대 원장을 못 읽는다 (db/properties/md_protocol_generations.json)"
+    assert set(gens) == {"gen0_pre_gate", "gen1_traj_mto_200ps", "gen2_400ps_4window"}, gens
+    for gid, g in gens.items():
+        assert g.get("gates"), f"{gid} 에 gates 가 없다"
+        assert set(g["gates"]) == {"G1_MTO", "G2_traj", "G3_4window",
+                                   "G4_framework", "G5_prereg"}, f"{gid} 게이트 축이 다르다"
+    # gen0 은 슬라이드·원고에 붙일 **영문 각주**를 반드시 들고 있어야 한다
+    fn = gens["gen0_pre_gate"].get("영문_각주", "")
+    for kw in ("MTO", "4-window", "protocol-conditioned"):
+        assert kw in fn, f"gen0 영문 각주에 {kw!r} 이 없다: {fn!r}"
+
+
+def test_every_MD_entry_declares_its_generation():
+    """MD_* 항목은 **전부** 세대를 들고 있어야 한다 — 빠뜨림을 통과로 읽지 않는다."""
+    reg = C.registry()
+    vocab = set(C.protocol_generations())
+    md = [e for e in reg["entries"] if str(e.get("metric", "")).startswith("MD_")]
+    assert len(md) >= 11, f"MD_* 항목이 {len(md)}개뿐이다 — 레지스트리가 줄었나?"
+    missing = [(e.get("metric"), e.get("system")) for e in md
+               if e.get("protocol_generation") not in vocab]
+    assert not missing, f"세대 없는 MD 항목: {missing}"
+
+
+def test_generation_gate_fails_closed():
+    """⛔음성: 세대가 없거나 어휘 밖이면 validator 가 **반드시** 잡는다.
+
+    이게 없으면 위 시험은 '레지스트리가 지금 맞다' 만 말하고, 다음에 누가 세대 없는
+    MD 항목을 추가해도 조용히 통과한다.
+    """
+    base = {"system": "x", "metric": "MD_Ea_eV", "value": 1.0, "unit": "eV",
+            "status": "provisional", "comparison_group": "g"}
+    # ① 세대 없음 → 위반
+    bad = C.validate({"entries": [dict(base)]})
+    assert any("protocol_generation 이 없다" in m for _, m in bad), bad
+    # ② 어휘 밖 → 위반
+    bad = C.validate({"entries": [dict(base, protocol_generation="gen9_made_up")]})
+    assert any("어휘 밖" in m for _, m in bad), bad
+    # ③ 올바른 세대 → 이 사유로는 안 걸린다 (다른 사유는 걸릴 수 있다)
+    ok = C.validate({"entries": [dict(base, protocol_generation="gen0_pre_gate")]})
+    assert not any("protocol_generation" in m for _, m in ok), ok
+    # ④ MD_ 가 아닌 metric 은 세대를 요구하지 않는다
+    ok = C.validate({"entries": [dict(base, metric="gap_eV")]})
+    assert not any("protocol_generation" in m for _, m in ok), ok
+
+
+def test_generation_badge_renders_and_is_not_a_quality_grade():
+    c = A.app.test_client()
+    t = c.get("/composition/modelc").get_data(as_text=True)
+    assert "구 잣대" in t, "modelc 화면에 잣대 세대 배지가 없다"
+    # 배지 툴팁이 게이트 상태를 실제로 말해야 한다 (라벨만 있고 근거 없으면 무의미)
+    assert "G3=평가불가" in t or "G3=" in t, "세대 툴팁에 게이트 상태가 없다"
+    # ⛔ 세대는 품질 등급이 아니다 — 화면이 '틀린 값' 이라고 말하면 안 된다
+    gb = D.canonical_generation_for("modelc")
+    assert gb["MD_Ea_eV"]["gen"] == "gen0_pre_gate"
+    assert "평가불가" in gb["MD_Ea_eV"]["why"], gb["MD_Ea_eV"]["why"]
+    for forbidden in ("틀렸", "오류", "무효"):
+        assert forbidden not in gb["MD_Ea_eV"]["why"], \
+            f"세대 배지가 값을 부정한다({forbidden}) — gen0 은 미검증이지 반증이 아니다"
+
+
+def test_generation_badge_survives_unknown_vocabulary():
+    """⛔음성: 어휘 밖 세대가 들어와도 배지가 **조용히 사라지지 않는다**.
+
+    2026-09-07 에 `retracted` 가 배지 표에 없어 배지가 통째로 안 붙고 철회값이 정상
+    카드처럼 뜬 사고가 있었다. 같은 형태의 fail-open 을 세대 축에서 미리 막는다.
+    """
+    b = D.generation_badge({"metric": "MD_Ea_eV", "protocol_generation": "gen_from_the_future"})
+    assert b is not None, "어휘 밖 세대에서 배지가 통째로 사라졌다 (fail-open)"
+    assert b["label"] == "세대?", b
+    assert "어휘 밖" in b["why"], b["why"]
+    # 세대 필드가 아예 없으면 배지도 없다 (그건 MD_* 검사가 따로 잡는다)
+    assert D.generation_badge({"metric": "MD_Ea_eV"}) is None

@@ -3,6 +3,8 @@
 #   but the data is truncated to the common length across temperatures.
 "# 3 seeds; 600 K b2o3_600_reseed (200 ps), 800/1000 K highT_reseed/b2o3 (100 ps). AXIS RETRACTED 2026-08-25"
 "# Fit window 2-50 ps, free intercept: MSD = 6Dt + c."
+# PROTOCOL GENERATION: gen0_pre_gate. Predates the 2026-08 MTO / trajectory-retention / 4-window standard. Ea values are protocol-conditioned; not comparable to the 400 ps campaign.
+#   -> db/properties/md_protocol_generations.json (gates G1-G5)
 # !! UMA-MD transport axis RETRACTED 2026-08-25 (anion-sublattice mobility).
 #    D / Ea / sigma from these curves are NOT citable. Context only.
 t_ps,MSD_600K_A2,MSD_800K_A2,MSD_1000K_A2

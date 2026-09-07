@@ -3,6 +3,8 @@
 #   but the data is truncated to the common length across temperatures.
 # 4 seeds; lpsocl_md ladder+reseed_hiT s2/s3/s4 (200 ps runs); licube EXCLUDED (same-seed rerun)
 "# Fit window 2-50 ps, free intercept: MSD = 6Dt + c."
+# PROTOCOL GENERATION: gen0_pre_gate. Predates the 2026-08 MTO / trajectory-retention / 4-window standard. Ea values are protocol-conditioned; not comparable to the 400 ps campaign.
+#   -> db/properties/md_protocol_generations.json (gates G1-G5)
 t_ps,MSD_600K_A2,MSD_800K_A2,MSD_1000K_A2
 0.0,0.000,0.000,0.000
 1.0,2.274,3.101,4.530

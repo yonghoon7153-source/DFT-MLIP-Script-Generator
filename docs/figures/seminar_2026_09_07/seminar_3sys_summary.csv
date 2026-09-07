@@ -3,6 +3,11 @@
 "# LPSOCl1.6: lpsocl_md_arrhenius.json (4seed x 3T, headline 2026-07-27)"
 "# sigma = Nernst-Einstein, Haven=1 -> UPPER BOUND. Absolute sigma NOT citable."
 # B2O3@LPSCl1.6 UMA-MD transport axis RETRACTED 2026-08-25 (framework creep).
+# PROTOCOL GENERATION: gen0_pre_gate. Predates the 2026-08 MTO / trajectory-retention / 4-window standard. Ea values are protocol-conditioned; not comparable to the 400 ps campaign.
+#   -> db/properties/md_protocol_generations.json (gates G1-G5)
+# sigma(T) is computed PER TEMPERATURE from that row's D:
+"#   sigma = n_Li * e^2 * D(T) / (k_B * T)   [Nernst-Einstein, Haven=1]"
+#   Ea is a SEPARATE quantity: slope of ln D vs 1000/T across the 3 rows.
 system,status,seeds,Ea_eV,Ea_err_eV,T_K,D_cm2_s,n_Li_cm-3,sigma_mScm
 LPSCl1.6,baseline,3 seeds × 3 T,0.197,0.032,600,1.0370e-05,2.220e+22,713.4
 LPSCl1.6,baseline,3 seeds × 3 T,0.197,0.032,800,2.8450e-05,2.220e+22,1467.9

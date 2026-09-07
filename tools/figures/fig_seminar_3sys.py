@@ -10,6 +10,16 @@ DB, OUT = R/"db/properties", R/"docs/figures/seminar_2026_09_07"
 KB, Q = 1.380649e-23, 1.602176634e-19
 def sigma_mScm(n_cm3, D, T): return 1e3*n_cm3*Q*Q*D/(KB*T)
 
+# ── 잣대 세대 각주 (2026-09-07) ──────────────────────────────────────────
+#   왜: 이 세트는 gen0(게이트 이전) 자료다. 그림·CSV 가 슬라이드로 옮겨지면 대화 맥락은
+#   떨어져 나가므로 **각주를 산출물 안에 박는다.** 문구는 세대 원장이 단일 출처다 —
+#   여기 손으로 적으면 원장과 갈라진다.
+GEN_ID = "gen0_pre_gate"
+_gens = {g["id"]: g for g in json.loads(
+    (DB/"md_protocol_generations.json").read_text(encoding="utf-8"))["generations"]}
+GEN_NOTE = _gens[GEN_ID]["영문_각주"]
+assert GEN_NOTE, "세대 원장에 영문 각주가 없다"
+
 SYS = {  # label, color, Ea, Ea_err, D(600/800/1000), n_Li, seeds, status
  "LPSCl1.6":       dict(c="#2563eb", Ea=0.197, err=0.032, D=[1.037e-05,2.845e-05,4.728e-05],
                         n=2.220e22, seeds="3 seeds × 3 T", st="baseline"),
@@ -39,10 +49,11 @@ axes[0].text(26,axes[0].get_ylim()[1]*.04,"fit window\n2–50 ps",ha="center",fo
 fig.suptitle(f"Li MSD — seed-ensemble means, UMA-s-1p1 (omat), 0–{t.max():.0f} ps",
              fontsize=12,color=H.INK)   # ⛔ 부모 CSV 헤더는 "0-200 ps" 라고 하지만
                                          #   데이터는 온도 공통 길이로 잘려 있다 — 실측을 쓴다
-fig.text(.5,.005,"dashed = B2O3@LPSCl1.6: UMA-MD transport axis RETRACTED 2026-08-25 "
+fig.text(.5,.032,"dashed = B2O3@LPSCl1.6: UMA-MD transport axis RETRACTED 2026-08-25 "
          "(anion-sublattice mobility) — shown for context only, not citable",
          ha="center",fontsize=8.5,color="#be123c")
-fig.tight_layout(rect=[0,.035,1,.95]); fig.savefig(OUT/"msd_3sys.png",dpi=300); plt.close(fig)
+fig.text(.5,.004,GEN_NOTE,ha="center",fontsize=7.8,color=H.MUT)
+fig.tight_layout(rect=[0,.062,1,.95]); fig.savefig(OUT/"msd_3sys.png",dpi=300); plt.close(fig)
 
 # ── Arrhenius ──────────────────────────────────────────────────────────
 fig,ax=plt.subplots(figsize=(6.6,5.0))
@@ -62,7 +73,8 @@ sec=ax.secondary_xaxis("top",functions=(lambda v:1000/np.clip(v,1e-9,None),
 sec.set_xlabel("T (K)",fontsize=10,color=H.MUT); sec.set_xticks(TT)
 ax.text(.02,.03,"open symbols / dashed = RETRACTED axis (b2o3)",transform=ax.transAxes,
         fontsize=8.5,color="#be123c")
-fig.tight_layout(); fig.savefig(OUT/"arrhenius_3sys.png",dpi=300); plt.close(fig)
+fig.text(.5,.006,GEN_NOTE,ha="center",fontsize=7.4,color=H.MUT,wrap=True)
+fig.tight_layout(rect=[0,.045,1,1]); fig.savefig(OUT/"arrhenius_3sys.png",dpi=300); plt.close(fig)
 
 # ── sigma ──────────────────────────────────────────────────────────────
 fig,ax=plt.subplots(figsize=(7.0,4.6))
@@ -77,10 +89,11 @@ ax.set_xticks(xs); ax.set_xticklabels([f"{T} K" for T in TT])
 H.apply_axes(ax,ylabel=r"$\sigma_{\rm Li}$ (mS/cm)",
              title="Nernst–Einstein conductivity (Haven = 1) — UPPER BOUND")
 ax.legend(frameon=False,fontsize=9)
-fig.text(.5,.012,"[!] absolute sigma is NOT citable (NE upper bound, Haven=1 assumed) · "
+fig.text(.5,.042,"[!] absolute sigma is NOT citable (NE upper bound, Haven=1 assumed) · "
          "no 300 K extrapolation · hatched = retracted axis",
          ha="center",fontsize=8.5,color="#be123c")
-fig.tight_layout(rect=[0,.045,1,1]); fig.savefig(OUT/"sigma_3sys.png",dpi=300); plt.close(fig)
+fig.text(.5,.006,GEN_NOTE,ha="center",fontsize=7.4,color=H.MUT)
+fig.tight_layout(rect=[0,.075,1,1]); fig.savefig(OUT/"sigma_3sys.png",dpi=300); plt.close(fig)
 
 # ── Origin-ready CSV ───────────────────────────────────────────────────
 with open(OUT/"seminar_3sys_summary.csv","w",newline="") as f:
@@ -90,6 +103,11 @@ with open(OUT/"seminar_3sys_summary.csv","w",newline="") as f:
     w.writerow(["# LPSOCl1.6: lpsocl_md_arrhenius.json (4seed x 3T, headline 2026-07-27)"])
     w.writerow(["# sigma = Nernst-Einstein, Haven=1 -> UPPER BOUND. Absolute sigma NOT citable."])
     w.writerow(["# B2O3@LPSCl1.6 UMA-MD transport axis RETRACTED 2026-08-25 (framework creep)."])
+    w.writerow([f"# PROTOCOL GENERATION: {GEN_ID}. {GEN_NOTE}"])
+    w.writerow(["#   -> db/properties/md_protocol_generations.json (gates G1-G5)"])
+    w.writerow(["# sigma(T) is computed PER TEMPERATURE from that row's D:"])
+    w.writerow(["#   sigma = n_Li * e^2 * D(T) / (k_B * T)   [Nernst-Einstein, Haven=1]"])
+    w.writerow(["#   Ea is a SEPARATE quantity: slope of ln D vs 1000/T across the 3 rows."])
     w.writerow(["system","status","seeds","Ea_eV","Ea_err_eV","T_K","D_cm2_s","n_Li_cm-3","sigma_mScm"])
     for name,v in SYS.items():
         for T,d,s in zip(TT,v["D"],v["sig"]):
