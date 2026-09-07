@@ -174,6 +174,110 @@ def nk_eff(mesh):
     return float(max(1, (n + self_inv) // 2))
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 메모리 축 (2026-09-07 신설)
+#
+# 🔴🔴 **왜 생겼나** — 2026-09-07 외주처에서 **19잡이 전부 OOM** 으로 죽었다.
+#   이 파일은 그때까지 시간만 모형화했고, 자기 한계를 세 군데에 적어 두고 있었다:
+#     `par_speedup`: "메모리 한계를 모른다 … 그것을 모형에 안 넣었다"
+#     `solve_target`: "큐 정책·노드 경계·메모리를 모른다"
+#     `_recommend`:  "랭크당 메모리를 모른다"
+#   **한계를 적어 둔 것과 막은 것은 다르다.** 권고(192코어×4동시)는 그 축을 안 보고
+#   나갔고, 외주처는 노드가 **하나**다. 시간은 맞았고 메모리가 틀렸다.
+#
+# 핵심 형태 (이것만 기억하면 된다):
+#
+#     노드_GB  ≈  W_work  +  NPROC × R
+#
+#   · `W_work` = 파동함수 작업집합. **랭크 수와 무관한 바닥**이다 —
+#     랭크를 아무리 줄여도 이 밑으로 못 간다. 줄이려면 물리(ENCUT·k·셀)를 바꿔야 한다.
+#   · `R` = 랭크마다 **복제**되는 몫(격자·혼합이력·투영자·MPI 버퍼).
+#     랭크를 줄이면 이쪽이 준다. ⇒ **1노드에서 살아남는 유일한 손잡이**.
+#
+# ⛔ 이 모형이 **못 하는 것**
+#   · 벤치마크가 아니다. VASP 빌드·scalapack·MPI 구현마다 다르다 — **±40 % 는 예상 범위**.
+#   · `LREAL=.TRUE.`(실공간 투영)의 절감을 안 센다 — 우리 static/dense 는 `.FALSE.` 다.
+#   · ALGO 별 작업집합 차이를 한 상수(`WF_COPIES`)로 뭉갠다.
+#   · **동시 실행 잡 수를 곱하지 않는다** — 호출자가 `JOBS_PARALLEL` 을 곱해야 한다
+#     (러너 기본값이 5 다. 이것 하나로 5배가 된다).
+#   · 노드 RAM 중 OS·파일캐시가 먹는 몫을 모른다 → `USABLE_FRAC` 로 깎는다.
+
+VALENCE = {"Li_sv": 3, "Li": 1, "Ni_pv": 16, "Ni": 10, "O": 6, "S": 6,
+           "C": 4, "H": 1, "F": 7, "P": 5, "Cl": 7, "B": 3, "Nd": 14}
+#: POTCAR_SPEC.txt 의 변형 → 원자가 전자. 원소기호만 있으면 기본 변형으로 본다.
+
+WF_COPIES = 3.0        # Davidson(ALGO=Normal) 작업집합 ≈ 파동함수 배열의 3배
+REPL_GB_PER_RANK = 0.9  # 랭크당 복제몫 [GB] — 227원자·520 eV 급의 어림
+USABLE_FRAC = 0.85     # 노드 RAM 중 실제로 쓸 수 있는 몫 (OS·캐시·단편화)
+
+
+def plane_waves(volume_A3, encut_eV):
+    """이 셀·컷오프의 평면파 수(밴드·k점·스핀 하나당). → float
+
+    `NPLW = V k³ / (6π²)`,  `k[Å⁻¹] = 0.512317 √(E[eV])`
+    ⛔ 실제 VASP 는 k점마다 |k+G|≤G_cut 이라 조금씩 다르다 — 여기선 Γ 근사다.
+    """
+    if not volume_A3 or encut_eV <= 0:
+        return 0.0
+    k = 0.512317 * (float(encut_eV) ** 0.5)
+    return float(volume_A3) * k ** 3 / (6.0 * 3.141592653589793 ** 2)
+
+
+def n_bands(species_order, counts):
+    """NBANDS 어림 = NELECT/2 + NIONS/2, NCORE 배수로 올림. → (nbands, nelect, nions)
+
+    ⛔ VASP 가 NPAR 배수로 더 올릴 수 있다 — 이 값은 **하한**이다.
+    ⛔ 모르는 종이 있으면 **0 을 주지 않고 예외**를 낸다 (조용히 과소추정 금지).
+    """
+    sp = list(species_order or [])
+    cs = list(counts or [])
+    if not sp or len(sp) != len(cs):
+        raise ValueError(f"종/개수가 안 맞는다: {sp} vs {cs}")
+    nel = 0
+    for s, n in zip(sp, cs):
+        if s not in VALENCE:
+            raise ValueError(f"원자가 전자를 모르는 종: {s!r} — VALENCE 에 등록할 것")
+        nel += VALENCE[s] * int(n)
+    nions = sum(int(n) for n in cs)
+    nb = -(-(nel // 2 + nions // 2) // 4) * 4          # NCORE=4 배수로 올림
+    return nb, nel, nions
+
+
+def job_memory(volume_A3, species_order, counts, mesh, encut=520.0, ispin=2,
+               kpar=1, wf_copies=WF_COPIES, repl_gb=REPL_GB_PER_RANK):
+    """잡 하나의 메모리 모형. → dict
+
+    반환 `floor_GB` = 랭크를 아무리 늘려도/줄여도 **안 내려가는 바닥**,
+         `repl_gb`  = 랭크당 복제몫,
+         `node_GB(nproc)` = 전 랭크가 한 노드에 있을 때의 총량.
+    """
+    npw = plane_waves(volume_A3, encut)
+    nb, nel, nions = n_bands(species_order, counts)
+    nk = nk_eff(mesh)
+    # KPAR>1 이면 k점이 그룹에 고르게 안 나뉠 수 있다 — **큰 쪽**으로 본다(보수적).
+    nk_grp = -(-int(nk) // max(1, int(kpar)))
+    floor = nb * npw * nk_grp * int(kpar) * int(ispin) * 16 * wf_copies / 1024 ** 3
+    return {"nplw": npw, "nbands": nb, "nelect": nel, "nions": nions,
+            "nkpts": nk, "nk_per_group": nk_grp, "floor_GB": floor,
+            "repl_GB_per_rank": repl_gb,
+            "node_GB": lambda nproc: floor + max(1, int(nproc)) * repl_gb}
+
+
+def max_ranks_on_node(mem, gb_per_node, jobs_parallel=1, need_multiple_of=16,
+                      usable_frac=USABLE_FRAC):
+    """이 노드에서 돌릴 수 있는 **잡당 최대 랭크 수**. 못 돌리면 0. → int
+
+    ⛔ 0 을 돌려주는 것은 "랭크를 더 줄여라" 가 **아니다** — 바닥(`floor_GB`)이 이미
+      노드보다 크다는 뜻이고, 그때는 물리(ENCUT·k·셀)나 동시잡 수를 바꿔야 한다.
+      이 구분을 안 하면 "코어를 줄이면 된다" 는 잘못된 처방이 나간다 (2026-09-07 교훈).
+    """
+    usable = float(gb_per_node) * usable_frac / max(1, int(jobs_parallel))
+    if mem["floor_GB"] >= usable:
+        return 0
+    n = int((usable - mem["floor_GB"]) / mem["repl_GB_per_rank"])
+    return (n // need_multiple_of) * need_multiple_of
+
+
 def ceiling_factor(ph):
     """이 상의 **NELM 천장 배수** (추정 → 잘릴 수 있는 최대 벽시계). → float | None
 
@@ -1072,6 +1176,56 @@ def selftest() -> int:
             chk(False, f"실물 {_nm} 에서 예외 — {type(e).__name__}: {e}")
     else:
         print("  · 실물 번들 없음 (bundles/*/MANIFEST.json) — 합성만 시험함")
+
+    # ── 메모리 축 (2026-09-07 신설, 외주처 19잡 OOM 이후) ────────────────────
+    print("  ── 메모리 모형 ──")
+    # 양성: 평면파 수는 부피에 선형, 컷오프의 3/2 승
+    p1 = plane_waves(7318, 520.0)
+    chk(1.8e5 < p1 < 2.2e5, f"227원자 슬랩(7318 Å³·520 eV)의 평면파 ≈ {p1:,.0f}")
+    chk(abs(plane_waves(2 * 7318, 520.0) / p1 - 2.0) < 1e-9, "평면파 ∝ 부피")
+    chk(abs(plane_waves(7318, 4 * 520.0) / p1 - 8.0) < 1e-6, "평면파 ∝ ENCUT^1.5")
+    # 양성: NBANDS
+    nb, nel, ni = n_bands(["Li_sv", "Ni_pv", "O", "S", "C", "H"], [48, 48, 102, 2, 11, 16])
+    chk((nel, ni) == (1596, 227), f"NELECT {nel} · NIONS {ni} (Li_sv 3 · Ni_pv 16)")
+    chk(nb % 4 == 0 and nb >= nel // 2, f"NBANDS {nb} 는 NCORE 배수이고 NELECT/2 이상")
+    # ⛔음성: 모르는 종을 **0 으로 넘기지 않는다** (조용한 과소추정 금지)
+    for bad_in, why in ((["Xx"], "모르는 종"), ([], "빈 종 목록")):
+        try:
+            n_bands(bad_in, [1] * len(bad_in)); hit = False
+        except ValueError:
+            hit = True
+        chk(hit, f"⛔음성: {why} 를 예외로 낸다 (0 을 돌려주지 않는다)")
+    try:
+        n_bands(["Li_sv", "O"], [48]); hit = False      # 길이 불일치
+    except ValueError:
+        hit = True
+    chk(hit, "⛔음성: 종/개수 길이가 다르면 예외")
+
+    _m = job_memory(7318, ["Li_sv", "Ni_pv", "O", "S", "C", "H"],
+                    [48, 48, 102, 2, 11, 16], "3 4 1", kpar=4)
+    # 양성: 바닥은 랭크와 무관하고, 노드 총량은 랭크에 선형으로 는다
+    chk(_m["node_GB"](0) == _m["node_GB"](1),
+        "랭크 0·1 이 같다 (0 랭크를 1 로 클램프 — 바닥이 사라지지 않는다)")
+    d1 = _m["node_GB"](32) - _m["node_GB"](16)
+    d2 = _m["node_GB"](64) - _m["node_GB"](48)
+    chk(abs(d1 - d2) < 1e-9 and d1 > 0, "노드 총량은 랭크에 **선형** (복제몫)")
+    chk(_m["node_GB"](16) > _m["floor_GB"], "랭크를 줄여도 바닥 밑으로 안 내려간다")
+    chk(_m["nk_per_group"] == 2, f"k 7 을 KPAR 4 로 나눌 때 그룹당 **2**(올림, 보수적)")
+
+    # ⛔음성 ①: 바닥보다 작은 노드는 **랭크를 줄이라고 말하지 않는다** — 0 이다.
+    #   이 구분이 없으면 "코어를 줄이면 된다" 는 잘못된 처방이 나간다(2026-09-07 실사고).
+    small = _m["floor_GB"] * 0.9 / USABLE_FRAC
+    chk(max_ranks_on_node(_m, small) == 0,
+        f"⛔음성: 노드 {small:.0f} GB (바닥 미만) → 0 = 불가. 랭크 조정으로 안 된다")
+    big = (_m["floor_GB"] + 200 * REPL_GB_PER_RANK) / USABLE_FRAC
+    chk(max_ranks_on_node(_m, big) > 0, f"양성: 노드 {big:.0f} GB 는 돌릴 수 있다")
+    # ⛔음성 ②: JOBS_PARALLEL 을 곱하지 않으면 5배를 놓친다 (러너 기본값이 5다)
+    r1 = max_ranks_on_node(_m, 512, jobs_parallel=1)
+    r5 = max_ranks_on_node(_m, 512, jobs_parallel=5)
+    chk(r5 < r1, f"⛔음성: 동시잡 5 면 허용 랭크가 준다 ({r1} → {r5})")
+    chk(max_ranks_on_node(_m, 512, jobs_parallel=1) % 16 == 0,
+        "허용 랭크는 KPAR×NCORE=16 의 배수로만 낸다 (INCAR 이 동결돼 있다)")
+
     print("selftest PASS" if ok else "selftest FAIL")
     return 0 if ok else 1
 
