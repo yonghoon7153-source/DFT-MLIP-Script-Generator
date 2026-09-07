@@ -1108,7 +1108,7 @@ MUTANTS = [
      "            capture_output=True, text=True, timeout=1800)\n"
      "        if rep.is_file() and rep.stat().st_size:",
      "the_replayed_run_itself_sees_only_a_declared_environment"),
-    ("smoke-registry-is-split-by-class", PRESERVE,                # L14
+    ("smoke-registry-is-split-by-class-g58", PRESERVE,                # L14
      "    return (local_exec_class_root_for_ledger(ledger) if cls == EXEC_CLASS_SMOKE\n"
      "            else exec_class_root_for_ledger(ledger))",
      "    return exec_class_root_for_ledger(ledger)",
@@ -1774,6 +1774,197 @@ def _last_line(text: str) -> str:
 #:   `witness` 는 **node → 실패 메시지 부분문자열** map 이다. 시각·임시 경로
 #:   처럼 실행마다 달라지는 부분은 손으로 잘라 안정한 접두만 남긴다.
 EXPECT: dict = {
+    # ★ 아래 셋은 **지역 실행**으로 쟀다. 전체 재생은 이 셋을 못 잰다 —
+    #   `check_coverage()` 가 모든 executable 변이의 EXPECT 를 요구하는데
+    #   이 셋의 증인이 바로 그 함수를 부르는 시험이라 순환이 생긴다.
+    #   순환을 깨는 것이지 근거를 바꾸는 것이 아니다: 값은 변이를 실제로
+    #   적용해 빨개진 node 와 그 assertion 줄 그대로다. 채운 뒤 전체
+    #   재생이 같은 값을 다시 확인한다.
+    "coverage-checks-the-execution-receipt-g58": {
+        "fail": [
+            "tests/test_evidence_layer_58.py::test_the_top_level_checker_consumes_the_execution_receipt",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_58.py::test_the_top_level_checker_consumes_the_execution_receipt":
+                "+    where <function check_coverage at 0x7f6444bd5d00> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+        }
+    },
+    "report-attests-the-environment-g58": {
+        "fail": [
+            "tests/test_evidence_layer_58.py::test_a_report_that_attests_another_environment_is_refused",
+            "tests/test_evidence_layer_58.py::test_execution_evidence_can_not_be_laundered_without_the_reports",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_58.py::test_a_report_that_attests_another_environment_is_refused":
+                "+    where <function check_coverage at 0x7f7362c09e40> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+            "tests/test_evidence_layer_58.py::test_execution_evidence_can_not_be_laundered_without_the_reports":
+                "+    where <function check_coverage at 0x7f7362c09e40> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+        }
+    },
+    "smoke-registry-is-split-by-class-g58": {
+        "fail": [
+            "tests/test_exec_class_registry_split_58.py::test_smoke_records_do_not_land_in_the_shared_registry",
+        ],
+        "witness": {
+            "tests/test_exec_class_registry_split_58.py::test_smoke_records_do_not_land_in_the_shared_registry":
+                "assert 3 == 0",
+        }
+    },
+
+    # ── 58차 축 (`-g58`) — 아래는 전부 `--emit-expect` **관측값**이다.
+    #   손으로 적지 않는다: "무엇으로 물었는가" 를 사람이 쓰면 그것은
+    #   증거가 아니라 주장이 된다.
+    "bundle-uri-must-be-repo-relative-g58": {
+        "fail": [
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[../escape]",
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[]",
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[docs/../../escape]",
+        ],
+        "witness": {
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[../escape]":
+                "AssertionError: Regex pattern did not match.",
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[]":
+                "AssertionError: Regex pattern did not match.",
+            "tests/test_evidence_domain_58.py::test_a_bundle_uri_that_escapes_the_repository_is_refused[docs/../../escape]":
+                "AssertionError: Regex pattern did not match.",
+        }
+    },
+    "capability-can-not-leave-the-call-site-g58": {
+        "fail": [
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[\ucee8\ud14c\uc774\ub108]",
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[factory]",
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[partial]",
+        ],
+        "witness": {
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[\ucee8\ud14c\uc774\ub108]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[factory]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[partial]":
+                "Failed: DID NOT RAISE SystemExit",
+        }
+    },
+    "content-id-hashes-every-manifest-g58": {
+        "fail": [
+            "tests/test_execution_class_wiring_58.py::test_two_fits_sharing_curves_do_not_share_a_content_id",
+        ],
+        "witness": {
+            "tests/test_execution_class_wiring_58.py::test_two_fits_sharing_curves_do_not_share_a_content_id":
+                "AssertionError: 곡선이 같고 적합이 다른 두 실행이 같은 내용 identity 를 가졌다 — identity 가 적용되는 manifest 전부를 담지 않는다 (L2)",
+        }
+    },
+    "decorators-are-import-time-effects-g58": {
+        "fail": [
+            "tests/test_producer_closure_58.py::test_a_name_only_decorator_changes_the_identity_when_its_body_changes",
+        ],
+        "witness": {
+            "tests/test_producer_closure_58.py::test_a_name_only_decorator_changes_the_identity_when_its_body_changes":
+                "AssertionError: 데코레이터 구현을 바꿔 결과가 1 → 9 로 달라지는데 producer digest 가 같다 — 데코레이터 적용이 identity 밖에서 돈다 (58차 L9-a)",
+        }
+    },
+    "execution-class-record-is-exclusive-g58": {
+        "fail": [
+            "tests/test_execution_class_wiring_58.py::test_only_one_writer_can_create_an_execution_class",
+        ],
+        "witness": {
+            "tests/test_execution_class_wiring_58.py::test_only_one_writer_can_create_an_execution_class":
+                "AssertionError: 경쟁하는 두 등록이 둘 다 성공했다 (['ok:canonical', 'ok:smoke']) — read/check/replace 는 CAS 가 아니다 (L3)",
+        }
+    },
+    "execution-receipt-binds-the-startup-g58": {
+        "fail": [
+            "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_the_interpreter_itself",
+            "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_what_the_interpreter_actually_loads",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_the_interpreter_itself":
+                "AssertionError: 영수증이 인터프리터 바이트를 안 담는다 — 같은 버전의 다른 실행 파일이 같은 증거를 만든다 (L11)",
+            "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_what_the_interpreter_actually_loads":
+                "AssertionError: 같은 PYTHONPATH 문자열 아래 sitecustomize.py 를 바꿨는데 실행 영수증 digest 가 그대로다 — 재생이 실제로 올리는 코드가 증거 밖에 있다 (L11)",
+        }
+    },
+    "frozen-seal-is-consulted-first-g58": {
+        "fail": [
+            "tests/test_frozen_coordinate_seal_58.py::test_hiding_every_name_of_a_frozen_ancestor_does_not_make_it_writable",
+        ],
+        "witness": {
+            "tests/test_frozen_coordinate_seal_58.py::test_hiding_every_name_of_a_frozen_ancestor_does_not_make_it_writable":
+                "AssertionError: frozen 조상의 이름을 덮었더니 guard 가 통과했다 — 판정이 '지금 볼 수 있는 이름' 에 의존한다 (L5)",
+        }
+    },
+    "issuance-fsync-is-strict-g58": {
+        "fail": [
+            "tests/test_issuance_durability_58.py::test_issuance_fails_closed_when_a_directory_cannot_be_flushed",
+        ],
+        "witness": {
+            "tests/test_issuance_durability_58.py::test_issuance_fails_closed_when_a_directory_cannot_be_flushed":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "lifecycle-owned-evidence-is-refused-g58": {
+        "fail": [
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[attempt_id]",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[attempt_verifier]",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[phases]",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[run_spec_digest]",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[verifier_origin]",
+            "tests/test_evidence_domain_58.py::test_normal_finalize_cannot_forge_the_migration_provenance",
+        ],
+        "witness": {
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[attempt_id]":
+                "Failed: DID NOT RAISE PreserveError",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[attempt_verifier]":
+                "Failed: DID NOT RAISE PreserveError",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[phases]":
+                "Failed: DID NOT RAISE PreserveError",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[run_spec_digest]":
+                "Failed: DID NOT RAISE PreserveError",
+            "tests/test_evidence_domain_58.py::test_lifecycle_owned_evidence_keys_are_refused_from_callers[verifier_origin]":
+                "Failed: DID NOT RAISE PreserveError",
+            "tests/test_evidence_domain_58.py::test_normal_finalize_cannot_forge_the_migration_provenance":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "phase-receipt-is-write-once-g58": {
+        "fail": [
+            "tests/test_phase_receipt_immutability_58.py::test_a_closed_phase_cannot_be_rewritten_with_a_different_receipt",
+        ],
+        "witness": {
+            "tests/test_phase_receipt_immutability_58.py::test_a_closed_phase_cannot_be_rewritten_with_a_different_receipt":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "replay-forces-the-declared-environment-g58": {
+        "fail": [
+            "tests/test_evidence_layer_58.py::test_the_replayed_run_itself_sees_only_a_declared_environment",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_58.py::test_the_replayed_run_itself_sees_only_a_declared_environment":
+                "AssertionError: 재생(`_run`)이 pytest 에 환경을 지정하지 않는다",
+        }
+    },
+    "smoke-containment-is-a-kernel-coordinate-g58": {
+        "fail": [
+            "tests/test_namespace_kernel_identity_58.py::test_a_bind_mounted_outside_directory_is_not_inside_the_smoke_namespace",
+            "tests/test_namespace_kernel_identity_58.py::test_an_unplanned_leg_under_a_bind_alias_is_not_exempted",
+        ],
+        "witness": {
+            "tests/test_namespace_kernel_identity_58.py::test_a_bind_mounted_outside_directory_is_not_inside_the_smoke_namespace":
+                "AssertionError: bind mount 한 외부 디렉터리를 smoke namespace 안이라고 판정했다 — 어휘·symlink 만 보고 mount 를 안 본다 (L4)",
+            "tests/test_namespace_kernel_identity_58.py::test_an_unplanned_leg_under_a_bind_alias_is_not_exempted":
+                "AssertionError: 계획에 없는 다리가 bind alias 아래에서 면제받았다 (exempted) — smoke 면제가 실물 경계를 안 본다 (L4)",
+        }
+    },
+    "smoke-gate-records-the-execution-class-g58": {
+        "fail": [
+            "tests/test_execution_class_wiring_58.py::test_production_smoke_gate_records_the_execution_class",
+        ],
+        "witness": {
+            "tests/test_execution_class_wiring_58.py::test_production_smoke_gate_records_the_execution_class":
+                "AssertionError: production smoke gate 를 지났는데 등록부에 아무것도 없다 — 면제를 정한 authority 에 진입점이 닿지 않았다 (L1)",
+        }
+    },
+
 
     "receipt-carries-the-mutant-marker": {
         "fail": [

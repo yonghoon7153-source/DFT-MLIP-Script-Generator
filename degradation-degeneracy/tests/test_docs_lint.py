@@ -9842,15 +9842,19 @@ def test_a_coverage_artifact_that_did_not_run_is_refused(tmp_path):
         mid = mr._marker_id(n)
         mark = {"nodeid": f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
                 "call": {"outcome": "passed", "longrepr": ""}}
+        # ★ 58차 L12 — 정상 report 는 **환경 증언 node** 도 담는다. 방어를
+        #   조였으므로 옛 fixture 가 깨지는 것이 정상이다 (안 깨지면 그 fixture 가
+        #   진실을 가리고 있었다는 뜻이다).
+        att = mr.attestation_nodes()
         receipts[n] = {
             "kexpr": "",
             "before": _j.dumps({"tests": [
                 {"nodeid": f, "call": {"outcome": "passed"}} for f in fails]
-                + [mark]}).encode("utf-8"),
+                + [mark] + att}).encode("utf-8"),
             "after": _j.dumps({"tests": [
                 {"nodeid": f, "call": {"outcome": "failed",
                                        "longrepr": f"E       {wit.get(f, '')}"}}
-                for f in fails] + [mark]}).encode("utf-8")}
+                for f in fails] + [mark] + att}).encode("utf-8")}
     mr._write_coverage(good, "", items, multi, declared,
                        {n: True for n in reg}, receipts)
     rec = _j.loads(good.read_text(encoding="utf-8"))
@@ -9899,15 +9903,16 @@ def test_coverage_receipts_are_verified_independently(tmp_path):
             mark = {"nodeid":
                     f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
                     "call": {"outcome": "passed", "longrepr": ""}}
+            att = mr.attestation_nodes()          # 58차 L12 — 환경 증언
             out[n] = {"kexpr": "",
                       "before": _j.dumps({"tests": [
                           {"nodeid": f, "call": {"outcome": "passed"}}
-                          for f in fails] + [mark]}).encode("utf-8"),
+                          for f in fails] + [mark] + att}).encode("utf-8"),
                       "after": _j.dumps({"tests": [
                           {"nodeid": f,
                            "call": {"outcome": "failed" if bit_says else "passed",
                                     "longrepr": f"E       {wit.get(f, '')}"}}
-                          for f in fails] + [mark]}).encode("utf-8")}
+                          for f in fails] + [mark] + att}).encode("utf-8")}
         return out
 
     mr._write_coverage(good, "", items, multi, declared,
@@ -11035,7 +11040,9 @@ def test_a_genuine_report_from_another_mutant_is_refused(tmp_path):
                       "longrepr": f"E       {wit.get(f, '')}"}}
             for f in fails] + [
             {"nodeid": f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
-             "call": {"outcome": "passed", "longrepr": ""}}]}).encode("utf-8")
+             "call": {"outcome": "passed", "longrepr": ""}}]
+            # ★ 58차 L12 — 정상 report 는 환경 증언 node 도 담는다
+            + mr.attestation_nodes()}).encode("utf-8")
 
     items, multi, _x, declared = mr._select("")
     good = tmp_path / "s1.json"
@@ -11084,7 +11091,9 @@ def test_the_recorded_head_must_exist_in_this_repository(tmp_path):
                       "longrepr": f"E       {wit.get(f, '')}"}}
             for f in fails] + [
             {"nodeid": f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
-             "call": {"outcome": "passed", "longrepr": ""}}]}).encode("utf-8")
+             "call": {"outcome": "passed", "longrepr": ""}}]
+            # ★ 58차 L12 — 정상 report 는 환경 증언 node 도 담는다
+            + mr.attestation_nodes()}).encode("utf-8")
 
     receipts = {n: {"kexpr": "", "before": _report(n, "before"),
                     "after": _report(n, "after")} for n in reg}
@@ -11412,7 +11421,9 @@ def test_coverage_is_bound_to_the_tree_it_actually_tested(tmp_path):
                       "longrepr": f"E       {wit.get(f, '')}"}}
             for f in fails] + [
             {"nodeid": f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
-             "call": {"outcome": "passed", "longrepr": ""}}]}).encode("utf-8")
+             "call": {"outcome": "passed", "longrepr": ""}}]
+            # ★ 58차 L12 — 정상 report 는 환경 증언 node 도 담는다
+            + mr.attestation_nodes()}).encode("utf-8")
 
     receipts = {n: {"kexpr": "", "before": _report(n, "before"),
                     "after": _report(n, "after")} for n in reg}
@@ -11906,7 +11917,9 @@ def test_the_checker_actually_consumes_the_execution_receipt(tmp_path):
                       "longrepr": f"E       {wit.get(f, '')}"}}
             for f in fails] + [
             {"nodeid": f"tests/test_mutation_marker_{mid}.py::test_mutant_{mid}",
-             "call": {"outcome": "passed", "longrepr": ""}}]}).encode("utf-8")
+             "call": {"outcome": "passed", "longrepr": ""}}]
+            # ★ 58차 L12 — 정상 report 는 환경 증언 node 도 담는다
+            + mr.attestation_nodes()}).encode("utf-8")
 
     receipts = {n: {"kexpr": "", "before": _report(n, "before"),
                     "after": _report(n, "after")} for n in reg}
