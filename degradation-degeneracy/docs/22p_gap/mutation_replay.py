@@ -1072,7 +1072,8 @@ MULTI = [
     #   변이로 물었다 — 실측하고 MULTI 로 옮겼다). 둘을 함께 되돌려야
     #   "유도할 수 없는 영수증이 통과한다" 는 옛 상태가 복원된다.
     ("receipt-verdict-is-fail-closed", MR, [
-        ("        if _report_identity_rc(path, name, rep_dir) != 0:\n"
+        ("        if _report_identity_rc(path, name, rep_dir,\n"
+         "                               binding.get(\"execution\")) != 0:\n"
          "            return 1",
          "        if False:\n"
          "            return 1"),
@@ -1389,12 +1390,19 @@ def _marker_id(name: str) -> str:
 
 
 def _write_marker(sandbox: pathlib.Path, name: str) -> str:
-    """sandbox 에 이 변이만의 시험 node 를 하나 놓는다 (54차 P1)."""
+    """sandbox 에 이 변이만의 시험 node 를 하나 놓는다 (54차 P1).
+
+    ★ 58차 L12 — 환경 증언 node 도 같이 놓는다. 표식이 "누구의 report 인가" 를
+      말한다면 증언은 "**어느 환경에서** 나온 report 인가" 를 말한다. 조각 옆
+      필드는 나중에 다시 쓸 수 있지만 report 바이트 안의 이 node 는 그 실행이
+      실제로 돌지 않으면 생기지 않는다.
+    """
     mid = _marker_id(name)
     (sandbox / "tests" / f"test_mutation_marker_{mid}.py").write_text(
         f'"""변이 표식 — 이 실행에만 있는 node (54차 P1)."""\n\n\n'
         f"def test_mutant_{mid}():\n"
         f"    assert True\n", encoding="utf-8")
+    _write_env_attestation(sandbox, environment_tag())
     return mid
 
 
@@ -1411,7 +1419,10 @@ def _run(kexpr: str, marker: str = "") -> dict:
     try:
         r = subprocess.run(
             [sys.executable, "-m", "pytest", "tests/", "-q", "-k",
-             f"({kexpr}) or test_mutant_{marker}" if marker else kexpr,
+             # ★ 58차 L12 — 환경 증언 node 도 **같이 고른다**. sandbox 에 파일만
+             #   놓고 안 고르면 report 에 안 나타나고, 그러면 증언이 없다.
+             (f"({kexpr}) or test_mutant_{marker} or test_env_"
+              f"{environment_tag()}") if marker else kexpr,
              "-p", "no:randomly", "--no-header",
              "--json-report", f"--json-report-file={rep}"],
             cwd=_sandboxed(ROOT), env=replay_env(),
@@ -1446,7 +1457,8 @@ def _run(kexpr: str, marker: str = "") -> dict:
                 #   그대로 담았다). 판정 집합에 넣으면 baseline 수집 목록과
                 #   어긋나므로, 여기서는 뺀다 — 표식은 "누구의 report 인가" 를
                 #   말하는 것이지 "무엇이 물었는가" 가 아니다.
-                if "test_mutant_" in (t.get("nodeid") or ""):
+                nid = t.get("nodeid") or ""
+                if "test_mutant_" in nid or "test_mutation_env_" in nid:
                     continue
                 phases = {ph: t[ph]["outcome"] for ph in
                           ("setup", "call", "teardown") if ph in t}
@@ -3173,6 +3185,146 @@ def replay_env() -> dict:
 BOUND_INPUT_GLOBS = ("requirements*.txt", "configs/*.yaml", "scripts/*.sh",
                      "run.sh", "pytest.ini", "conftest.py")
 
+#: 시작 시 **인터프리터가 실제로 올리는 것**을 재는 탐침 (58차 L11).
+#:
+#:   57차는 재생이 보는 환경을 선언한 변수만 남기도록 정화했다. 그런데 변수의
+#:   **값이 가리키는 바이트**는 여전히 목록 밖이었다: 같은 `PYTHONPATH` 문자열
+#:   아래 `sitecustomize.py` 만 바꾸자 child 결과가 ALPHA → BETA-LONG 으로
+#:   달라지는데 영수증 digest 는 그대로였다 (리뷰어 실측). 같은 `PATH` 문자열
+#:   아래 도구 바이트를 바꾼 경우도 같았다.
+#:
+#:   `[해석]` 목록을 늘리는 길은 여기서도 안 끝난다 (`usercustomize`, `.pth`,
+#:   인터프리터 자신, 그 다음 것). 그러므로 **환경이 무엇인지 우리가 적는 대신
+#:   시작한 인터프리터에게 자기가 무엇을 올렸는지 묻는다.**
+#:
+#:   재는 면을 `site`·`sitecustomize`·`usercustomize`·`.pth`·실행 파일로 좁힌
+#:   것은 그것이 **어느 프로세스에서 재도 같은** 면이기 때문이다. `sys.modules`
+#:   전체를 재면 `python -c` 와 pytest child 가 다른 값을 내고, 그러면 증언이
+#:   서로 대조될 수 없다 (그 대조가 L12 의 핵심이다).
+_ENV_PROBE_BODY = '''
+def _env_facts(NAMES):
+    import hashlib, os, site, sys
+
+    def _d(p):
+        try:
+            h = hashlib.sha256()
+            with open(p, "rb") as fh:
+                for c in iter(lambda: fh.read(1 << 16), b""):
+                    h.update(c)
+            return h.hexdigest()[:16]
+        except OSError:
+            return "<unreadable>"
+
+    cust = {}
+    for n in ("site", "sitecustomize", "usercustomize"):
+        m = sys.modules.get(n)
+        f = getattr(m, "__file__", None) if m is not None else None
+        cust[n] = _d(f) if f else "<absent>"
+
+    dirs = []
+    for get in (getattr(site, "getsitepackages", None),
+                getattr(site, "getusersitepackages", None)):
+        if get is None:
+            continue
+        try:
+            got = get()
+        except Exception:
+            continue
+        dirs += [got] if isinstance(got, str) else list(got)
+    dirs += [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
+    pth = []
+    for d in sorted(set(dirs)):
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for nm in names:
+            if nm.endswith(".pth"):
+                pth.append([os.path.join(d, nm), _d(os.path.join(d, nm))])
+
+    return {"executable_sha256": _d(sys.executable),
+            "customization": cust,
+            "pth": pth,
+            "version": "%d.%d.%d" % sys.version_info[:3],
+            "env": {k: os.environ[k] for k in NAMES if k in os.environ}}
+'''
+
+
+def _probe_names() -> tuple:
+    """탐침이 재구성할 환경변수 이름 — `replay_env()` 와 같은 정본에서 온다."""
+    return tuple(sorted(set(_PROCESS_ENV) | set(BOUND_ENV)))
+
+
+def _observed_environment() -> dict:
+    """탐침을 **실제로 띄워서** 그 프로세스가 본 것을 받아 온다 (58차 L11).
+
+    실패하면 fail-closed — 환경을 못 재면 증거를 쓸 수 없다. (여기서 조용히
+    빈 값을 넣으면 "안 쟀다" 가 "같다" 로 번역되고, 그것이 이 라운드가 반복해
+    거절한 형태다.)
+    """
+    src = _ENV_PROBE_BODY + (
+        "\nimport json\n"
+        f"print(json.dumps(_env_facts({_probe_names()!r}), "
+        "sort_keys=True, ensure_ascii=False))\n")
+    r = subprocess.run([sys.executable, "-c", src],
+                       cwd=_sandboxed(ROOT), env=replay_env(),
+                       capture_output=True, text=True, timeout=600)
+    if r.returncode != 0 or not r.stdout.strip():
+        raise _ReplayError(
+            f"환경 탐침이 실패했다 (rc={r.returncode}): {r.stderr[-300:]}")
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def environment_tag(execution: dict | None = None) -> str:
+    """실행이 **스스로 증언할 수 있는** 환경의 내용 주소 (58차 L11·L12).
+
+    조각 옆에 적힌 `binding.execution` 은 누구나 다시 계산해서 쓸 수 있다 —
+    `_execution_receipt()` 는 공개 함수다. 그러므로 그 필드는 "이 실행에서
+    나왔다" 를 증명하지 못한다 (L12 반례: report 를 안 건드리고 그 필드만 현재
+    값으로 갈아 끼우자 pytest 실행 0회로 170/170 통과).
+
+    증명할 수 있는 것은 실행이 **자기 report 안에 남긴 것**뿐이다. 그래서 재생은
+    sandbox 에 이 tag 를 이름에 담은 시험 node 를 하나 놓고, 그 node 는 자기
+    프로세스에서 환경을 **다시 재서** tag 와 대조한다. checker 는 조각이 주장한
+    환경에서 tag 를 유도해 report 바이트에 그 node 가 있는지 본다.
+    """
+    e = execution if execution is not None else _execution_receipt()
+    body = json.dumps(e.get("startup"), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+
+
+def attestation_node_id(tag: str | None = None) -> str:
+    """환경 증언 node 의 ID — 이름 자체가 증언이다."""
+    t = tag or environment_tag()
+    return f"tests/test_mutation_env_{t}.py::test_env_{t}"
+
+
+def attestation_nodes(tag: str | None = None) -> list:
+    """정상 report 가 담아야 하는 증언 node (시험이 조각을 합성할 때 쓴다)."""
+    return [{"nodeid": attestation_node_id(tag),
+             "call": {"outcome": "passed", "longrepr": ""}}]
+
+
+def _write_env_attestation(sandbox: pathlib.Path, tag: str) -> str:
+    """sandbox 에 **자기 환경을 스스로 재는** 시험 node 를 놓는다 (58차 L12).
+
+    탐침 소스를 그대로 심으므로 부모와 자식이 같은 규칙으로 잰다 — 규칙을 두
+    곳에 적으면 언젠가 어긋나고, 어긋나면 대조가 무의미해진다.
+    """
+    (sandbox / "tests" / f"test_mutation_env_{tag}.py").write_text(
+        '"""환경 증언 — 이 report 가 어떤 환경에서 나왔는지 스스로 말한다 '
+        '(58차 L12)."""\n'
+        + _ENV_PROBE_BODY +
+        "\nimport hashlib as _h, json as _j\n\n\n"
+        f"def test_env_{tag}():\n"
+        f"    facts = _env_facts({_probe_names()!r})\n"
+        "    body = _j.dumps(facts, sort_keys=True, ensure_ascii=False)\n"
+        "    got = _h.sha256(body.encode('utf-8')).hexdigest()[:16]\n"
+        f"    assert got == {tag!r}, (\n"
+        "        '재생이 선언한 환경과 실제로 본 환경이 다르다: '\n"
+        "        + body[:400])\n", encoding="utf-8")
+    return tag
+
 
 def _execution_receipt() -> dict:
     """이 증거가 **어떤 실행에서** 나왔는가 (56차 P1-2).
@@ -3211,6 +3363,11 @@ def _execution_receipt() -> dict:
             # ★ 57차 P1-2 — 고른 목록이 아니라 **run 이 실제로 본 환경 전부**.
             #   `replay_env()` 가 그 밖을 지우므로 이 값이 곧 사실이다.
             "env": replay_env(),
+            # ★ 58차 L11 — 변수 **이름과 값**만으로는 부족하다. 같은 PYTHONPATH
+            #   문자열 아래 `sitecustomize.py` 만 바꿔도 child 결과가 달라지는데
+            #   digest 는 그대로였다. 그래서 인터프리터를 실제로 띄워 그것이
+            #   올린 것(실행 파일·site 계열·`.pth`)의 내용 주소를 받아 온다.
+            "startup": _observed_environment(),
             "inputs": inputs}
 
 
@@ -3581,7 +3738,8 @@ def verify_receipts(path, scen: dict, binding: dict) -> int:
             print(f"✗ {path}: {name} 의 report digest 가 다르다 — 결과를 "
                   "나중에 고쳤거나 **다른 변이의 영수증**을 붙였다")
             return 1
-        if _report_identity_rc(path, name, rep_dir) != 0:
+        if _report_identity_rc(path, name, rep_dir,
+                               binding.get("execution")) != 0:
             return 1
         derived = _verdict_from_reports(name, rep_dir)
         # ★ 53차 P1 — **"모르겠다" 는 "물었다" 가 아니다.** 52차는 여기 앞에
@@ -3603,7 +3761,7 @@ def _refuse(msg: str) -> int:
     return 1
 
 
-def _report_identity_rc(path, name: str, rep_dir) -> int:
+def _report_identity_rc(path, name: str, rep_dir, execution=None) -> int:
     """저장된 report 가 **이 변이의 증인**을 담고 있는가 (54차 P1).
 
     53차는 영수증 digest 를 exact mutant 에 결속했다. 그런데 `_receipt_digest()`
@@ -3632,6 +3790,23 @@ def _report_identity_rc(path, name: str, rep_dir) -> int:
                 f"✗ {path}: {name} 의 {phase} report 에 이 변이의 표식이 없다 "
                 f"(test_mutant_{mid}) — 다른 변이의 report 를 이름만 바꿔 붙인 "
                 "것이 아닌지 본다")
+        # ★ 58차 L12 — **조각이 주장한 환경**에서 tag 를 유도해 report 바이트에서
+        #   찾는다. 조각 옆 필드만 현재 값으로 갈아 끼우면 유도된 tag 가 달라지고
+        #   report 에는 그 node 가 없다 (리뷰어 실측: reports_unchanged=true ·
+        #   pytest_runs=0 · rc=0 이던 경로가 여기서 막힌다).
+        if execution is not None:
+            tag = environment_tag(execution)
+            if not any(f"test_env_{tag}" in n for n in ids):
+                return _refuse(
+                    f"✗ {path}: {name} 의 {phase} report 가 조각이 주장하는 "
+                    f"환경을 증언하지 않는다 (test_env_{tag}) — 실행은 그대로 "
+                    "두고 실행 영수증만 갈아 끼운 것이 아닌지 본다")
+            for t in data.get("tests", []):
+                if f"test_env_{tag}" in (t.get("nodeid") or "") \
+                        and (t.get("call") or {}).get("outcome") != "passed":
+                    return _refuse(
+                        f"✗ {path}: {name} 의 {phase} report 에서 환경 증언이 "
+                        "실패했다 — 재생이 선언한 환경과 실제로 본 환경이 다르다")
     exp = EXPECT.get(name) or {}
     wit = exp.get("witness") or {}
     if not wit:
