@@ -13,60 +13,63 @@
   "porosity_dem": 0.1428
  },
  "totals": {
-  "V_AM_um3": 159978.27550120183,
-  "S_AM_um2": 125965.29903833635,
-  "V_SE_um3": 80400.9819,
-  "Ah_um3": 282287.88128699997,
-  "phi_se_local": 0.657356234479301,
-  "check_p_frac": 0.7126099706744868,
-  "check_v_solid_rel": -0.006504331828074861
+  "V_AM_um3": 159978.2755012018,
+  "S_AM_um2": 125965.29903833634,
+  "V_SE_um3": 83069.46934744575,
+  "Ah_um3": 283547.5,
+  "phi_se_local": 0.6722504708140631,
+  "porosity": 0.1428323478477237,
+  "se_frac_of_solid": 0.34178251437459484,
+  "n_am": 1498,
+  "n_se": 158651,
+  "source": "measured_from_scaffold"
  },
  "dh_gate": {
-  "d_h_um": 0.9709785688562877,
-  "d_h_void_only_um": 0.33269975307281774,
+  "d_h_um": 0.9809782967386207,
+  "d_h_void_only_um": 0.32151517489770526,
   "gate": 3.5,
-  "n_grid_min_pass": 181,
+  "n_grid_min_pass": 179,
   "rows": [
    {
     "n_grid": 192,
-    "dx_um": 0.26046874999999997,
-    "dh_over_dx": 3.7278121419797494,
+    "dx_um": 0.2604166666666667,
+    "dh_over_dx": 3.7669566594763033,
     "pass": true
    },
    {
     "n_grid": 256,
-    "dx_um": 0.1953515625,
-    "dh_over_dx": 4.9704161893063326,
+    "dx_um": 0.1953125,
+    "dh_over_dx": 5.022608879301738,
     "pass": true
    },
    {
     "n_grid": 288,
-    "dx_um": 0.17364583333333333,
-    "dh_over_dx": 5.5917182129696235,
+    "dx_um": 0.1736111111111111,
+    "dh_over_dx": 5.650434989214455,
     "pass": true
    },
    {
     "n_grid": 320,
-    "dx_um": 0.15628124999999998,
-    "dh_over_dx": 6.213020236632916,
+    "dx_um": 0.15625,
+    "dh_over_dx": 6.278261099127173,
     "pass": true
    },
    {
     "n_grid": 384,
-    "dx_um": 0.13023437499999999,
-    "dh_over_dx": 7.455624283959499,
+    "dx_um": 0.13020833333333334,
+    "dh_over_dx": 7.533913318952607,
     "pass": true
    },
    {
     "n_grid": 448,
-    "dx_um": 0.11162946428571428,
-    "dh_over_dx": 8.698228331286082,
+    "dx_um": 0.11160714285714286,
+    "dh_over_dx": 8.78956553877804,
     "pass": true
    },
    {
     "n_grid": 512,
-    "dx_um": 0.09767578125,
-    "dh_over_dx": 9.940832378612665,
+    "dx_um": 0.09765625,
+    "dh_over_dx": 10.045217758603476,
     "pass": true
    }
   ],
@@ -76,86 +79,94 @@
   {
    "vgcf_wt_pct": 1.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 26813,
-   "n_ptfe": 2194,
-   "vgcf_vol_pct_of_solid": 1.971,
-   "ptfe_vol_pct_of_solid": 1.792,
-   "am_wt_pct": 81.03,
-   "se_wt_pct": 16.97
+   "n_vgcf": 26967,
+   "n_ptfe": 2206,
+   "vgcf_vol_pct_of_solid": 1.961,
+   "ptfe_vol_pct_of_solid": 1.782,
+   "am_wt_pct": 80.57,
+   "se_wt_pct": 17.43
   },
   {
    "vgcf_wt_pct": 2.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 54179,
-   "n_ptfe": 2216,
-   "vgcf_vol_pct_of_solid": 3.983,
-   "ptfe_vol_pct_of_solid": 1.81,
-   "am_wt_pct": 80.2,
-   "se_wt_pct": 16.8
+   "n_vgcf": 54490,
+   "n_ptfe": 2229,
+   "vgcf_vol_pct_of_solid": 3.962,
+   "ptfe_vol_pct_of_solid": 1.801,
+   "am_wt_pct": 79.75,
+   "se_wt_pct": 17.25
   },
   {
    "vgcf_wt_pct": 3.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 82115,
-   "n_ptfe": 2239,
-   "vgcf_vol_pct_of_solid": 6.037,
-   "ptfe_vol_pct_of_solid": 1.829,
-   "am_wt_pct": 79.38,
-   "se_wt_pct": 16.62
+   "n_vgcf": 82587,
+   "n_ptfe": 2252,
+   "vgcf_vol_pct_of_solid": 6.005,
+   "ptfe_vol_pct_of_solid": 1.82,
+   "am_wt_pct": 78.92,
+   "se_wt_pct": 17.08
   },
   {
    "vgcf_wt_pct": 4.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 110639,
-   "n_ptfe": 2263,
-   "vgcf_vol_pct_of_solid": 8.134,
-   "ptfe_vol_pct_of_solid": 1.849,
-   "am_wt_pct": 78.55,
-   "se_wt_pct": 16.45
+   "n_vgcf": 111275,
+   "n_ptfe": 2276,
+   "vgcf_vol_pct_of_solid": 8.091,
+   "ptfe_vol_pct_of_solid": 1.839,
+   "am_wt_pct": 78.1,
+   "se_wt_pct": 16.9
   }
  ],
  "campaign_validation": {
   "rows": [
    {
     "vgcf_wt_pct": 0.5,
-    "n_computed": 13204,
+    "n_computed": 13280,
     "n_measured": 13281,
-    "rel_pct": -0.5797756193057779
+    "rel_pct": -0.0075295534974761935
    },
    {
     "vgcf_wt_pct": 1.0,
-    "n_computed": 26542,
+    "n_computed": 26695,
     "n_measured": 26696,
-    "rel_pct": -0.5768654480071911
+    "rel_pct": -0.00374587953251293
    },
    {
     "vgcf_wt_pct": 2.0,
-    "n_computed": 53626,
+    "n_computed": 53934,
     "n_measured": 53529,
-    "rel_pct": 0.1812101851332848
+    "rel_pct": 0.7565992265874621
    },
    {
     "vgcf_wt_pct": 4.0,
-    "n_computed": 109487,
+    "n_computed": 110116,
     "n_measured": 110120,
-    "rel_pct": -0.5748274609516879
+    "rel_pct": -0.0036324010170729615
    }
   ],
-  "max_abs_rel_pct": 0.5797756193057779
+  "max_abs_rel_pct": 0.7565992265874621
  },
- "not_computed": "각도 선별 (step4_angular_risk) — 입자 위치가 필요해 스캐폴드 CSV 대기",
+ "angular_screen": "scripts/step4_angular_risk.py (별도 산출물)",
  "provenance": {
-  "code_sha": "796c2384f99cd8c83534d3d2ffe48877908447ee",
-  "code_dirty": false,
+  "code_sha": "205fa7686047be79063ff866d407084840f0a8d3",
+  "code_dirty": true,
   "dirty_scope": [
    "scripts/"
   ],
   "branch": "claude/stoic-knuth-NObVQ",
   "argv": [
+   "--am",
+   "docs/data/phase_a_6mah/am_scaffold.csv",
+   "--se",
+   "docs/data/phase_a_6mah/se_scaffold.csv",
+   "--thickness-um",
+   "113.419",
+   "--lateral-um",
+   "50.0",
    "--out",
    "docs/data/phase_a_6mah/precompute.json"
   ],
-  "utc": "2026-09-07T11:26:21Z",
+  "utc": "2026-09-07T11:44:04Z",
   "note": "이 측정을 만든 코드 상태.  `code_sha` 가 없거나 `code_dirty` 가 참이면 수치를 인용하지 말 것 (CL-75)."
  }
 }
