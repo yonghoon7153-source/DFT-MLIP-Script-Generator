@@ -394,6 +394,7 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
+                                note_smoke_exemption,
                                 SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
@@ -401,6 +402,9 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
     # `assert_run_is_authorized()` 와 **같은 함수**로 한다 — 두 규칙이 갈리면
     # 어느 쪽이 경계인지 정할 수 없다.
     if is_inside_namespace(out_dir, SMOKE_NAMESPACE):
+        # ★ 58차 L1 — 면제하고 **그 사실을 남긴다.** 57차는 그냥 return 했고,
+        #   등록을 하는 `assert_run_is_authorized()` 에는 닿지 않았다.
+        note_smoke_exemption([out_dir], leg, "grid", ledger=None)
         return None
     # ★ 51차 — **계획 소속을 먼저 묻는다.** 살아 있는 축을 만드는 것
     #   (`live_grid_axis()`)이 `cfg["discharged_state"]` 를 읽으므로, 순서가

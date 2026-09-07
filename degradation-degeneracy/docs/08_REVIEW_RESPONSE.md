@@ -6083,3 +6083,96 @@ P0-8 등록부가 생기자마자 `_complete_artifact()` 가 산출을 합성할
 때문이다. 93건을 지우고(legacy 분류 4건만 남겼다) `tests/conftest.py` 에
 세션 autouse guard 를 넣었다. fixture 하나가 아니라 **"시험이 production
 authority 를 만진다" 는 부류**를 겨눈다 — 새 시험이 같은 실수를 해도 걸린다.
+
+## §66 58차 판정 접수 (2026-09-07) — **NO-GO**. P0-8 이 production 에 배선돼 있지 않았다
+
+57차 요청문(`cf10f345` · `source_digest 2f1e10779368987f`)에 대한 외부 적대적
+리뷰가 돌아왔다. 판정은 **NO-GO** 이고, 리뷰어는 재현기를 붙여 왔다.
+
+### 먼저 — 이 리뷰는 두 게이트를 담고 있고, **하나는 이 브랜치 소유가 아니다**
+
+| 부 | 대상 | 소유 |
+|---|---|---|
+| A. 6 mAh STEP3/STEP4 과학 게이트 | `06a9aed9` · `scripts/mpm3d_compaction.py`·`step3_sigma.py`·`step4_dyn.py`·`docs/data/kit_ps_scaffolds/` | **다른 브랜치** — 루트 `CLAUDE.md` 저장소 지도가 DEM/MPM 계열을 이 브랜치에서 건드리지 말라고 못 박았다. 여기서 접수하지 않는다 |
+| B. 묶음 9 lifecycle 게이트 | `cf10f345` · `tools/preserve.py`·`src/grid.py`·`src/fitting.py`·`docs/22p_gap/row_projection.py`·`mutation_replay.py` | **이 브랜치** — 아래 전부 |
+
+A 를 여기서 고치면 브랜치 경계를 깨뜨린다. 소유 브랜치로 넘긴다.
+
+### 우리가 먼저 재현한 것 — 리뷰어 주장을 그대로 받지 않았다
+
+받자마자 정적으로 6건을 직접 읽어 확인했다. **전부 사실이다.**
+
+| ID | 우리가 읽은 자리 | 확인 |
+|---|---|---|
+| L1 | `src/grid.py:403` · `src/fitting.py:884` | `is_inside_namespace()` 면 `assert_run_is_authorized()` **를 부르기 전에** return 한다. 주석이 후처리로 지목한 `record_smoke_outputs()` 는 **저장소에 없다** (주석 한 줄이 유일한 언급) |
+| L2 | `tools/preserve.py:3946-3950` · `3763-3766` | `run_content_id()` 가 `_EXEC_ID_MANIFESTS` 중 **첫 파일 하나**만 해시한다 (`curves_manifest.yaml` 이 먼저). 그리고 `except PreserveError: pass` 가 class 충돌 오류까지 통째로 삼킨다 |
+| L3 | `tools/preserve.py:3979-3993` | `read_execution_class()` → 검사 → `_atomic_write_json()`. lock 도 `O_EXCL` 도 없다 — atomic replace 는 torn write 만 막지 CAS 가 아니다 |
+| L6 | `tools/preserve.py:4606-4610` | `rec.setdefault("phases", {})[phase] = {...}` — 이미 있는 phase 를 **무조건 덮어쓴다** |
+| L7 | `tools/preserve.py:5661` · `5670` | `root / str(evidence["bundle_uri"])` — pathlib 은 우변이 absolute 면 `root` 를 **버린다** |
+| L8 | `tools/preserve.py:5029` · `5226` | 발급 두 자리가 **비-strict** `_fsync_dir()` 를 부르고 반환값을 버린다. `_fsync_dir_strict()` 는 `227` 에 있는데 안 쓴다. `_fsync_dir` 의 docstring 은 "실패를 삼키지 않는다" 인데 이 자리에서 거짓이다 |
+
+### 가장 아픈 것 — **§64 의 핵심 주장이 거짓이었다**
+
+§64 에 이렇게 적었다:
+
+> **양쪽 분기가 모두 적는 것이 핵심이다.** smoke 만 등록하면 등록부가
+> "smoke 블랙리스트" 가 되고, 그러면 "등록 없음 = 아마 정본" 이 되어
+> fail-closed 가 무너진다. 둘 다 적어야 **"등록 없음 = 모른다"** 가 성립한다.
+
+논증은 맞다. **그런데 그 "양쪽" 이 production 에서 한쪽도 안 돈다.**
+`record_execution_class()` 를 부르는 smoke 분기는 `assert_run_is_authorized()`
+**안에** 있는데, production smoke 는 그 함수에 도달하기 전에 `src/grid.py` 와
+`src/fitting.py` 에서 return 한다. 그래서 실제로 굳는 것은 시험 fixture 와
+`classify_legacy_run()` 으로 손수 분류한 실물 4건뿐이다.
+
+`[해석]` **우리가 검증한 것은 authority 함수였고, 배선이 아니었다.** 새 시험
+7건(`tests/test_execution_class_p0_8.py`)은 전부 `assert_run_is_authorized()` 나
+그 아래를 직접 부른다. 그래서 production 진입점이 그 함수에 **안 닿는다**는
+사실을 하나도 못 잡았다. 이 저장소가 반복해 온 실패형과 같다 — 시험이 top-level
+consumer 가 아니라 helper 를 부르면, 이름이 약속하는 성질을 단언이 안 건드린다.
+리뷰어는 이것을 P1-L13 으로 따로 지적했고, 그 지적이 L1 의 원인이다.
+
+### 접수한 발견 (13건)
+
+| ID | 등급 | 무엇 | 상태 |
+|---|---|---|---|
+| L1 | P0 | production smoke 가 class 를 기록하지 않는다 + 옮긴 뒤 `classify_legacy_run()` 이 `canonical` 을 발급한다 | 접수 |
+| L2 | P0 | `run_content_id()` 가 서로 다른 fit 실행을 합치고 conflict 를 삼킨다 | 접수 |
+| L3 | P0 | 실행 class 등록부가 CAS 가 아니라 last-writer-wins | 접수 |
+| L4 | P0 | bind mount 로 외부 디렉터리가 smoke 면제를 받는다 | 접수 |
+| L5 | P0 | 보이지 않는 frozen ancestor 가 writable 로 판정 + `_names_for()` 가 `SystemExit` 를 후보 부재로 바꾼다 | 접수 |
+| L6 | P0 | 소비된 phase receipt 를 늦은 writer 가 덮어쓴다 | 접수 |
+| L7 | P0 | clone 밖 absolute bundle 이 `full_bundle` 로 기록된다 | 접수 |
+| L8 | P0 | directory fsync 실패를 받고도 issuance 가 성공한다 | 접수 |
+| L9 | P0 | producer closure 가 `AnnAssign` RHS · name-only decorator · 함수 지역 capability alias 를 놓친다 | 접수 |
+| L10 | P1 | normal finalize 가 `verifier_origin` 을 위조할 수 있다 | 접수 |
+| L11 | P1 | 강제 환경 영수증이 transitive executable/code bytes 를 안 묶는다 (`sitecustomize.py`) | 접수 |
+| L12 | P1 | report 를 안 건드리고 execution evidence 만 세탁 → 170/170 통과 | 접수 |
+| L13 | P1 | 이름이 강한 회귀 2건이 실제 배선을 안 부른다 + 등록부에 Gate57 신규 방어 anchor 가 없다 | 접수 |
+
+### L13 이 나머지를 설명한다 — "170/170" 이 무엇이었나
+
+리뷰어가 static 으로 확인한 것: 등록부에 P0-8(`run_content_id`·class
+record/resolve)·`_import_time_heads`·`_namespace_capabilities`·
+`check_coverage` receipt 배선·`_run` 강제 환경에 anchor 된 mutant 가 **하나도
+없다**.
+
+`[해석]` 그러므로 **"등록부 170 · 관측 170 · 정확히 덮음" 은 참이지만, 그것이
+말하는 것은 "현재 등록부의 완전성" 뿐이다.** 57·58차가 새로 만든 방어에 대한
+변이 증거가 아니다. 우리는 이 문장을 요청문 §2-3 에서 강한 증거처럼 제시했다 —
+**과대 주장이었다.** 등록부에 새 축을 심기 전까지는 그렇게 읽히지 않도록 적어야
+한다.
+
+### 다음 라운드의 형태 — 검사를 늘리는 게 아니라 **배선을 옮긴다**
+
+56차가 거절한 "고치는 방식" 이 여기서도 적용된다. L1·L2·L4 는 전부 같은
+모양이다 — **판정 함수는 옳은데 그 함수에 안 닿거나, 닿아도 투영이 손실적이다.**
+
+| 발견 | 검사를 늘리는 수정 (하면 안 되는 것) | 물음을 바꾸는 수정 |
+|---|---|---|
+| L1 | 진입점마다 `record_execution_class()` 호출을 추가 | class 기록을 **manifest 가 굳는 순간**에 묶어, 진입점이 무엇이든 지나가게 |
+| L2 | manifest 후보 목록을 늘린다 | artifact kind + **적용되는 모든** manifest/payload digest 를 담은 닫힌 typed descriptor 를 해시 |
+| L4 | `is_inside_namespace()` 에 금지 패턴 추가 | smoke containment 도 publisher guard 와 **같은 kernel 좌표**로 판정 |
+| L5 | `_names_for()` 에 후보를 더 찾는다 | freeze 시점에 좌표를 **봉인**하고, 못 밝히면 fail-closed (`SystemExit` 전파) |
+
+작업 상태는 `docs/GATE58_WORKING_STATE.md` 가 정본이다.

@@ -878,10 +878,14 @@ def _assert_fit_authorized(live_fit: dict, out_dir, leg: str | None = None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
+                                note_smoke_exemption,
                                 SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
     if is_inside_namespace(out_dir, SMOKE_NAMESPACE):
+        # ★ 58차 L1 — grid 와 **같은 문장**을 쓴다. 면제 판정이 두 진입점에
+        #   있으면 기록도 두 진입점에 있어야 하고, 그러면 하나가 또 빠진다.
+        note_smoke_exemption([out_dir], leg, "fit", ledger=None)
         return None, live_fit
     declared = declared_leg_run_spec(leg)
     # ★ 49차 P0-5 — `in_digest` 는 **계획만** 아는 축이다 (grid 절반과 같다).

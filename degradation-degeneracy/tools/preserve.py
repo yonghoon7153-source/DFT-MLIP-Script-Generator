@@ -3760,10 +3760,18 @@ def assert_run_is_authorized(leg_id: str, phase: str, paths, run_spec: dict,
                               f"{x} 가 {SMOKE_NAMESPACE} 안이라 계획 gate 를 "
                               f"면제했다 · leg={leg_id} phase={phase}"),
                     ledger=ledger)
-            except PreserveError:
-                # manifest 가 아직 없는 시점(실행 직전)이면 identity 가 없다.
-                # 그 경우는 산출이 굳은 뒤 `record_smoke_outputs()` 가 맡는다.
-                pass
+            except PreserveError as exc:
+                # ★ 58차 L2 — **"아직 identity 가 없다" 만 삼킨다.**
+                #   57차는 `except PreserveError: pass` 였다. 주석은 이 한
+                #   경우만 뜻했지만 실제로는 **class 충돌**(이미 canonical 로
+                #   등록된 내용을 smoke 로 적으려는 것)까지 같이 삼켰다.
+                #   삼키면 등록부가 authority 이기를 그만둔다 — 충돌은 바로
+                #   그 순간에 사람이 봐야 하는 사건이다.
+                if not _is_missing_manifest(exc):
+                    raise
+                # 실행 **직전**이라 manifest 가 아직 없다. identity 가 없으므로
+                # 여기서는 못 적는다. 산출이 굳는 순간 `record_run_outputs()` 가
+                # 적는다 (58차 L1 — 그 함수가 없어서 아무것도 안 굳었었다).
         return None
     # ★ 57차 P0-1 — **여기서 token 파일을 읽지 않는다.** 49차는 caller 가 준
     #   경로의 파일을 읽었고, 그 "경로를 줬다" 는 행위 자체가 소유 주장이었다.
@@ -3944,15 +3952,50 @@ def run_content_id(run_dir) -> str:
     manifest 가 없으면 identity 가 없다 → 호출자는 fail-closed 해야 한다.
     """
     d = Path(run_dir)
+
+    # ★ 58차 L2 — **있는 것 전부를 담는다.** 57차는 `_EXEC_ID_MANIFESTS` 중
+    #   첫 파일 하나만 해시했다. 순서가 `curves → fits → manifest` 이므로,
+    #   같은 곡선에서 갈라진 두 fit 실행이 **같은 identity** 를 가졌다. 해시
+    #   충돌이 아니라 투영이 손실적이었던 것이다 — 그러면 한쪽의 class 가
+    #   다른 쪽에 적용되고, smoke fit 을 옮겨 정본 판정을 받을 수 있다.
+    #
+    #   후보 목록을 늘리는 수정은 하지 않는다 (그러면 다음 manifest 가 또
+    #   빠진다). 대신 **이 산출에 적용되는 모든 manifest 를 이름과 함께**
+    #   닫힌 descriptor 로 묶어 해시한다. 이름을 같이 넣는 이유: 바이트가
+    #   같아도 `curves_manifest.yaml` 인지 `fits_manifest.yaml` 인지가 다르면
+    #   다른 실행이다.
+    parts: list[tuple[str, str]] = []
     for name in _EXEC_ID_MANIFESTS:
         f = d / name
         if f.is_file():
-            return hashlib.sha256(f.read_bytes()).hexdigest()
-    raise PreserveError(
-        "promote",
-        f"{d} 에 manifest 가 없어 내용 identity 를 만들 수 없다 "
-        f"(찾은 이름: {list(_EXEC_ID_MANIFESTS)}) — 정본 여부를 판정할 수 없으므로 "
-        "승격을 거부한다")
+            parts.append((name, hashlib.sha256(f.read_bytes()).hexdigest()))
+    if not parts:
+        raise PreserveError(
+            "promote",
+            f"{d} {_MISSING_MANIFEST_MARK} "
+            f"(찾은 이름: {list(_EXEC_ID_MANIFESTS)}) — 정본 여부를 판정할 수 "
+            "없으므로 승격을 거부한다")
+    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts},
+                            sort_keys=True, ensure_ascii=False,
+                            separators=(",", ":"))
+    return hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
+
+
+_MISSING_MANIFEST_MARK = "에 manifest 가 없어 내용 identity 를 만들 수 없다"
+
+
+def _is_missing_marker(exc: PreserveError) -> bool:                # noqa: D401
+    """(내부) 이 오류가 '아직 manifest 가 없다' 인가.
+
+    문자열 대조가 마음에 들지 않지만, `PreserveError` 에 사유 코드가 없고
+    코드를 넓게 고치는 것은 이 라운드의 범위가 아니다. 대신 **한 자리**
+    (`run_content_id()`)에서만 나는 문장에 묶고, 그 문장을 상수로 뽑아
+    두 곳이 같이 움직이게 한다. 회귀가 이 결속을 지킨다.
+    """
+    return _MISSING_MANIFEST_MARK in str(exc)
+
+
+_is_missing_manifest = _is_missing_marker
 
 
 def _exec_class_path(content_id: str, ledger=None) -> Path:
@@ -3976,21 +4019,48 @@ def record_execution_class(run_dir, cls: str, evidence: str,
     cid = run_content_id(run_dir)
     path = _exec_class_path(cid, ledger)
     path.parent.mkdir(parents=True, exist_ok=True)
-    prev = read_execution_class(cid, ledger=ledger)
-    if prev is not None and prev.get("execution_class") != cls:
-        # 한 내용이 두 class 를 가질 수 없다. 덮어쓰기를 허용하면 등록부가
-        # authority 가 아니라 마지막 쓴 사람의 의견이 된다.
-        raise PreserveError(
-            "promote",
-            f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 있다 — "
-            f"{cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
-    _atomic_write_json(path, {
+
+    # ★ 58차 L3 — **create-if-absent 로 만든다.** 57차는 read → 검사 →
+    #   `os.replace` 였다. `os.replace` 는 torn write 를 막을 뿐 lost update 를
+    #   막지 않는다. 두 writer 가 "없음" 을 함께 관측하면 둘 다 성공했고 마지막
+    #   replace 가 authority 를 정했다 — 리뷰어가 canonical/smoke 로 실제 재현했고
+    #   반복하면 이긴 쪽이 바뀌었다. "한 내용은 한 class" 가 경쟁 아래 깨진다.
+    #
+    #   `O_CREAT|O_EXCL` 은 커널이 보장하는 원자적 생성이다. 진 writer 는
+    #   `FileExistsError` 를 받고, 그때 **읽어서 같은 class 인지 본다** —
+    #   같으면 멱등 재시도이므로 성공, 다르면 거부. 이 순서라야 "먼저 만든
+    #   쪽이 authority" 가 성립한다. 검사를 read 로 먼저 하면 그 사이가 창이다.
+    rec = {
         "content_id": cid,
         "execution_class": cls,
         "evidence": str(evidence),
         "recorded_at": dt.datetime.now(dt.timezone.utc)
                          .strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    }
+    body = (json.dumps(rec, sort_keys=True, ensure_ascii=False,
+                       separators=(",", ":")) + "\n").encode("utf-8")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        prev = read_execution_class(cid, ledger=ledger)
+        if prev is None:
+            # 파일은 있는데 못 읽는다 — 등록부가 authority 이므로 fail-closed.
+            raise PreserveError(
+                "promote",
+                f"내용 {cid[:16]}… 의 등록 레코드가 있는데 읽을 수 없다 — "
+                "class 를 정할 수 없으므로 거부한다")
+        if prev.get("execution_class") != cls:
+            raise PreserveError(
+                "promote",
+                f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 있다 — "
+                f"{cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
+        return path                       # 같은 class 의 멱등 재시도
+    try:
+        os.write(fd, body)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _fsync_dir_strict(path.parent, "execution-class-register")
     return path
 
 
@@ -5026,7 +5096,17 @@ def claim_planned_leg(leg_id: str, run_spec: dict, source_digest: str,
             os.fsync(fd)
         finally:
             os.close(fd)
-        _fsync_dir(path.parent)
+        # ★ 58차 L8 — **strict 로 굳힌다.** 57차는 비-strict 판본을 부르고
+        #   반환값을 버렸다. `_fsync_dir()` 의 docstring 은 "실패를 삼키지
+        #   않는다" 인데 바로 이 자리에서 거짓이었다 — 세 번의 directory flush
+        #   가 전부 실패해도 `open_leg_run()` 이 claim 을 돌려주고 계획을
+        #   `running` 으로 옮겼다 (리뷰어가 fault injection 으로 재현).
+        #
+        #   파일 데이터가 fsync 돼도 **이름이 안 굳으면** power loss 뒤 그
+        #   directory entry 가 없다. 그런데 이 entry 가 하필
+        #   token-before-claim 순서를 증명하는 바로 그것이다 — 못 굳혔으면
+        #   복구 불변식이 성립하지 않으므로 성공을 보고할 수 없다.
+        _fsync_dir_strict(path.parent, "claim-publish")
         _assert_bytes_on_disk(path, body, "claim")
     except BaseException:
         # 원장은 아직 안 건드렸다 — 확정 미커밋이다. 깨진 claim 을 남기면
@@ -5223,7 +5303,9 @@ def write_token_file(path, token: str, leg_id: str | None = None,
         tmp.unlink(missing_ok=True)
         raise
     os.replace(tmp, p)
-    _fsync_dir(p.parent)
+    # ★ 58차 L8 — claim 과 **같은 이유**로 strict. 소유 증명의 이름이 안 굳으면
+    #   "token 이 claim 보다 먼저 durable 하다" 는 주장 자체가 성립하지 않는다.
+    _fsync_dir_strict(p.parent, "attempt-token-publish")
     _assert_bytes_on_disk(p, body, "소유 증명")
     return p
 
@@ -6110,3 +6192,66 @@ def assert_planned_index_consistent(ledger=None) -> bool:
                 f"{lid!r} 의 계획 cohort {e['cohort_id']!r} 가 실행 기록의 "
                 f"cohort {coh} 에 없다")
     return True
+
+
+def note_smoke_exemption(paths, leg_id: str, phase: str, ledger=None) -> list:
+    """smoke 면제를 **등록부에 남긴다.** 진입점이 조기 return 하기 전에 부른다.
+
+    ★ 58차 L1 — 57차는 이 기록이 `assert_run_is_authorized()` **안에만** 있었다.
+      그런데 production 의 두 진입점(`src/grid.py:_assert_grid_authorized()` ·
+      `src/fitting.py:_assert_fit_authorized()`)은 smoke 면 그 함수를 **부르기
+      전에** return 한다. 그래서 실제로 등록부에 굳는 것은 시험 fixture 와
+      손수 분류한 legacy 4건뿐이었고, §64 가 근거로 든 "양쪽 분기가 모두
+      적는다" 가 production 에서 성립하지 않았다. 등록이 없으면 "등록 없음 =
+      모른다" 도 무너진다 — 그러면 P0-8 전체가 장식이 된다.
+
+      **진입점마다 `record_execution_class()` 호출을 추가하는 수정은 하지
+      않았다.** 그러면 다음 진입점이 또 빠진다 (56차가 거절한 "검사를 늘리는
+      수정"이다). 대신 면제를 **말하는 함수 하나**를 두고, 조기 return 하는
+      자리는 반드시 이것을 거치게 한다. 새 진입점이 생겨도 같은 문장을 쓴다.
+
+    반환값은 "지금 기록하지 못한 자리" 목록이다. 실행 **직전**에는 manifest 가
+    아직 없어 내용 identity 가 없다 — 그 자리는 산출이 굳는 순간
+    `record_run_outputs()` 가 맡는다. 호출자는 이 목록을 무시해도 되지만,
+    무시한다는 사실이 여기 적혀 있다.
+    """
+    pending = []
+    for x in [Path(p) for p in paths if p]:
+        try:
+            record_execution_class(
+                x, EXEC_CLASS_SMOKE,
+                evidence=(f"실행 전 gate 면제 (계약 §13.3.3): {x} 가 "
+                          f"{SMOKE_NAMESPACE} 안이라 계획 gate 를 면제했다 · "
+                          f"leg={leg_id} phase={phase}"),
+                ledger=ledger)
+        except PreserveError as exc:
+            if not _is_missing_manifest(exc):
+                raise            # class 충돌은 사람이 봐야 하는 사건이다
+            pending.append(x)
+    return pending
+
+
+def record_run_outputs(paths, leg_id: str, phase: str, cls: str,
+                       ledger=None) -> list:
+    """산출이 **굳은 뒤** 그 실행 class 를 등록부에 적는다.
+
+    ★ 58차 L1 — 57차의 주석은 이 일을 `record_smoke_outputs()` 가 맡는다고
+      적었는데 **그 함수는 저장소에 없었다** (주석 한 줄이 유일한 언급이었다).
+      실행 직전에는 manifest 가 없어 identity 를 만들 수 없으므로, 산출이 굳는
+      이 시점이 등록이 실제로 가능한 유일한 자리다.
+
+    멱등이다 — 같은 class 로 다시 부르면 조용히 성공한다 (`record_execution_class()`
+    의 `O_EXCL` 뒤 same-class 재시도 경로). 다른 class 면 거부한다.
+    """
+    if cls not in EXEC_CLASSES:
+        raise PreserveError("promote",
+                            f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
+    done = []
+    for x in [Path(p) for p in paths if p]:
+        record_execution_class(
+            x, cls,
+            evidence=(f"산출 완료 시점 등록 · leg={leg_id} phase={phase} "
+                      f"class={cls}"),
+            ledger=ledger)
+        done.append(x)
+    return done
