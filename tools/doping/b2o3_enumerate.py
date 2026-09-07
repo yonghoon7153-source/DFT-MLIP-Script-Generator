@@ -38,7 +38,154 @@ from ase.io import read, write
 from ase.neighborlist import neighbor_list
 
 KE = 14.399645351950543  # e^2/(4*pi*eps0) in eV*Angstrom
-OXI = {"Li": +1, "P": +5, "B": +3, "S": -2, "O": -2, "Cl": -1, "VAC": 0}
+OXI = {"Li": +1, "P": +5, "B": +3, "Nd": +3, "S": -2, "O": -2, "Cl": -1, "VAC": 0}
+HALOGENS = ("Cl", "Br", "I")
+
+
+# ----------------------------------------------------------------------
+# Rietveld (부분점유) CIF → 정수 조성 골격          (2026-09-07 신설)
+# ----------------------------------------------------------------------
+#   왜 여기인가: 이 도구가 이미 "도펀트³⁺@4b + O²⁻@16e + 할로겐 4a/4c + Li 충전" 을
+#   Ewald 로 순위매긴다. 빠져 있던 것은 **입력이 정렬 구조여야 한다**는 것뿐이었다.
+#   협업자 Rietveld 는 부분점유라 그대로 못 넣는다 → 여기서 정수화해 같은 파이프라인에 얹는다.
+#
+# ⛔ 이 경로가 **못 하는 것**
+#   · 점유율을 "맞추지" 않는다. 자리 수가 모자라면 반올림이고, 그 편차를 report 에 적는다.
+#     (4자리에서 0.85 와 0.75 는 둘 다 3 이 된다 — 실측 선호가 뭉개지는 것을 숨기지 않는다.)
+#   · 도펀트 농도를 정련값으로 두지 않는다. n_B·n_O 로 **선언**하는 값이다.
+#   · 원자를 이완하지 않는다. 격자도 안 건드린다 (Rietveld a 를 그대로 쓴다).
+#   · 대칭 축약에 spglib 을 쓰지 않는다 — F-centered 를 fcc 벡터로 직접 내린다.
+#     그 외 격자중심(I/C/R)은 지원하지 않고 **거부한다**(조용히 틀리는 것보다 낫다).
+
+def primitive_fcc(atoms, tol=0.02):
+    """면심(F) 관용셀 → 원시셀. spglib 없이 fcc 원시벡터로 직접 내린다."""
+    C = atoms.cell.array
+    M = np.array([[0.0, .5, .5], [.5, 0.0, .5], [.5, .5, 0.0]])
+    P = M @ C
+    inv = np.linalg.inv(P)
+    seen, keep = [], []
+    for i, r in enumerate(atoms.get_positions()):
+        f = (r @ inv) % 1.0
+        if not any(np.linalg.norm((f - u + .5) % 1.0 - .5) < tol for u in seen):
+            seen.append(f)
+            keep.append(i)
+    out = atoms[keep]
+    out.set_cell(P)
+    out.set_scaled_positions(out.get_positions() @ inv % 1.0)
+    return out
+
+
+def _site_classes(cif_path):
+    """CIF 의 자리 클래스 → (atoms, tag별 역할·점유율). ASE store_tags 를 쓴다."""
+    a = read(str(cif_path), store_tags=True)
+    occ = a.info.get("occupancy")
+    kinds = a.arrays.get("spacegroup_kinds")
+    if not occ or kinds is None:
+        raise SystemExit(f"⛔ {cif_path}: 부분점유 정보가 없다 "
+                         f"(occupancy/spacegroup_kinds). Rietveld CIF 가 맞나?")
+    occ = {int(k): v for k, v in occ.items()}
+    roles = {}
+    for tag in sorted(set(int(t) for t in kinds)):
+        o = occ.get(tag) or {}
+        if not o:
+            raise SystemExit(f"⛔ tag {tag} 에 점유율이 없다")
+        major = max(o, key=o.get)
+        if major == "Li":
+            role = "li"
+        elif major in HALOGENS:
+            role = "free_anion"
+        elif major == "S":
+            role = "ps4S"
+        elif OXI.get(major, 0) > 0:
+            role = "cation4b"
+        else:
+            raise SystemExit(f"⛔ tag {tag} 의 대표 원소 {major} 를 어느 자리로 볼지 모른다 "
+                             f"— 추측하지 않는다 (점유율 {o})")
+        roles[tag] = (role, o)
+    for need in ("li", "cation4b", "ps4S", "free_anion"):
+        if not any(r == need for r, _ in roles.values()):
+            raise SystemExit(f"⛔ 자리 역할 '{need}' 를 못 찾았다 — argyrodite CIF 가 맞나?")
+    return a, roles
+
+
+def base_from_rietveld(cif_path, supercell, n_dop, n_O, primitive=False):
+    """부분점유 CIF → (골격 atoms · Li후보 좌표 · 목표조성 · report).
+
+    골격에는 **Li 를 넣지 않는다** — Li 는 전량 Ewald 가 배치한다(호출자가 n_li_fill 로).
+    """
+    a0, roles = _site_classes(cif_path)
+    if primitive:
+        a0 = primitive_fcc(a0)
+        kinds = a0.arrays["spacegroup_kinds"]
+    a = a0 * tuple(supercell)
+    kinds = np.asarray(a.arrays["spacegroup_kinds"], dtype=int)
+    idx = {r: [] for r in ("li", "cation4b", "ps4S", "free_anion")}
+    for i, t in enumerate(kinds):
+        idx[roles[int(t)][0]].append(i)
+
+    # 자유음이온: **tag 마다 따로 반올림** — 4c(0.85) 와 4a(0.75) 의 선호를 뭉개지 않는다
+    cl_sites, freeS_sites, rep = [], [], []
+    for tag, (role, o) in roles.items():
+        if role != "free_anion":
+            continue
+        sites = [i for i in idx["free_anion"] if int(kinds[i]) == tag]
+        pcl = sum(v for e, v in o.items() if e in HALOGENS)
+        ncl = int(round(pcl * len(sites)))
+        cl_sites += sites[:ncl]
+        freeS_sites += sites[ncl:]
+        rep.append({"tag": int(tag), "n_sites": len(sites), "occ_halide": round(pcl, 4),
+                    "raw": round(pcl * len(sites), 3), "int": ncl,
+                    "dev": round(ncl - pcl * len(sites), 3)})
+
+    syms = list(a.get_chemical_symbols())
+    for i in idx["cation4b"]:
+        syms[i] = "P"
+    for i in idx["ps4S"]:
+        syms[i] = "S"
+    for i in cl_sites:
+        syms[i] = "Cl"
+    for i in freeS_sites:
+        syms[i] = "S"
+    a.set_chemical_symbols(syms)
+    li_pos = a.get_positions()[idx["li"]].copy()
+    base = a[[i for i in range(len(a)) if i not in set(idx["li"])]]
+
+    # ⛔⛔ 2026-09-07 실측 버그 — **정수화해 놓고 부분점유 꼬리표를 안 떼면 도로 부분점유가 된다.**
+    #   ASE 의 CIF **라이터**는 `info["occupancy"]` + `arrays["spacegroup_kinds"]` 가 남아
+    #   있으면 그걸 보고 혼합 자리를 **복원해서 써낸다**. 실제로 첫 판이
+    #       Nd Nd1 1.0 0.5 0.5 0.5 0.0200
+    #       P  P1  1.0 0.5 0.0 0.0 0.9800
+    #   처럼 같은 자리에 두 원소를 적어, 되읽으면 P4·Nd4·O16 (전하 +6) 이 나왔다.
+    #   **조용히 틀린 DFT 입력이 만들어지는 경로**라 여기서 확실히 끊는다.
+    for _obj in (a, base):
+        _obj.info.pop("occupancy", None)
+        if "spacegroup_kinds" in _obj.arrays:
+            del _obj.arrays["spacegroup_kinds"]
+
+    # ── 목표 조성: 자리 수는 정확히, Li 는 **전하중성이 결정한다** ────────────
+    n4b, n16e = len(idx["cation4b"]), len(idx["ps4S"])
+    # ⛔ 자리보다 많은 도펀트를 조용히 받으면 nP 가 음수가 되고, 그 음수가 전하식에
+    #   그대로 들어가 **말이 되는 것처럼 보이는 Li 개수**가 나온다 (2026-09-07 시험이 잡음).
+    if not (0 <= n_dop <= n4b):
+        raise SystemExit(f"⛔ 도펀트 {n_dop} 개가 4b 자리 {n4b} 개를 넘는다")
+    if not (0 <= n_O <= n16e):
+        raise SystemExit(f"⛔ O {n_O} 개가 16e 자리 {n16e} 개를 넘는다")
+    nP, nNd = n4b - n_dop, n_dop
+    nS = (n16e - n_O) + len(freeS_sites)
+    nCl, nO = len(cl_sites), n_O
+    nLi = 2 * nS + nCl + 2 * nO - 5 * nP - 3 * nNd
+    if nLi < 0 or nLi > len(idx["li"]):
+        raise SystemExit(f"⛔ 전하중성이 요구하는 Li {nLi} 개가 48h 자리 "
+                         f"{len(idx['li'])} 개에 안 들어간다 — n_dop/n_O 를 줄여라")
+    report = {"n_fu": n4b, "sites": {"4b": n4b, "16e": n16e,
+                                     "free_anion": len(idx["free_anion"]),
+                                     "48h": len(idx["li"])},
+              "free_anion_rounding": rep,
+              "target": {"Li": nLi, "P": nP, "dopant": nNd, "S": nS, "Cl": nCl, "O": nO},
+              "n_atoms": nLi + nP + nNd + nS + nCl + nO,
+              "charge": nLi + 5 * nP + 3 * nNd - 2 * nS - nCl - 2 * nO,
+              "cell_A": [round(x, 5) for x in a.cell.cellpar()]}
+    return base, li_pos, nLi, report
 
 
 # ----------------------------------------------------------------------
@@ -153,7 +300,7 @@ def li_vacancy_candidates(atoms, n_need, min_anion=2.3, max_anion=2.95,
     # coordinating (within 3.25 A) -> rejects surface/over-large pockets that the
     # loose criterion over-generates.
     anion = atoms.get_positions()[[i for i in range(len(atoms)) if s[i] in ("S", "Cl", "O")]]
-    cation = atoms.get_positions()[[i for i in range(len(atoms)) if s[i] in ("Li", "P", "B")]]
+    cation = atoms.get_positions()[[i for i in range(len(atoms)) if s[i] in ("Li", "P", "B", "Nd")]]
     na = (np.linalg.norm(cell, axis=1) / grid).astype(int)
     gx = np.linspace(0, 1, na[0], endpoint=False)
     gy = np.linspace(0, 1, na[1], endpoint=False)
@@ -203,7 +350,13 @@ def dedup_cart(pts, cell, tol):
 # ----------------------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", required=True)
+    ap.add_argument("--base", help="정렬된 구조 (xyz/cif). --rietveld_cif 와 택일")
+    ap.add_argument("--rietveld_cif", help="부분점유 Rietveld CIF — 여기서 정수화한다")
+    ap.add_argument("--primitive", action="store_true",
+                    help="관용 F 셀을 원시셀로 내린 뒤 --supercell 적용 (5 f.u. 같은 배수용)")
+    ap.add_argument("--dopant", default="B", help="4b 에 넣을 +3 억셉터 (B·Nd·…)")
+    ap.add_argument("--n_li_fill", type=int, default=None,
+                    help="Ewald 가 놓을 Li 개수. 기본 2×n_B(보상분만). rietveld 경로에서는 전량이 자동 계산된다")
     ap.add_argument("--supercell", nargs=3, type=int, default=[1, 1, 2])
     ap.add_argument("--n_B", type=int, default=2)
     ap.add_argument("--n_O", type=int, default=3)
@@ -216,16 +369,38 @@ def main():
     rng = np.random.default_rng(A.seed)
     out = Path(A.out); (out / "cif").mkdir(parents=True, exist_ok=True)
 
-    base = read(A.base) * tuple(A.supercell)
+    DOP = A.dopant
+    if DOP not in OXI:
+        raise SystemExit(f"⛔ 도펀트 {DOP} 의 산화수를 모른다 — OXI 에 추가하고 오라 "
+                         f"(추측하지 않는다). 아는 것: {sorted(OXI)}")
+    if OXI[DOP] != +3:
+        raise SystemExit(f"⛔ 이 파이프라인은 **+3 억셉터@4b** 전용이다 "
+                         f"({DOP} 는 {OXI[DOP]:+d}). Li 보상 수(2×n)가 안 맞는다.")
+
+    if A.rietveld_cif:
+        # 부분점유 CIF 를 정수화해 골격을 만든다. Li 는 골격에 없고 **전량** Ewald 가 놓는다.
+        base, licand, n_Li_fill, rep = base_from_rietveld(
+            A.rietveld_cif, A.supercell, A.n_B, A.n_O, primitive=A.primitive)
+        (out / "integerization.json").write_text(
+            json.dumps(rep, ensure_ascii=False, indent=1) + "\n")
+        print(f"Rietveld 정수화: {rep['n_fu']} f.u. · 목표 {rep['target']} "
+              f"· 총 {rep['n_atoms']}원자 · 전하 {rep['charge']:+d}")
+        for r in rep["free_anion_rounding"]:
+            print(f"   자유음이온 tag{r['tag']}: {r['n_sites']}자리 × {r['occ_halide']} "
+                  f"= {r['raw']} → {r['int']} (편차 {r['dev']:+.2f})")
+        src = "rietveld_cif(48h 자리 정본)"
+    else:
+        base = read(A.base) * tuple(A.supercell)
+        n_Li_fill = A.n_li_fill if A.n_li_fill else 2 * A.n_B   # P5+ -> M3+ = -2 each
+        licand, src = li_vacancy_candidates(base, n_Li_fill)
+    if A.n_li_fill:
+        n_Li_fill = A.n_li_fill
     pools = site_pools(base)
-    n_Li_fill = 2 * A.n_B                     # P5+ -> B3+ = -2 each
     n_freeS = len(pools["freeS"])             # keep same free-S count (halogen reshuffle)
     print(f"supercell {A.supercell}  nat {len(base)}  pools: P {len(pools['P'])} "
           f"free_anion {len(pools['free_anion'])} (freeS {n_freeS}) ps4S {len(pools['ps4S'])}")
-    print(f"doping: {A.n_B} B@P, {A.n_O} O@S, +{n_Li_fill} Li (charge comp)")
-
-    licand, src = li_vacancy_candidates(base, n_Li_fill)
-    print(f"Li-vacancy candidates: {len(licand)} ({src})")
+    print(f"doping: {A.n_B} {DOP}@P, {A.n_O} O@S, {n_Li_fill} Li 배치")
+    print(f"Li 후보 자리: {len(licand)} ({src})")
     if len(licand) < n_Li_fill:
         raise SystemExit(f"need >= {n_Li_fill} Li candidates, got {len(licand)} — "
                          f"pass an ideal Li template or loosen void params")
@@ -282,7 +457,7 @@ def main():
         for Hsel in H_combos:
             q = q0.copy()
             for b in bsel:
-                q[P_master[b]] = OXI["B"]
+                q[P_master[b]] = OXI[DOP]
             Hset = set(Hsel)
             for k, m in enumerate(freeanion_master):
                 q[m] = OXI["S"] if k in Hset else OXI["Cl"]
@@ -313,7 +488,7 @@ def main():
     for rank, (key, E) in enumerate(ranked[:A.top]):
         bpos, sfree, lifill = key
         st = build_struct(base, fw_idx, li_occ_idx, licand, pos, cell,
-                          bpos, sfree, lifill, pools, o_sites=None)
+                          bpos, sfree, lifill, pools, o_sites=None, dopant=DOP)
         name = f"cfg{rank:04d}_E{E:.3f}"
         write(out / "cif" / f"{name}.cif", st)
         rows.append(dict(rank=rank, ewald_eV=round(E, 4), name=name,
@@ -325,7 +500,7 @@ def main():
                 if o_sites is None:
                     continue
                 st_o = build_struct(base, fw_idx, li_occ_idx, licand, pos, cell,
-                                    bpos, sfree, lifill, pools, o_sites=o_sites)
+                                    bpos, sfree, lifill, pools, o_sites=o_sites, dopant=DOP)
                 write(out / "cif" / f"{name}_O-{motif}.cif", st_o)
 
     json.dump(rows, open(out / "stage0_ranked.json", "w"), indent=2)
@@ -370,7 +545,7 @@ def pick_o_sites(base, bpos, pools, n_O, motif, rng, fw_idx):
 
 
 def build_struct(base, fw_idx, li_occ_idx, licand, pos, cell,
-                 bpos, sfree, lifill, pools, o_sites):
+                 bpos, sfree, lifill, pools, o_sites, dopant="B"):
     """Assemble ASE Atoms for a given config (bpos/sfree/lifill are master indices)."""
     from ase import Atoms
     s = list(base.get_chemical_symbols())
@@ -378,7 +553,7 @@ def build_struct(base, fw_idx, li_occ_idx, licand, pos, cell,
     syms = list(new.get_chemical_symbols())
     # B@P
     for mb in bpos:
-        syms[fw_idx[mb]] = "B"
+        syms[fw_idx[mb]] = dopant
     # halogen: set free-anion sites
     nfw = len(fw_idx)
     # sfree are master indices in framework space -> original
@@ -399,5 +574,100 @@ def build_struct(base, fw_idx, li_occ_idx, licand, pos, cell,
     return new
 
 
+def _selftest():
+    """Rietveld 경로 자체시험. **음성 경로 위주** — 양성만 있는 시험은 아무것도 보증 못 한다."""
+    import tempfile
+    from ase import Atoms
+    bad = []
+
+    def chk(cond, msg):
+        print(("  ✓ " if cond else "  ✗ ") + msg)
+        if not cond:
+            bad.append(msg)
+
+    CIF = """data_t
+_cell_length_a 9.79770
+_cell_length_b 9.79770
+_cell_length_c 9.79770
+_cell_angle_alpha 90
+_cell_angle_beta 90
+_cell_angle_gamma 90
+_space_group_name_H-M_alt "F -4 3 m"
+_symmetry_Int_Tables_number 216
+loop_
+ _atom_site_label
+ _atom_site_type_symbol
+ _atom_site_fract_x
+ _atom_site_fract_y
+ _atom_site_fract_z
+ _atom_site_occupancy
+s1 Li 0.1626 0.1626 0.0153 0.4533
+s2 P  0.5 0.5 0.5 0.98
+s2b Nd 0.5 0.5 0.5 0.02
+s3 S  0.6235 0.6235 0.6235 0.9925
+s3b O  0.6235 0.6235 0.6235 0.0075
+s4 Cl 0.25 0.25 0.25 0.85
+s4b S  0.25 0.25 0.25 0.15
+s5 Cl 0.0 0.0 0.0 0.75
+s5b S  0.0 0.0 0.0 0.25
+"""
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "t.cif"
+        p.write_text(CIF)
+
+        base, li, nLi, rep = base_from_rietveld(p, (1, 1, 1), n_dop=2, n_O=3)
+        chk(rep["charge"] == 0, "[양성] 전하중성이 정확히 0")
+        chk(rep["n_atoms"] == 54 and nLi == 26,
+            f"[양성] 4 f.u. → 54원자 · Li 26 (실제 {rep['n_atoms']}/{nLi})")
+        chk(len(li) == 48, f"[양성] 48h 자리를 전부 Li 후보로 준다 (실제 {len(li)})")
+
+        # ⛔음성 ★ 이 버그가 실제로 났다 (2026-09-07): 정수화 후 부분점유 꼬리표가 남으면
+        #   ASE CIF 라이터가 혼합 자리를 복원해 써낸다 → 되읽으면 조성·전하가 깨진다.
+        chk("occupancy" not in base.info and "spacegroup_kinds" not in base.arrays,
+            "⛔음성: 골격에 부분점유 꼬리표가 남지 않는다 (남으면 CIF 로 왕복하며 되살아난다)")
+        rt = Path(td) / "rt.cif"
+        write(rt, base)
+        back = read(rt)
+        chk(len(back) == len(base) and
+            sorted(back.get_chemical_symbols()) == sorted(base.get_chemical_symbols()),
+            "⛔음성: **CIF 로 쓰고 되읽어도 조성이 그대로다** (왕복 시험 — 위 버그의 관문)")
+
+        # ⛔음성: 원시 축약이 실제로 자리 수를 1/4 로 줄이는가 (안 줄면 F 중심을 못 읽은 것)
+        b5, li5, nLi5, rep5 = base_from_rietveld(p, (1, 1, 5), 2, 3, primitive=True)
+        chk(rep5["n_fu"] == 5 and rep5["n_atoms"] == 66,
+            f"[양성] 원시×5 → 5 f.u. · 66원자 (실제 {rep5['n_fu']}/{rep5['n_atoms']})")
+        chk(abs(b5.cell.cellpar()[0] - 9.79770 / (2 ** 0.5)) < 1e-3,
+            "⛔음성: 원시 격자상수가 a/√2 다 (관용셀 그대로면 F 중심을 안 내린 것)")
+
+        # ⛔음성: 자유음이온을 tag 마다 따로 반올림하는가 (한 통에 몰면 4c 선호가 사라진다)
+        chk(len(rep["free_anion_rounding"]) == 2,
+            "⛔음성: 자유음이온 tag 를 합치지 않고 **따로** 반올림한다 (4a·4c 두 줄)")
+
+        # ⛔음성: 전하중성이 48h 자리 수를 넘으면 조용히 넘어가지 않는다
+        try:
+            base_from_rietveld(p, (1, 1, 1), n_dop=5, n_O=3)   # 4b 자리는 4개뿐
+            ok = False
+        except SystemExit:
+            ok = True
+        chk(ok, "⛔음성: **자리보다 많은 도펀트**를 SystemExit 로 막는다 "
+            "(안 막으면 nP 가 음수가 되어 그럴듯한 Li 개수가 나온다)")
+
+        # ⛔음성: 점유율 정보가 없는 평범한 CIF 는 거부한다
+        plain = Path(td) / "plain.cif"
+        write(plain, Atoms("LiCl", positions=[[0, 0, 0], [2, 0, 0]], cell=[6, 6, 6], pbc=True))
+        try:
+            base_from_rietveld(plain, (1, 1, 1), 2, 3)
+            ok = False
+        except SystemExit:
+            ok = True
+        chk(ok, "⛔음성: 부분점유가 없는 CIF 를 Rietveld 로 받아주지 않는다")
+
+    print(f"selftest {'PASS' if not bad else 'FAIL'} — {9 - len(bad)}/9 ok")
+    return 1 if bad else 0
+
+
 if __name__ == "__main__":
+    import sys
+    if "--selftest" in sys.argv:
+        sys.exit(_selftest())
     main()
