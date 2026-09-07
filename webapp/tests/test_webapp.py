@@ -905,6 +905,69 @@ def test_sei_axes_reflect_campaign_state():
     assert done["② 형성 전위"] and done["③ 밴드갭 + DOS/PDOS"], "완료 축이 완료로 안 뜬다"
     body = A.app.test_client().get("/").get_data(as_text=True)
     assert "공동연구 요청 3축" in body and "확산장벽" in body
+    # 정상 상태에서는 "못 읽음" 문구가 나오면 안 된다 (아래 음성 시험의 대조군)
+    assert "원장 못 읽음" not in body
+
+
+def test_sei_axes_say_unreadable_instead_of_zero():
+    """⛔ 원장을 **못 읽은 것**을 '계산 중' 이나 '0종' 으로 렌더하면 안 된다.
+
+    실측 결함 (2026-09-07): `neb_recalc_pending` 이 try 안에서만 묶여 있어
+      `db/properties/sei_neb.json` 이 없거나 깨지면 `sei_axes()` 가 UnboundLocalError 를
+      냈고 대시보드(`/`)가 통째로 500 이었다. 그런데 단순히 False 로 초기화하면 이번엔
+      화면이 "DFT CI-NEB 계산 중" 이라고 **거짓말**을 한다 — 못 읽은 것과 아직 안 한 것은
+      다른 사실이다. 세 원장 모두 같은 규약을 쓴다.
+
+    음성 경로가 이 시험의 본체다: 깨진 원장·없는 원장에서 **거짓 진행 문구가 안 나오는지**
+    를 본다. 양성(정상 렌더)만 보는 시험은 이 결함을 하나도 못 잡았다.
+    """
+    import shutil
+    import tempfile
+
+    LEDGERS = {
+        "neb": (ROOT / "db/properties/sei_neb.json", 0),
+        "volt": (ROOT / "db/properties/sei_formation_voltage.json", 1),
+        "gap": (ROOT / "db/properties/sei_electronic.json", 2),
+    }
+    # 거짓 진행 문구 — 원장을 못 읽었는데 이게 나오면 화면이 거짓말을 하는 것이다
+    LIES = ("계산 중", "종 + 분해 산물", "종 (fixed-occ nscf 고유값)")
+
+    for what, (path, axis_i) in LEDGERS.items():
+        orig = path.read_bytes()
+        bak = tempfile.mktemp(suffix=".bak")
+        shutil.copy(path, bak)
+        try:
+            for scenario, mutate in (("깨진 JSON", lambda: path.write_text("{ not json",
+                                                                          encoding="utf-8")),
+                                     ("파일 없음", lambda: path.unlink())):
+                mutate()
+                ax = D.sei_axes()["axes"]          # ① 예외로 죽으면 안 된다
+                a = ax[axis_i]
+                blob = f"{a['state']} {a['detail']}"
+                assert "못 읽" in blob or "없다" in blob, (
+                    f"{what}/{scenario}: 원장을 못 읽었는데 화면이 그 사실을 안 적는다 — {blob!r}")
+                assert not any(l in a["detail"] for l in LIES), (
+                    f"{what}/{scenario}: 못 읽은 원장을 진행/집계 문구로 렌더한다 — {a['detail']!r}")
+                assert "0종" not in a["detail"], (
+                    f"{what}/{scenario}: 못 읽은 것을 '0종' 이라는 없는 집계로 찍는다")
+                if what == "neb":
+                    assert a["done"] is False, "못 읽은 축이 완료로 뜬다"
+                # ② 라우트가 500 이 아니라 그 사실을 실은 화면을 내야 한다
+                rv = A.app.test_client().get("/")
+                assert rv.status_code == 200, (
+                    f"{what}/{scenario}: 원장 하나가 깨졌다고 대시보드가 {rv.status_code}")
+                body = rv.get_data(as_text=True)
+                assert "못 읽" in body or "이(가) 없다" in body, (
+                    f"{what}/{scenario}: 대시보드가 원장을 못 읽은 사실을 화면에 안 적는다")
+                # ③ SEI 절이 **말없이 사라지면** 안 된다 — 사라진 절은 '그런 게 없다' 로 읽힌다
+                assert "SEI 분해상" in body, (
+                    f"{what}/{scenario}: SEI 절이 사유 없이 통째로 사라졌다")
+                shutil.copy(bak, path)
+        finally:
+            path.write_bytes(orig)
+            os.remove(bak)
+    # 복구 확인 — 시험이 원장을 망가뜨린 채 끝나면 뒤 시험이 전부 거짓 통과한다
+    assert D.sei_axes()["axes"][0]["state"] != "⛔ 원장 못 읽음"
 
 
 def test_no_hardcoded_metric_lists_in_templates():

@@ -891,6 +891,39 @@ def _load_json_safe(rel: str):
         return None
 
 
+def _rel_to_root(p: Path) -> str:
+    """repo 기준 상대경로 (Windows 역슬래시 금지 — test_paths_are_posix 규약)."""
+    try:
+        return p.relative_to(ROOT).as_posix()
+    except ValueError:
+        return p.as_posix()
+
+
+def _read_ledger(p: Path) -> tuple:
+    """원장 json 하나를 읽는다 → `(dict, 못읽은사유 | None)`.
+
+    왜 이 함수가 있나 (2026-09-07)
+      화면 집계에서 **"못 읽었다" 와 "세어 봤더니 0" 은 다른 사실**이다. 전자를 0 으로
+      렌더하면 있지도 않은 집계를 주장하는 셈이라 조용한 거짓말이 된다. 종전에는
+      `sei_axes()` 가 읽기 실패를 `pass` 로 삼켰고(→ "0종"), `sei_summary()` 는
+      아예 안 감쌌다(→ 대시보드 500). 두 화면이 같은 원장을 **다르게** 다뤘다.
+
+    ⛔ 이 함수가 못 하는 것
+      · 내용이 맞는지는 안 본다 — 읽히느냐, dict 모양이냐만 본다.
+      · 사유를 사람이 읽을 문장으로 줄 뿐, 표시 여부는 부르는 쪽이 정한다.
+    """
+    if not p.is_file():
+        return {}, f"원장 {_rel_to_root(p)} 이(가) 없다"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return {}, f"원장 {_rel_to_root(p)} 을(를) 못 읽었다 ({type(exc).__name__})"
+    if not isinstance(d, dict):
+        return {}, (f"원장 {_rel_to_root(p)} 이 객체가 아니다 "
+                    f"({type(d).__name__}) — 원장 모양이 아니다")
+    return d, None
+
+
 def elf_central_min() -> dict:
     """조성 → P–S 결합 **중앙 최솟값** ELF.
 
@@ -1073,13 +1106,20 @@ def sei_summary() -> dict:
       — 섞어 인용하면 안 된다 (CLAUDE.md 문헌·db 분리 규율).
     ⛔ Nd 3종의 갭은 status=rejected 다. 표에 값을 넣지 않고 사유만 남긴다.
     """
-    import json as _j
     gp = ROOT / "db" / "properties" / "sei_electronic.json"
     vp = ROOT / "db" / "properties" / "sei_formation_voltage.json"
-    if not gp.is_file():
-        return {}
-    G = _j.loads(gp.read_text(encoding="utf-8"))
-    V = _j.loads(vp.read_text(encoding="utf-8")).get("results", {}) if vp.is_file() else {}
+    # ⛔ 2026-09-07 — 종전엔 이 두 줄이 맨몸 `json.loads` 였다. 원장 하나가 깨지면
+    #   대시보드(`/`)가 통째로 500 이었고(실측), 갭 원장이 **없으면** `{}` 를 돌려줘
+    #   템플릿의 `{% if sei and sei.rows %}` 에 걸려 SEI 표가 **말없이 사라졌다**.
+    #   둘 다 안 된다 — 못 읽었으면 못 읽었다고 화면이 말해야 한다.
+    G, g_bad = _read_ledger(gp)
+    _V, v_bad = _read_ledger(vp)
+    V = _V.get("results") or {}
+    if g_bad:
+        # 갭 원장이 이 표의 등뼈다. 행은 못 그리지만 **사라지지는 않는다**.
+        return {"rows": [], "rejected": [], "unreadable": g_bad,
+                "gap_method": "", "figs": [], "csv": [],
+                "note": "", "neb_note": "", "neb_extra": []}
     # tag(li3po4g_mp-2878) → 표시명 · 형성전위 키
     NAME = {"licl": ("LiCl", "LiCl"), "li3po4": ("Li₃PO₄ (β)", "Li3PO4"),
             "li3po4g": ("Li₃PO₄ (γ)", "Li3PO4g"), "li2o": ("Li₂O", "Li2O"),
@@ -1131,6 +1171,10 @@ def sei_summary() -> dict:
     rows.sort(key=lambda x: -(x["gap"] or 0))
     return {
         "rows": rows, "rejected": rejected,
+        "unreadable": None,
+        # ⛔ 형성전위 원장을 못 읽으면 전위 칸이 **전부 빈칸**으로 나온다 — 그 빈칸은
+        #   "안정 구간이 없다" 가 아니라 "못 읽었다" 다. 화면이 그 차이를 말해야 한다.
+        "v_unreadable": v_bad,
         "gap_method": G.get("method", ""),
         "figs": ["docs/figures/sei/sei_gap_ladder.png", "docs/figures/sei/sei_dos_pdos.png"],
         "csv": ["db/properties/sei_gap_ladder_origin.csv",
@@ -1179,64 +1223,62 @@ def sei_axes() -> dict:
     gp = ROOT / "db" / "properties" / "sei_electronic.json"
     vp = ROOT / "db" / "properties" / "sei_formation_voltage.json"
     np_ = ROOT / "db" / "properties" / "sei_neb.json"
-    n_gap = 0
-    if gp.is_file():
-        try:
-            n_gap = sum(1 for v in _j.loads(gp.read_text(encoding="utf-8"))
-                        .get("results", {}).values()
-                        if record_shown(v)[0] and v.get("gap") is not None)
-        except (OSError, ValueError):
-            pass
-    n_v = 0
-    if vp.is_file():
-        try:
-            n_v = sum(1 for v in _j.loads(vp.read_text(encoding="utf-8"))
-                      .get("results", {}).values() if v.get("status") == "ok")
-        except (OSError, ValueError):
-            pass
+    # ⛔ 2026-09-07 — **"원장을 못 읽었다" 는 0 이 아니다.** 종전엔 세 원장 모두 읽기 실패를
+    #   조용히 삼켜서, 파일이 없거나 깨져도 화면이 "0종" 이라는 **없는 집계**를 찍었다.
+    #   0 은 "세어 봤더니 없었다" 는 주장이고, 못 읽은 것은 주장을 할 수 없는 상태다.
+    #   세지 못했으면 세지 못했다고 적는다 (판정 자체는 안 바꾼다 — 아래 state/done 그대로).
+    _g, gap_unreadable = _read_ledger(gp)
+    n_gap = sum(1 for v in (_g.get("results") or {}).values()
+                if record_shown(v)[0] and v.get("gap") is not None)
+    _v, volt_unreadable = _read_ledger(vp)
+    n_v = sum(1 for v in (_v.get("results") or {}).values() if v.get("status") == "ok")
     neb, neb_retracted, neb_reason = {}, False, None
-    if np_.is_file():
-        try:
-            _nj = _j.loads(np_.read_text(encoding="utf-8"))
-            neb = _nj.get("results", {})
-            # ⛔ 2026-08-11 — 이 파일은 철회될 수 있다 (전하 규약 오류 + 끝점 미이완).
-            #   철회본은 results 를 results_OLD_INVALID 로 옮겨 두므로 위 get 이 {} 가 되는데,
-            #   그러면 대시보드가 "계산 중" 이라고 **거짓말**을 한다. 철회는 철회라고 말한다.
-            neb_retracted = bool(_nj.get("retracted"))
-            neb_reason = _nj.get("retraction_reason")
-            # 🔴🔴 2026-09-04 — **`retracted` 가 두 가지를 뜻한다.** 화면이 둘을 섞으면 거짓말을 한다.
-            #   ① 2026-08-11 철회: 전하 규약 오류 + 끝점 미이완 ⇒ 값 자체가 무효,
-            #      results 를 results_OLD_INVALID 로 옮겨서 results 가 **빈다**. → "재계산 대기" 가 맞다.
-            #   ② 인용자격 계약(2026-08-16): 값은 **나와 있는데** 셀 수렴 미시험이라 n_citable=0
-            #      ⇒ 최상위에 retracted 가 박힌다. results 는 **차 있다**. → "재계산 대기" 는 **거짓**이다.
-            #   실측(2026-09-04 li_metal 병합 뒤): ②인데 화면이 ①문구를 냈다 — 값 4개가 있는데
-            #   "전건 철회, 재계산 대기" 라고 적었다. 둘을 results 가 비었는지로 가른다.
-            neb_recalc_pending = neb_retracted and not any(
-                (v or {}).get("Ea_effective_eV") is not None for v in neb.values())
-        except (OSError, ValueError):
-            neb = {}
+    # ⛔ 2026-09-07 — `neb_recalc_pending` 은 종전에 try **안에서만** 묶여 있었다. 그래서
+    #   sei_neb.json 이 없거나 깨지면 아래 return 에서 UnboundLocalError 가 나고
+    #   대시보드(`/`)가 통째로 500 이었다(실측). 그렇다고 False 로만 초기화하면 이번엔
+    #   화면이 "DFT CI-NEB 계산 중" 이라고 **거짓말**을 한다 — 2026-08-11 주석이 경계한
+    #   바로 그 문구다. 못 읽음은 진행도 철회도 아닌 **세 번째 상태**로 따로 낸다.
+    neb_recalc_pending = False
+    _nj, neb_unreadable = _read_ledger(np_)
+    if neb_unreadable is None:
+        neb = _nj.get("results") or {}
+        # ⛔ 2026-08-11 — 이 파일은 철회될 수 있다 (전하 규약 오류 + 끝점 미이완).
+        #   철회본은 results 를 results_OLD_INVALID 로 옮겨 두므로 위 get 이 {} 가 되는데,
+        #   그러면 대시보드가 "계산 중" 이라고 **거짓말**을 한다. 철회는 철회라고 말한다.
+        neb_retracted = bool(_nj.get("retracted"))
+        neb_reason = _nj.get("retraction_reason")
+        # 🔴🔴 2026-09-04 — **`retracted` 가 두 가지를 뜻한다.** 화면이 둘을 섞으면 거짓말을 한다.
+        #   ① 2026-08-11 철회: 전하 규약 오류 + 끝점 미이완 ⇒ 값 자체가 무효,
+        #      results 를 results_OLD_INVALID 로 옮겨서 results 가 **빈다**. → "재계산 대기" 가 맞다.
+        #   ② 인용자격 계약(2026-08-16): 값은 **나와 있는데** 셀 수렴 미시험이라 n_citable=0
+        #      ⇒ 최상위에 retracted 가 박힌다. results 는 **차 있다**. → "재계산 대기" 는 **거짓**이다.
+        #   실측(2026-09-04 li_metal 병합 뒤): ②인데 화면이 ①문구를 냈다 — 값 4개가 있는데
+        #   "전건 철회, 재계산 대기" 라고 적었다. 둘을 results 가 비었는지로 가른다.
+        neb_recalc_pending = neb_retracted and not any(
+            (v or {}).get("Ea_effective_eV") is not None for v in neb.values())
     # 🔴 2026-09-04 — 분모를 하드코딩 6 으로 두면 루트가 늘 때마다 화면이 틀린다.
     #   협업자 요청 6종을 **명시**하고, 그 밖의 상(li_metal 같은 참조계)은 따로 센다.
     _REQ6 = ("li2o", "li3po4g", "li3nd", "licl", "li2s", "li3p")
     _bp = sei_neb_by_phase()
     _req_done = {p: r for p, r in _bp.items() if p in _REQ6}
     _extra = {p: r for p, r in _bp.items() if p not in _REQ6}
-    n_neb = sum(1 for v in neb.values() if v.get("citable"))
     # ⛔ 2026-08-16 — citable 0 을 "계산 안 됐다" 로 읽히게 두면 안 된다. 셀 수렴 축을
     #   따로 세우면서 li2s·li3nd 가 provisional_single_cell 로 내려가 citable 이 0 이 됐는데,
-    #   **경로 자체는 수치적으로 유효**하다. 두 수를 나란히 보여야 거짓말이 안 된다.
-    n_neb_path_ok = sum(1 for v in neb.values()
-                        if v.get("status") == "converged"
-                        and v.get("Ea_effective_eV") is not None
-                        and not v.get("blocking_checks"))
+    #   **경로 자체는 수치적으로 유효**하다. 두 수를 나란히 보여야 거짓말이 안 된다
+    #   (지금 그 두 수는 아래 detail 의 `len(_req_done)/6` 과 `n_neb/6` 이다).
+    n_neb = sum(1 for v in neb.values() if v.get("citable"))
     return {"axes": [
         {"n": "① Li⁺ 확산장벽",
-         "state": ("⛔ 철회 — 재계산 중" if neb_recalc_pending else
-                   ("완료" if n_neb >= 6 else "진행 중")),
-         "done": (not neb_retracted) and n_neb >= 6,
-         "detail": ("⛔ 기존 NEB 결과 전건 철회 (2026-08-11) — 재계산 대기. "
-                    "협업자 요청 6종: Li₂O · Li₃PO₄γ · LiNdO₂ · LiCl · Li₂S · Li₃P"
-                    if neb_recalc_pending else
+         "state": ("⛔ 원장 못 읽음" if neb_unreadable else
+                   ("⛔ 철회 — 재계산 중" if neb_recalc_pending else
+                    ("완료" if n_neb >= 6 else "진행 중"))),
+         "done": (neb_unreadable is None) and (not neb_retracted) and n_neb >= 6,
+         "detail": (f"⛔ {neb_unreadable} — 진행 상태를 말할 수 없다. "
+                    "이 칸이 비어 보이는 것은 '아직 계산 안 함' 이 아니라 '판정 불가' 다."
+                    if neb_unreadable else
+                    ("⛔ 기존 NEB 결과 전건 철회 (2026-08-11) — 재계산 대기. "
+                     "협업자 요청 6종: Li₂O · Li₃PO₄γ · LiNdO₂ · LiCl · Li₂S · Li₃P"
+                     if neb_recalc_pending else
                     ((f"DFT CI-NEB — 요청 6종 중 값 나온 것 {len(_req_done)}/6 · "
                       f"셀 수렴 확인 {n_neb}/6 (인용 가능)"
                       + ("  ·  " + " / ".join(
@@ -1250,16 +1292,19 @@ def sei_axes() -> dict:
                       + "  eV  ⚠ 전건 셀 수렴 미시험 — 상 사이 비교용으로만"
                       + ("  ⛔ 인용 자격 없음 (n_citable 0)" if neb_retracted else ""))
                      if neb else
-                     "DFT CI-NEB 계산 중 (협업자 요청 6종)")),
+                     "DFT CI-NEB 계산 중 (협업자 요청 6종)"))),
          "why": ("BVSE 는 화학계를 넘나드는 비교에 못 쓴다 — 하필 Figure 5 의 주인공 "
                  "Li₂S(BVS 1.56)·LiCl(2.74)이 못 쓰는 쪽이고 Li₃P 는 파라미터가 없다. "
                  "그래서 NEB 이 대안이 아니라 유일한 경로다."
                  + (f"  ⛔ 철회 사유: {str(neb_reason)[:400]}" if neb_retracted else ""))},
         {"n": "② 형성 전위", "state": "완료", "done": True,
-         "detail": f"{n_v}종 + 분해 산물 (MP 대분배 위상도)",
+         "detail": (f"⛔ {volt_unreadable} — 세지 못했다 (세어 봤더니 없었다는 뜻이 아니다)"
+                    if volt_unreadable else f"{n_v}종 + 분해 산물 (MP 대분배 위상도)"),
          "why": "열역학적 안정 구간이지 생성 속도가 아니다 — '이 전위 밖에서는 존재할 수 없다'로 읽는다."},
         {"n": "③ 밴드갭 + DOS/PDOS", "state": "완료", "done": True,
-         "detail": f"{n_gap}종 (fixed-occ nscf 고유값) + Origin CSV·그림",
+         "detail": (f"⛔ {gap_unreadable} — 세지 못했다 (세어 봤더니 없었다는 뜻이 아니다)"
+                    if gap_unreadable else
+                    f"{n_gap}종 (fixed-occ nscf 고유값) + Origin CSV·그림"),
          "why": "⛔ Nd 3종은 제외 — 4f 를 원자가에 둔 PBE(+U) 의 SCF 해가 금속이라 "
                 "fixed-occ 갭이 정의되지 않는다. MP frozen-4f 인용."},
     ], "neb": neb}

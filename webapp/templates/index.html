@@ -47,6 +47,16 @@
 </div>
 {% endif %}
 
+{% if sei and sei.unreadable %}
+{# ⛔ 2026-09-07 — 갭 원장을 못 읽으면 종전에는 위 `sei.rows` 조건에 걸려 SEI 절이
+   **통째로 사라졌다.** 사라진 절은 "그런 캠페인이 없다" 로 읽힌다. 없어진 이유를 적는다. #}
+<div class="section-title">🧪 SEI 분해상 <span class="muted">— 표를 그릴 수 없다</span></div>
+<div class="card"><div class="callout cal-warn" style="font-size:.8rem">
+  ⛔ {{ sei.unreadable }} — 그래서 이 표는 <b>비어 있는 게 아니라 못 그린 것</b>이다.
+  값이 없다는 뜻으로 읽지 말 것.
+</div></div>
+{% endif %}
+
 {% if sei and sei.rows %}
 {# ── SEI 분해상 캠페인 (2026-08-07 완료) ─────────────────────────────────────
    ⚠ 갭(우리 QE)과 형성전위(MP)는 **출처가 다르다.** 한 표에 나란히 두되 그 사실을
@@ -112,6 +122,13 @@
     📐 <b>참조계</b> (SEI 분해상이 아니라 비교 기준):
     {% for e in sei.neb_extra %}<b>{{ e.name }}</b> E<sub>a</sub> = {{ '%.3f'|format(e.ea) }} eV
       <span class="mono" style="font-size:.9em">({{ e.cls or '?' }})</span>{{ ' · ' if not loop.last }}{% endfor %}
+  </div>
+  {% endif %}
+  {% if sei.v_unreadable %}
+  {# ⛔ 2026-09-07 — 전위 칸의 빈칸이 "안정 구간 없음" 으로 읽히면 안 된다. 못 읽은 것이다. #}
+  <div class="callout cal-warn" style="margin-top:10px;font-size:.75rem">
+    ⛔ {{ sei.v_unreadable }} — 아래 표의 <b>형성전위 칸이 빈 것은 값이 없어서가 아니라
+    못 읽어서다.</b> 그 칸으로 안정 구간을 판단하지 말 것.
   </div>
   {% endif %}
   {% if sei.neb_note %}
