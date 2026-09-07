@@ -132,9 +132,73 @@ def is_outcar(path):
     return os.path.basename(path).upper().startswith("OUTCAR")
 
 
+def is_poscar(path):
+    b = os.path.basename(path).upper()
+    return b.startswith(("POSCAR", "CONTCAR")) or path.lower().endswith(".vasp")
+
+
+def read_poscar(path):
+    """VASP POSCAR/CONTCAR/.vasp → (cell, labels, pos_cartesian).
+
+    번들이 외주로 나갈 때 **초기 구조는 POSCAR 로만** 들어간다 (OUTCAR 은 돌아온
+    뒤에 생긴다). 그래서 '지금 돌고 있는 그 구조' 를 그리려면 이 입력이 필요하다.
+
+    ⛔ 이 리더가 **못 하는 것**:
+      · VASP4 형식(종 이름 줄이 없는 POSCAR)은 **거부한다.** 종은 POTCAR 순서에
+        들어 있고 POSCAR 만으로는 알 수 없다 — 추측하면 원소를 통째로 잘못 그린다.
+      · Selective dynamics 의 T/F 플래그는 읽고 **버린다** (그림에 안 쓴다).
+      · velocity/predictor 블록은 안 읽는다.
+    """
+    with open(path, errors="ignore") as f:
+        lines = [ln.rstrip("\n") for ln in f]
+    if len(lines) < 8:
+        raise SystemExit(f"⛔ {path}: POSCAR 로 보기엔 줄이 너무 적다 ({len(lines)})")
+    try:
+        s = float(lines[1].split()[0])
+    except (ValueError, IndexError):
+        raise SystemExit(f"⛔ {path} 2행이 배율 수가 아니다: {lines[1]!r}")
+    cell = np.array([[float(x) for x in lines[i].split()[:3]] for i in (2, 3, 4)])
+    # 음수 배율 = 목표 부피 (VASP 규약)
+    if s < 0:
+        v = abs(np.linalg.det(cell))
+        s = (abs(s) / v) ** (1.0 / 3.0) if v > 0 else 1.0
+    cell = cell * s
+
+    sp = lines[5].split()
+    if not sp or any(t.lstrip("+-").isdigit() for t in sp):
+        raise SystemExit(
+            f"⛔ {path} 6행이 종 이름 줄이 아니다 ({lines[5]!r}) — VASP4 형식은 못 읽는다. "
+            "종은 POTCAR 순서에 있고 POSCAR 만으로는 알 수 없어서 추측하지 않는다.")
+    try:
+        cnt = [int(t) for t in lines[6].split()]
+    except ValueError:
+        raise SystemExit(f"⛔ {path} 7행이 개수 줄이 아니다: {lines[6]!r}")
+    if len(cnt) != len(sp):
+        raise SystemExit(f"⛔ {path}: 종 {len(sp)}개인데 개수 {len(cnt)}개 — 줄이 어긋났다")
+
+    i = 7
+    if lines[i][:1].upper() == "S":            # Selective dynamics
+        i += 1
+    mode = lines[i].strip()[:1].upper()
+    if mode not in ("D", "C", "K"):
+        raise SystemExit(f"⛔ {path}: 좌표계 줄을 못 읽었다 ({lines[i]!r}) — Direct/Cartesian 이어야 한다")
+    i += 1
+
+    nat = sum(cnt)
+    rows = [ln.split() for ln in lines[i:i + nat] if ln.split()]
+    if len(rows) != nat:
+        raise SystemExit(f"⛔ {path}: 선언 원자수 {nat} != 좌표줄 {len(rows)}")
+    frac = np.array([[float(x) for x in r[:3]] for r in rows])
+    pos = frac @ cell if mode == "D" else frac * s
+    labels = [e for e, n in zip(sp, cnt) for _ in range(n)]
+    return cell, labels, pos
+
+
 def read_any(path):
     if is_outcar(path):
         return read_outcar(path)[:3]
+    if is_poscar(path):
+        return read_poscar(path)
     return read_extxyz(path) if path.lower().endswith((".xyz", ".extxyz")) else read_scf_in(path)
 
 
@@ -644,8 +708,9 @@ def default_tag(path):
     if is_outcar(path):
         d = os.path.dirname(os.path.abspath(path))
         return f"{os.path.basename(os.path.dirname(d))}__{os.path.basename(d)}"
-    if path.lower().endswith((".xyz", ".extxyz")):
+    if path.lower().endswith((".xyz", ".extxyz", ".vasp")):
         return os.path.splitext(os.path.basename(path))[0]
+    # POSCAR 은 `<job>/POSCAR` 라 잡 이름이 부모 디렉터리다 (아래 기본 규칙과 같다)
     return os.path.basename(os.path.dirname(os.path.abspath(path)))
 
 
@@ -669,6 +734,13 @@ def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recen
                 f"(VASP static single point, NSW=0) | "
                 f"E(sigma->0)={meta['E0']:.6f} eV | mag_tot={meta['mag_total']} muB | "
                 f"slab magnetic basin={meta['basin']}")
+    elif is_poscar(path):
+        cell, labels0, pos0 = read_poscar(path)
+        # ⚠ POSCAR 은 **넣은 것**이지 나온 것이 아니다. OUTCAR 갈래의 문구
+        #   ("as-run geometry read back") 를 여기 쓰면 결과처럼 읽힌다.
+        prov = (f"INPUT geometry as submitted, from {os.path.abspath(path)} "
+                f"(VASP POSCAR — this is what goes IN; no energy, no convergence, "
+                f"not a result)")
     else:
         cell, labels0, pos0 = read_any(path)
         prov = f"UNRELAXED single-point geometry from {os.path.abspath(path)}"
@@ -1227,6 +1299,73 @@ def selftest():
         ev = [e for e, c in zip(order, counts) for _ in range(c)]
         chk(ex == ev, f"xyz 와 vasp 의 원자 순서가 같다 ({ex} vs {ev})")
 
+    # ══ POSCAR 입력 (2026-09-07 신설 — 외주 번들의 초기 구조용) ═══════════════
+    with tempfile.TemporaryDirectory() as td:
+        def _wp(name, body):
+            q = os.path.join(td, name)
+            os.makedirs(os.path.dirname(q), exist_ok=True)
+            open(q, "w").write(body)
+            return q
+
+        HEAD = "test\n1.0\n10.0 0.0 0.0\n0.0 10.0 0.0\n0.0 0.0 10.0\n"
+        direct = _wp("jobA/POSCAR", HEAD + "Li C\n2 1\nDirect\n"
+                     "0.0 0.0 0.0\n0.5 0.0 0.0\n0.0 0.5 0.0\n")
+        cell, labels, pos = read_poscar(direct)
+        chk(labels == ["Li", "Li", "C"], f"POSCAR → 종 전개 (Li Li C): {labels}")
+        chk(abs(pos[1][0] - 5.0) < 1e-9 and abs(pos[2][1] - 5.0) < 1e-9,
+            f"Direct → 카테시안 변환 (0.5 → 5.0 Å): {pos[1][0]:.3f}")
+        chk(default_tag(direct) == "jobA", f"POSCAR 태그 = 잡 디렉터리명: {default_tag(direct)}")
+
+        # 양성 — Cartesian 과 Selective dynamics 를 같은 좌표로 읽는다
+        cart = _wp("jobB/POSCAR", HEAD + "Li C\n2 1\nSelective dynamics\nCartesian\n"
+                   "0.0 0.0 0.0 F F F\n5.0 0.0 0.0 T T T\n0.0 5.0 0.0 T T T\n")
+        _c2, _l2, p2 = read_poscar(cart)
+        chk(np.allclose(p2, pos), "Cartesian + Selective dynamics 가 Direct 판과 같은 좌표")
+
+        # 양성 — 음수 배율 = 목표 부피 (VASP 규약). 부피 8000 → 배율 1.0
+        negs = _wp("jobC/POSCAR", "test\n-1000.0\n10.0 0.0 0.0\n0.0 10.0 0.0\n0.0 0.0 10.0\n"
+                   "Li\n1\nDirect\n0.5 0.5 0.5\n")
+        c3, _l3, _p3 = read_poscar(negs)
+        chk(abs(np.linalg.det(c3) - 1000.0) < 1e-6,
+            f"음수 배율을 목표 부피로 읽는다 (det={np.linalg.det(c3):.1f})")
+
+        # ⛔ 음성 1 — VASP4 (종 이름 줄 없음) 는 **거부**한다. 종을 추측하면
+        #   원소를 통째로 잘못 그린다 — 조용히 통과하면 안 되는 유일한 실패다.
+        v4 = _wp("jobD/POSCAR", HEAD + "2 1\nDirect\n0 0 0\n.5 0 0\n0 .5 0\n")
+        try:
+            read_poscar(v4); hit = False
+        except SystemExit:
+            hit = True
+        chk(hit, "⛔음성: VASP4 형식(종 이름 줄 없음)을 거부한다")
+
+        # ⛔ 음성 2 — 종 개수와 개수줄 길이가 어긋나면 멈춘다
+        mm = _wp("jobE/POSCAR", HEAD + "Li C O\n2 1\nDirect\n0 0 0\n.5 0 0\n0 .5 0\n")
+        try:
+            read_poscar(mm); hit = False
+        except SystemExit:
+            hit = True
+        chk(hit, "⛔음성: 종 3개 vs 개수 2개 → 멈춘다")
+
+        # ⛔ 음성 3 — 선언 원자수보다 좌표줄이 모자라면 멈춘다 (조용히 자르지 않는다)
+        sh = _wp("jobF/POSCAR", HEAD + "Li C\n2 1\nDirect\n0 0 0\n.5 0 0\n")
+        try:
+            read_poscar(sh); hit = False
+        except SystemExit:
+            hit = True
+        chk(hit, "⛔음성: 좌표줄이 선언 원자수보다 적으면 멈춘다")
+
+        # ⛔ 음성 4 — 출처 문구가 결과처럼 읽히면 안 된다
+        po = os.path.join(td, "pout")
+        emit_struct(direct, po, quiet=True, recenter=False)
+        cmt = open(os.path.join(po, "jobA.xyz")).read().splitlines()[1]
+        chk("INPUT geometry as submitted" in cmt and "not a result" in cmt,
+            "⛔음성: POSCAR 산출물이 '넣은 것·결과 아님' 을 적는다")
+        chk("as-run" not in cmt,
+            "⛔음성: OUTCAR 갈래 문구('as-run')가 POSCAR 산출물에 새지 않는다")
+        rawp = open(os.path.join(po, "jobA.vesta"), "rb").read()
+        chk(rawp.decode("ascii", "ignore").encode() == rawp and b"\r\n" in rawp,
+            "POSCAR 산출 .vesta 도 ASCII 전용 + CRLF")
+
     print(f"── {'PASS' if not fails else 'FAIL ' + str(len(fails))} ──")
     return 1 if fails else 0
 
@@ -1237,6 +1376,9 @@ def main():
                     help="QE scf.in 또는 Phase-A pose .xyz (확장자로 자동 판별)")
     ap.add_argument("--outcar", nargs="+", default=[],
                     help="VASP OUTCAR / OUTCAR.gz (결과만 회수된 드롭용)")
+    ap.add_argument("--poscar", nargs="+", default=[],
+                    help="VASP POSCAR / CONTCAR / *.vasp — **넣은 초기 구조**. "
+                         "외주 번들처럼 아직 결과가 없을 때 쓴다 (VASP4 형식은 거부)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--tag", default=None, help="출력 접두어 (기본: 상위 디렉터리명)")
     ap.add_argument("--vesta_scale", type=float, default=RAD_SCALE_DEFAULT,
@@ -1260,8 +1402,10 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         return selftest()
-    if not (a.scf_in or a.outcar or a.mol_xyz):
-        ap.error("--scf_in / --outcar / --mol_xyz 중 하나는 필요하다")
+    if not (a.scf_in or a.outcar or a.mol_xyz or a.poscar):
+        ap.error("--scf_in / --outcar / --poscar / --mol_xyz 중 하나는 필요하다")
+    if a.poscar and not a.out:
+        ap.error("--poscar 는 --out 이 필요하다 (POSCAR 에는 에너지가 없어 요약할 것이 없다)")
     if a.mol_xyz and not a.out:
         ap.error("--mol_xyz 는 --out 이 필요하다 (구조를 쓰는 것이 이 모드의 전부다)")
     if a.energy_csv and not a.refs:
@@ -1271,7 +1415,7 @@ def main():
     for path in list(a.mol_xyz):
         metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
                                  recenter=False, box_pad=a.box_pad))
-    for path in list(a.scf_in) + list(a.outcar):
+    for path in list(a.scf_in) + list(a.outcar) + list(a.poscar):
         if a.out:
             metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
                                      recenter=not a.no_recenter))
