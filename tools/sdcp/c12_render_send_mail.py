@@ -15,6 +15,10 @@ ap.add_argument("--zip", required=True)
 ap.add_argument("--commit", required=True)
 ap.add_argument("--out", required=True)
 ap.add_argument("--variant", default="?")
+ap.add_argument("--supersede_reason", default=None,
+                help="교체 사유 한 문장 (외주처가 읽는 문장). ⚠ 안 주면 '아래 변경 절 참조' "
+                     "로 나간다 — **사유를 추측해 박지 않는다** (2026-09-07 P1-3: v36 에 "
+                     "이미 있는 clean slab 을 '빠져 있었다' 고 적어 나간 사고).")
 ap.add_argument("--supersedes", default=None,
                 help="**이미 발송한** 판(예: v35). 주면 메일 맨 앞에 교체 통지가 붙고 "
                      "변경 절 제목이 그 판 기준으로 바뀐다. ⛔ 안 주면 외주처가 두 판을 "
@@ -77,6 +81,27 @@ if a.supersedes == "v35":
 - 기본 동시 실행을 **{conc}잡**으로 잡았습니다 (v35 는 4잡). 늘어난 잡을 같은 일정 안에 넣기 위함입니다 —
   {mk_c}일. 할당이 부족하시면 `JOBS_PARALLEL` 로 줄이셔도 됩니다(일정만 늘어납니다).
 - 그 밖의 실행 절차·반송 목록·게이트는 **v35 와 동일**합니다. 새로 익히실 것이 없습니다."""
+elif a.supersedes == "v36":
+    # v36 → v37 : **계산 입력은 한 글자도 안 바뀌었다.** 바뀐 것은 실행 배치와 시간 계약이다.
+    _sa = (_cf.get("stage_alloc_h") or {}).get("NELM_시나리오") or {}
+    _sreq = int(-(-max(_sa.get("1") or 0, _sa.get("2") or 0) // 12) * 12) or "?"
+    _mmw = (man.get("memory_model") or {})
+    _mmr = _mmw.get("권고") or {}
+    _cores_j = int((man.get("submission") or {}).get("cores_per_job") or 0)
+    _changes = f"""- ⚠ **계산 입력(INCAR·POSCAR·KPOINTS·자세·사전등록)은 v36 과 동일합니다.** 다시 익히실 것이
+  없습니다 — 물리적으로 같은 계산이고, 바뀐 것은 **실행 배치와 시간 계약**입니다.
+- **랭크 배치를 명시했습니다.** 잡당 랭크 {_cores_j} 개를 **노드 {_mmr.get("권고_노드_per_잡", "?")} 개에
+  펼쳐** 주십시오 (`VASP_NODES`). 한 노드에 몰면 최악 잡이
+  {_mmw.get("계획_랭크_잡_전체_GB", "?")} GB 를 요구해 OOM 납니다 — 2026-09-04 에 실제로 그렇게
+  났습니다. 러너가 **첫 VASP 실행 전에** 계산해 보고 넘치면 멈춥니다.
+- **동시 실행 기본을 {conc}잡으로** 낮췄습니다 (v36 은 5잡). 필요한 총 노드
+  {_mmr.get("필요_총_노드", "?")} 개.
+- **요청하실 walltime 이 잡 단위가 아니라 단계 단위입니다** — 러너는 한 할당 안에서 그 단계를
+  다 돌리므로 **단계당 {_sreq} h** 가 필요합니다. 종전 메일의 '잡당 84 h' 만 보시면 잡이 다
+  끝나기 전에 할당이 잘릴 수 있었습니다.
+- **반송 압축에서 POTCAR 를 빼 주십시오** (라이선스). `--exclude=POTCAR` 를 명령에 넣었습니다.
+  증빙(`POTCAR_PROVENANCE.json` 등)은 그대로 두시면 됩니다.
+- 그 밖의 실행 절차·반송 목록·게이트는 **v36 과 동일**합니다."""
 else:
     _changes = f"""- **선택 attestation 함정 제거**: `MAKE_POTCAR_ATTESTATION.sh` 가 VASP stdout 전문을 적고 봉인은
   토큰만 담아, 돌리면 1단계를 다 돌린 뒤에야 판정이 막히는 결함(렌즈4 P0-1). 둘 다 토큰으로 통일했다.
@@ -90,13 +115,21 @@ else:
 # 🔴 2026-09-04 — **이미 보낸 판을 교체하는 메일**이면 그 사실이 맨 앞에 있어야 한다.
 #   없으면 외주처가 두 판을 다 돌리거나 옛 판을 돌린다. 제목에도 넣는다.
 _subj_pre = ("[교체] " if a.supersedes else "")
+# ⛔⛔ 2026-09-07 (Codex v37 P1-3) — 종전엔 교체 사유가 **supersedes 값과 무관하게**
+#   "기준계(clean slab) 3잡이 빠져 있었습니다" 로 박혀 있었다. 그건 v35→v36 의 사유이고
+#   v36 에는 clean slab 3잡이 **이미 다 있다**(zip 실물 확인). 즉 교체 메일이 거짓 사유를
+#   달고 나갔다. ⇒ 사유를 **추측하지 않는다** — 주면 그것을, 없으면 변경 절을 가리킨다.
+_reason = (a.supersede_reason if getattr(a, "supersede_reason", None)
+           else ("계산해야 할 기준계(clean slab) 3잡이 빠져 있었습니다. 저희 설계 누락이며 "
+                 "귀측 실행과는 무관합니다." if a.supersedes == "v35"
+                 else "아래 **이 판에서 바뀐 것** 절에 적었습니다. 저희 쪽 수정이며 "
+                      "귀측 실행과는 무관합니다."))
 _replace_block = ("" if not a.supersedes else f"""
 > ## ⛔ 먼저 읽어 주십시오 — **이전에 보내 드린 `sdcp_c12_{a.supersedes}.zip` 은 폐기해 주십시오.**
 > 이 메일의 묶음이 그것을 **대체**합니다. 두 개를 같이 돌리지 말아 주십시오.
 > · 아직 시작하지 않으셨다면: 이전 zip 을 지우고 이 묶음으로만 진행해 주십시오.
 > · 이미 시작하셨다면: **멈추고 알려 주십시오.** 지금까지 쓰신 시간은 저희가 부담하겠습니다.
-> · 바뀐 이유: 계산해야 할 기준계(clean slab) 3잡이 빠져 있었습니다. 저희 설계 누락이며
->   귀측 실행과는 무관합니다.
+> · 바뀐 이유: {_reason}
 """)
 
 cores = int((man.get("submission") or {}).get("cores_per_job") or (man.get("cost_frozen") or {}).get("cores_per_job") or 48)
