@@ -8,11 +8,9 @@
     pytest webapp/tests/test_webapp.py -q
     python3 webapp/tests/test_webapp.py          # pytest 없이도 돈다
 """
-import io
 import json
 import pytest
 import os
-import pathlib
 import re
 import sys
 from pathlib import Path
@@ -485,7 +483,6 @@ def test_running_process_sees_source_change():
     첫 판은 data.py 가 import 때 _REG 를 한 번 만들어, 재시작 전에는 안 바뀌었다.
     """
     import json as _j
-    import time as _t
     p = ROOT / "db" / "properties" / "canonical_registry.json"
     before = D.CANONICAL["gap_eV"]["lpsocl"]
     k0 = C._mtime_key()
@@ -507,7 +504,7 @@ def test_non_canonical_status_is_visible_on_screen():
     c = A.app.test_client()
     cmp_ = c.get("/compare").get_data(as_text=True)
     assert "statusBadge" in cmp_ and "unreviewed_drift" in cmp_, "compare 표에 상태 배지가 없다"
-    exp = c.get("/explorer").get_data(as_text=True)
+    assert c.get("/explorer").status_code == 200
     assert "canonical_status" in (ROOT / "webapp" / "templates" / "explorer.html")\
         .read_text(encoding="utf-8"), "explorer 표에 상태 배지가 없다"
     # 실제로 비정본이 있는 조성 카드에 배지가 뜨는지 (comp2 gap = provisional)
@@ -1176,9 +1173,6 @@ def test_recovered_ranking_is_gated_server_side():
     denied = c.get("/cascade/diagnostic")
     assert denied.status_code == 403, "view=diagnostic 없이 열렸다"
     body = denied.get_data(as_text=True)
-    fun = json.loads((D.DB / "properties" / "cascade_screening_funnel_v2.json")
-                     .read_text(encoding="utf-8"))
-    names = [g for g in (fun.get("gates") or []) if g.get("id") == "G4"]
     ep = (D.load_cascade()["v2"]["meta"].get("funnel_v2") or {}).get("endpoint") or []
     assert ep, "endpoint 목록이 비었다 — 이 테스트를 갱신할 것"
     for sp in ep[:6]:
@@ -2437,7 +2431,6 @@ def test_sdcp_closure_consistency():
                     .read_text(encoding="utf-8"))
 
     # ── neutral 자리선호가 '미해결' 인데, 어느 문서든 선호를 주장하면 모순이다
-    blob = json.dumps(c, ensure_ascii=False) + json.dumps(cl, ensure_ascii=False)
     assert "미해결" in json.dumps(c.get("dE_notes", {}).get("sdcp_neutral", ""),
                                 ensure_ascii=False), "neutral 판정이 '미해결' 이어야 한다"
     for h in c.get("headline_sentences_ko", []):

@@ -12,7 +12,6 @@
   · 번들 자체의 정확성 (그건 upstream 스냅샷 문제다).
 """
 import json
-import os
 import sys
 from pathlib import Path
 

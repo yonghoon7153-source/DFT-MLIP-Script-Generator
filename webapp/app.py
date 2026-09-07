@@ -7,8 +7,7 @@ app.py — DFT 지식 인프라 Flask 앱.
 from flask import Flask, render_template, jsonify, send_from_directory, abort, request
 import re
 from markupsafe import Markup, escape
-from datetime import datetime
-import json, os, re
+import json, os
 from datetime import datetime as _dt
 import data as D
 import glossary as G

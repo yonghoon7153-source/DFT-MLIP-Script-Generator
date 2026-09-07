@@ -1225,7 +1225,6 @@ def canonical_provenance_flags() -> dict:
 
 def sei_axes() -> dict:
     """협업자 요청 3축의 진행 상태. **뭐가 됐고 뭐가 남았나**를 대시보드가 직접 말한다."""
-    import json as _j
     gp = ROOT / "db" / "properties" / "sei_electronic.json"
     vp = ROOT / "db" / "properties" / "sei_formation_voltage.json"
     np_ = ROOT / "db" / "properties" / "sei_neb.json"
@@ -3798,7 +3797,7 @@ def cascade_for_element(sym: str) -> list:
 
 # ── 대시보드 '핵심 발견' 하이라이트 (커버리지% 대신 히어로로) ──
 def dashboard_highlights() -> list:
-    C, L = CANONICAL, {k: v["label"] for k, v in COMPOSITIONS.items()}
+    L = {k: v["label"] for k, v in COMPOSITIONS.items()}
     hi = []
     # ⚠ 순위는 **같은 비교 묶음 안에서만**. union 을 정렬하면 legacy DOS-문턱 판독(comp2)이
     #   fixed-occ 정본과 같은 줄에 선다 (2026-08-07 리뷰 P1).
@@ -3828,7 +3827,7 @@ def dashboard_highlights() -> list:
             return (f"{L.get(cid, cid)} {em[cid]:.3f}"
                     + (f"±{u:.3f}" if u is not None else "")
                     + (f" ({e_['n_seed']}-seed)" if e_.get("n_seed") else ""))
-        lo, hi_ = rows[0], rows[-1]
+        lo = rows[0]
         # 오차막대가 겹치는지 — 겹치면 "최저"라고 말하면 안 된다
         u0 = ent.get(lo[1], {}).get("uncertainty") or 0.0
         tied = [cid for v, cid in rows[1:]
