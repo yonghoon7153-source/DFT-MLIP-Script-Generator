@@ -8,6 +8,30 @@ Codex 판정(`codex_verdict_6mah_20260907.md`) 이 **예산 결정과 무관하�
 | **1** | exact replay — "같은 걸 두 번 돌리면 같은 답인가" | **바이트 동일 (3/3)** ⇒ `δ_num` 실측 **0** |
 | **2** | 각도 위험 선별 — "이 침대가 그 문제에 걸리나" | 신설 `step4_angular_risk.py` (11/11) · **K_required = 8~12** |
 
+## 봉인된 산출물 (전부 `code_sha 7af99bb4c`, `code_dirty false`)
+
+| 파일 | 내용 |
+|---|---|
+| `docs/data/step3_transport_resolution_kit_ps_7_3_v3.json` | 다섯 격자 × 8 origin raw · **v2 를 대체** |
+| `docs/data/angular_risk/angular_risk_real14.json` | 각도 위험 5종 (457 입자) |
+| `docs/data/angular_risk/angular_risk_kit_ps_7_3.json` | 각도 위험 5종 (1,498 입자) |
+
+v3 확정판 (판정기 수정 후):
+
+```
+ vox   Ø/dx   σ_ion 평균     증분%    origin폭%
+ 0.4    2.5   1.64602e-4       —       6.70
+ 0.3   3.33   1.73063e-4    +5.14      3.26
+0.25    4.0   1.72981e-4    −0.047     5.73
+ 0.2    5.0   1.73270e-4    +0.167     3.80
+0.15   6.67   1.67781e-4    −3.17      2.19
+
+★ converged_from = None   (다섯 격자 어디에도 수렴 onset 이 없다)
+```
+
+⛔ 옛 `_v2.json` 에는 `superseded_by` 를 박아 두었다 — 그 파일의 **vox 0.20 값은 인용 금지**다
+(플레이트 관통 버그 산물).  0.4·0.3·0.25 는 v3 와 바이트 동일이라 유효하다.
+
 ---
 
 # 1. exact replay — 자가 흔들리지 않는다
