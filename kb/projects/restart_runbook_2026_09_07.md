@@ -168,15 +168,28 @@ find ~/work/runs/sdcp_stageA_run -maxdepth 3 -name '.lock_seed'   # 죽은 lock 
 ⚠ 재부팅하면 lock 안의 pid 는 전부 죽은 pid 다. 러너는 **남의 lock 을 안 지운다**(설계상 옳다) —
 `STALE_LOCK_MIN` 을 넘겨 스스로 정리하게 두거나, 사람이 확인하고 지운다.
 
-**gs5 가 왜 죽었는지 먼저 본다** — `error termination in LEANSCF` 가 보이면
-**gabia n=6 과 같은 건**(MPI 전송층)이다. 러너는 이미 처방을 갖고 있다
-(`tools/sdcp/orca_mpi_env.sh` 를 source 한다) — pull 만 돼 있으면 된다:
+**✅ gs5 사인 확정 (2026-09-07 10:42, repo 감시 실물): `rc=143` = 128+15 = SIGTERM.**
+**MPI 가 아니다.** 43시간 전(≈09-05 15:44)에 **밖에서 죽인 것**이다.
+⚠ 여기 처음엔 *"LEANSCF 오류면 gabia 와 같은 건"* 이라고 적었는데 **근거 없는 추측이었다** —
+러너가 receipt 에 rc 를 이미 적어 두고 있었다. **receipt 를 먼저 읽는다.**
 ```bash
-grep -a "error termination\|Connection reset\|btl \|MPI_Init" \
-     ~/work/runs/sdcp_stageA_run/gs5/dp6_gs5_neutral.out | tail -5
+bash tools/sdcp/watch_stage_a.sh ~/work/runs/sdcp_stageA_run   # rc·relaxed 를 찍는다
+cat ~/work/runs/sdcp_stageA_run/gs5/receipt.json
 ```
 
-재기동 (⚠ `gs4` 는 수렴 완료라 **다시 걸지 않는다**):
+### ⚠ 그런데 gs 를 지금 다시 걸 이유가 없다 (2026-09-07 판단)
+
+| | |
+|---|---|
+| Stage A(gs*) 의 용도 | 중성 n=6 **8 conformer** 이완 → **Stage B 의 부모 구조** 선정 |
+| Stage B | 회신 R4 판정 **NO-GO** (P0 5건 전부 불충분) |
+| 원고 Figure 2e(자가도핑) | **gabia 의 doped n=6** 이 답한다 — 그건 폴라론 pilot 구조에서 만들고 **gs* 를 안 읽는다** |
+
+⇒ **gs 6개 추가는 원고 경로가 아니다.** `gs4` 는 `DONE`(cyc 137 · rc=0 · relaxed=True)로 남는다.
+⚠ 한계: 확인한 것은 *"gs → Stage B, Stage B 는 NO-GO, doped n=6 은 gs 를 안 읽는다"* 까지다.
+나중에 **중성 대조**가 필요해지면 그때 다시 판단한다.
+
+재기동 (**돌리기로 결정했을 때만** · ⚠ `gs4` 는 수렴 완료라 **다시 걸지 않는다**):
 ```bash
 tmux new -s stagea
 ORCA=$(command -v orca) NPROCS=8 ONLY="gs5 gs3 gs6 gs7" \
