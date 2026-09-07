@@ -191,9 +191,22 @@ $$\sigma = \frac{N q^2}{V k_B T}\, D \qquad (H_R = 1)$$
 > 정의: $H_R \equiv D^{*}/D_\sigma$ ($D^{*}$ = tracer, $D_\sigma$ = charge). 우리 MD 는
 > MSD 에서 **$D^{*}$** 를 얻으므로
 > $$\sigma_{\rm NE}=\frac{nq^2D^{*}}{k_BT}=H_R\times\sigma_{\rm true}$$
-> 즉 $H_R<1$ (상관·협동 이동) 이면 NE 는 **과소**다. Adeli 2019 가 Li₅.₅PS₄.₅Cl₁.₅ 에서
-> $H_R=0.23$ 을 실측했고(litdb `adeli2019_…`), 그러면 $\sigma_{\rm true}\approx4.3\times\sigma_{\rm NE}$ 다.
-> **"상한" 의 근거로 Haven 을 대면 안 된다.** 같은 취지가
+> 즉 $H_R<1$ (상관·협동 이동) 이면 NE 는 **과소**다.
+> **"상한" 의 근거로 Haven 을 대면 안 된다.**
+>
+> ### ⭐ 그런데 크기는 작다 — 2026-09-07 우리 궤적에서 직접 쟀다
+> | | $H_R$ | $\sigma_{\rm true}/\sigma_{\rm NE}$ |
+> |---|---|---|
+> | **우리 gen1 궤적** (6 계·온도점, 200 ps) | **0.84 ± 0.06** | **1.19×** |
+> | Adeli 2019 (300 K · 다결정 펠릿 · PFG+EIS) | 0.23 | 4.3× |
+>
+> ⇒ **Haven 보정은 19 % 다.** 300 K 외삽 밴드(6–14배)나 펠릿 GB(1.3–3배) 앞에서
+> 설명이 못 된다. **방향은 여전히 과소 쪽이지만 크기가 작다.**
+>
+> ⛔ **Adeli 의 0.23 을 우리 MD 에 곱하지 않는다** — 12.7σ 떨어져 있고, 조건이 다르다
+> (300 K 다결정 vs 600–1200 K 완전결정). 모순이 아니라 **다른 영역**이다.
+> ⚠ 같은 계·온도에서 시드만 달라도 $H_R$ 이 최대 4.8배 벌어진다 — 이 측정은
+> **방향 판별용**이지 값이 아니다. 전문: `db/properties/haven_ratio_measured_2026_09_07.json` 같은 취지가
 > `tools/modelc_v3/nernst_einstein_300K.py` L234 에 이미 적혀 있었다
 > (*"real H_R<1 ⇒ true intrinsic sigma is even HIGHER (opposite sign), so H_R does NOT
 > cause the overshoot"*) — 그런데 같은 파일 L13 과 이 카드가 반대로 적고 있었다.
@@ -212,9 +225,12 @@ $$\sigma = \frac{N q^2}{V k_B T}\, D \qquad (H_R = 1)$$
 > Adeli ⁷Li PFG 실측 $D^{*}$ 1.01e-7 cm²/s (단일시드 1.01배 · 3시드 2.29배).
 > ⇒ **$D^{*}$ 는 실측과 맞는 축이고, 흔들리는 것은 $D^{*}\to\sigma$ 변환이다.**
 >
-> **고치는 길**: $H_R$ 을 문헌에서 빌리지 말고 **우리 궤적에서 직접 잰다** —
-> 집단(전하)좌표 MSD $\langle|\sum_i\Delta \mathbf r_i|^2\rangle/N$ 로 $D_\sigma$ 를 얻으면
-> $H_R=D^{*}/D_\sigma$ 다 (`tools/ionic/msd_diffusive_check.py --haven`, 궤적 있으면 재계산 0).
+> **✅ 2026-09-07 실행됨**: `tools/ionic/msd_diffusive_check.py --haven` 으로 gen1 궤적
+> 20런에서 직접 쟀다 (MD 재계산 0). 결과는 위 표. 규약 `H_R ≡ D^{*}/D_\sigma` 를 코드에 박았다 —
+> **부호 논쟁의 절반이 규약 때문**이었기 때문이다.
+> ⛔ 아직 **값이 아니다**: estimand 카드·문턱 선등록이 없고 200 ps 는 집단좌표에 부족하다.
+> σ 절대값 인용 금지는 **그대로 유지**한다 — 다만 사유가 "상한이라서" 가 아니라
+> **"서로 반대인 보정 둘이 걸려 순 방향이 미정이라서"** 다.
 
 > [!warning] 절대값 인용 금지 · 멀티시드 판정만
 > UMA-MD의 **$D$·$\sigma$ 절대값은 citeable truth가 아니다.** 조성 간 **비율조차 멀티시드로 판정**해야 하며 단일시드 값은 못 믿는다 — 실제로 단일시드 1.33× 우세 주장이 멀티시드에서 철회된 사례(SEMIFINAL 2026-07-09)가 있다. 인용 가능한 건 다중시드로 재현된 순위/비율과 $E_a$(오차막대 포함)뿐.
