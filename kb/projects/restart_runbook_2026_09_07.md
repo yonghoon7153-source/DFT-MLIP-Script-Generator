@@ -29,12 +29,13 @@ evidenceScope: multi-source-primary
 | LPSOCl MD 루프 명령 **전문** | ✅ 확보 — §3-1 |
 | gabia 두 잡의 명령·시작시각 | ✅ 확보 — §2 |
 | `gs[0-7]` 실제 경로 | ✅ 확보 — §3-2 |
-| MD 루프의 **cwd** (상대경로를 쓴다 · clone 이 둘이다) | ⏳ `readlink /proc/3376826/cwd` |
+| MD 루프의 **cwd** | ✅ **`/home/kgy/Yonghoon-DEM-DFT`** (루프·자식 둘 다 · `readlink /proc/…/cwd` 실측) |
 
 ⚠ **desktop 에 repo clone 이 둘 있다** — `~/Yonghoon-DEM-DFT` 와 `~/work/Yonghoon-DEM-DFT`
 (후자에서 `tools/ionic/chain_gpu_release.sh` 가 08-26 부터 돌고 있었다).
-MD 명령이 `python3 tools/modelc_v3/...` 를 **상대경로**로 부르므로 **어느 clone 에서 띄웠는지가
-결과에 영향**한다. gabia 의 `/root/work/…`(b2o3run 브랜치) 사고와 같은 계열이다.
+MD 명령이 `python3 tools/modelc_v3/...` 를 **상대경로**로 부르므로 어느 clone 에서 띄웠는지가
+결과에 영향한다. **실측 결과 정본(`~/Yonghoon-DEM-DFT`)이 맞았다** — 재기동도 거기서 한다.
+(gabia 는 반대로 감시가 `/root/work/…`(b2o3run 브랜치)를 보고 있어 8.7일간 가짜 경보를 찍었다.)
 
 ## 1. 끄기 직전 상태 (2026-09-07 10:0x 실측)
 
