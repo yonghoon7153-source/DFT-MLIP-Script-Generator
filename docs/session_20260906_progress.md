@@ -133,3 +133,110 @@ lhsx_    총  64  완주 19  실행 34  대기 0   실패 11   ← ⚠
 6. *"40 µm 는 상자를 80 % 가로지른다"* — **윤곽 길이**를 span 으로 착각 (실제 8 %).
 
 ⇒ 공통 원인: **확인 없이 단정.**  `grep`·`ls`·실행으로 먼저 확인한다.
+
+---
+
+## 8. 이종기술 복귀 — 6mAh VGCF+PTFE 사전계산 (2026-09-07)
+
+SDCP 원고가 닫히고 **면용량 6 mAh/cm² 를 VGCF·PTFE 만으로** 돌리는 트랙으로 복귀.
+옛 캠페인 = `docs/data/additive_test_campaign_6mAh_real_4.csv` (34행).
+
+### 8-1. ★★ STEP1(DEM) 재실행 **불필요** — 지난 판단 정정
+
+내가 *"PTFE E 0.30 → 1.8 (ADD_E_SET) 이 압밀을 바꾸므로 STEP1 재실행이 맞다"* 고 했는데
+**틀렸다.**  덱을 확인하니:
+
+```
+dem_scripts/*.liggghts 의 particletemplate = 2개 (AM · SE 뿐)
+```
+**PTFE 는 LIGGGHTS 에 없다** — `additives.py: seed_fibres` 로 **MPM 단계**에서 씨딩되는
+첨가제이고, `ADD_E_SET` 는 `mpm3d_compaction.py` 의 `ADD` 표(=MPM 물성)다.
+⇒ **DEM 침대 재사용 가능, 재실행은 STEP2 부터.**
+
+### 8-2. RVE 확정 = **50.01 × 50.01 × 112.87 µm** (역산, 자기검증됨)
+
+옛 캠페인 CSV 가 `n_objects` 와 `vol_pct_solid` 를 **둘 다** 적어 산수로 닫힌다:
+```
+V_solid = 13,281 × π(0.15/2)²×10 ÷ 0.0097 = 241,953 µm³      (VGCF 0.5wt% 행)
+V_box   = 241,953 / (1 − 0.1428)           = 282,260 µm³      (DEM porosity 14.28 %)
+측면    = √(282,260 / 112.87)               = 50.01 µm         ← 정확히 50 = 검증
+```
+침대 구성 (case_master): AM_P 126 · AM_S 1,372 (합 1,498) · SE 121,332 · p_frac 0.7 ·
+SE/solid **33.23 vol%** · 두께 112.87 µm · porosity DEM 14.28 / MPM 15.45 %.
+
+### 8-3. dof · RAM 예산  ⚠ **실측 보정 ×1.18 포함**
+
+`415 B/dof` 는 **솔브 배열만**이다.  CLAUDE.md 의 실측 RAM 게이트와 대조하면
+45.4 M→22 GB (투영 18.8) · 86.8 M→40 GB (투영 33.5) ⇒ **실측/투영 ≈ ×1.18**.
+
+| vox | dof (σ_e) | 투영 | 실측보정 | 판정 |
+|---|---|---|---|---|
+| 0.30 | 6.0 M | 2.3 GB | 2.7 GB | ✅ |
+| 0.25 | 10.3 M | 4.0 GB | 4.7 GB | ✅ |
+| **0.20** | **20.2 M** | 7.8 GB | **9.2 GB** | ✅ 여유 |
+| **0.15** | **47.9 M** | 18.5 GB | **21.8 GB** | ⚠ **LEAN=2 필수** |
+| 0.125 | 82.7 M | 32.0 GB | 37.7 GB | ⛔ 불가 |
+
+(도체 dof ≈ AM 부피분율 = (1−ε)(1−SE/solid) = 0.572.  앵커 = SDCP 침대
+50×50×72.53 @0.15 의 실측 26.40 M dof, dof/cell 0.491 ≈ 그 침대 AM 분율 0.494.)
+
+★★ **원고가 쓴 vox 0.15 를 6mAh 에서도 쓸 수 있다** — `--no-ion --no-pore` (σ_e 전용)일 때만.
+⚠⚠ **구조적 제약**: SDCP 침대는 0.15 → 0.125 → 0.115 로 **더 조일 수** 있었으나 6mAh 는
+**0.15 가 천장**이다.  ⇒ 격자 증거를 **위쪽(0.25·0.20·0.15)으로만** 쌓을 수 있고, CL-41 이
+*"조일수록 이득 단조 증가"* 를 확정했으므로 **6mAh 의 σ_e 는 더 고운 점이 없는 하한**이다.
+
+### 8-4. 첨가제 객체 수 (V_solid 241,953 µm³ 기준)
+
+| AM:SE:VGCF:PTFE | VGCF | PTFE |
+|---|---|---|
+| 80:18:1:1 | 25,716 | 2,104 |
+| 80:17:2:1 | 51,432 | 2,104 |
+| 80:16:3:1 | 77,148 | 2,104 |
+
+⚠ **이 레시피는 가정이다.**  실제 침대는 SE/solid 33.2 **vol%** 라 `80:18` 과 안 맞는다 —
+옛 캠페인의 VGCF 1 wt% 행이 26,696개인데 위 계산은 25,716개(Δ 3.7 %)로 어긋나는 것이 그
+증거다.  **목표 wt% 조성을 받아 다시 뽑을 것.**  자릿수만 확정: VGCF 만 단위 · PTFE 천 단위.
+⚠ CL-67 경계 잘림: 윤곽 손실 VGCF 10.5 % · PTFE 10.3 % (부피는 `add_pvs` 고정 → 두께로
+재분배).  σ_e 절대값은 이 축에서 **하한 방향**.
+
+### 8-5. 파이프라인 · 남은 입력
+
+```
+STEP1 DEM        ✅ 재사용 (8-1)
+STEP2 mpm3d      --am-scaffold + --se-dump + VGCF·PTFE · --protocol hold · --platen-mach 0.03
+STEP3 step3_sigma --step3-vox <8-3 에서 선택> · PTFE_STAMP=centerline · LEAN=2
+STEP4 step4_dyn   전기화학 (8-6)
+등록  webapp/mpm_lab_register.py   ← 규약 배지 반영됨 (커밋 133972b67)
+```
+**아직 없는 입력 하나 = 6mAh 침대의 스캐폴드 CSV.**  리포엔 `real14_*` · `kit_ps_*` ·
+`heckel_sweep_*` 만 있다.  DEM dump 에서 뽑아야 `d_h/dx` 게이트를 찍을 수 있다.
+
+도구는 이미 있다: `--step3-rasterize-only OUT_JSON` (GPU 없이 dof 원장) ·
+`scripts/step3_transport_resolution.py` (수송 해상도 규칙, GPU 불요 — `solve_sigma_z` 가
+sid 배열을 직접 받아 킷 스캐폴드의 **해석적 구**를 원하는 vox 로 래스터해 푼다).
+⚠ kgy 에서는 `~/dem-venv/bin/python3` 로 돌 것 (base conda 에 scipy 없음.
+**`dem-venv` 에 pip install 은 금지** — 이미 scipy 1.10.1 · numpy 1.24.4 가 있다).
+⚠ 그 도구는 **origin 앙상블이 필수**다 — 단일 origin 의 σ 는 격자 위상에 2.4~5.8 % 흔들린다.
+
+### 8-6. STEP3 → 전기화학 실현 가능성 = **가능, 이미 돌렸다**
+
+`scripts/step4_dyn.py` (STEP4-v2): 비선형 BV + 입자별 구형확산 + CCCV, COMSOL 전극-스케일
+**방정식 수준 패리티**, 2.9M dof GPU 수렴 실적, 2C CCCV 완주 기록(88.9 → 89.6 %).
+
+⚠ 남은 구멍 셋 (docstring 자신이 명시):
+| | |
+|---|---|
+| `i0 = 2 A/m²` 가 **v1 훅** (앵커 아님) | ⇒ 절대 rate 성능 인용 불가, **상대 비교만** |
+| PyBaMM/COMSOL **수치** 패리티 미실행 | 방정식 패리티는 감사 완료.  `step4_pybamm_anchor.py` 준비됨 |
+| **입자 표면 유입 각도분해 없음** | 전표면 균일 살포 → 커버리지 낮은 입자의 표면포화 개시가 **지연**.  6mAh 두꺼운 전극에서 더 걸린다 |
+
+★ 반대로 **범위 밖이지만 무해한 것**: 전해질 농도분극 — 단일이온 SE(t⁺≈1)라 **물리적으로 부재**.
+액체계 DFN 의 최대 항목이 우리 계엔 안 나온다.
+
+### 8-7. webapp 수정 완료 (커밋 `133972b67`)
+
+payload 는 `step3.manifest` 에 규약을 적는데 `build_meta` 가 **안 읽어서** 목록에서 비교 불가
+런이 나란히 보였다 (PTFE 규약 하나로 σ_e 가 1.3배 다름).  `convention` · `convention_label` ·
+`convention_mismatch` 추가.  그리고 `compute_trust` 가 `present` 만 봐서 **계획했는데 결과가
+없는 채널이 침묵으로 통과**했다 — `component_plan` 을 읽어 `warn`/`skip` 으로 가른다
+(옛 payload 는 소급 과잉차단 금지).  표시 문자열은 `build_meta` 에서 만든다 (렌더러 둘, 규약 하나).
