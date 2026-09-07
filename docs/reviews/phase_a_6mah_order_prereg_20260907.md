@@ -252,6 +252,37 @@ docs/data/phase_a_6mah/
 
 ---
 
+## 8-1. 실행 도구 (2026-09-07 신설 — 셋 다 selftest 통과)
+
+| 도구 | 하는 일 | 검증 |
+|---|---|---|
+| `scripts/phase_a_plan.py` | 이 문서의 축을 **실제 명령으로** 펼친다.  아무것도 실행 안 함 | 15/15 |
+| `scripts/phase_a_precompute.py` | `d_h/dx` 게이트 + 첨가제 객체 수 (실측 경로) | 9/9 |
+| `scripts/phase_a_order_verdict.py` | §2 판정 규칙 — `δ_num` 은 **상수, CLI 로 못 바꿈** | 12/12 |
+
+```bash
+python3 scripts/phase_a_plan.py --emit sh > run_phase_a.sh     # 계획 → 스크립트
+bash run_phase_a.sh                                            # kgy 에서
+python3 scripts/phase_a_order_verdict.py --dir docs/data/phase_a_6mah/arms --out verdict.json
+```
+
+★ **계획을 셸이 아니라 파이썬으로 만든 이유** — 리포가 아홉 번 잡은 결함이
+*"규약 축이 봉인 문서엔 있는데 **실제 명령엔 없다**"* 이고, 그건 셸로는 시험이 안 된다.
+계획을 자료구조로 만들면 selftest 가 그것을 **센다**:
+
+- `--add-rng-per-phase` 가 STEP2 **전부**에 (조성 교락 차단, CL-71/77)
+- STEP3 봉인 6항목이 **120 팔 전부**에 · `LEAN=2` 전부에
+- primary = mach 0.03 + 승인 플래그 / Lee = 0.01 **승인 없이**
+- origin 이 격자마다 `{0, vox/2}³` **전수 8개**
+- ★ **QC 는 쌍둥이와 출력 경로만 다르다** = exact replay 의 정의 (§3)
+- 출력 경로 120개가 **전부 다르다** (덮어쓰면 팔이 조용히 사라진다)
+- 생성된 **셸 문자열**에도 그 축들이 정확한 횟수만큼 있다
+
+⚠ `run_phase_a.sh` 를 **손으로 고치지 말 것** — 고치면 사전등록과 어긋나고 selftest 가 그것을
+못 잡는다.  바꿔야 하면 `phase_a_plan.py` 를 고치고 `--selftest` 를 통과시킨 뒤 재생성한다.
+
+---
+
 ## 9. 체크리스트 (런 시작 전 전부 ✅ 여야 한다)
 
 - [x] **`d_h/dx ≥ 3.5` 게이트** — ✅ **통과** (아래 §9-1).  라벨 불필요
