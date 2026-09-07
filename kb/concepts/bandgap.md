@@ -9,6 +9,7 @@
 4. 왜 DOS-threshold 판독은 틀리나
 5. PBE의 gap 과소평가
 6. SE에서 gap의 물리적 의미
+7. 같은 O 를 넣었는데 왜 b2o3 만 gap 이 내려가나 (우리 실측)
 
 ---
 ## 1. VBM / CBM 정의
@@ -144,10 +145,110 @@ graph TD
 | LPSClBr | comp2 | **2.04**† | Br 치환 (†잠정 — legacy band_gaps; fixed-occ nscf 재확인 중) |
 | Li₅.₄PS₄.₄Cl₁.₆ | modelc | **2.099** | Cl-rich (LPSCl1.6) |
 | LPSOCl (+O) | lpsocl | **2.2309** | O 도핑, gap 최대 |
+| B₂O₃-doped LPSCl1.6 | b2o3 | **1.9671** | **O 를 넣었는데 gap 최소** — §7 참조 |
 | ~~comp1 DOS-threshold~~ | — | ~~1.76 / 1.82~~ | **틀린 값, 인용 금지** |
 
 - 순서: **+O(2.2309) > modelc(2.099) > comp1(2.066) > comp2(2.04)**. +O가 전자 절연을 강화, Br은 소폭 낮춘다.
 - comp1·modelc·+O·+B₂O₃는 (db/properties/electronic.json) fixed-occ eigenvalue canonical과 일치. **comp2 2.04는 잠정**(legacy band_gaps 유래, fixed-occ nscf 재확인 중 — eigenvalue canonical 아님). 절대값은 PBE-level임을 명시하되, 같은 레시피 조성 비교는 신뢰.
 - DOS-threshold(1.76/1.82)는 **~0.3 eV 과소 아티팩트**라 문서/그림 어디에도 쓰지 않는다.
 
-*tags: band gap · VBM · CBM · fixed occupation · nscf · DOS threshold · PBE underestimate · electronic insulation · argyrodite*
+---
+## 7. 같은 O 를 넣었는데 왜 b2o3 만 gap 이 **내려가나** (2026-09-07)
+
+1저자 질문: *"O 가 치환됐는데 상식적으로 b2o3 가 lpscl1.6·lpsocl 에 비해 떨어지는 이유"*.
+**O 때문이 아니라 B 때문이다.**
+
+### 7.1 두 도핑이 반대로 간다
+
+| | gap (eV) | modelc 대비 |
+|---|---|---|
+| modelc (LPSCl1.6, 기준) | 2.099 | — |
+| **lpsocl** (O 도핑) | **2.2309** | **+0.132** ✅ 상식대로 |
+| **b2o3** (B₂O₃ 도핑) | **1.9671** | **−0.132** ❓ |
+
+둘 다 O 를 넣었다. 다른 것은 **B** 하나뿐이다.
+
+> [!note] ±0.132 가 정확히 같은 것은 **우연**이다
+> 네 자리까지 대칭이라 눈에 띄지만 물리 법칙이 아니다.
+> *"대칭적으로 상쇄된다"* 같은 표현을 쓰지 않는다.
+
+### 7.2 무엇이 움직였나 — CBM 이다
+
+`electronic.json` 의 VBM/CBM (modelc 대비):
+
+```
+lpsocl   ΔVBM −0.058 · ΔCBM +0.074   → 양쪽이 벌어진다
+b2o3     ΔVBM +0.027 · ΔCBM −0.105   → CBM 이 끌려 내려온다
+```
+
+> [!warning] 이 분해는 **엄밀하지 않다**
+> 주기계 계산에서 고유값의 절대 위치는 **임의 오프셋**(G=0 항)을 갖는다. 셀이 다르면
+> 깊은 코어 준위나 정전위 정렬 없이 VBM·CBM 을 직접 비교할 수 없다.
+> **정황이지 증명이 아니다.** 아래 §7.3(PDOS 성분)은 **한 계산 안**의 양이라 안전하다.
+> 원고에는 §7.3 으로 쓴다.
+
+### 7.3 b2o3 의 CBM 은 **B 다** (한 계산 안 — 안전)
+
+CBM ~ CBM+1 eV 구간, **원자당** states/eV (원소별 총량은 원자수에 끌려가므로 정규화 필수):
+
+| b2o3 (128원자) | 원자당 | 비중 | 원자수 |
+|---|---|---|---|
+| **B** | **16.07** | **46.3 %** | **2** |
+| P | 12.80 | 36.8 % | 8 |
+| S | 4.29 | 12.3 % | 41 |
+| Li | 0.99 | 2.8 % | 58 |
+| O | 0.32 | 0.9 % | 3 |
+| Cl | 0.29 | 0.8 % | 16 |
+
+같은 구간의 **modelc** 는 P 45.00 (69.2 %)이 1위이고 B 는 없다.
+⇒ **원자 2개짜리 B 가 CBM 성분 1위**다.
+
+### 7.4 왜 B 인가 — BS₃ 의 **빈 p_z**
+
+ICOHP 원장: `B–S : N = 6`, B 가 2개 ⇒ **B 하나당 S 3개 = 삼각평면 BS₃**.
+
+```
+   PS₄  사면체 sp³            BS₃  삼각평면 sp²
+       S                          S
+       |                           \
+   S — P — S                    S — B          ← 평면에 수직인
+      /                            /              p_z 가 비어 있다
+     S                            S
+  4결합 = 궤도를 다 쓴다       3결합 = p_z 하나가 남는다
+```
+
+sp² 붕소는 평면에 수직인 **p_z 가 비어 있다.** BF₃·BH₃ 가 Lewis 산인 것과 같은 구조다 —
+전자를 받을 자리가 준비돼 있고 에너지가 낮다. 그 빈 p_z 가 호스트 전도띠 **아래**에
+들어앉아 새 CBM 이 된다.
+
+> [!note] "결합이 센데 왜 CBM 을 내주나" 는 모순이 아니다
+> B–S 는 **ELF 중점 0.959 로 챔피언에서 가장 공유결합적**이다(P–S 0.945 · P–O 0.930).
+> 그런데 빈 p_z 는 **σ 결합 3개와 직교하는 비결합 궤도**다 — σ 가 아무리 세도 p_z 의
+> 에너지는 거기 영향을 받지 않는다. 기하가 만든 궤도이지 결합 세기의 결과가 아니다.
+> ⚠ **ELF 와 ICOHP 는 다른 양이다.** ELF 중점 = 얼마나 공유결합적인가,
+> ICOHP = 얼마나 센 결합인가. ICOHP 순위는 P–O −8.551 > B–S −7.792 > P–S −6.023 으로
+> **다르다.** `B–S(최강)` 이라는 기존 표기는 **ELF 순위**를 말한 것이다.
+
+### 7.5 그럼 O 는 왜 gap 을 못 넓혔나
+
+b2o3 의 O 는 3개뿐이고 **P 자리로 가서 P–O 인산염을 만들었다**(ICOHP −8.551, 전체 최강).
+즉 O 가 자유롭게 S 를 대체해 VBM 을 눌러 내리는 것이 아니라 **P 에 묶여 있다.**
+그래서 O 의 gap 확장 효과가 거의 나오지 않고(ΔVBM +0.027, 오히려 살짝 위) B 효과가 그대로 드러난다.
+
+**lpsocl 은 반대다** — 거기서는 O 가 **S 자리**로 들어간다. O 2p 가 S 3p 보다 깊으므로
+VBM 이 내려가고(−0.058) gap 이 넓어진다. §5 의 일반론대로다.
+
+> **한 줄**: 같은 O 라도 **어디 앉느냐**가 다르고, b2o3 에는 **B 라는 더 센 반대 효과**가 하나 더 있다.
+
+### 7.6 ⏳ 아직 추론인 것
+
+실측한 것은 **원소별** PDOS 다 — *"b2o3 의 CBM 은 B 가 지배한다"*(원자당 46 %).
+그것이 **p_z 냐**는 BS₃ 삼각평면 기하에서 나온 **화학적 추론**이다.
+확인하려면 **궤도별(l-분해) PDOS** 로 B 의 s vs p 를 가르고, 가능하면 p_x/p_y(σ) vs p_z 까지
+봐야 한다. QE `projwfc.x` 나 LOBSTER 출력에 이미 있을 수 있어 **재계산 없이** 될 가능성이 있다.
+
+*출처: `db/properties/electronic.json` (eigenvalue_gaps_v100_2026_06_16) ·
+`b2o3_pdos_element_smooth.csv` · `modelc_pdos_element_smooth.csv` · `b2o3_icohp.json` ·
+`kb/results/b2o3_elf_covalency_2026_07_02.md`*
+
+*tags: band gap · VBM · CBM · fixed occupation · nscf · DOS threshold · PBE underestimate · electronic insulation · argyrodite · boron · BS3 · empty p_z · Lewis acid · ELF vs ICOHP*
