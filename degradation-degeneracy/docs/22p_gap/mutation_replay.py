@@ -1831,7 +1831,7 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_evidence_layer_58.py::test_the_top_level_checker_consumes_the_execution_receipt":
-                "+    where <function check_coverage at 0x7f6444bd5d00> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+                "AssertionError: 정상 조각이 거부됐다",
         }
     },
     "report-attests-the-environment-g58": {
@@ -1841,9 +1841,9 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_evidence_layer_58.py::test_a_report_that_attests_another_environment_is_refused":
-                "+    where <function check_coverage at 0x7f7362c09e40> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+                "AssertionError: 정상 조각이 거부됐다",
             "tests/test_evidence_layer_58.py::test_execution_evidence_can_not_be_laundered_without_the_reports":
-                "+    where <function check_coverage at 0x7f7362c09e40> = <module 'mutation_replay' from '/home/user/Yonghoon-DEM-DFT/degradation-degeneracy/docs/22p_gap/mutation_replay.py'>.check_coverage",
+                "AssertionError: 정상 조각이 거부됐다",
         }
     },
     "smoke-registry-is-split-by-class-g58": {
@@ -1852,7 +1852,7 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_exec_class_registry_split_58.py::test_smoke_records_do_not_land_in_the_shared_registry":
-                "assert 3 == 0",
+                "AssertionError: smoke 레코드 3건이 공유 등록부에 쌓였다 — smoke 를 돌릴 때마다 저장소가 더러워지고 등록부가 무한히 자란다 (L14)",
         }
     },
 
@@ -1876,12 +1876,12 @@ EXPECT: dict = {
     },
     "capability-can-not-leave-the-call-site-g58": {
         "fail": [
-            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[\ucee8\ud14c\uc774\ub108]",
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[container]",
             "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[factory]",
             "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[partial]",
         ],
         "witness": {
-            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[\ucee8\ud14c\uc774\ub108]":
+            "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[container]":
                 "Failed: DID NOT RAISE SystemExit",
             "tests/test_producer_closure_58.py::test_a_capability_that_leaves_the_call_site_is_refused[factory]":
                 "Failed: DID NOT RAISE SystemExit",
@@ -2296,10 +2296,11 @@ EXPECT: dict = {
     },
     "frozen-target-carries-its-own-seal": {
         "fail": [
-            "tests/test_docs_lint.py::test_a_frozen_directory_carries_its_own_seal"
+            "tests/test_docs_lint.py::test_a_frozen_directory_carries_its_own_seal",
         ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_frozen_directory_carries_its_own_seal": "Failed: DID NOT RAISE SystemExit"
+            "tests/test_docs_lint.py::test_a_frozen_directory_carries_its_own_seal":
+                "Failed: DID NOT RAISE SystemExit",
         }
     },
     "lifecycle-completes-a-partial-append": {
@@ -2441,10 +2442,11 @@ EXPECT: dict = {
     },
     "canon-keeps-docstrings": {
         "fail": [
-            "tests/test_docs_lint.py::test_a_docstring_the_computation_reads_is_inside_the_identity"
+            "tests/test_docs_lint.py::test_a_docstring_the_computation_reads_is_inside_the_identity",
         ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_docstring_the_computation_reads_is_inside_the_identity": "AssertionError: `score_canonical.__doc__` 로 읽는 docstring 을 바꿨는데 producer digest 가 그대로다 — 계산이 쓰는 값이 identity 밖에 있다"
+            "tests/test_docs_lint.py::test_a_docstring_the_computation_reads_is_inside_the_identity":
+                "AssertionError: 직접 읽는 docstring 을 바꿨는데 producer digest 가 그대로다 — 계산이 쓰는 값이 identity 밖에 있다",
         }
     },
     "external-binding-covers-the-package": {
@@ -2489,10 +2491,11 @@ EXPECT: dict = {
     },
     "freeze-seals-the-output-directory": {
         "fail": [
-            "tests/test_docs_lint.py::test_a_frozen_directory_cannot_be_republished_under_a_new_cohort_id"
+            "tests/test_docs_lint.py::test_a_frozen_directory_cannot_be_republished_under_a_new_cohort_id",
         ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_frozen_directory_cannot_be_republished_under_a_new_cohort_id": "Failed: DID NOT RAISE SystemExit"
+            "tests/test_docs_lint.py::test_a_frozen_directory_cannot_be_republished_under_a_new_cohort_id":
+                "Failed: DID NOT RAISE SystemExit",
         }
     },
     "grid-axis-seals-the-discharged-cache": {
@@ -2607,11 +2610,10 @@ EXPECT: dict = {
     "finalize-holds-the-claim-lock": {
         "fail": [
             "tests/test_preserve.py::test_the_canonical_lock_order_is_declared_and_finalize_holds_the_claim",
-            "tests/test_preserve.py::test_the_finalize_recovery_branch_holds_the_claim_lock"
         ],
         "witness": {
-            "tests/test_preserve.py::test_the_canonical_lock_order_is_declared_and_finalize_holds_the_claim": "finalize 가 claim lock 을 쥐지 않고 지나갔다",
-            "tests/test_preserve.py::test_the_finalize_recovery_branch_holds_the_claim_lock": "복구가 지운 claim 을 늦은 phase 가 되살렸다"
+            "tests/test_preserve.py::test_the_canonical_lock_order_is_declared_and_finalize_holds_the_claim":
+                "AssertionError: finalize 가 claim lock 을 쥐지 않고 지나갔다 — 검사한 receipt 와 기록한 receipt 가 다를 수 있다",
         }
     },
     "finalize-rechecks-in-the-ledger-lock": {
@@ -2797,9 +2799,12 @@ EXPECT: dict = {
     # ★ 57차 P0-4 — 56차의 `destination-is-resolved-through-mounts` 를 대체한다.
     #   목적지를 파일시스템 좌표로 옮기면서 자리가 둘이 됐으므로 MULTI 다.
     "destination-is-compared-in-filesystem-coordinates": {
-        "fail": ["tests/test_docs_lint.py::test_a_bind_mounted_alias_of_a_frozen_child_is_not_writable"],
+        "fail": [
+            "tests/test_docs_lint.py::test_a_bind_mounted_alias_of_a_frozen_child_is_not_writable",
+        ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_bind_mounted_alias_of_a_frozen_child_is_not_writable": "DID NOT RAISE SystemExit"
+            "tests/test_docs_lint.py::test_a_bind_mounted_alias_of_a_frozen_child_is_not_writable":
+                "Failed: DID NOT RAISE SystemExit",
         }
     },
     "freeze-checks-the-destination-first": {
@@ -2868,17 +2873,23 @@ EXPECT: dict = {
     #   한다. 거부는 하지만 "얼린 tree 다" 판정은 못 하므로 시험이 문다.
     #   임시 경로는 실행마다 다르므로 안정한 접두까지만 적는다.
     "mountinfo-octal-escape-is-decoded": {
-        "fail": ["tests/test_docs_lint.py::test_a_frozen_alias_whose_path_has_a_space_is_not_writable"],
+        "fail": [
+            "tests/test_docs_lint.py::test_a_frozen_alias_whose_path_has_a_space_is_not_writable",
+        ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_frozen_alias_whose_path_has_a_space_is_not_writable": "거부는 했지만 '얼린 tree' 판정이 아니다 (fail-closed 거부일 수 있다): ✗ 커널이 답한 mount 를 목적지 경로에 맞출 수 없다"
+            "tests/test_docs_lint.py::test_a_frozen_alias_whose_path_has_a_space_is_not_writable":
+                "AssertionError: 거부는 했지만 '얼린 tree' 판정이 아니다 (fail-closed 거부일 수 있다): ✗ 커널이 답한 mount 를 목적지 경로에 맞출 수 없다 (/tmp/pytest-of-root/pytest-8686/test_a_frozen_alias_whose_path0/repo/docs/22p_gap/coh2/a b 가 '/tmp/p",
         }
     },
     # ★ 57차 P0-2 — 56차의 `deepest-mount-is-chosen` 을 대체한다. 지켜야 할
     #   규칙이 "가장 깊은 것을 고른다" 에서 "커널에게 묻는다" 로 바뀌었다.
     "mount-identity-comes-from-the-kernel": {
-        "fail": ["tests/test_docs_lint.py::test_a_stacked_mount_is_identified_by_the_kernel_not_by_row_order"],
+        "fail": [
+            "tests/test_docs_lint.py::test_a_stacked_mount_is_identified_by_the_kernel_not_by_row_order",
+        ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_stacked_mount_is_identified_by_the_kernel_not_by_row_order": "DID NOT RAISE SystemExit"
+            "tests/test_docs_lint.py::test_a_stacked_mount_is_identified_by_the_kernel_not_by_row_order":
+                "Failed: DID NOT RAISE SystemExit",
         }
     },
     "crossed-module-effects-are-seeded": {
@@ -2894,15 +2905,21 @@ EXPECT: dict = {
         }
     },
     "evidence-binds-the-environment": {
-        "fail": ["tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment"],
+        "fail": [
+            "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment",
+        ],
         "witness": {
-            "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment": "환경변수 DD_SMOOTH_CACHE 이 바뀌었는데 실행 영수증이 그대로다"
+            "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment":
+                "AssertionError: 환경변수 DD_SMOOTH_CACHE 이 바뀌었는데 실행 영수증이 그대로다",
         }
     },
     "mount-root-is-filesystem-relative": {
-        "fail": ["tests/test_docs_lint.py::test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph"],
+        "fail": [
+            "tests/test_docs_lint.py::test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph",
+        ],
         "witness": {
-            "tests/test_docs_lint.py::test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph": "DID NOT RAISE SystemExit"
+            "tests/test_docs_lint.py::test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph":
+                "Failed: DID NOT RAISE SystemExit",
         }
     },
     "assembled-names-are-exactly-evaluated": {
@@ -2926,12 +2943,11 @@ EXPECT: dict = {
     },
     "namespace-check-rejects-symlinks": {
         "fail": [
-            "tests/test_preserve.py::test_a_symlinked_path_is_not_inside_the_smoke_namespace",
-            "tests/test_preserve.py::test_the_namespace_check_is_fail_closed_on_a_symlinked_component"
+            "tests/test_preserve.py::test_the_namespace_check_is_fail_closed_on_a_symlinked_component",
         ],
         "witness": {
-            "tests/test_preserve.py::test_a_symlinked_path_is_not_inside_the_smoke_namespace": "AssertionError: symlink 을 지나 밖으로 나가는 경로가 안이라고 판정됐다",
-            "tests/test_preserve.py::test_the_namespace_check_is_fail_closed_on_a_symlinked_component": "AssertionError: symlink 성분을 지난 경로를 안으로 봤다 — 나중에 target 을 바꾸면 밖이다"
+            "tests/test_preserve.py::test_the_namespace_check_is_fail_closed_on_a_symlinked_component":
+                "AssertionError: symlink 성분을 지난 경로를 안으로 봤다 — 나중에 target 을 바꾸면 밖이다",
         }
     },
     "pending-base-generation": {
@@ -3160,10 +3176,11 @@ EXPECT: dict = {
     },
     "producer-normalizes-the-node": {
         "fail": [
-            "tests/test_docs_lint.py::test_the_producer_digest_sees_decorators"
+            "tests/test_docs_lint.py::test_the_producer_digest_sees_decorators",
         ],
         "witness": {
-            "tests/test_docs_lint.py::test_the_producer_digest_sees_decorators": "AssertionError: 계산 함수에 decorator 를 붙였는데 producer digest 가 그대로다 — 정규형이 source segment 라 decorator 를 못 본다"
+            "tests/test_docs_lint.py::test_the_producer_digest_sees_decorators":
+                "AssertionError: 계산 함수에 decorator 를 붙였는데 producer digest 가 그대로다 — 정규형이 source segment 라 decorator 를 못 본다",
         }
     },
     "producer-semantic-sealed": {
