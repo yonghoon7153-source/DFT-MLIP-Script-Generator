@@ -678,16 +678,46 @@ def _is_pure_constant(node) -> bool:
     return False
 
 
+def _has_import_time_compute(expr) -> bool:
+    """이 머리 식이 **다른 계산을 끼워 넣는가** (57차 P0-6 의 판정을 함수로).
+
+    호출·lambda·내포·await, 그리고 **속성 접근**(교차 module 로 들어가는 유일한
+    문법)만 계산으로 센다. 이름·상수·이름의 첨자/이항은 조회일 뿐이다.
+    """
+    import ast
+
+    compute = (ast.Call, ast.Lambda, ast.Await, ast.Attribute,
+               ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+    return any(isinstance(sub, compute) for sub in ast.walk(expr))
+
+
 def _import_time_heads(node) -> list:
     """이 정의문의 머리 중 import 시 **계산을 실행하는** 식만 (57차 P0-6).
 
     본문은 호출될 때 돌지만 머리는 정의될 때 **한 번 반드시** 돈다:
     데코레이터 · 기본 인자(`def f(x=계산())`) · annotation · class base 와
     keyword. 순수 상수·단순 이름만 있으면 계산이 아니다.
+
+    ★ 58차 L9-a — **데코레이터만은 계산 여부를 묻지 않는다.** 57차는 머리
+      전체에 "계산이 들어 있는가" 를 물었고, 그래서 이름 하나짜리 데코레이터
+      (`@decorate`)가 통째로 빠졌다 — 남는 계산 노드가 없기 때문이다 (리뷰어
+      실측: digest 동일 · 결과 1 → 9).
+
+      `[해석]` 데코레이터는 다른 머리와 **종류가 다르다.** annotation·기본
+      인자·base 는 값을 **조회**하지만 데코레이터는 정의된 객체를 **치환**한다
+      — `f = decorate(f)` 의 다른 철자다. 그러므로 데코레이터가 이름 하나여도
+      그 이름이 가리키는 구현이 계산 의미를 정한다. 조회와 치환을 같은 규칙에
+      두면 둘 중 하나는 반드시 틀린다.
+
+      나머지 머리는 57차 규칙을 그대로 둔다. 넓히면 평범한 타입 annotation 이
+      전부 걸려 게시 경로가 producer 안으로 끌려온다 (실측: `_PublishLock`·
+      `_Authority`).
     """
     import ast
 
-    heads = list(getattr(node, "decorator_list", ()) or ())
+    out = [ast.copy_location(ast.Expr(value=d), d)
+           for d in (getattr(node, "decorator_list", ()) or ())]
+    heads = []
     args = getattr(node, "args", None)
     if args is not None:
         heads += [d for d in (list(getattr(args, "defaults", ()) or ())
@@ -708,16 +738,8 @@ def _import_time_heads(node) -> list:
     #   전부 걸리고, 그러면 이 파일의 거의 모든 함수가 MODULE_EFFECTS 에 묶여
     #   **44차가 그은 게시 경로 경계를 넘는다** (실측: `_PublishLock`·
     #   `_Authority` 가 producer 닫힘에 들어왔다).
-    #
-    #   위협은 "이름을 찾아본다" 가 아니라 "다른 계산을 끼워 넣는다" 다.
-    #   그래서 호출·lambda·내포·await, 그리고 **속성 접근**(교차 module 로
-    #   들어가는 유일한 문법)만 계산으로 센다. 이름·상수·이름의 첨자/이항은
-    #   조회일 뿐이고 producer 의미를 바꿀 수 없다.
-    compute = (ast.Call, ast.Lambda, ast.Await, ast.Attribute,
-               ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
-    out = []
     for h in heads:
-        if any(isinstance(sub, compute) for sub in ast.walk(h)):
+        if _has_import_time_compute(h):
             out.append(ast.copy_location(ast.Expr(value=h), h))
     return out
 
@@ -791,7 +813,22 @@ def _module_defs(src: str) -> dict:
                     # 돌지 않으므로 그것은 과잉이고 44차 경계를 넘는다.
                     _bind(MODULE_EFFECTS, head)
                 if isinstance(node, ast.ClassDef):
-                    _visit(node.body, top or node)
+                    # ★ 58차 L9-a — `top or node` 였다. 그러면 class 본문의
+                    #   효과 하나가 **class 전체**를 MODULE_EFFECTS 에 묶는다.
+                    #   AnnAssign 을 닫자마자 그것이 실측됐다: `_PublishLock`·
+                    #   `_Authority` 의 `_ACTIVE: set = set()` 한 줄이 두 class
+                    #   구현을 통째로 producer identity 안으로 끌고 왔다
+                    #   (`_ledger_authority`·`_ledger_seal`·`_pointer_bytes`
+                    #   까지 딸려 왔다 — 44차가 그은 경계를 넘는다).
+                    #
+                    #   `top` 은 **조건을 담는 문**을 가리키기 위한 것이다
+                    #   (`if COND: X = f()` 에서 조건이 실행 여부를 정한다).
+                    #   class 본문에는 그런 조건이 없다 — class 문이 돌면 본문은
+                    #   무조건 돈다. 그러므로 여기서는 `top` 을 그대로 넘기고
+                    #   본문의 각 문장이 **자기 자신**에 묶이게 한다. 좁아지는
+                    #   것이 아니라 정확해지는 것이다: 효과가 있는 문장은 여전히
+                    #   전부 묶이고, 효과가 없는 method 본문만 빠진다.
+                    _visit(node.body, top)
                 continue
             _walrus(node, top)
             if isinstance(node, ast.Assign):
@@ -810,6 +847,26 @@ def _module_defs(src: str) -> dict:
                 #   정하는 문이므로 identity 안이다.
                 for name in _target_names(node.target):
                     _bind(name, top or node)
+                # ★ 58차 L9-a — 여기가 `Assign` 과 갈렸다. 57차는 바로 위
+                #   `Assign` 의 우변을 MODULE_EFFECTS 에 묶었는데 `AnnAssign` 은
+                #   target 만 묶었다. 그래서 `_SIDE: object = sc.무엇()` 처럼
+                #   **아무도 안 읽는 이름**에 계산을 걸면 그 계산이 봉인 밖에서
+                #   돌았다 (리뷰어 실측: digest 동일 · 결과 1 → 9). 문법이
+                #   다를 뿐 import 시 도는 것은 똑같다.
+                value = getattr(node, "value", None)
+                if value is not None and not _is_pure_constant(value):
+                    _bind(MODULE_EFFECTS, top or node)
+                # annotation 도 module scope 에서는 **평가된다** (미룸이 없으면).
+                #   계산이 들어 있을 때만 묶는다 — 평범한 타입 표기까지 잡으면
+                #   57차가 실측한 경계 넘침이 그대로 재현된다.
+                ann = getattr(node, "annotation", None)
+                if ann is not None and _has_import_time_compute(ann):
+                    _bind(MODULE_EFFECTS, top or node)
+                # ★ `AugAssign` 은 우변이 상수여도 **상태를 바꾼다** (`_ACC += 1`).
+                #   54차가 값 버리는 `Expr` 를 무조건 묶은 것과 같은 이유로,
+                #   읽는 이름이 없어도 module 효과다.
+                if isinstance(node, ast.AugAssign):
+                    _bind(MODULE_EFFECTS, top or node)
             elif isinstance(node, ast.Delete):
                 for t in node.targets:
                     for name in _target_names(t):
@@ -1030,9 +1087,19 @@ def _namespace_capabilities(src: str) -> set:
     `x = <seed 또는 이미 능력인 이름>` 과 `from … import <seed> as x` 를
     **고정점까지** 따라간다.
 
-    정적으로 안 보이는 묶임(함수 안에서 만든 alias 등)은 여기서 안 잡힌다 —
-    그런 식은 `_exact_const` 가 값을 정할 수 없으므로 호출 지점에서
-    fail-closed 로 걸린다. 이 함수는 그 앞단의 **정적으로 보이는** 부분이다.
+    ★ 58차 L9-b — 57차판은 `tree.body` **만** 훑었다. 그래서 별칭을 함수 안으로
+      한 줄 옮기면 그대로 통과했다 (리뷰어 실측: `def score_canonical(df): GET =
+      getattr; return GET(sc, "external")(df)` — capability_discovered=false ·
+      digest 동일 · 1 → 9). "정적으로 안 보인다" 고 적어 둔 위 문단이 틀렸다:
+      함수 안의 대입은 **정적으로 보인다.** 우리가 안 본 것뿐이다.
+
+      그래서 트리 전체를 훑고, 튜플 풀기(`GET, _ = getattr, 1`)도 편다. scope 를
+      구분하지 않으므로 이것은 **넓게 잡는** 근사다 — 같은 철자를 다른 함수에서
+      무해하게 써도 능력으로 센다. 방향이 fail-closed 쪽이라 그대로 둔다.
+
+    이 함수는 **앞단**이다. 능력이 별칭·컨테이너·partial·factory 로 새 나가는
+    축은 이름으로 못 이기므로 `_assert_no_dynamic_resolution()` 이 "능력은
+    부르는 자리에만 나타날 수 있다" 로 닫는다.
     """
     import ast
 
@@ -1048,18 +1115,35 @@ def _namespace_capabilities(src: str) -> set:
                 if a.name in caps:
                     caps.add(a.asname or a.name)
     # `GET = getattr` · `G2 = GET` — 고정점까지 (겹수에 상한을 두지 않는다)
+    # ★ 58차 L9-b — `tree.body` 가 아니라 **트리 전체**다. 함수 안의 대입도
+    #   정적으로 보인다.
     changed = True
     while changed:
         changed = False
-        for node in tree.body:
+        for node in ast.walk(tree):
             if not isinstance(node, (ast.Assign, ast.AnnAssign)):
                 continue
             value = node.value
-            if not isinstance(value, ast.Name) or value.id not in caps:
-                continue
             targets = (node.targets if isinstance(node, ast.Assign)
                        else [node.target])
-            for t in targets:
+            # `GET = getattr`
+            if isinstance(value, ast.Name) and value.id in caps:
+                pairs = [(t, value) for t in targets]
+            elif isinstance(value, (ast.Tuple, ast.List)):
+                # `GET, _Z = getattr, 1` — 같은 자리끼리 짝지어 편다. 길이가
+                #   다르거나 starred 가 있으면 짝을 못 세므로 건너뛴다 (그 식은
+                #   `_assert_no_dynamic_resolution()` 의 escape 규칙이 잡는다).
+                pairs = []
+                for t in targets:
+                    if isinstance(t, (ast.Tuple, ast.List)) \
+                            and len(t.elts) == len(value.elts) \
+                            and not any(isinstance(e, ast.Starred)
+                                        for e in t.elts + value.elts):
+                        pairs += [(te, ve) for te, ve in zip(t.elts, value.elts)
+                                  if isinstance(ve, ast.Name) and ve.id in caps]
+            else:
+                continue
+            for t, _v in pairs:
                 for nm in ast.walk(t):
                     if isinstance(nm, ast.Name) and nm.id not in caps:
                         caps.add(nm.id)
@@ -1188,6 +1272,38 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
     banned = set(reflect or ()) | _source_reflection_locals(node)
     # ★ 57차 P0-7 — 능력 집합. 안 주면 seed 만 (옛 호출자 호환).
     caps = set(caps or _DYNAMIC_ON_NAMESPACE)
+
+    # ★ 58차 L9-b — **능력은 부르는 자리에만 나타날 수 있다.**
+    #
+    #   57차는 "이 호출의 대상 이름이 능력인가" 를 물었고, 능력을 이름에서
+    #   이름으로 따라가는 고정점을 module scope 에 뒀다. 리뷰어는 그 별칭을
+    #   함수 안으로 한 줄 옮겼다 (실측: capability_discovered=false · digest
+    #   동일 · 결과 1 → 9). 그 뒤로도 길은 남는다 — 튜플 풀기, 컨테이너,
+    #   `functools.partial(getattr, sc)`, 능력을 **돌려주는** factory.
+    #
+    #   `[해석]` 별칭을 만드는 문법을 하나씩 따라가는 것은 53차에 이미 배운
+    #   blacklist 다. 그래서 묻는 것을 바꾼다: **이 능력이 어디로 가는지 정적
+    #   으로 답할 수 있는가.** 호출식의 대상으로 바로 쓰인 것 말고는 답할 수
+    #   없다 — 값으로 흘러간 능력은 어떤 대상에 적용될지 이 자리에서 정해지지
+    #   않는다. 그러므로 닫힘 안에서 능력이 호출 대상 밖에 **Load 로 나타나면**
+    #   거부한다. 별칭을 몇 겹 쌓든 첫 겹에서 걸리므로 겹수와 무관하다.
+    callees = {id(sub.func) for sub in ast.walk(node)
+               if isinstance(sub, ast.Call)}
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name):
+            spelling, is_load = sub.id, isinstance(sub.ctx, ast.Load)
+        elif isinstance(sub, ast.Attribute):
+            spelling, is_load = sub.attr, isinstance(sub.ctx, ast.Load)
+        else:
+            continue
+        if spelling in caps and is_load and id(sub) not in callees:
+            raise SystemExit(
+                f"✗ producer 닫힘 안에서 이름 공간을 여는 **능력을 값으로 "
+                f"옮긴다**: {where} 의 `{spelling}` — 부르는 자리 밖에 나타난 "
+                "능력은 어떤 대상에 적용될지 정적으로 답할 수 없다 (별칭 · "
+                "튜플 풀기 · 컨테이너 · partial · factory 가 전부 같은 형태다). "
+                "필요하면 그 자리에서 직접 부르라 (fail-closed)")
+
     for sub in ast.walk(node):
         # ★ 54차 P0-5 — `getattr(f, "__globals__")` 는 `f.__globals__` 와 같은
         #   계산이다. 53차 검사는 `Attribute`/`Name` node 만 봤으므로 이름을
