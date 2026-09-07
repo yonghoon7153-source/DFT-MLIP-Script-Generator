@@ -694,12 +694,6 @@ MUTANTS = [
      "        if False:",
      "reading_the_producers_raw_source_is_fail_closed"),
     # ★ P0-4 — 봉인이 대상 **안**에 없으면 이름을 하나 더 만들어 빠져나간다.
-    ("frozen-target-carries-its-own-seal", RP,
-     "    here = read_frozen_marker(dest)\n"
-     "    if here is not None:",
-     "    here = None\n"
-     "    if here is not None:",
-     "frozen_directory_carries_its_own_seal"),
     # ★ P0-3 — 얼리기와 발급이 같은 transaction 에 없으면 얼린 안에서 자란다.
     ("freeze-refuses-a-live-execution", RP,
      "        live = _live_claims_for(cohort_id)\n"
@@ -948,30 +942,11 @@ MUTANTS = [
      "    entries = read_lifecycle()",
      "two_consecutive_partial_appends_are_still_recoverable"),
     # ★ P0-5 — mountinfo 의 octal escape 를 푼다.
-    ("mountinfo-octal-escape-is-decoded", RP,
-     '                    "root": _mountinfo_unescape(f[3]),\n'
-     '                    "mp": _mountinfo_unescape(f[4])})',
-     '                    "root": f[3],\n'
-     '                    "mp": f[4]})',
-     "frozen_alias_whose_path_has_a_space_is_not_writable"),
     # ★ 57차 P0-2 — mount 정체는 커널이 답한다 (행 순서로 추측하지 않는다).
     #   56차의 `deepest-mount-is-chosen` 을 여기로 옮겼다: "가장 깊은 것을
     #   고른다" 는 규칙 자체가 P0-2 반례(겹쳐 쌓으면 깊이가 같다)로 무너졌고,
     #   그 규칙을 지키던 코드는 사라졌다. 지켜야 할 것은 **커널에게 묻는다** 다.
-    ("mount-identity-comes-from-the-kernel", RP,
-     "    for ln in info.splitlines():\n"
-     "        if ln.startswith(\"mnt_id:\"):\n"
-     "            return ln.split(\":\", 1)[1].strip()",
-     "    p = Path(path).resolve()\n"
-     "    for c in _mount_table():\n"
-     "        if p == Path(c[\"mp\"]) or Path(c[\"mp\"]) in p.parents:\n"
-     "            return c[\"id\"]",
-     "a_stacked_mount_is_identified_by_the_kernel_not_by_row_order"),
     # ★ P0-7 — `root` 는 filesystem 안의 경로다 (namespace 절대경로가 아니다).
-    ("mount-root-is-filesystem-relative", RP,
-     '    fs = Path(m["root"]) / rel if str(rel) != "." else Path(m["root"])',
-     '    fs = probe',
-     "bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph"),
     # ★ P0-8 — 건너간 module 에도 module 효과를 seed 한다.
     ("crossed-module-effects-are-seeded", RP,
      "    if MODULE_EFFECTS in sdefs:\n"
@@ -986,10 +961,6 @@ MUTANTS = [
      "            key = str\u0028fp\u0029",
      "evidence_tree_digest_does_not_depend_on_the_checkout_path"),
     # ★ P1-2 — 환경·의존성도 증거 안이다.
-    ("evidence-binds-the-environment", MR,
-     "            \u0022env\u0022: replay_env(),",
-     "            \u0022env\u0022: {},",
-     "evidence_binds_the_execution_environment"),
     # ★ P0-3 — journal·anchor 를 바꾸는 경로가 공유하는 임계 구역.
     ("anchor-repair-holds-the-lifecycle-lock", RP,
      "    with _lifecycle_lock():\n"
@@ -1087,7 +1058,9 @@ MUTANTS = [
      "normal_finalize_cannot_forge_the_migration_provenance or "
      "lifecycle_owned_evidence_keys_are_refused_from_callers"),
     ("execution-receipt-binds-the-startup-g58", MR,                   # L11
-     '            "startup": _observed_environment(),\n', "",
+     # 선언이 자기 자신의 preimage 로 세어지지 않게 철자를 escape 한다
+     # (이 파일이 자기 변이 대상이다).
+     '            \u0022startup\u0022: _ob\u0073erved_environment(),\n', "",
      "the_execution_receipt_binds"),
     ("report-attests-the-environment-g58", MR,                        # L12
      "        if execution is not None:\n"
@@ -1325,7 +1298,10 @@ MULTI = [
     #   기록한 목적지 합집합(51차)과 대상 안의 봉인 marker(52차). 하나만 지우면
     #   다른 쪽이 여전히 거부하므로 함께 되돌려야 관측된다 (심층 방어의 정상
     #   신호 — 변이 전수가 실측했다).
+    # ★ 58차 — L5 봉인이 먼저 거부해 안 물었다 (실측). 함께 되돌린다.
     ("freeze-seals-the-output-directory", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)",
+         "    _sealed = None"),
         ("    for d, cid in frozen_dirs_from_journal().items():\n"
          "        out.setdefault(cid, (REPO / d).resolve())",
          "    pass"),
@@ -1334,7 +1310,16 @@ MULTI = [
          "    here = None\n"
          "    if here is not None:"),
      ], "frozen_directory_cannot_be_republished_under_a_new_cohort_id"),
+    # ★ 58차 — L9 가 데코레이터를 **무조건** MODULE_EFFECTS 에 묶으면서, 정규형이
+    #   데코레이터를 버려도 digest 가 그 경로로 움직인다. 즉 이 변이가 겨눈
+    #   "정규형이 데코레이터를 본다" 를 새 층이 가린다 (실측: 변이만 rc 0).
+    #   함께 되돌린다.
     ("producer-normalizes-the-node", RP, [
+        ('    out = [ast.copy_location(ast.Expr(value=d), d)\n'
+         '           for d in (getattr(node, "decorator_list", ()) or ())]\n'
+         "    heads = []",
+         "    out = []\n"
+         '    heads = list(getattr(node, "decorator_list", ()) or ())'),
         ("def _ast_normal_node(node) -> str:",
          "def _ast_normal_node(node, _src=None) -> str:"),
         # ★ 52차 — 47차 결함(decorator 를 못 본다)을 **reflection 없이**
@@ -1395,6 +1380,60 @@ MULTI = [
         ("        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)",
          "        fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)"),
      ], "only_one_writer_can_create_an_execution_class"),
+    # ★ 58차 — L5 의 좌표 봉인이 `_assert_writable()` 의 **첫 층**이 되면서
+    #   그 아래 층을 겨눈 옛 변이들이 안 물게 됐다 (실측: 변이만 rc 0 ·
+    #   변이+봉인 되돌림 rc 1). 방어를 지우지 않고 **함께 되돌린다**.
+    ("frozen-target-carries-its-own-seal", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)",
+         "    _sealed = None"),
+        ("    here = read_frozen_marker(dest)\n"
+         "    if here is not None:",
+         "    here = None\n"
+         "    if here is not None:"),
+     ], "frozen_directory_carries_its_own_seal"),
+    # ★ 58차 — L5 의 좌표 봉인이 `_assert_writable()` 의 **첫 층**이 되면서
+    #   그 아래 층을 겨눈 옛 변이들이 안 물게 됐다 (실측: 변이만 rc 0 ·
+    #   변이+봉인 되돌림 rc 1). 방어를 지우지 않고 **함께 되돌린다**.
+    ("mountinfo-octal-escape-is-decoded", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)",
+         "    _sealed = None"),
+        ('                    "root": _mountinfo_unescape(f[3]),\n'
+         '                    "mp": _mountinfo_unescape(f[4])})',
+         '                    "root": f[3],\n'
+         '                    "mp": f[4]})'),
+     ], "frozen_alias_whose_path_has_a_space_is_not_writable"),
+    # ★ 58차 — L5 의 좌표 봉인이 첫 층이 되면서 이 변이가 안 물게 됐다
+    #   (실측: 변이만 rc 0 · 봉인 되돌리면 rc 1). 함께 되돌린다.
+    ("mount-identity-comes-from-the-kernel", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)",
+         "    _sealed = None"),
+        ("    for ln in info.splitlines():\n"
+         "        if ln.startswith(\"mnt_id:\"):\n"
+         "            return ln.split(\":\", 1)[1].strip()",
+         "    p = Path(path).resolve()\n"
+         "    for c in _mount_table():\n"
+         "        if p == Path(c[\"mp\"]) or Path(c[\"mp\"]) in p.parents:\n"
+         "            return c[\"id\"]"),
+     ], "a_stacked_mount_is_identified_by_the_kernel_not_by_row_order"),
+    # ★ 58차 — L5 의 좌표 봉인이 첫 층이 되면서 이 변이가 안 물게 됐다
+    #   (실측: 변이만 rc 0 · 봉인 되돌리면 rc 1). 함께 되돌린다.
+    ("mount-root-is-filesystem-relative", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)",
+         "    _sealed = None"),
+        ('    fs = Path(m["root"]) / rel if str(rel) != "." else Path(m["root"])',
+         '    fs = probe'),
+     ], "bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph"),
+    # ★ 58차 — L11 이 영수증에 `startup` 을 넣으면서 그 안의 `env` 가 환경을
+    #   **대신 증언한다**. `env` 를 비워도 digest 가 움직이므로 이 변이가 안
+    #   물었다 (실측: 변이만 rc 0 · 봉인과 무관). 둘을 함께 되돌린다.
+    ("evidence-binds-the-environment", MR, [
+        ("            \u0022env\u0022: replay_env(),",
+         "            \u0022env\u0022: {},"),
+        # 선언 자신이 preimage 로 세어지지 않도록 철자를 escape 한다
+        # (이 파일이 자기 자신의 변이 대상이라 생기는 문제 — 위 `env` 와 같다).
+        ("            \u0022startup\u0022: _ob\u0073erved_environment(),",
+         "            \u0022startup\u0022: {},"),
+     ], "evidence_binds_the_execution_environment"),
 ]
 
 #: **관측되지 않는다고 신고하는** 항목. 왜 안 보이는지와 그래도 왜 남기는지를

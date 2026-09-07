@@ -436,3 +436,31 @@ L5 뒤 전체 회귀가 **1465 passed · 3 failed** 였다. 셋 다 **산출물 
   | `verifier-origin-is-lifecycle-owned` | preserve | 예약 키 도메인 제거 | `test_evidence_domain_58.py` |
   | `execution-receipt-binds-startup` | mutation_replay | `startup` 제거 | `test_evidence_layer_58.py` |
   | `report-attests-its-environment` | mutation_replay | 증언 조회 제거 | 같은 파일 |
+
+- 2026-09-07 (마감 3/n) — **조각을 만들지 않았으면 못 봤을 것 7건.**
+
+  전체 회귀는 1488개가 전부 초록이었다. 그런데 12조각을 만들자 8조각이 RC 1 이고
+  문제 14건이 나왔다. 그중 7건은 같은 형태다 — **이번 라운드가 넣은 새 층이
+  옛 변이를 가린다.**
+
+  | 변이 | 가린 층 | 실측 |
+  |---|---|---|
+  | `frozen-target-carries-its-own-seal` | L5 좌표 봉인 | 변이만 rc 0 · 봉인 되돌리면 rc 1 |
+  | `mountinfo-octal-escape-is-decoded` | 〃 | 〃 |
+  | `mount-identity-comes-from-the-kernel` | 〃 | 〃 |
+  | `mount-root-is-filesystem-relative` | 〃 | 〃 |
+  | `freeze-seals-the-output-directory` | 〃 | 〃 |
+  | `producer-normalizes-the-node` | L9 데코레이터 결속 | 정규형이 버려도 MODULE_EFFECTS 경로로 digest 가 움직인다 |
+  | `evidence-binds-the-environment` | L11 `startup` | `env` 를 비워도 `startup.env` 가 대신 증언한다 |
+
+  `[해석]` **초록은 방어가 살아 있다는 뜻이 아니라 시험이 안 죽었다는 뜻이다.**
+  새 층이 옛 층보다 먼저 거부하면, 옛 층이 사라져도 아무도 모른다. 답은 이
+  저장소가 41·54·56차에 이미 정했다 — 방어를 지우지 않고 **함께 되돌린다**(MULTI).
+
+  추측으로 고치지 않았다. 각 변이를 (a) 변이만 (b) 변이+봉인 되돌림 두 조건으로
+  돌려 어느 층이 가리는지 **쟀다**.
+
+  그리고 작은 것 하나 더: `mutation_replay.py` 는 **자기 자신의 변이 대상**이라
+  새 선언을 평범하게 적으면 그 선언 줄이 자기 preimage 로 두 번 세어진다.
+  기존 항목이 `"` 로 따옴표를 escape 해 둔 이유가 그것이었고, 같은 처리를
+  두 곳에 했다.
