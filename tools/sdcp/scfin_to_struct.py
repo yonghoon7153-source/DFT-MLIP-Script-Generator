@@ -562,7 +562,35 @@ VBONDS = [("Ni", "O", 2.40, 1),   # NiO6 팔면체 + 분자 O 와의 흡착결�
           ("C", "F", 1.60, 0)]      # PTFE 조각 — C-F 는 1.33~1.36 A
 
 
-def write_vesta(path, cell, labels, elems, pos, title, scale=RAD_SCALE_DEFAULT):
+def parse_bond_max(specs):
+    """`--bond_max Li:O=2.30` 들을 {(A,B): max} 로. 원소쌍은 순서 무관. → dict
+
+    왜 있나: VBONDS 의 컷오프는 **모든 자세에 하나**인데, 어떤 자세에서는 그 값이
+    분자↔슬랩 접촉선까지 삼킨다 (b12: Li-O 2.60 이 흡착 2.407 을 그린다). 뷰어에서
+    손으로 지우면 그림이 재현되지 않으므로 파일을 만들 때 정한다.
+
+    ⛔ 이 옵션이 **못 하는 것**: 결합을 '분자 안에서만' 끄지 못한다. VESTA 의 SBOND 는
+      원소쌍 단위라 컷오프를 낮추면 **같은 원소쌍의 슬랩 내부 결합도 같이** 사라진다.
+      그래서 낮추기 전에 그 쌍의 내부 거리 분포를 보고 틈이 있는지 확인해야 한다.
+    """
+    out = {}
+    for s in specs or []:
+        m = re.fullmatch(r"\s*([A-Za-z]{1,2})\s*[:\-]\s*([A-Za-z]{1,2})\s*=\s*([0-9.]+)\s*", s)
+        if not m:
+            raise SystemExit(f"⛔ --bond_max 형식이 아니다: {s!r} (예: Li:O=2.30)")
+        a, b, v = m.group(1).capitalize(), m.group(2).capitalize(), float(m.group(3))
+        if v <= 0:
+            raise SystemExit(f"⛔ --bond_max {s}: 최대거리가 0 이하다")
+        if not any({a, b} == {x, y} for x, y, _mx, _p in VBONDS):
+            known = ", ".join(f"{x}:{y}" for x, y, _mx, _p in VBONDS)
+            raise SystemExit(f"⛔ --bond_max {a}:{b} 는 VBONDS 에 없는 쌍이다 — "
+                             f"없는 쌍을 덮어써도 아무 일도 안 일어난다. 있는 쌍: {known}")
+        out[frozenset((a, b))] = v
+    return out
+
+
+def write_vesta(path, cell, labels, elems, pos, title, scale=RAD_SCALE_DEFAULT,
+                bond_max=None):
     """CRYSTAL 형식 .vesta. 좌표는 **분율**이어야 한다 (MOLECULE 판은 Cartesian).
 
     ⚠ CLAUDE.md: .vesta 는 **ASCII 전용 + CRLF**. 비ASCII 한 글자가 파싱을 깨뜨린 전례가
@@ -611,6 +639,7 @@ def write_vesta(path, cell, labels, elems, pos, title, scale=RAD_SCALE_DEFAULT):
     for a1, a2, mx, poly in VBONDS:
         if a1 not in present or a2 not in present:
             continue
+        mx = (bond_max or {}).get(frozenset((a1, a2)), mx)
         n += 1
         # ⚠ 플래그는 **사용자의 기존 .vesta 와 한 글자도 다르지 않게** `0 1 1 0 1` 로 둔다.
         #   그 파일이 정상 렌더되는 known-good 조합이다. 여기를 임의로 0 으로 바꿨더니
@@ -715,7 +744,7 @@ def default_tag(path):
 
 
 def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recenter=True,
-                box_pad=None):
+                box_pad=None, bond_max=None):
     """한 계산 → xyz + .vasp + .vesta + 거리 세 층 감사. → meta(dict)
 
     box_pad 를 주면 셀 없는 분자 xyz 를 **보기용 상자**에 담아 읽는다 (read_mol_xyz).
@@ -779,7 +808,8 @@ def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recen
               f"AFM sublattice colors (NiA blue / NiB purple)")
     if meta:
         vt += f" - basin {meta['basin']}, E0 {meta['E0']:.4f} eV"
-    write_vesta(os.path.join(out, f"{tag}.vesta"), cell, labels, elems, pos, vt, scale=scale)
+    write_vesta(os.path.join(out, f"{tag}.vesta"), cell, labels, elems, pos, vt, scale=scale,
+                bond_max=bond_max)
     meta.update({"tag": tag, "nat": len(elems), "out": out})
     if not quiet:
         _audit(cell, labels, elems, pos, order, counts, tag, out, c_len, span)
@@ -1366,6 +1396,33 @@ def selftest():
         chk(rawp.decode("ascii", "ignore").encode() == rawp and b"\r\n" in rawp,
             "POSCAR 산출 .vesta 도 ASCII 전용 + CRLF")
 
+        # ── --bond_max 덮어쓰기 ───────────────────────────────────────────────
+        chk(parse_bond_max(["Li:O=2.30"]) == {frozenset(("Li", "O")): 2.30},
+            "--bond_max 파싱 (원소쌍 + 거리)")
+        chk(parse_bond_max(["O:Li=2.30"]) == parse_bond_max(["Li:O=2.30"]),
+            "원소쌍 순서 무관")
+        # ⛔음성 — 형식/값/미지의 쌍은 **조용히 무시하지 않는다**. 무시하면 사용자는
+        #   컷오프를 바꿨다고 믿는데 그림은 그대로다 (제일 나쁜 실패 모양).
+        for bad, why in ((["LiO=2.3"], "구분자 없음"), (["Li:O"], "= 없음"),
+                         (["Li:O=0"], "0 이하"), (["Xx:O=2.3"], "모르는 원소"),
+                         (["S:Ni=2.3"], "VBONDS 에 없는 쌍")):
+            try:
+                parse_bond_max(bad); hit = False
+            except SystemExit:
+                hit = True
+            chk(hit, f"⛔음성: --bond_max {why} → 멈춘다")
+        # 실제로 SBOND 줄이 바뀌는지 (파싱만 되고 안 쓰이면 의미 없다)
+        pb = os.path.join(td, "pbond")
+        emit_struct(direct, pb, quiet=True, recenter=False,
+                    bond_max=parse_bond_max(["C:C=0.90"]))     # jobA 는 Li·C 뿐이다
+        _v = open(os.path.join(pb, "jobA.vesta")).read().splitlines()
+        sb = [l for l in _v if l.split()[1:3] == ["C", "C"]]
+        chk(len(sb) == 1 and "0.90000" in sb[0],
+            f"--bond_max 가 SBOND 줄에 실제로 반영된다: {sb}")
+        # 덮어쓰지 않은 쌍은 기본값 그대로 (과잉 적용 방지)
+        lo = [l for l in _v if l.split()[1:3] == ["Li", "O"]]
+        chk(not lo, "종에 없는 쌍(Li-O)은 애초에 안 쓰인다")
+
     print(f"── {'PASS' if not fails else 'FAIL ' + str(len(fails))} ──")
     return 1 if fails else 0
 
@@ -1398,6 +1455,10 @@ def main():
     ap.add_argument("--box_pad", type=float, default=8.0,
                     help="--mol_xyz 의 보기용 상자 여백 (A/면, 기본 8.0). "
                          "⚠ 계산 셀이 아니다 — 뷰어가 격자를 요구해서 씌우는 것뿐")
+    ap.add_argument("--bond_max", nargs="+", default=[], metavar="A:B=MAX",
+                    help="VESTA 결합 컷오프 덮어쓰기 (예: Li:O=2.30). 어떤 자세에서는 "
+                         "기본 컷오프가 분자<->슬랩 접촉선까지 그린다. ⚠ 원소쌍 단위라 "
+                         "**같은 쌍의 슬랩 내부 결합도 같이** 줄어든다")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
@@ -1411,14 +1472,15 @@ def main():
     if a.energy_csv and not a.refs:
         ap.error("--energy_csv 는 --refs 가 있어야 한다 (기준 없이 E_ads 를 만들지 않는다)")
 
+    bmax = parse_bond_max(a.bond_max)
     metas = []
     for path in list(a.mol_xyz):
         metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
-                                 recenter=False, box_pad=a.box_pad))
+                                 recenter=False, box_pad=a.box_pad, bond_max=bmax))
     for path in list(a.scf_in) + list(a.outcar) + list(a.poscar):
         if a.out:
             metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
-                                     recenter=not a.no_recenter))
+                                     recenter=not a.no_recenter, bond_max=bmax))
         else:
             cell, labels, pos, meta = read_outcar(path)
             meta.update(tag=default_tag(path), nat=len(pos))
