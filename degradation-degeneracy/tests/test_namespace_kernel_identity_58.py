@@ -52,7 +52,10 @@ sys.path.insert(0, sys.argv[1])
 import tools.preserve as P
 
 tmp = Path(tempfile.mkdtemp(prefix="l4-"))
-alias = tmp / P.SMOKE_NAMESPACE / "alias"
+# SMOKE_NAMESPACE 는 저장소 루트에서 유도한 절대경로다. `tmp / 그것` 은 tmp 를
+# 버린다(pathlib 흡수) — 그러면 재현기가 실제 저장소에 쓴다. tmp 로 옮긴다.
+P.SMOKE_NAMESPACE = tmp / "results" / "_smoke"
+alias = P.SMOKE_NAMESPACE / "alias"
 outside = tmp / "canonical-outside"
 alias.mkdir(parents=True); outside.mkdir()
 subprocess.run(["mount", "--bind", str(outside), str(alias)], check=True)

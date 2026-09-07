@@ -3858,6 +3858,174 @@ def _record_canonical_if_identifiable(paths, leg_id, phase, ledger) -> None:
             pass
 
 
+
+# ── 58차 L4 — 경계 판정을 **커널 좌표**로 (묶음 β) ──────────────────────────
+#
+# 아래 넷은 57차가 `docs/22p_gap/row_projection.py` 에 만든 것을 **여기로
+# 옮긴 것**이다. 왜 옮기는가:
+#
+#   1. **한 경계, 한 함수.** smoke containment(`is_inside_namespace`)와 frozen
+#      guard 가 서로 다른 판정을 쓰고 있었다 — 하나는 어휘/symlink, 하나는
+#      커널 좌표. 두 규칙이 갈리면 어느 쪽이 경계인지 정할 수 없다. 리뷰어의
+#      L4 반례가 정확히 그 틈이었다: bind mount 는 symlink 가 아니므로 어휘
+#      판정을 그냥 통과하고, 저장소 밖 디렉터리가 smoke 면제를 받았다.
+#
+#   2. **봉인 범위.** `row_projection.py` 는 RUN_SCOPE 밖이라 거기 있는 경계
+#      판정은 `source_digest` 가 덮지 않았다. 여기(`tools/`)로 올리면 경계
+#      규칙이 봉인된 code identity **안**으로 들어온다 — 커버리지가 넓어지지
+#      좁아지지 않는다.
+#
+# `[해석]` 이 이동은 **우리가 정한 것**이고 되돌릴 수 있다. 리뷰어가 "경계
+# helper 는 투영 쪽에 있어야 한다" 고 보면 반대로 옮기면 된다. 다만 그때도
+# **한 자리**여야 한다 — 두 벌은 안 된다.
+
+_MOUNTINFO_ESC = {"040": " ", "011": "\t", "012": "\n", "134": "\\"}
+_O_LOOKUP = getattr(os, "O_PATH", os.O_RDONLY)
+
+
+class BoundaryUnknown(PreserveError):
+    """경계를 **답할 수 없다**. 부르는 쪽은 fail-closed 해야 한다 (58차 L4)."""
+
+
+def _mountinfo_unescape(raw: str) -> str:
+    """`\\040` 류를 되돌린다 (56차 P0-5).
+
+    55차는 field 를 그대로 `Path` 에 넣었고, 공백이 든 alias 는 어떤 mount 와도
+    매치되지 않아 guard 가 통과했다 (리뷰어 실측: `published true`).
+    """
+    out, i = [], 0
+    while i < len(raw):
+        if raw[i] == "\\" and raw[i + 1:i + 4] in _MOUNTINFO_ESC:
+            out.append(_MOUNTINFO_ESC[raw[i + 1:i + 4]])
+            i += 4
+        else:
+            out.append(raw[i])
+            i += 1
+    return "".join(out)
+
+
+def _mount_table() -> list:
+    """이 namespace 의 mount **그래프** (56차 P0-5·6·7).
+
+    55차는 `(mountpoint, root)` 문자열 쌍만 들고 첫 매치를 골랐다. 리뷰어는 그
+    모델의 세 축을 전부 쳤다:
+
+      · 공백 경로가 `\\040` 이라 매치되지 않았다 (P0-5)
+      · 겹친 bind 에서 **바깥** 조상을 먼저 골라 더 깊은 mount 를 잃었다 (P0-6)
+      · `root` 는 **그 filesystem 안의** 경로인데 namespace 절대경로로 읽었다
+        (P0-7 — 별도 tmpfs 의 child 를 bind 하면 `root=/child` 다)
+
+    그래서 major:minor 와 mount/parent ID 를 함께 들고 다닌다. 읽을 수 없거나
+    형식이 어긋나면 **비어 있다고 하지 않고** 예외로 알린다 — 알 수 없는 것을
+    "mount 가 없다" 로 바꾸면 그것이 fail-open 이다.
+    """
+    try:
+        body = Path("/proc/self/mountinfo").read_text(encoding="utf-8")
+    except OSError as exc:
+        raise BoundaryUnknown(
+            "boundary",
+            f"✗ mount 관계를 읽을 수 없다 ({exc}) — 목적지가 얼린 tree 의 "
+            "별칭인지 답할 수 없으므로 게시하지 않는다 (fail-closed)")
+    out = []
+    for ln in body.splitlines():
+        if not ln.strip():
+            continue
+        f = ln.split()
+        if len(f) < 7:
+            raise BoundaryUnknown("boundary", f"✗ mountinfo 행을 해석할 수 없다: {ln[:120]!r}")
+        out.append({"id": f[0], "parent": f[1], "dev": f[2],
+                    "root": _mountinfo_unescape(f[3]),
+                    "mp": _mountinfo_unescape(f[4])})
+    return out
+
+
+#: 대상을 **열기만** 하는 flag — 읽기 권한도 directory 여부도 묻지 않는다.
+_O_LOOKUP = getattr(os, "O_PATH", os.O_RDONLY)
+
+
+def _kernel_mount_id(path) -> str:
+    """이 경로가 **실제로 올라앉은** mount 의 ID — 커널이 답한다 (57차 P0-2).
+
+    ★ 왜 mountinfo 재현을 그만두는가 — 55·56차는 mountinfo 를 파이썬에서
+      다시 풀어 "어느 mount 냐" 를 **추측**했다. 그 추측은 세 번 틀렸다
+      (P0-5 escape · P0-6 깊이 · P0-7 root 의 좌표계). 57차 반례는 네 번째다:
+      같은 mountpoint 에 mount 를 **겹쳐 쌓으면** 깊이가 같아 구별할 수 없고,
+      "행 순서상 먼저" 를 고르면 **아래** mount 를 고른다 — 무해한 bind 를
+      깔고 얼린 child 를 덮으면 번역이 무해한 쪽으로 풀려 guard 가 통과했다.
+
+      56차 verdict 가 못 박은 것: **행 순서와 pathname 깊이로 stacked top 을
+      추측하면 안 된다.** 추측을 더 정교하게 만드는 수정은 다음 반례를 부를
+      뿐이고, 종결이 아니다. 겹침·전파·순서는 커널이 **이미 푼** 문제이므로
+      경로를 열고 그 fd 의 mount ID 를 묻는다 (`/proc/self/fdinfo/<fd>`).
+
+    답을 못 얻으면 예외다. "모른다" 를 "mount 가 없다" 로 바꾸는 것이
+    fail-open 이라는 규칙은 `_mount_table()` 과 같다.
+    """
+    try:
+        fd = os.open(str(path), _O_LOOKUP)
+    except OSError as exc:
+        raise BoundaryUnknown(
+            "boundary",
+            f"✗ 목적지를 열 수 없다 ({path}: {exc}) — 어느 mount 위인지 커널에게 "
+            "물을 수 없으므로 게시하지 않는다 (fail-closed)")
+    try:
+        info = Path(f"/proc/self/fdinfo/{fd}").read_text(encoding="utf-8")
+    except OSError as exc:
+        raise BoundaryUnknown(
+            "boundary",
+            f"✗ fd 의 mount ID 를 읽을 수 없다 ({path}: {exc}) — 얼린 tree 의 "
+            "별칭인지 답할 수 없으므로 게시하지 않는다 (fail-closed)")
+    finally:
+        os.close(fd)
+    for ln in info.splitlines():
+        if ln.startswith("mnt_id:"):
+            return ln.split(":", 1)[1].strip()
+    raise BoundaryUnknown(
+            "boundary",
+        f"✗ fdinfo 에 mnt_id 가 없다 ({path}) — 이 커널에서는 목적지의 mount 를 "
+        "확정할 수 없으므로 게시하지 않는다 (fail-closed)")
+
+
+def _fs_identity(path) -> tuple:
+    """`(major:minor, 그 filesystem **안**의 경로)` — 이름이 아니라 **대상**의 좌표.
+
+    이 좌표는 bind·겹침·symlink·이름 변경에 불변이다. 그러므로 "얼린 tree 안인가"
+    를 이 좌표에서 물으면 "어떤 이름으로 왔는가" 는 더 물을 필요가 없다
+    (57차 P0-4). 55·56차가 이름을 하나 골라 되돌리려다 세 번 틀린 자리다.
+
+    `root` 는 **그 filesystem 안의** 경로다 (56차 P0-7) — namespace 절대경로가
+    아니다. 별도 tmpfs 의 child 를 bind 하면 `root=/child` 다.
+
+    목적지는 **아직 없을 수 있다** (새 cohort 디렉터리를 만들기 직전에 묻는
+    것이 이 검사의 정상 용례다). 그래서 존재하는 가장 깊은 조상에게 커널에
+    묻고, 없는 나머지는 그 좌표 뒤에 그대로 붙인다 — 없는 이름 위에는 아무 것도
+    mount 되어 있지 않으므로 그 이어붙임에 추측이 없다.
+    """
+    table = _mount_table()
+    probe, tail = Path(path).resolve(), []
+    while not probe.exists() and probe.parent != probe:
+        tail.append(probe.name)
+        probe = probe.parent
+    mid = _kernel_mount_id(probe)
+    m = next((x for x in table if x["id"] == mid), None)
+    if m is None:
+        raise BoundaryUnknown(
+            "boundary",
+            f"✗ 커널이 답한 mount {mid} 가 mountinfo 에 없다 ({path}) — "
+            "mount 표가 그 사이에 바뀌었을 수 있으므로 게시하지 않는다")
+    try:
+        rel = probe.relative_to(Path(m["mp"]))
+    except ValueError:
+        raise BoundaryUnknown(
+            "boundary",
+            f"✗ 커널이 답한 mount 를 목적지 경로에 맞출 수 없다 "
+            f"({probe} 가 {m['mp']!r} 아래가 아니다) — 게시하지 않는다")
+    fs = Path(m["root"]) / rel if str(rel) != "." else Path(m["root"])
+    for name in reversed(tail):
+        fs = fs / name
+    return (m["dev"], fs)
+
+
 def is_inside_namespace(path, namespace) -> bool:
     """`path` 가 `namespace` **안**인가 — 어휘가 아니라 실물로 (47차 P0-3).
 
@@ -3896,16 +4064,39 @@ def is_inside_namespace(path, namespace) -> bool:
         try:
             st = os.stat(nxt, follow_symlinks=False)
         except FileNotFoundError:
-            return True                 # 여기부터는 아직 없다 — 실행이 만든다
+            # ★ 58차 L4 — 여기서 `return True` 하면 **아래 좌표 검사에 안 닿는다.**
+            #   원래 판본이 그랬고, 그래서 아직 없는 꼬리를 붙인 목적지는 어휘
+            #   검사만 통과하면 무조건 "안" 이 됐다. bind alias 아래의 새 디렉터리가
+            #   정확히 그 모양이다. 없는 꼬리는 `_fs_identity()` 가 이미 다루므로
+            #   (존재하는 가장 깊은 조상에 커널이 답하고 나머지를 잇는다) 여기서는
+            #   **loop 만 끝내고** 좌표 판정으로 내려간다.
+            break
         except OSError:
             return False
         if stat.S_ISLNK(st.st_mode):
             return False                # alias 는 언제든 밖을 가리킬 수 있다
         cur = nxt
-    try:
-        return cur == ns_real or ns_real in cur.parents or cur.samefile(ns_real)
-    except OSError:
-        return False
+    # ★ 58차 L4 — 어휘·symlink 검사를 통과했다고 끝이 아니다. **커널 좌표로
+    #   담김을 다시 묻는다.**
+    #
+    #   위 loop 는 symlink 만 거부한다. bind mount 는 symlink 가 아니므로 그냥
+    #   통과했고, 리뷰어가 실물 mount 로 재현했다 — 저장소 밖 디렉터리를
+    #   `results/_smoke/alias` 에 bind 하면 계획에 없는 다리가 면제를 받고
+    #   **쓴 것이 namespace 밖에 떨어졌다** (우리도 재현했다).
+    #
+    #   금지 목록을 늘리지 않는다 (56차가 거절한 방식이다). 대신 물음을 바꾼다:
+    #   `(major:minor, filesystem 안의 경로)` 는 bind·겹침·이름 변경에
+    #   불변이므로, 그 좌표에서 담김을 물으면 "어떤 이름으로 왔는가" 를 더
+    #   물을 필요가 없다. publisher guard 가 이미 쓰는 좌표와 **같은 함수**다.
+    #
+    #   좌표를 못 얻으면 `BoundaryUnknown` 이 올라온다 — 삼키지 않는다.
+    #   "모른다" 를 "안이다" 로 바꾸면 그것이 fail-open 이고, 이 검사는 계획
+    #   gate 면제를 정하는 자리다.
+    ns_dev, ns_fs = _fs_identity(ns_real)
+    p_dev, p_fs = _fs_identity(p)
+    if ns_dev != p_dev:
+        return False                    # 다른 filesystem — 담길 수 없다
+    return p_fs == ns_fs or ns_fs in p_fs.parents
 
 
 #: 승격 거부의 **고유 표식**. 경로에 "smoke" 가 들어 있으므로 그 단어만으로는
