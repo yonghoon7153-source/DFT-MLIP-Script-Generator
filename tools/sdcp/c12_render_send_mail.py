@@ -55,8 +55,10 @@ ret = m.group(1).strip("\n")
 assert "MANIFEST.json" in ret and "job.json" in ret and "RESULTS.json" in ret, "반송 절에 정본 항목 누락"
 
 # ── walltime 문장: README 의 '⚠ **walltime**' 로 시작하는 불릿 (한 문장 출처) ──
-mw = re.search(r"- (⚠ \*\*walltime\*\*.*?)(?=\n- \*\*POTCAR)", readme, re.S)
-assert mw, "README 에 walltime 문장 없음"
+# ⚠ 2026-09-08 — README 의 문장이 "⚠ **walltime — 요청은 단계 기준 하나입니다.**" 로 바뀌었다.
+#   접두만 맞춘다 (정확 일치는 문장을 고칠 때마다 렌더러를 깨뜨린다).
+mw = re.search(r"- (⚠ \*\*walltime.*?)(?=\n- \*\*POTCAR)", readme, re.S)
+assert mw, "README 에 walltime 문장 없음 ('⚠ **walltime' 로 시작하는 불릿이 있어야 한다)"
 wall = mw.group(1).strip()
 
 # ── 재개 조건: MANIFEST.kconv_pair (사전등록에서 복사된 것) ──
@@ -99,9 +101,18 @@ elif a.supersedes == "v36":
 - **요청하실 walltime 이 잡 단위가 아니라 단계 단위입니다** — 러너는 한 할당 안에서 그 단계를
   다 돌리므로 **단계당 {_sreq} h** 가 필요합니다. 종전 메일의 '잡당 84 h' 만 보시면 잡이 다
   끝나기 전에 할당이 잘릴 수 있었습니다.
+- **배치를 선언이 아니라 실측으로 확인합니다.** 러너가 첫 VASP 전에 같은 launcher 로 `hostname` 을
+  동시 {conc}개 띄워 랭크가 실제로 어느 노드에 놓이는지 읽고, 잡 사이에 노드가 겹치면 멈춥니다.
+  결과 `PLACEMENT_PROBE.json` 을 반송 목록에 넣었습니다. SLURM 밖에서 돌리시면 할당 호스트 목록을
+  `VASP_HOSTFILE` 로 주십시오 (SLURM 안에서는 자동).
+- ⛔ **큐 상한 확인이 필요합니다.** 단계당 {_sreq} h 는 알려 주신 잡당 큐 상한 91 h 로는 충족되지
+  않습니다. 더 긴 할당이 가능한지, 아니면 완료된 잡 사이에서 단계를 이어갈 운영 방식이 있는지
+  **제출 전에** 알려 주십시오 — 이 답을 받기 전에는 시작하지 말아 주십시오.
 - **반송 압축에서 POTCAR 를 빼 주십시오** (라이선스). `--exclude=POTCAR` 를 명령에 넣었습니다.
-  증빙(`POTCAR_PROVENANCE.json` 등)은 그대로 두시면 됩니다.
-- 그 밖의 실행 절차·반송 목록·게이트는 **v36 과 동일**합니다."""
+  증빙(`POTCAR_PROVENANCE.json` · `PLACEMENT_PROBE.json` 등)은 그대로 두시면 됩니다.
+- 그 밖의 실행 절차·반송 목록·게이트는 **v36 과 동일**합니다.
+- (v37 은 내부 리뷰에서 배치·시간 계약 결함이 발견돼 **발송 전에 철회**했습니다 — 받으신 적이
+  없어야 정상입니다.)"""
 else:
     _changes = f"""- **선택 attestation 함정 제거**: `MAKE_POTCAR_ATTESTATION.sh` 가 VASP stdout 전문을 적고 봉인은
   토큰만 담아, 돌리면 1단계를 다 돌린 뒤에야 판정이 막히는 결함(렌즈4 P0-1). 둘 다 토큰으로 통일했다.
