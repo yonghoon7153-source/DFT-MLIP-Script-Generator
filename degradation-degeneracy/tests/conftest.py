@@ -126,12 +126,21 @@ def _exec_class_registry_is_not_polluted_by_tests():
     고치는 대신 여기서 쓸어 담는 이유는, 이 pollution 이 fixture 하나의 문제가
     아니라 **"시험이 production authority 를 만진다"** 는 부류이기 때문이다 —
     새 시험이 같은 실수를 해도 여기서 걸린다.
+
+    ★ 58차 L5 후속 — **authority 를 새로 만들면 이 목록에 같이 적는다.**
+      L5 가 얼린 좌표 봉인(`_frozen_coords/`)을 만들자마자 똑같은 일이
+      벌어졌다: 한 번의 회귀로 19건이 쌓였고 전부 `/tmp/pytest-of-root/...`
+      였다. 등록부가 하나 늘 때마다 이 목록도 늘어야 한다 — 그 사실을 여기
+      적어 두지 않으면 다음 authority 에서 또 반복된다.
     """
-    reg = ROOT / "docs" / "22p_gap" / "_exec_class"
-    before = {p.name for p in reg.glob("*.json")} if reg.is_dir() else set()
+    regs = [ROOT / "docs" / "22p_gap" / "_exec_class",
+            ROOT / "docs" / "22p_gap" / "_frozen_coords"]
+    before = {r: ({q.name for q in r.glob("*.json")} if r.is_dir() else set())
+              for r in regs}
     yield
-    if not reg.is_dir():
-        return
-    for p in reg.glob("*.json"):
-        if p.name not in before:
-            p.unlink(missing_ok=True)
+    for r in regs:
+        if not r.is_dir():
+            continue
+        for q in r.glob("*.json"):
+            if q.name not in before[r]:
+                q.unlink(missing_ok=True)

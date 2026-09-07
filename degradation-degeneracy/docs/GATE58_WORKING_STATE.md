@@ -29,14 +29,14 @@
 | L1 | P0 | production smoke 가 class 를 기록 안 함 + 이동 후 legacy migration 이 canonical 발급 | `src/grid.py:403` · `src/fitting.py:884` · `preserve.py:3747` | **GREEN** |
 | L2 | P0 | `run_content_id()` first-present 충돌 + conflict 삼킴 | `preserve.py:3946` · `3763` | **GREEN** |
 | L3 | P0 | class 등록부가 CAS 아님 (last-writer-wins) | `preserve.py:3979-3993` | **GREEN** |
-| L4 | P0 | bind mount 외부 디렉터리가 smoke 면제 | `preserve.py:3853-3900` | 대기 |
-| L5 | P0 | 가려진 frozen ancestor 가 writable + `_names_for()` 가 `SystemExit` 삼킴 | `row_projection.py:4327-4353` · `4388-4397` | 대기 |
-| L6 | P0 | 소비된 phase receipt 를 늦은 writer 가 덮어씀 | `preserve.py:4606-4610` · `5934` | 대기 |
-| L7 | P0 | clone 밖 absolute bundle 이 `full_bundle` | `preserve.py:5661` · `5670` | 대기 |
+| L4 | P0 | bind mount 외부 디렉터리가 smoke 면제 | `preserve.py:3853-3900` | **GREEN** |
+| L5 | P0 | 가려진 frozen ancestor 가 writable + `_names_for()` 가 `SystemExit` 삼킴 | `row_projection.py:4327-4353` · `4388-4397` | **검증 중** |
+| L6 | P0 | 소비된 phase receipt 를 늦은 writer 가 덮어씀 | `preserve.py:4606-4610` · `5934` | **GREEN** |
+| L7 | P0 | clone 밖 absolute bundle 이 `full_bundle` | `preserve.py:5661` · `5670` | **GREEN** |
 | L8 | P0 | directory fsync 실패를 삼키고 issuance 성공 | `preserve.py:5029` · `5226` | **GREEN** |
 | L14 | P0 | (자체 발견) smoke 레코드가 공유 등록부에 쌓여 트리가 더러워진다 | `preserve.py` 등록부 root | **GREEN** |
 | L9 | P0 | producer closure — AnnAssign RHS · name-only decorator · 함수 지역 alias | `row_projection.py:681-722` · `772-808` · `1016-1067` | 대기 |
-| L10 | P1 | normal finalize 가 `verifier_origin` 위조 가능 | `preserve.py:5681` · `5993` | 대기 |
+| L10 | P1 | normal finalize 가 `verifier_origin` 위조 가능 | `preserve.py:5681` · `5993` | **GREEN** |
 | L11 | P1 | 강제 환경이 transitive code bytes 를 안 묶음 (`sitecustomize.py`) | `mutation_replay.py:3135-3214` | 대기 |
 | L12 | P1 | report 안 건드리고 execution evidence 세탁 → 170/170 통과 | `mutation_replay.py:3432-3498` | 대기 |
 | L13 | P1 | 회귀 2건이 배선을 안 부름 + 등록부에 신규 방어 anchor 없음 | `tests/test_docs_lint.py:11799-11908` · `mutation_replay.py` MUTANTS | 대기 |
@@ -239,3 +239,136 @@
   이 저장소가 아는 "fixture 가 진실을 가린다" 의 변종인데, 가리는 것이 fixture 가
   아니라 **더 강해진 제품**이다. 강화할 때마다 기존 anchor 가 여전히 무는지를
   변이로 다시 물어야 한다.
+
+- 2026-09-07 (이어서) — **묶음 β 닫음 (L4·L5).** 둘 다 **실물 `mount --bind`** 로
+  먼저 재현했다.
+
+  ### L4 — smoke 경계
+
+  | 관측 | 고치기 전 |
+  |---|---|
+  | `is_inside_namespace` | true (smoke 안이라고 판정) |
+  | 계획 gate | **통과(면제)** |
+  | 쓴 것이 namespace 밖에? | **true** |
+
+  커널 좌표 helper 넷을 `row_projection.py`(RUN_SCOPE 밖) → `tools/preserve.py`
+  (안)로 옮기고 `is_inside_namespace()` 가 그 좌표로 담김을 묻게 했다.
+  **왜 안으로 옮기나**: (a) 한 경계, 한 함수 — smoke containment 와 frozen guard 가
+  갈려 있었고 L4 가 그 틈이었다. (b) 봉인 범위 — `row_projection.py` 는 RUN_SCOPE
+  밖이라 거기 있던 경계 판정을 `source_digest` 가 안 덮었다.
+  **되돌릴 수 있다. 다만 그때도 한 자리여야 한다.** 요청문에 적는다.
+
+  **고치는 도중 진짜 원인이 하나 더 나왔다.** 좌표 검사를 붙였는데도 통과했다 —
+  loop 의 `except FileNotFoundError: return True` 가 그 검사에 **닿기 전에**
+  돌아가고 있었다. bind alias 아래의 새 디렉터리가 정확히 그 모양이다.
+
+  ### L5 — 가려진 frozen ancestor
+
+  | 관측 | 고치기 전 |
+  |---|---|
+  | 가린 이름 수 | 1 |
+  | guard | **PASSED** |
+  | 덮개 걷은 뒤 frozen child 안에? | **true** |
+
+  **`_names_for()` 의 예외 삼킴을 고쳐도 이 반례는 안 막힌다** — 이름을 덮으면
+  예외가 나는 게 아니라 후보가 진짜로 없어진다. 그 수정은 따로 했지만
+  충분하지 않다.
+
+  물음을 바꿨다. `_write_frozen_marker()` 가 얼리는 **그 순간의 좌표**를 원장 옆
+  `_frozen_coords/` 에 봉인하고, guard 는 **이름을 한 번도 안 보고** 좌표만
+  비교한다. L4 에서 helper 를 옮긴 것이 여기서 값을 했다 — 두 guard 가 같은
+  좌표 함수를 쓴다.
+
+  ### ★ 또 내 시험이 거짓을 단언했다 (이 라운드 네 번째)
+
+  처음에 "이름을 바꿔도 봉인이 따라온다" 를 단언했다. **틀렸다.** 실측:
+
+      rename 전  ('254:0', .../gA)
+      rename 후  ('254:0', .../gA-renamed)
+
+  `_fs_identity()` 의 둘째 항은 filesystem **안의 경로**이고 경로는 곧 이름이다.
+  이 좌표가 불변인 것은 **같은 대상을 어떤 창으로 보는가** 에 대해서이지
+  **대상을 옮기는 것**에 대해서가 아니다.
+
+  그래서 그 시험을 **한계를 고정하는 시험**으로 바꿨다
+  (`test_the_seal_is_not_invariant_under_rename__a_recorded_limit`). frozen
+  디렉터리를 `mv` 하면 좌표 봉인이 자손을 더는 안 덮는다는 사실을 명시로
+  못 박아, 나중에 누가 "rename 도 막는다" 고 믿지 않게 했다.
+
+  > **남은 한계 (요청문에 적는다)**: 제대로 닫으려면 좌표가 아니라 **파일
+  > handle 급 identity**(재부팅에도 사는 fsid + inode 계보)가 필요하다.
+  > 이 라운드 범위 밖이다.
+
+  변이 감사: J(guard 의 봉인 조회 제거) · K(freeze 시점 봉인 안 함) 둘 다 잡힘.
+  L4 쪽은 H(좌표 검사 제거) · I(경로 담김 제거) 둘 다 잡힘.
+
+  ### 이 라운드에서 내 시험이 문제였던 것 — 네 번
+
+  1. α' barrier 가 임계 구역 바깥 → 스케줄러를 증명
+  2. γ  내 수정이 54차 회귀를 vacuous 하게 만듦
+  3. β  격리된 척했지만 저장소에 씀 (`SMOKE_NAMESPACE` 절대경로 흡수)
+  4. β  참이 아닌 성질을 단언 (rename 불변성)
+
+  `[해석]` 네 번 다 **변이 감사나 재현 시도**가 잡았다. 초록만 보고 넘어갔으면
+  넷 다 놓쳤다.
+
+## ★ 라운드 마감 작업 (미룬 것 — 잊으면 안 된다)
+
+L5 뒤 전체 회귀가 **1465 passed · 3 failed** 였다. 셋 다 **산출물 identity 가
+낡은 것**이고 논리 실패가 아니다:
+
+| 실패 | 원인 |
+|---|---|
+| `test_full_bundle_claims_are_backed_by_a_real_bundle` | `source_digest` 이동 → 검증 영수증 낡음 |
+| `test_projection_analyzer_digests_recompute_from_the_current_tree` | `row_projection.py` 수정 → `compute_sha256`·`row_projection_py_sha256` 이동 |
+| `test_exactly_one_cohort_is_active_and_it_tracks_the_current_tree` | 같은 이유 — 활성 cohort **g12 가 현행 트리를 안 따라간다** |
+
+57차의 g11→g12 와 같은 **cohort 세대 전환**(g12 freeze → g13 생성 → 투영
+재생성 → 영수증 갱신)이 필요하다.
+
+### 왜 지금 안 하는가
+
+**남은 ε(L9)이 같은 파일을 또 고친다.** 리뷰어가 지목한 자리가
+`row_projection.py` 의 `_import_time_heads`(681) · `_namespace_capabilities`(1016)
+이다. 지금 전환하면 ε 뒤에 **또** 해야 하고, 그건 §65 가 가르친 것과 같은
+낭비다 — 트리가 계속 움직이는 동안 증거를 만들지 않는다.
+
+### 마감 순서 (한 번에, 저장소를 얼린 채)
+
+1. ε(L9) · ζ(L11·L12·L13) 코드 수정 완료
+2. **저장소 동결** (RUN_SCOPE·`docs/22p_gap/` 커밋 금지)
+3. g12 freeze → g13 생성 → 투영 재생성
+4. `paired_fixed5_v4` 검증 영수증 재생성 + 원장 identity 갱신
+5. 변이 등록부에 새 축 심기 (P0-8 · `_import_time_heads` ·
+   `_namespace_capabilities` · receipt 배선 · `_run` 환경 ·
+   **54차 lock 명제의 새 증명자**)
+6. 12조각 전수 재생성 — **한 HEAD 에서** (§65)
+7. 전체 회귀 + strict smoke (clean 커밋에서)
+8. 요청문 갱신 → 게이트 재요청
+
+**그때까지 이 셋은 빨간 채로 둔다.** 숨기지 않고 여기 적어 둔 이유다 —
+"초록이어야 커밋한다" 를 지키려고 지금 세대 전환을 하면 두 번 하게 된다.
+
+- 2026-09-07 (β 마감 직전) — **내 안전 수정이 너무 넓어서 회귀가 잡았다.**
+
+  `_frozen_coords` 에 시험 fixture 19건이 쌓였고 그중 하나가 `fs: "/"` 였다.
+  "그 봉인은 모든 경로를 frozen 으로 만든다" 고 보고 **뿌리 봉인을 무조건
+  거부**하게 고쳤다. 전체 회귀가 그것을 잡았다:
+
+      FAILED test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph
+      PreserveError: filesystem 뿌리는 얼린 좌표로 봉인할 수 없다 (… → 0:39:/)
+
+  `[해석]` **내 판단이 틀렸다.** `(dev, /)` 는 "모든 경로" 가 아니라 **그 장치의
+  경로** 다. 별도 파일시스템을 bind 한 정당한 경우에는 그 fs 의 mount root 가
+  `/` 이고, 그 봉인은 정확히 그 장치만 덮는 **좁은** 봉인이다.
+
+  진짜 위험은 "뿌리" 가 아니라 **봉인이 authority 자신을 삼키는 것**이었다.
+  원장이 사는 자리를 덮는 봉인이 들어오면 그 뒤로 원장에 아무것도 못 쓴다 —
+  fail-closed 가 자기 발을 문다. 거부를 거기로 좁혔다.
+
+  > **교훈**: fail-closed 를 늘리는 방향은 대체로 안전하지만 **근거 없이 넓은
+  > 거부**는 안전이 아니라 고장이다. 무엇이 위험한지를 정확히 짚어야 한다.
+  > 그리고 이번에도 그것을 잡은 것은 내 추론이 아니라 **전체 회귀**였다.
+
+  이 라운드에서 내 수정이 만든 결함은 이제 넷이다 (L14 · L3 재파손 ·
+  `_frozen_coords` 오염 · 과잉 거부). 전부 자체 발견이고 전부 **실행이** 잡았다.

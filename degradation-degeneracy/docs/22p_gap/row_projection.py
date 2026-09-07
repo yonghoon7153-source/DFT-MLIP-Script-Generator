@@ -3774,6 +3774,11 @@ def _write_frozen_marker(dest: Path, cohort_id: str, tip: str) -> None:
     finally:
         os.close(fd)
     os.replace(tmp, m)
+    # ★ 58차 L5 — marker 를 tree 안에 두는 것만으로는 부족하다. 조상을 가리는
+    #   mount 가 있으면 **그 marker 를 보여 줄 이름이 없어진다.** 그래서 얼리는
+    #   이 순간의 좌표를 원장 옆에 같이 봉인한다. 조회에 이름이 안 들어간다.
+    from tools.preserve import record_frozen_coordinate
+    record_frozen_coordinate(dest, cohort_id)
 
 
 def read_frozen_marker(dest) -> dict | None:
@@ -4371,6 +4376,19 @@ def _assert_writable(dest: Path) -> None:
     #   frozen tree: true`). 55·56차는 그 이름을 **되돌리려** 했고 세 번 틀렸다.
     #   57차는 되돌리지 않는다 — `(dev, filesystem 안의 경로)` 로 옮겨 놓으면
     #   이름이 몇 겹이든 같은 좌표이고, 비교가 이름에 의존하지 않는다.
+    # ★ 58차 L5 — **봉인된 좌표를 먼저 본다.** 아래 두 층은 지금 보이는
+    #   이름에 의존한다 (원장이 적은 경로 · namespace 가 보여 주는 창).
+    #   이름은 mount 로 바꿀 수 있으므로 그 층들만으로는 경계가 아니다.
+    #   얼릴 때 적어 둔 좌표는 바꿀 수 없다.
+    from tools.preserve import frozen_coordinate_covering
+    _sealed = frozen_coordinate_covering(dest)
+    if _sealed is not None:
+        raise SystemExit(
+            f"✗ `{_sealed}` 는 frozen cohort 다 ({dest}) — 얼릴 때 봉인한 "
+            "파일시스템 좌표 아래이므로 쓸 수 없다. 이름을 바꾸거나 다른 "
+            "mount 로 가려도 이 판정은 안 바뀐다.\n"
+            "  새 세대는 **새 디렉터리**를 쓴다 (계약 v4 §13.3).")
+
     table = _mount_table()
     dev, fs = _fs_identity(dest)
     for cid, frozen in _frozen_cohort_dirs().items():

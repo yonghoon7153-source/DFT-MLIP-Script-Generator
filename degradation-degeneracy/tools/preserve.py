@@ -4026,6 +4026,130 @@ def _fs_identity(path) -> tuple:
     return (m["dev"], fs)
 
 
+def _names_for(dev: str, fs: Path, table) -> list:
+    """이 namespace 가 `(dev, fs)` 를 보여 주는 **모든** 이름 (57차 P1-4).
+
+    창을 하나 고르지 않는다. 56차는 `root` 가 가장 짧은 창을 골랐고, **고른다는
+    것 자체**가 다음 반례의 자리였다. 후보는 전부 만들고, 각각을 **커널에
+    되물어** 정말 그 대상인지 확인한다 — 위에 덮어씌운 mount 로 가려진 이름은
+    그 되물음에서 떨어진다.
+
+    이름이 하나도 없으면 빈 목록이다. 그 조상은 이 namespace 가 아예 보여 주지
+    않는다는 뜻이고 (예: 컨테이너의 `/` 위쪽), 보여 주지 않는 것은 목적지로도
+    쓸 수 없으므로 거부 사유가 아니다.
+    """
+    out = []
+    for c in table:
+        if c["dev"] != dev:
+            continue
+        root = Path(c["root"])
+        if not (root == fs or root in fs.parents):
+            continue
+        sub = fs.relative_to(root)
+        cand = Path(c["mp"]) / sub if str(sub) != "." else Path(c["mp"])
+        try:
+            if _fs_identity(cand) == (dev, fs):
+                out.append(cand)
+        except BoundaryUnknown:
+            # ★ 58차 L5 — **삼키지 않는다.** 이 예외는 "좌표를 못 밝히겠다" 는
+            #   fail-closed 신호인데, 57차는 그것을 `continue` 로 후보 부재로
+            #   번역했다. 호출자는 후보가 없으면 "안전하다" 로 읽으므로 의미가
+            #   정확히 뒤집힌다. 못 밝히면 그대로 올린다.
+            raise
+        except OSError:
+            continue                      # 그 이름이 사라졌을 뿐 — 후보만 제외
+    return out
+
+
+# ── 58차 L5 — frozen 좌표를 **freeze 시점에 봉인**한다 ─────────────────────
+
+def frozen_coords_root_for_ledger(ledger=None) -> Path:
+    """얼린 좌표의 봉인이 사는 곳 — claim·attempt·실행 class 와 같은 authority.
+
+    ★ 왜 이 등록부가 필요한가 (58차 L5).
+
+    `_assert_writable()` 의 마지막 층은 "이 좌표를 보여 주는 **이름**을 찾아
+    그 안의 marker 를 읽는다" 였다. 리뷰어는 frozen root 를 가리키는 이름을
+    무해한 bind 로 **덮어** 그 층을 통과시켰다 — 예외가 난 것이 아니라
+    **후보가 진짜로 없어졌다**. 그래서 `_names_for()` 의 예외 삼킴을 고쳐도
+    (고쳤다, 위) 이 반례는 안 막힌다.
+
+    물음이 틀렸다. "지금 이 좌표를 볼 수 있는 이름이 있는가" 는 공격자가
+    mount 로 바꿀 수 있는 질문이다. 바꿀 수 없는 질문은 **"우리가 얼릴 때
+    적어 둔 좌표 아래인가"** 다. 얼리는 순간의 `(major:minor, filesystem 안의
+    경로)` 를 여기 봉인해 두면 그 뒤로 이름이 몇 겹으로 덮이든 판정이 안
+    바뀐다 — 조회에 이름이 들어가지 않기 때문이다.
+    """
+    return canonical_ledger(ledger).parent / "_frozen_coords"
+
+
+def record_frozen_coordinate(dest, cohort_id: str, ledger=None) -> Path:
+    """얼리는 순간의 좌표를 봉인한다. `_write_frozen_marker()` 가 부른다."""
+    dev, fs = _fs_identity(dest)
+    # ★ 58차 — **원장 자신을 덮는 봉인은 거부한다.**
+    #
+    #   처음에는 "filesystem 뿌리(`fs == "/"`)는 무조건 거부" 로 썼다. **너무
+    #   넓었다.** 회귀가 잡았다 — 별도 파일시스템을 bind 한 정당한 경우
+    #   (`test_a_bind_from_a_separate_filesystem_is_resolved_by_the_mount_graph`)
+    #   에서 그 fs 의 mount root 가 `/` 이고, 그 봉인은 **그 장치만** 덮는
+    #   정확히 좁은 봉인이다. `(dev, /)` 는 "모든 경로" 가 아니라 "그 장치의
+    #   경로" 다.
+    #
+    #   `[해석]` 내가 막으려던 진짜 위험은 "뿌리" 가 아니라 **봉인이 authority
+    #   자신을 삼키는 것**이다. 원장이 사는 자리를 덮는 봉인이 들어오면 그 뒤로
+    #   원장에 아무것도 못 쓴다 — fail-closed 가 자기 발을 문다. 그것만 막는다.
+    #
+    #   교훈: fail-closed 를 늘리는 방향은 대체로 안전하지만 **근거 없이 넓은
+    #   거부**는 안전이 아니라 고장이다. 무엇이 위험한지를 정확히 짚어야 한다.
+    _led_dev, _led_fs = _fs_identity(canonical_ledger(ledger).parent)
+    if dev == _led_dev and (fs == _led_fs or fs in _led_fs.parents):
+        raise PreserveError(
+            "promote",
+            f"이 좌표는 원장 자신을 덮는다 ({dest} → {dev}:{fs}) — 봉인하면 "
+            "그 뒤로 authority 에 아무것도 쓸 수 없다")
+    root = frozen_coords_root_for_ledger(ledger)
+    root.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha256(f"{dev}\x00{fs}".encode("utf-8")).hexdigest()
+    rec = {"cohort_id": str(cohort_id), "dev": dev, "fs": str(fs),
+           "at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    path = root / f"{key}.json"
+    _atomic_write_json(path, rec)
+    return path
+
+
+def sealed_frozen_coordinates(ledger=None) -> list:
+    """봉인된 좌표 전부 — `(cohort_id, dev, fs)`."""
+    root = frozen_coords_root_for_ledger(ledger)
+    if not root.is_dir():
+        return []
+    out = []
+    for f in sorted(root.glob("*.json")):
+        try:
+            rec = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise PreserveError(
+                "promote",
+                f"얼린 좌표 봉인을 읽을 수 없다: {f} — 읽을 수 없는 봉인은 "
+                "통과가 아니다 (fail-closed)")
+        if not (rec.get("cohort_id") and rec.get("dev") and rec.get("fs")):
+            raise PreserveError("promote", f"얼린 좌표 봉인이 불완전하다: {f}")
+        out.append((rec["cohort_id"], rec["dev"], Path(rec["fs"])))
+    return out
+
+
+def frozen_coordinate_covering(dest, ledger=None):
+    """이 목적지를 덮는 **봉인된 얼린 좌표**의 cohort_id (없으면 `None`).
+
+    이름을 한 번도 안 본다 — 좌표만 비교한다. 그래서 mount 로 이름을 덮어도
+    답이 안 바뀐다.
+    """
+    dev, fs = _fs_identity(dest)
+    for cid, fdev, ffs in sealed_frozen_coordinates(ledger):
+        if fdev == dev and (ffs == fs or ffs in fs.parents):
+            return cid
+    return None
+
+
 def is_inside_namespace(path, namespace) -> bool:
     """`path` 가 `namespace` **안**인가 — 어휘가 아니라 실물로 (47차 P0-3).
 
