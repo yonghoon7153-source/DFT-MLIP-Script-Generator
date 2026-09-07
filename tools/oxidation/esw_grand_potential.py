@@ -479,8 +479,15 @@ def selftest():
         _, w3 = landmark_mu(ents, "Li", "Li2SO4", "O")
         chk(w3 is not None, "⛔음성: 비-O 조성이 비례하지 않으면 **억지로 균형 잡지 않는다** "
                             "(Li→Li2SO4 는 S 가 환원형에 없다)")
-        _, w4 = landmark_mu(ents, "Li", "Nonexistent2O3", "O")
-        chk(w4 is not None and "hull" in w4, "⛔음성: hull 에 없는 상은 사유를 말하고 None")
+        # ⚠ 2026-09-07 — 이 시험이 처음엔 "Nonexistent2O3" 하나로 **두 경로를 섞었다.**
+        #   파싱을 고치자 실패 모드가 '화학식을 못 읽는다' 로 바뀌었고 시험은 옛 문구('hull')를
+        #   찾다 죽었다. **코드가 아니라 시험이 틀린 것**이고, 갈라야 맞다.
+        _, w4a = landmark_mu(ents, "Li", "Li2SO3", "O")     # 읽히지만 hull 에 없다
+        chk(w4a is not None and "hull" in w4a,
+            "⛔음성: **읽히지만 hull 에 없는 상**은 사유를 말하고 None")
+        _, w4b = landmark_mu(ents, "Li", "Nonexistent2O3", "O")   # 아예 안 읽힌다
+        chk(w4b is not None and "못 읽는다" in w4b,
+            "⛔음성: **아예 못 읽는 화학식**에 예외로 죽지 않고 사유를 말한다 (오타 방어)")
         _, w5 = landmark_mu(ents, "Li2O", "Li2O", "O")
         chk(w5 is not None, "⛔음성: O 개수가 안 변하면 산화반응이 아니라고 말한다")
 
