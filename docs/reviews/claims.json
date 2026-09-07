@@ -2099,6 +2099,23 @@
    "reviews_work_dated": "2026-09-07",
    "shared_input": null,
    "verdict": "**세 항목 전부 통과 — Phase A 의 사전 블로커가 없다.**\n**① STEP2 격자 안전** (최소 통과 n_grid 179).  ⚠⚠ **STEP3 안전으로 읽지 말 것** — `d_h/dx` 는 MPM SE 응력 게이트이고 STEP3 는 SE neck 이 지배해 `h = 0.20 · 0.25` 에서 85.6 % · 97.4 % 가 미해상이다 (CL-72).  **두 게이트가 반대 방향**이라는 것이 요점이다.\n**② 객체 수 확정.**  ⚠ PTFE 는 1 wt% 고정인데 개수가 3.2 % 는다 — wt% 가 전체의 몫이라 VGCF 가 늘면 총질량도 늘기 때문이다.  *\"PTFE 고정\"* 은 **wt% 고정이지 개수 고정이 아니다.**\n**③ 각도 위험이 낮다** ⇒ CL-73 의 STEP4 HOLD 를 풀 근거가 생겼다 (해제 자체는 실제 런 게이트 통과 후).  미접촉 0 개 = 최악 모드 없음 · `K = 8` 이라 사다리 최저단 12 로 충분.\n★★ **두께 가설이 세 번째로 반증됐다** — 113 µm 두꺼운 침대인데 z 기울기가 없다 (0.5915 → 0.5700).  얇은 real14(28.8 µm)가 오히려 강했다 (0.576 → 0.336).\n⚠ **이 침대는 옛 캠페인 침대가 아니다** (다른 realization).  다만 조성은 사실상 같아 옛 객체 수를 네 자리까지 재현한다.  옛 침대에 기대던 서술(CL-73 의 coverage 반례 등)은 이 침대에서 **다시 재야** 한다."
+  },
+  {
+   "id": "CL-79",
+   "date": "2026-09-07",
+   "status": "live",
+   "kind": "measurement_record",
+   "claim": "**Codex R9 = Phase A RUN HOLD.**  P0 두 건이 내 도구의 결함이고, Q1~Q4 중 셋이 내 서술의 결함이다.  ★ 가장 아픈 것: **exact replay 게이트가 fail-open** 이었다 — QC 를 참값의 1000배로 넣어도 `ORDER-ROBUST` 가 나왔다.  ★★ 그리고 **Q1 의 \"조성 무관\" 철회를 다시 철회한다** — `c_P` 는 상수가 맞지만 `dilate_z` 가 조성마다 달라(1.0214→1.1085) `WALL0` 을 바꾸고, 기하 규칙이 속도를 높이에 비례시켜 **Mach 가 VGCF 와 함께 +7.9 % 단조 증가**한다.",
+   "measured": {
+    "metric": "Codex R9 (스냅샷 9e66c042) + 리포 재현.  판정기 반례 실행 · 킷 dilate-z 판독 · 봉인 게이트 조회 · 원자료 키 확인.",
+    "value": "```\n① replay fail-open (재현)\n   verdict(_full(.05) + [qc_replay ×8 @ σ=9.9])  →  ORDER-ROBUST · passes: None\n   원인: QC 끼리 묶고 len<2 를 continue.  계획은 셀당 primary1+QC1 ⇒ 모든 묶음 길이 1\n   ⇒ CL-74(끝-누수)와 **구조 동일** — 마지막 원소에서 조건이 공허참\n\n② dilate-z 조성별 (킷 실측)\n   W1 1.0214 · W2 1.0519 · W3 1.0798 · W4 1.1085        (단조)\n   Codex 재계산 Mach  0.42745 / 0.43928 / 0.45010 / 0.46123   (+7.9 %)\n\n③ \"4.8 % = δ_num 120배\" 는 **범주 오류**\n   xfer JSON 의 0.1616→0.1694 은 **final_stress_GPa** — σ_e 가 아니다 (리포 확인)\n\n④ angular_risk.json = **code_dirty: true**\n   내 게이트가 \"인용 금지\" 라고 적어둔 파일을 README·prereg·CL-78 에서 인용했다\n\n⑤ Q2 — neck 통계는 σ_e 게이트가 아니다 (그 분석은 압밀 전 구의 **이온** 축, Phase A 는 --no-ion)\n   6-face 재계산: 참 접촉 누락 0.060/0.246/0.863 % vs **가짜 face 접촉 18.06/20.93/23.28 %**\n   VGCF 는 항상 1-voxel tube → 단면이 h 에 따라 1.27×/2.26×/3.54× ⇒ h 가 feature 를 바꾼다\n\n⑥ Q4 — porosity 차 14.321→13.699 는 알려진 항으로 닫힌다\n   높이 +1.253 %p · 첨가제 체적 −3.142 %p · union/raster +1.268 %p  ⇒ 잔차 없음\n```",
+    "unit": "mixed"
+   },
+   "asserted": "`docs/reviews/codex_request_phase_a_rate_20260907.md` 네 질문에 대한 판정.  스모크 1 런(VGCF 1 wt%) 완주 후 96 팔 시작 전에 물었다.",
+   "provenance": "Codex R9 적대 리뷰 2026-09-07 (스냅샷 `9e66c042`).  P0-2·dilate-z·code_dirty·final_stress_GPa 네 건은 이 리포에서 **직접 재현 확인**.  판정 정본 = `docs/reviews/codex_r9_verdict_phase_a_20260907.md`.",
+   "reviews_work_dated": "2026-09-07",
+   "shared_input": null,
+   "verdict": "**RUN HOLD — 기하 재하율로 96 팔을 시작하지 않는다.**\n**즉시 고친 것 둘**: ① replay 게이트를 primary 쌍둥이 대비로 바꾸고 QC 부재·orphan·중복을 전부 HOLD 로 (selftest 17/17, 반례 ⑤b~⑤e 신설).  ② `phase_a_plan.py` 를 **실행 거부**로 전환 (15/15 초록인 채로 실행 불가능한 명령을 냈다).\n★★ **교훈 — 필수 토큰을 세는 것은 필수 입력이 빠졌는지 확인하는 것이 아니다.**  계획을 자료구조로 만들어 검사 가능하게 한 것은 옳았고 **무엇을 검사할지 고른 것이 틀렸다.**\n**남은 것**: porosity 정본 단일화(14.321 vs 킷 14.283) · angular_risk 재측정(네 조성 post-STEP2 · periodic-aware · 깨끗한 트리) · 사전등록 v2.\n⛔ **기하 규칙으로 바꾸는 개정은 허용되지 않는다** (Codex).  선택지는 (a) 네 조성 전부 고정 Mach 0.03 → *\"그 규약에 조건부인 순서\"* 로 결론 제한, 또는 (b) rate×composition 대조 추가 (최소 {W1,W4}×{0.03,0.01} = 증분 2 STEP2 + 16 STEP3; 전체 강건성은 8 STEP2 + 64 STEP3).\n⚠ 내 비용 산술도 틀렸다 — (b) 를 20~38 h 로 적었으나 실제 ~70~143 h.\n⚠ smoke 는 **exploratory/excluded pilot** 로 날짜와 함께 남긴다.\n⚠ **W3·W4 STEP2 시작 금지** — 재하율 규약이 정해질 때까지."
   }
  ],
  "quotation_ban": [

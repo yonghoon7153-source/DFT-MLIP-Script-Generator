@@ -1,26 +1,50 @@
 #!/usr/bin/env python3
-"""Phase A 실행 계획 생성기 — 사전등록 §1·§4·§5 를 **실제 명령으로** 펼친다.
+"""⛔ 폐기 — 이 계획 생성기는 **실행 불가능한 명령을 만든다**.  킷 경로가 대체한다.
 
-    python3 scripts/phase_a_plan.py                       # 요약
-    python3 scripts/phase_a_plan.py --emit sh > run.sh    # 실행 스크립트
-    python3 scripts/phase_a_plan.py --selftest
+⚠⚠ 2026-09-07 (Codex R9, P0-1) — 이 파일은 selftest 15/15 를 통과하면서 캠페인을 **시작조차
+못 하는** 명령을 냈다.  검사가 센 것은 *"있어야 할 축이 다 있나"* 였고, *"이 명령이 도는가"* 는
+한 번도 묻지 않았다.  실제로 빠진 것:
 
-━━ 왜 셸이 아니라 파이썬인가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-실행은 GPU 기계에서 하지만 **계획은 여기서 전수 검증된다**.  리포가 이미 아홉 번 잡은 결함이
-*"규약 축이 봉인 문서엔 있는데 **실제 명령엔 없다**"* 이고 (CLAUDE.md 규율 ⑤), 그건 셸
-스크립트로는 시험이 안 된다.  ⇒ 계획을 **자료구조로** 만들고 selftest 가 그 자료구조를 센다.
+  · `--add-recipe VGCF=1,PTFE=1`  → 파서는 `VGCF:PTFE=1:1` 만 받는다
+  · STEP2 에 `--save-se --save-phase --save-fibre --save-fibre-dia --save-metrics` 없음
+  · STEP3 에 `--se --scaffold --phase --fibre --metrics-json` **전부** 없음
+    → 빈 scaffold 의 `max()` 에서 즉시 죽는다
+  · 출력명에 `.json` 이 없는데 판정기는 `arms/*.json` 만 읽는다
+  · 읽어도 payload 는 σ_e 를 `mpm_metrics` **아래**에 두는데 판정기는 최상위를 요구한다
+  · 사전등록 STEP2 봉인축 21 개 중 **17 개 미명시** · `n_grid` 288 vs 실물 킷 256
 
-★ 이 스크립트는 **아무것도 실행하지 않는다.**  명령 문자열만 만든다.
+★ 교훈 — **필수 토큰을 세는 것은 필수 입력이 빠졌는지 확인하는 것이 아니다.**
+  자료구조로 만들어 검사 가능하게 한 것은 옳았고, **무엇을 검사할지 고른 것이 틀렸다.**
 
-━━ 무엇을 펼치나 (prereg §1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    STEP2   4 조성 (VGCF 1/2/3/4 + PTFE 1)  +  Lee 1              =   5 런
-    STEP3   primary  4 조성 × 3 격자 × 8 origin                   =  96
-            secondary 생산·Lee × 0.15 × 8                         =  16
-            QC       exact replay × 8                             =   8
-                                                                    ───
-                                                                    120 팔
-격자 순서는 **0.15 먼저** — 원 질문의 완전한 답이 거기 하나에 다 있다.
+⇒ 정본 경로: `mpm_input_from_case.py` 가 `run_mpm.sh` 를 만들고 그것이 STEP2+STEP3 를 한다.
+  킷 5 개는 `docs/data/phase_a_6mah/kits/` 에 있다.  쓰는 법은 그 폴더의 README.
+
+이 파일은 **기록으로만** 남긴다 — 실행하면 거부한다.
+
+━━ 아래는 폐기 전 원문 (기록) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | Phase A 실행 계획 생성기 — 사전등록 §1·§4·§5 를 **실제 명령으로** 펼친다.
+  |
+  |     python3 scripts/phase_a_plan.py                       # 요약
+  |     python3 scripts/phase_a_plan.py --emit sh > run.sh    # 실행 스크립트
+  |     python3 scripts/phase_a_plan.py --selftest
+  |
+  | ━━ 왜 셸이 아니라 파이썬인가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | 실행은 GPU 기계에서 하지만 **계획은 여기서 전수 검증된다**.  리포가 이미 아홉 번 잡은 결함이
+  | *"규약 축이 봉인 문서엔 있는데 **실제 명령엔 없다**"* 이고 (CLAUDE.md 규율 ⑤), 그건 셸
+  | 스크립트로는 시험이 안 된다.  ⇒ 계획을 **자료구조로** 만들고 selftest 가 그 자료구조를 센다.
+  |
+  | ★ 이 스크립트는 **아무것도 실행하지 않는다.**  명령 문자열만 만든다.
+  |
+  | ━━ 무엇을 펼치나 (prereg §1) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  |     STEP2   4 조성 (VGCF 1/2/3/4 + PTFE 1)  +  Lee 1              =   5 런
+  |     STEP3   primary  4 조성 × 3 격자 × 8 origin                   =  96
+  |             secondary 생산·Lee × 0.15 × 8                         =  16
+  |             QC       exact replay × 8                             =   8
+  |                                                                     ───
+  |                                                                     120 팔
+  | 격자 순서는 **0.15 먼저** — 원 질문의 완전한 답이 거기 하나에 다 있다.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,6 +53,8 @@ import json
 import os
 import shlex
 import sys
+
+_RETIRED = True          # 실행 거부 (모듈 docstring 참조)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -212,6 +238,13 @@ if __name__ == '__main__':
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(_selftest())
+    #  ⛔ 폐기 — 실행 불가능한 명령을 만든다 (모듈 docstring 참조).  selftest 만 남긴다.
+    raise SystemExit(
+        '⛔ phase_a_plan.py 는 폐기됐다 — 이 생성기의 명령은 **실행되지 않는다** '
+        '(STEP3 에 침대 입력이 없어 즉시 죽는다).\n'
+        '   정본 = docs/data/phase_a_6mah/kits/<recipe>/run_mpm.sh  '
+        '(mpm_input_from_case.py 가 생성).\n'
+        '   자세한 것은 이 파일의 docstring 과 그 폴더의 README.md.')
 
     p = plan()
     if a.emit == 'sh':

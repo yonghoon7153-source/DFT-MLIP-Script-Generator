@@ -100,24 +100,53 @@ def check_coverage(primary, prereg=PREREG):
     return sorted(want - have), sorted(have - want)
 
 
-def replay_gate(qc):
-    """③ exact replay — 같은 (조성, vox, origin) 짝의 상대차가 δ_num 안이어야 한다."""
-    by = {}
+def replay_gate(qc, primary):
+    """③ exact replay — QC 팔을 **primary 쌍둥이**와 직접 비교한다.
+
+    ⚠⚠ 2026-09-07 (Codex R9, P0-2) — 초판은 **fail-open** 이었다.  QC 끼리만 묶고
+    `len(g) < 2` 를 `continue` 로 건너뛰었는데, 계획은 셀마다 primary 1 + QC 1 을 만든다
+    ⇒ **모든 묶음이 길이 1** 이라 `rows` 가 비고 `passes = None` 이 되어, 그대로 순서 판정으로
+    넘어가 `ORDER-ROBUST` 가 나왔다.  QC 값을 9.9 (참값의 1000배) 로 넣어도 통과했다.
+    ★ **음성대조가 한 번도 발화하지 않는 상태였다** — 내가 false-green 을 막으려고 만든
+    도구 자신이 오늘 하루 고쳐 온 바로 그 결함을 갖고 있었다.
+
+    ⇒ 세 가지를 fail-closed 로 바꾼다:
+      ① QC 는 같은 (조성, vox, origin) 의 **primary 와** 비교한다 (QC 끼리가 아니라).
+      ② 짝을 못 찾은 QC 가 하나라도 있으면 **거부**.
+      ③ QC 가 **하나도 없으면** 거부 — 음성대조 없이 판정하지 않는다.
+    """
+    idx = {}
+    for a in primary:
+        idx[(round(float(a['vgcf_wt']), 6), round(float(a['vox']), 6), int(a['origin']))] = a
+    rows, worst, orphan, dup = [], 0.0, [], []
+    seen = set()
     for a in qc:
-        by.setdefault((round(float(a['vgcf_wt']), 6), round(float(a['vox']), 6),
-                       int(a['origin'])), []).append(a)
-    rows, worst = [], 0.0
-    for key, g in sorted(by.items()):
-        if len(g) < 2:
-            continue
-        s = [float(x['sigma_e']) for x in g]
-        d = abs(math.log(max(s) / min(s)))
+        key = (round(float(a['vgcf_wt']), 6), round(float(a['vox']), 6), int(a['origin']))
+        t = idx.get(key)
+        if t is None:
+            orphan.append(a.get('_file', str(key))); continue
+        if key in seen:
+            dup.append(a.get('_file', str(key)))
+        seen.add(key)
+        d = abs(math.log(float(a['sigma_e']) / float(t['sigma_e'])))
         worst = max(worst, d)
-        rows.append({'key': list(key), 'n': len(g), 'abs_log_diff': d,
-                     'pct': 100.0 * (math.exp(d) - 1.0)})
-    return {'pairs': rows, 'worst_abs_log_diff': worst,
-            'worst_pct': 100.0 * (math.exp(worst) - 1.0),
-            'passes': worst <= DELTA_NUM if rows else None}
+        rows.append({'key': list(key), 'abs_log_diff': d, 'pct': 100.0 * (math.exp(d) - 1.0),
+                     'qc_file': a.get('_file'), 'primary_file': t.get('_file')})
+    out = {'pairs': rows, 'n_qc': len(qc), 'orphan_qc': orphan, 'duplicate_qc': dup,
+           'worst_abs_log_diff': worst, 'worst_pct': 100.0 * (math.exp(worst) - 1.0)}
+    if not qc:
+        out['passes'] = False
+        out['refused'] = 'QC(exact replay) 팔이 하나도 없다 — 음성대조 없이 판정하지 않는다'
+    elif orphan:
+        out['passes'] = False
+        out['refused'] = (f'primary 쌍둥이를 못 찾은 QC 가 {len(orphan)} 개 — 무엇과 비교했는지 '
+                          f'말할 수 없으면 음성대조가 아니다')
+    elif dup:
+        out['passes'] = False
+        out['refused'] = f'같은 셀에 QC 가 중복 {len(dup)} 개 — 어느 것이 replay 인지 모호하다'
+    else:
+        out['passes'] = bool(worst <= DELTA_NUM)
+    return out
 
 
 def order_stats(primary, prereg=PREREG):
@@ -162,15 +191,14 @@ def verdict(arms):
     if extra:
         out['extra_cells'] = [list(e) for e in extra[:20]]      # 보고만 (등록 밖 팔)
 
-    rep = replay_gate(qc)
+    rep = replay_gate(qc, primary)
     out['replay'] = rep
-    if rep['passes'] is False:
+    if not rep['passes']:
         out.update(order='HOLD',
-                   refused=(f'exact replay 가 δ_num 을 넘었다 ({rep["worst_pct"]:.4f} % > '
-                            f'{DELTA_NUM_PCT} %) — 문턱을 확대하지 말고 전체 HOLD (prereg §2)'))
+                   refused=rep.get('refused') or
+                   (f'exact replay 가 δ_num 을 넘었다 ({rep["worst_pct"]:.4f} % > '
+                    f'{DELTA_NUM_PCT} %) — 문턱을 확대하지 말고 전체 HOLD (prereg §2)'))
         return out
-    if rep['passes'] is None:
-        out['replay_note'] = '⚠ replay 짝이 없다 — QC 가 실행되지 않았다.  판정은 내되 이 사실을 명시할 것'
 
     ds = order_stats(primary)
     ds_sorted = sorted(ds, key=lambda r: r['d'])
@@ -198,6 +226,13 @@ def _mk(role, w, v, o, s, **kw):
     return d
 
 
+def _qc(arms, w=1.0, v=0.15):
+    """그 설계의 primary 와 **같은 값**인 QC 8팔 — 정상 음성대조."""
+    sig = {(a['vgcf_wt'], a['vox'], a['origin']): a['sigma_e']
+           for a in arms if a['role'] == 'primary'}
+    return arms + [_mk('qc_replay', w, v, o, sig[(w, v, o)]) for o in range(PREREG['n_origin'])]
+
+
 def _full(gain=0.05, **kw):
     """설계 전수 팔 — 조성이 오를수록 σ_e 가 `gain` 씩 오른다."""
     return [_mk('primary', w, v, o, 1e-2 * (1 + gain) ** i, **kw)
@@ -214,7 +249,7 @@ def _selftest():
         print(('  PASS  ' if c else '  FAIL  ') + n)
 
     # ① 깨끗한 단조 = ORDER-ROBUST
-    v = verdict(_full(0.05))
+    v = verdict(_qc(_full(0.05)))
     chk(f'① 단조 상승 → ORDER-ROBUST (측정 {v["order"]}, 비교 {v.get("n_comparisons")}회)',
         v['order'] == 'ORDER-ROBUST' and v['n_comparisons'] == 4 * 3 * 8 - 3 * 8)
     # ② 팔 **하나**만 역전시켜도 UNRESOLVED — 최악 팔이 판정을 정한다
@@ -222,7 +257,7 @@ def _selftest():
     for a in arms:
         if a['role'] == 'primary' and a['vgcf_wt'] == 2.0 and a['vox'] == 0.15 and a['origin'] == 3:
             a['sigma_e'] = 1e-2 * 0.5          # 1→2 를 역전시킨다
-    v2 = verdict(arms)
+    v2 = verdict(_qc(arms))
     chk(f'② 96팔 중 **하나**만 역전 → ORDER-UNRESOLVED (위반 {v2.get("n_violating")}건)',
         v2['order'] == 'ORDER-UNRESOLVED' and v2['n_violating'] >= 1)
     # ③ 설계 칸이 비면 **판정하지 않는다** (부분집합 = 조용한 초록)
@@ -235,16 +270,33 @@ def _selftest():
     ac = _full(0.05); ac[7]['cg_info'] = 30000
     chk('④ cg_info ≠ 0 → REFUSED', verdict(ac)['order'] == 'REFUSED')
     # ⑤ replay 가 δ_num 을 넘으면 전체 HOLD (순서가 아무리 좋아도)
-    ar = _full(0.05) + [_mk('qc_replay', 1.0, 0.15, 0, 1e-2),
-                        _mk('qc_replay', 1.0, 0.15, 0, 1e-2 * 1.005)]   # 0.5 % 차
+    ar = _qc(_full(0.05))
+    for x in ar:                                   # QC 하나만 0.5 % 어긋나게
+        if x['role'] == 'qc_replay' and x['origin'] == 0:
+            x['sigma_e'] *= 1.005
     vr = verdict(ar)
     chk(f'⑤ replay 0.5 % > δ_num 0.04 % → HOLD (측정 {vr["order"]})', vr['order'] == 'HOLD')
-    ar2 = _full(0.05) + [_mk('qc_replay', 1.0, 0.15, 0, 1e-2),
-                         _mk('qc_replay', 1.0, 0.15, 0, 1e-2)]          # 바이트 동일
+    ar2 = _qc(_full(0.05))                                            # 쌍둥이와 바이트 동일
     chk('⑤ replay 동일 → 통과하고 순서 판정으로 간다',
         verdict(ar2)['order'] == 'ORDER-ROBUST' and verdict(ar2)['replay']['passes'])
+    # ★ ⑤b Codex R9 P0-2 — QC 가 **셀당 하나**여도 발화해야 한다 (초판은 fail-open)
+    bad_qc = _full(0.05) + [_mk('qc_replay', 1.0, 0.15, o, 9.9) for o in range(8)]
+    vb = verdict(bad_qc)
+    chk(f'⑤b QC 1개/셀 이고 값이 1000배 틀려도 잡는다 (초판은 ORDER-ROBUST 였다) — {vb["order"]}',
+        vb['order'] == 'HOLD')
+    ok_qc = _full(0.05) + [_mk('qc_replay', 1.0, 0.15, o, 1e-2) for o in range(8)]
+    chk('⑤b QC 가 primary 쌍둥이와 같으면 통과한다',
+        verdict(ok_qc)['order'] == 'ORDER-ROBUST')
+    chk('⑤c QC 가 아예 없으면 거부 (음성대조 없이 판정하지 않는다)',
+        verdict(_full(0.05))['order'] == 'HOLD')
+    orph = _full(0.05) + [_mk('qc_replay', 9.0, 0.15, 0, 1e-2)]     # 없는 조성
+    chk('⑤d 쌍둥이 없는 QC → 거부', verdict(orph)['order'] == 'HOLD')
+    dupq = _full(0.05) + [_mk('qc_replay', 1.0, 0.15, 0, 1e-2)] * 2
+    chk('⑤e 같은 셀 QC 중복 → 거부', verdict(dupq)['order'] == 'HOLD')
+
     # ⑥ Secondary(Lee) 는 판정에 관여하지 않는다
-    a6 = _full(0.05) + [_mk('secondary', None, 0.15, o, 1e-9) for o in range(8)]
+    a6 = (_full(0.05) + [_mk('secondary', None, 0.15, o, 1e-9) for o in range(8)]
+          + [_mk('qc_replay', 1.0, 0.15, o, 1e-2) for o in range(8)])
     v6 = verdict(a6)
     chk('⑥ Lee 팔이 아무리 이상해도 ORDER-* 는 안 바뀐다',
         v6['order'] == 'ORDER-ROBUST' and v6['n_secondary'] == 8)
@@ -254,7 +306,7 @@ def _selftest():
           for i, w in enumerate(PREREG['vgcf_wts'])
           for v_ in PREREG['voxes'] for o in range(PREREG['n_origin'])]
     chk('⑦ 증분이 δ_num 의 절반이면 UNRESOLVED (문턱이 실제로 문다)',
-        verdict(ax)['order'] == 'ORDER-UNRESOLVED')
+        verdict(_qc(ax))['order'] == 'ORDER-UNRESOLVED')
     # ⑧ 빈 디렉터리는 거부 (빈 glob 로 조용히 통과하는 사고 방지)
     import tempfile
     with tempfile.TemporaryDirectory() as td:

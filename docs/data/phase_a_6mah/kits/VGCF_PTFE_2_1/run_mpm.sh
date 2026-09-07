@@ -74,7 +74,7 @@ PSIG=(); [ "${MPM_PERIODIC_SIGMA:-0}" = "1" ] && { PSIG=(--periodic); echo "[run
 #   MPM_QUASISTATIC=1 → 처방대로 --platen-mach 0.01.  ⚠ 프레임당 하강폭이 마하비만큼 줄어
 #   --frames 도 같은 배수로 늘려야 하고(MPM_QS_FRAMES, 기본 1500) **런타임이 ~10× 된다**.
 #   ⚠⚠ 그렇게 만든 베드는 기존 코퍼스와 **재하율이 다른 별도 트랙**이다 — 섞어 쓰지 말 것.
-QS=(--allow-fast-platen)
+QS=(--platen-mach 0.03 --allow-fast-platen)
 if [ "${MPM_QUASISTATIC:-0}" = "1" ]; then
   QS=(--platen-mach 0.01 --frames "${MPM_QS_FRAMES:-1500}")
   echo "[run_mpm] ★ MPM_QUASISTATIC=1 → --platen-mach 0.01 --frames ${MPM_QS_FRAMES:-1500} (준정적 처방)"
@@ -87,7 +87,7 @@ fi
 #    ★ "${QS[@]}" 가 --frames 를 덮어쓸 수 있도록 아래 기본 --frames 보다 **뒤에** 온다.
 python3 "$SCR/mpm3d_compaction.py" \
   --am-scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" --periodic \
-  --lateral-box 0.050013 --n-grid 256 --arch cuda --gpu-mem 20 --protocol hold --frames 150 \
+  --lateral-box 0.050013 --n-grid 256 --arch cuda --gpu-mem 20 --protocol hold --frames 2500 \
   "${QS[@]}" \
   --e-se 1.53 --nu-se 0.49 --target-gpa 0.3 --seed 3 \
   --save-se se_dump.npy --save-dg se_dump_dg.npy --save-eps se_dump_eps.npy --save-metrics mpm_metrics.json \
@@ -100,7 +100,7 @@ python3 "$SCR/mpm3d_compaction.py" \
 #      상대비교용 σ표는 metrics에 기록됨.  끄기: --no-step3)
 python3 "$SCR/mpm_webapp_payload.py" \
   --se se_dump.npy --scaffold "$KIT/am_scaffold.csv" --se-dump "$KIT/se_scaffold.csv" \
-  --n-vox 192 --tri-step 4 --smooth 1.5 --target-porosity 0.1528 --eps se_dump_eps.npy --dilate-z 1.0519 \
+  --n-vox 192 --tri-step 4 --smooth 1.5 --target-porosity 0.1532 --eps se_dump_eps.npy --dilate-z 1.0519 \
   --void-max 180000 --step3-vox 0.4 --field-max-points 90000 --step3-gpu --joule-heat "${PSIG[@]}" --metrics-json mpm_metrics.json --case input_6mAh_real_4 --phase phase.npy --fibre fibre.npy --fibre-dia fibre_dia.npy --save-step4-grid step4_grid.npz --out mpm_payload.json \
   || { echo "[run_mpm] STEP 2 (payload) FAILED — 압밀(se_dump.npy)은 무사하니 원인 수정 후 payload만 재실행:"; \
         echo "          cd $RUN_DIR && bash $KIT/step4_only.sh 는 STEP4용이고, payload는:"; \
