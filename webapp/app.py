@@ -976,7 +976,7 @@ def api_paper(pid):
     # ⚠ rel 을 같이 준다 — 여백 메모(docnote.js)가 이 경로에 붙는다. papers/ 인지
     #   talks/ 인지는 **서버만 안다**. 화면이 papers/ 로 찍으면 발표덱 메모가 조용히 실패한다.
     return jsonify({"id": pid, "html": html, "figures": D.paper_figures(pid),
-                    "rel": str(p.relative_to(D.ROOT)).replace("\\", "/")})
+                    "rel": p.relative_to(D.ROOT).as_posix()})
 
 
 @app.route("/talk/<slug>")
@@ -1053,7 +1053,7 @@ def seminar():
         if not path.is_file():
             continue
         docs.append({"key": key, "label": label, "note": note,
-                     "rel": str(path.relative_to(D.ROOT)),
+                     "rel": path.relative_to(D.ROOT).as_posix(),
                      "kb": os.path.getsize(path) // 1024,
                      "html": D.md_to_html(path.read_text(encoding="utf-8"))})
     if not docs:

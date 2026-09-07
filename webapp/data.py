@@ -491,7 +491,7 @@ def _datafiles_for_c(cid: str, _sig_prop, _sig_spec) -> tuple:
                 # startswith는 최장 prefix 소유규칙 적용, 공유파일은 _infix_ 로 허용
                 if _prefix_starts(f.name, pref) or any(f"_{p.lower()}" in f.name.lower() for p in pref):
                     seen.add(f.name)
-                    out.append({"name": f.name, "rel": str(f.relative_to(DB)), "kind": _csv_kind(f.name)})
+                    out.append({"name": f.name, "rel": f.relative_to(DB).as_posix(), "kind": _csv_kind(f.name)})
     return tuple(out)
 
 def _csv_kind(name: str) -> str:
@@ -2081,7 +2081,7 @@ def cohp_curves_for(cid: str):
     # db/properties 가 정본. docs/figures/icohp 는 예전 그림 스크립트가 CSV 를 거기 두던
     # 시절의 산출물(modelc/nd/b2o3)이라 **후순위로만** 본다 — 정규화 규약이 sum 이고
     # 열 이름도 '-pCOHP_*' 로 달라서, 같은 계에 db 판이 생기면 그쪽이 이긴다.
-    cands = [(f, str(f.relative_to(DB)))
+    cands = [(f, f.relative_to(DB).as_posix())
              for f in sorted((DB / "properties").glob("*cohp_curves*.csv"))]
     docs = DB.parent / "docs" / "figures" / "icohp"
     if docs.exists():
@@ -2191,9 +2191,9 @@ def elf_curves_for(cid: str):
         }
     if not bonds:
         return None
-    return {"rel": str(prof.relative_to(DB)), "name": prof.name, "xk": xk,
+    return {"rel": prof.relative_to(DB).as_posix(), "name": prof.name, "xk": xk,
             "window": list(ELF_WIN), "cov": ELF_COV, "ion": ELF_ION,
-            "mid_rel": str(mid_f.relative_to(DB)) if mid_f else None,
+            "mid_rel": mid_f.relative_to(DB).as_posix() if mid_f else None,
             "bonds": bonds}
 
 
@@ -3657,14 +3657,14 @@ def element_db_anchors(sym: str) -> dict:
         try:
             hdr = f.open(encoding="utf-8").readline().strip().lower().split(",")
             if any(sym.lower() == h.strip().split()[0] if h.strip() else False for h in hdr) or sym.lower() in [h.strip() for h in hdr]:
-                pdos.append(str(f.relative_to(DB)))
+                pdos.append(f.relative_to(DB).as_posix())
         except Exception:
             pass
     xps = []
     for f in sorted((DB / "properties").glob("*xps*.csv")):
         try:
             if re.search(rf"(^|[^A-Za-z]){re.escape(sym)}([^A-Za-z]|$)", f.read_text(encoding="utf-8", errors="ignore")):
-                xps.append(str(f.relative_to(DB)))
+                xps.append(f.relative_to(DB).as_posix())
         except Exception:
             pass
     return {"compositions": comps, "icohp": bonds,

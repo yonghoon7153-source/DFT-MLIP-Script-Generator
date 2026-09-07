@@ -623,10 +623,23 @@ def test_markdown_blocks_dangerous_url_schemes():
 
 
 def test_paths_are_posix():
-    """Windows 에서 역슬래시 경로가 기록돼 첨부가 사라지던 회귀 (리뷰 P2)."""
-    src = (ROOT / "webapp" / "data.py").read_text(encoding="utf-8")
-    assert not re.search(r"str\(\w[\w.]*\.relative_to\(ROOT\)\)", src), \
-        "str(...relative_to(ROOT)) 가 남아 있다 — .as_posix() 를 쓸 것"
+    """Windows 에서 역슬래시 경로가 기록돼 첨부가 사라지던 회귀 (리뷰 P2).
+
+    ⛔ 2026-09-07 — **이 게이트가 위험보다 좁았다.** 종전 정규식은 `data.py` 의
+      `relative_to(ROOT)` 만 봤다. 그래서 `app.py` 의 `str(path.relative_to(D.ROOT))`
+      와 `data.py` 의 `str(f.relative_to(DB))` 6곳(그중 `datafiles_for`·`_sweep_view`
+      는 그 문자열이 그대로 `/api/csv/<rel>` 링크가 된다)이 **검사 밖**이었다.
+      기준(ROOT)과 대상(실제 경로 조립 전부)이 같은 제약이어야 한다.
+    """
+    bad = []
+    # 어떤 base 든 (ROOT·DB·D.ROOT…) str(...relative_to(x)) 는 Windows 에서 역슬래시가 된다
+    pat = re.compile(r"str\(\s*\w[\w.]*\.relative_to\([^)]*\)\s*\)")
+    for name in ("data.py", "app.py"):
+        src = (ROOT / "webapp" / name).read_text(encoding="utf-8")
+        for m in pat.finditer(src):
+            bad.append(f"{name}:{src[:m.start()].count(chr(10)) + 1} {m.group(0)}")
+    assert not bad, ("str(...relative_to(...)) 가 남아 있다 — .as_posix() 를 쓸 것: "
+                     + "; ".join(bad))
 
 
 def test_comment_writes_survive_concurrency():
