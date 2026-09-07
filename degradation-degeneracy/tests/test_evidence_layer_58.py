@@ -179,20 +179,47 @@ def test_a_report_that_attests_another_environment_is_refused(tmp_path):
 
     세탁을 막는 것이 "report 안에 무언가 있다" 가 되면 안 된다. 있는 값이
     **지금 환경과 같은가**를 봐야 한다.
+
+    ★ 이 시험은 처음에 **선언한 이유로 물지 않았다.** 변이 감사에서 드러났다:
+      증언 조회를 통째로 꺼도 통과했다. report 바이트를 고치면 `report_sha256`
+      이 어긋나 checker 가 **다른 이유로** 거부했기 때문이다. 물긴 하지만
+      선언한 이유로 물지 않는 증인은 증거가 아니다 (53차에 같은 형태를 겪었다).
+
+      그래서 공격자가 할 수 있는 것을 그대로 한다: report 를 고친 뒤
+      `report_sha256` 과 `transcript_digest` 를 **다시 계산해서 맞춘다**
+      (둘 다 공개 함수다). 그러면 남는 불일치는 증언 하나뿐이고, 그것을 잡는
+      것은 증언 조회밖에 없다.
     """
     mr = _mr()
     good = _good_slice(mr, tmp_path)
     assert mr.check_coverage([str(good)]) == 0, "정상 조각이 거부됐다"
 
+    # 증언은 **환경 tag** 로 적힌다 (영수증 digest 가 아니다 — 영수증에는
+    #   설치 package 목록처럼 자식이 다시 잴 수 없는 것도 들어 있다).
+    tag = mr.environment_tag()
     rep_dir = tmp_path / "reports" / good.stem
     hit = 0
     for f in sorted(rep_dir.glob("*.json")):
         raw = f.read_text(encoding="utf-8")
-        if mr._execution_receipt_digest()[:16] in raw:
-            f.write_text(raw.replace(mr._execution_receipt_digest()[:16],
-                                     "0" * 16), encoding="utf-8")
+        if tag in raw:
+            f.write_text(raw.replace(tag, "0" * 16), encoding="utf-8")
             hit += 1
     assert hit, "report 안에 실행 증언이 없다 — 시험 전제가 깨졌다 (L12)"
+
+    # 공격자가 하듯 digest 를 다시 맞춘다 — 그래야 이 시험이 **증언 조회**를
+    #   증명한다.
+    rec = json.loads(good.read_text(encoding="utf-8"))
+    for name, v in rec["scenarios"].items():
+        if not v.get("report_sha256"):
+            continue
+        blob = {ph: (rep_dir / f"{name}.{ph}.json").read_bytes()
+                for ph in ("before", "after")}
+        v["report_sha256"] = mr._receipt_digest(name, blob["before"],
+                                                blob["after"])
+    rec["binding"]["transcript_digest"] = mr._transcript_digest(rec["scenarios"])
+    good.write_text(json.dumps(rec, ensure_ascii=False, indent=2,
+                               sort_keys=True), encoding="utf-8")
+
     assert mr.check_coverage([str(good)]) == 1, (
         "다른 환경을 증언하는 report 를 담은 조각이 통과했다 (L12)")
 
@@ -256,6 +283,51 @@ def test_every_replay_subprocess_declares_its_environment():
     assert not missing, (
         f"재생 프로세스를 `env=` 없이 띄우는 자리가 있다 ({missing}행) — 운영자의 "
         "부모 환경이 그대로 새어 들고, 그것이 결과를 바꿔도 증거는 안 움직인다")
+
+
+def test_the_runner_plants_the_attestation_and_selects_it(monkeypatch, tmp_path):
+    """★ L12 의 생산자 쪽 — **재생이 증언을 실제로 남기는가.**
+
+    checker 가 증언을 요구해도 재생이 그것을 안 남기면 정상 조각이 거부되거나,
+    더 나쁘게는 증언 요구를 나중에 조용히 껐을 때 아무도 모른다. 조각을 합성한
+    시험만으로는 이 축이 안 덮인다 — 합성 fixture 는 증언을 **손으로** 넣기
+    때문이다. 그래서 sandbox 에 파일이 놓이는지와 `-k` 가 그 node 를 고르는지를
+    직접 본다.
+    """
+    mr = _mr()
+    (tmp_path / "tests").mkdir()
+    name = sorted(mr._registry())[0]
+    mid = mr._write_marker(tmp_path, name)
+    tag = mr.environment_tag()
+
+    planted = tmp_path / "tests" / f"test_mutation_env_{tag}.py"
+    assert planted.is_file(), (
+        f"재생이 sandbox 에 환경 증언 node 를 안 놓는다 ({planted.name})")
+    assert f"def test_env_{tag}(" in planted.read_text(encoding="utf-8")
+
+    seen: dict = {}
+
+    class _Done:
+        returncode = 1
+        stdout = ""
+        stderr = ""
+
+    def _fake(cmd, **kw):
+        seen["cmd"] = list(cmd)
+        for tok in cmd:
+            if str(tok).startswith("--json-report-file="):
+                Path(str(tok).split("=", 1)[1]).write_text(
+                    json.dumps({"exitcode": 1, "summary": {},
+                                "tests": [], "collectors": []}),
+                    encoding="utf-8")
+        return _Done()
+
+    monkeypatch.setattr(mr.subprocess, "run", _fake)
+    mr._run("test_x", marker=mid, env_tag=tag)
+    kexpr = seen["cmd"][seen["cmd"].index("-k") + 1]
+    assert f"test_env_{tag}" in kexpr, (
+        f"재생이 증언 node 를 고르지 않는다 — sandbox 에 파일만 있고 report 에는 "
+        f"안 나타난다: {kexpr!r}")
 
 
 def test_the_replayed_run_itself_sees_only_a_declared_environment(monkeypatch,

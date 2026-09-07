@@ -1406,7 +1406,7 @@ def _write_marker(sandbox: pathlib.Path, name: str) -> str:
     return mid
 
 
-def _run(kexpr: str, marker: str = "") -> dict:
+def _run(kexpr: str, marker: str = "", env_tag: str = "") -> dict:
     """`-k` 를 실행하고 **node 별 결과**를 JSON report 로 돌려준다.
 
     ★ 45차 — 44차 runner 는 baseline 없이 `rc != 0` 이면 전부 "물었다" 로
@@ -1421,8 +1421,12 @@ def _run(kexpr: str, marker: str = "") -> dict:
             [sys.executable, "-m", "pytest", "tests/", "-q", "-k",
              # ★ 58차 L12 — 환경 증언 node 도 **같이 고른다**. sandbox 에 파일만
              #   놓고 안 고르면 report 에 안 나타나고, 그러면 증언이 없다.
-             (f"({kexpr}) or test_mutant_{marker} or test_env_"
-              f"{environment_tag()}") if marker else kexpr,
+             #   tag 는 심을 때 정해진 것을 **받아 쓴다** — 여기서 다시 재면
+             #   탐침을 한 번 더 띄우고, 그 사이 환경이 바뀌면 심은 것과 고르는
+             #   것이 어긋난다.
+             (f"({kexpr}) or test_mutant_{marker}"
+              + (f" or test_env_{env_tag}" if env_tag else "")) if marker
+             else kexpr,
              "-p", "no:randomly", "--no-header",
              "--json-report", f"--json-report-file={rep}"],
             cwd=_sandboxed(ROOT), env=replay_env(),
@@ -3516,9 +3520,11 @@ def _replay(plan, bad, observed_all, a, sel=None) -> int:
             # ★ 54차 P1 — 이 변이만의 표식 node 를 sandbox 에 놓는다.
             #   report 바이트가 스스로 어느 변이의 것인지 말하게 된다.
             mid = _write_marker(_sandboxed(ROOT), name)
-            before = _run(kexpr, mid)
+            # ★ 58차 L12 — 심은 증언의 tag 를 그대로 넘긴다 (아래 `_run` 주석).
+            etag = environment_tag()
+            before = _run(kexpr, mid, etag)
             path.write_bytes(mutated)
-            after = _run(kexpr, mid)
+            after = _run(kexpr, mid, etag)
         except _ReplayError as e:
             print(f"{'★ 실행오류':10s} {name:30s} {e}")
             bad.append(f"{name}: {e}")
