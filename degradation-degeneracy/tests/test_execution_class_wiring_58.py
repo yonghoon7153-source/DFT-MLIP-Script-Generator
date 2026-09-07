@@ -43,8 +43,18 @@ def _smoke_out(root: Path, name: str) -> Path:
     class 는 manifest 가 있어야 정해진다 (`run_content_id()`). 실행 직전에는
     identity 가 없으므로, 이 시험은 **산출이 굳은 뒤** 상태를 본다 — 그것이
     production 에서 등록이 일어나야 하는 시점이다.
+
+    ★ 58차 — `root / P.SMOKE_NAMESPACE` 로 쓰면 **`root` 가 버려진다.**
+      `SMOKE_NAMESPACE` 는 저장소 루트에서 유도한 **절대경로**이고, pathlib 은
+      우변이 absolute 면 좌변을 버린다. 그래서 이 시험들은 `tmp_path` 를 받아
+      놓고 실제로는 **저장소의 `results/_smoke/`** 에 썼다 — 격리된 척했지만
+      아니었다 (`results/` 가 gitignored 라 트리는 안 더러워져 안 보였다).
+      L7 이 `bundle_uri` 에서 잡은 것과 **같은 흡수**다. 시험도 예외가 아니다.
+
+      그래서 namespace 자체를 tmp 로 옮기고 그 아래를 쓴다. 호출자는
+      `monkeypatch` 로 `P.SMOKE_NAMESPACE` 를 함께 바꿔야 한다.
     """
-    d = root / P.SMOKE_NAMESPACE / name
+    d = Path(root) / "results" / "_smoke" / name
     d.mkdir(parents=True, exist_ok=True)
     (d / "curves_manifest.yaml").write_text(
         f"leg: {name}\nsource_digest: abc\n", encoding="utf-8")
@@ -66,6 +76,8 @@ def test_production_smoke_gate_records_the_execution_class(
     from src import grid as G
 
     monkeypatch.setattr(P, "canonical_ledger", lambda x=None: ledger)
+    monkeypatch.setattr(P, "SMOKE_NAMESPACE",
+                        tmp_path / "results" / "_smoke")
     out = _smoke_out(tmp_path, "smoke-leg")
 
     # production 계획 gate. smoke 라 계획을 요구하지 않고 통과해야 한다.
@@ -91,6 +103,8 @@ def test_a_smoke_artifact_moved_outside_is_not_migrated_into_canonical(
     from src import grid as G
 
     monkeypatch.setattr(P, "canonical_ledger", lambda x=None: ledger)
+    monkeypatch.setattr(P, "SMOKE_NAMESPACE",
+                        tmp_path / "results" / "_smoke")
     out = _smoke_out(tmp_path, "smoke-leg")
     G._assert_grid_authorized({"leg": "smoke-leg"}, out)
 
@@ -143,6 +157,8 @@ def test_a_class_conflict_is_not_swallowed_by_the_gate(
     삼키면 등록부가 authority 이기를 그만둔다.
     """
     monkeypatch.setattr(P, "canonical_ledger", lambda x=None: ledger)
+    monkeypatch.setattr(P, "SMOKE_NAMESPACE",
+                        tmp_path / "results" / "_smoke")
     out = _smoke_out(tmp_path, "conflict-leg")
     P.record_execution_class(out, EXEC_CLASS_CANONICAL,
                             evidence="먼저 정본으로 등록", ledger=ledger)
