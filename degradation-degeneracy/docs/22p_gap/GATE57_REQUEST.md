@@ -1,18 +1,60 @@
 # 57차 게이트 리뷰 요청 — 묶음 9 (실행 전 승인 · 보존 lifecycle)
 
-**대상 커밋**: `47a2763e` (브랜치 `claude/14-gate-code-review-9qkx05`) — 코드·시험·산출물(g12)·변이 전수 증거를 전부 담은 커밋이다.
+## 판정 대상 (2026-09-07 갱신 — 이 블록이 정본이다)
 
-> **⚠ 2026-09-04 갱신.** 원래 이 줄은 *"그 뒤 커밋은 이 요청문과 `webapp/` 뿐이고 `degradation-degeneracy/` 를 건드리지 않는다"* 였다. **더는 사실이 아니다.** 그 뒤로 `mode-observability/`·`wiki/`·`webapp/` 커밋이 여럿 얹혔고, `degradation-degeneracy/` 안에서도 **두 파일이 바뀌었다** — `tests/test_lifecycle_e2e.py` 와 `docs/08_REVIEW_RESPONSE.md`(§63).
->
-> **리뷰 시점 HEAD**: `6ca8abd0`.
-> **⚠ 이 줄은 한 번 틀렸었다 — 정정한다.** 오전에 여기 *"`source_digest` 는 `ea35ff4f39b97489` 로 `47a2763e` 와 동일하다"* 고 적었는데, 그 뒤 같은 날 **P0-8 을 닫으면서 `tools/preserve.py` 를 고쳤다.** 지금 값은 **`2f1e10779368987f`** 이고 `47a2763e` 와 **다르다**.
->
-> 그래서 이 요청문의 **판정 대상 코드는 `47a2763e` 가 아니라 위 HEAD 다.** 따라오는 증거도 전부 그 코드로 다시 만들었다 — `paired_fixed5_v4` 검증 영수증, 원장의 `verification_receipt_core_sha256`·`validator_identity.source_digest`, 그리고 **변이 12조각 전수**(등록부 170 · 관측 170 · 합집합이 정확히 덮음).
->
-> **봉인된 산출물 g12 자체는 재생성하지 않았고 유효하다** — validator 의 `코드_재계산` 검사는 같은 commit·clean 일 때만 돌고, 다르면 `_참고_코드재계산불가` 로 사실만 남긴다 (`src/io.py`). 곧 10시간짜리 격자를 다시 돌릴 필요는 없다.
->
-> **다만 §63 을 먼저 읽어 주기 바란다** — 요청문 작성 뒤 자체 회귀에서 e2e 1건이 빨갰고, 진단·수정·변이 검증을 §63 에 적었다. 그 과정에서 **우리 시험이 난입 3경우를 만들지 못하고 있었다**는 것과 **변이 하나가 살아남았다**는 것이 나왔다.
-**직전 판정**: 56차 **NO-GO** — P0 7건 · P1 4건
+| 항목 | 값 |
+|---|---|
+| 브랜치 | `claude/14-gate-code-review-9qkx05` |
+| **대상 커밋** | **`cf10f345`** |
+| `source_digest` (RUN_SCOPE `src/ tools/ configs/ scripts/ run.sh requirements*.txt`) | **`2f1e10779368987f`** |
+| 작업 트리 | clean (`git_dirty = False` · `git_dirty_out_of_scope = []`) |
+| 직전 판정 | 56차 **NO-GO** — P0 7건 · P1 4건 |
+
+**이 요청문은 여러 번 커밋 줄을 고쳤다. 그 이력을 남긴다** — 리뷰어가 이전 판을
+봤을 수 있고, 우리가 한 번 **거짓 문장을 적었기** 때문이다.
+
+| 시점 | 적었던 것 | 실제 |
+|---|---|---|
+| 최초 | 대상 `47a2763e` · `source_digest` = `ea35ff4f39b97489` | 맞았다 |
+| 2026-09-04 오전 | *"HEAD 가 `6ca8abd0` 로 옮겼지만 `source_digest` 는 그대로"* | **거짓** — 같은 날 P0-8 이 `tools/preserve.py` 를 고쳐 `2f1e1077…` 로 움직였다 |
+| 2026-09-04 오후 | 대상 `6ca8abd0` · `2f1e10779368987f` | 맞았다 |
+| **2026-09-07 (지금)** | 대상 **`cf10f345`** · `2f1e10779368987f` | 아래 표로 재측정 |
+
+### `6ca8abd0 → cf10f345` 사이에 RUN_SCOPE 는 **한 바이트도 안 바뀌었다**
+
+```
+$ git log --oneline 6ca8abd0..cf10f345
+cf10f345 fix(webapp): /trust 도해의 글자 7개가 왼쪽 정렬로 떨어져 있었다
+aa9eb60b fix(webapp): 고쳐도 화면이 안 바뀌던 이유 — 템플릿이 프로세스에 캐시돼 있었다
+5bce6e95 fix(webapp): /trust 의 두 그림을 하나의 격자로 다시 그렸다
+8c0e317c fix(webapp): /trust 가 깨져 있었다 — 클래스를 두 번 잘못 썼다
+7b479bcc webapp: 앞문을 둘로 — 새 화면이 nav 에만 있어서 아무도 못 찾는 상태였다
+b6f43aea docs(gate): 요청문의 거짓 source_digest 문장 정정 + §65 절차 기록
+
+$ git diff --name-only 6ca8abd0 cf10f345 \
+    | grep -E 'degradation-degeneracy/(src/|tools/|configs/|scripts/|run\.sh|requirements)'
+(출력 없음)
+```
+
+`[재현]` 트리에서 직접 계산한 값도 같다:
+
+```
+$ python3 -c "import sys; sys.path.insert(0,'.'); from src.io import source_digest; print(source_digest())"
+2f1e10779368987f
+```
+
+그러므로 **`6ca8abd0` 에 붙은 모든 증거가 `cf10f345` 에서도 그대로 유효하다.**
+바뀐 것은 `webapp/`(5커밋) 과 `docs/`(1커밋) 뿐이고 둘 다 RUN_SCOPE 밖이다.
+
+**봉인된 산출물 g12 는 재생성하지 않았고 유효하다** — validator 의 `코드_재계산`
+검사는 같은 commit·clean 일 때만 돌고, 다르면 `_참고_코드재계산불가` 로 사실만
+남긴다 (`src/io.py`). 10시간짜리 격자를 다시 돌릴 필요는 없다.
+
+**§63·§64·§65 를 먼저 읽어 주기 바란다** (`docs/08_REVIEW_RESPONSE.md`) — 요청문
+작성 **뒤에** 나온 자체 발견 셋이다. §63 은 e2e 가 낡은 경로 리터럴로 빨갰고 그것이
+**난입 3경우가 구성되지 않고 있었다는 것**과 **변이 하나가 살아남았다는 것**을
+가리고 있었다는 기록, §64 는 P0-8 을 닫은 방법, §65 는 증거 재생성 중 커밋이
+증거를 무효로 만든 절차 사고다.
 
 
 ### §0.1 P0-8 을 어떻게 닫았나 — **두 갈래를 다 버렸다** (2026-09-04)
@@ -53,8 +95,11 @@
 
 `[해석]` 그러므로 **RUN_SCOPE 를 고쳐도 봉인된 g12 자체는 무효가 되지 않는다.**
 비용은 "새 실행을 하려면 baseline 캐시(`.cache/discharged_state`)가
-`source_digest` 로 묶여 있어 재생성해야 한다" 쪽이다. **묻는 것은 하나다 —
-새 필드를 fail-closed 로 요구할까, 버전화 fallback 을 둘까.**
+`source_digest` 로 묶여 있어 재생성해야 한다" 쪽이다 (~28분).
+
+**⚠ 이 문단은 원래 *"묻는 것은 하나다 — 새 필드를 fail-closed 로 요구할까,
+버전화 fallback 을 둘까"* 로 끝났다. 그 물음은 철회한다** — 위에서 적었듯 두
+갈래를 다 버리고 등록부로 닫았기 때문이다. 지금 남은 물음은 §3 의 Q1~Q4 다.
 
 ---
 
@@ -146,33 +191,76 @@ P0-5·P0-6/7·P1-1 의 내용은 커밋 시점에 원문을 보고 적었지만,
 
 ## §2 증거
 
-### 2-1 전체 회귀 — **1427 passed · 1 xfailed · 2 failed** (467.91s)
+### 2-1 전체 회귀 — **1437 passed · 0 failed · 1 xfailed** (854.57s, rc 0)
 
-빨간 2건은 둘 다 `tests/test_lifecycle_e2e.py` 이고 **같은 원인**이다:
+`cf10f345` · clean 트리에서 2026-09-07 06:21–06:35 UTC 에 실행:
 
 ```
-RuntimeError: 승인한 완방상태 캐시가 이 실행과 다른 runtime 로 계산됐습니다
-  ({… 'platform': 'Linux-6.18.44-fc-v22-x86_64-with-glibc2.39' …}
- ≠ {… 'platform': 'Linux-6.18.44-fc-v24-x86_64-with-glibc2.39' …}).
-  승인이 이 바이트를 가리키므로 재계산으로 넘어갈 수 없습니다 (52차 P0-5).
+$ python -m pytest tests/ -q
+1437 passed, 1 xfailed in 854.57s (0:14:14)
+PYTEST_RC=0
 ```
 
-두 runtime dict 는 **`platform` 한 필드만 다르다** (python·pybamm·
-pybammsolvers·casadi·scipy·numpy 전부 동일). 실행 컨테이너의 커널이
-`fc-v22` → `fc-v24` 로 바뀌었고, 52차 P0-5 의 fail-closed 캐시 검사가 그것을
-물었다. **이 라운드의 수정과 무관하며, 오히려 그 검사가 설계대로 문 것이다.**
-승인 digest 가 그 바이트를 가리키므로 조용한 재계산은 금지다 — 캐시를 다시
-만들고 계획의 `discharged_cache_sha256` 을 갱신하는 것은 승인 절차 안에서 할
-일이라 이 라운드에서 하지 않았다.
+**⚠ 이 절은 한 번 틀린 진단을 담고 있었다 — 정정한다.** 원래 여기 *"1427 passed ·
+2 failed. 빨간 2건은 `tests/test_lifecycle_e2e.py` 이고 원인은 실행 컨테이너의
+커널이 `fc-v22` → `fc-v24` 로 바뀐 것이다"* 라고 적었다. **커널과 무관했다.**
 
-라운드 진행 중 실패 추이 (전부 실측): 9 → 7 → 5 → 3 → **2**.
+실제 원인은 **시험이 57차 이전의 경로 리터럴을 붙들고 있던 것**이다. 57차 P0-1 이
+attempt 자리를 `attempts_root_for_ledger()` 로 원장에서 유도하게 바꿨는데, 시험만
+`results/_attempts/` 를 보고 있었다 (실제 발급 자리는 `docs/22p_gap/_attempts/`).
+제품은 rc 0 으로 정상 동작했고 시험이 낡았던 것이다. 전말은 §63.
 
-### 2-2 strict smoke — **rc 0 · 52 ✅ · 0 ❌**
+**그 리터럴이 두 가지를 가리고 있었다** — 리뷰어가 여기를 겨눠 주기 바란다:
 
-strict 였음을 같이 실측했다 (`git_info(".")["git_dirty"] = False`) — 즉
-`SMOKE_DIRTY` 가 서지 않아 `clean_worktree` 와 `코드_identity` 를 **건너뛰지
-않았다**. 범위 밖(`git_dirty_out_of_scope`)으로 빠진 것은 `mode-observability/`
-의 README 둘이고 RUN_SCOPE 가 아니다.
+| 가려져 있던 것 | 무엇 |
+|---|---|
+| ① 난입 3경우가 **구성되지 않고 있었다** | `--attempt-file` 이 사라진 뒤 ②-a 는 정상 실행이 되고 ②-b·②-c 는 없는 인자를 넘기고 있었다. credential 경로 위에서 다시 구성했고 셋 다 rc 1 로 거부됨을 실측 |
+| ② **변이 A 가 살아남았다** | `resume_claim()` 의 위조 검사를 꺼도 시험이 통과했다. 두 방어층이 메시지 접두어 `소유 증명이 맞지 않는다` 를 공유해서 단언이 층을 구분 못 했다. 앞단 전용 꼬리로 조인 뒤 다시 심어 **빨간 것을 눈으로 확인** |
+
+라운드 진행 중 실패 추이 (전부 실측): 9 → 7 → 5 → 3 → 2 → 1 → **0**.
+
+### 2-2 strict smoke — **rc 0 · `✅ pipeline smoke 통과`**
+
+같은 트리에서 06:35–06:38 UTC:
+
+```
+$ ./scripts/smoke_e2e.sh
+   ✅ 계획 index 일관 · 계획 밖 다리는 거부 (46차 P0-11)
+   ✅ run.sh 에 실행 전 gate 가 배선돼 있다 (46차 P0-11)
+   ✅ smoke namespace 밖 · 계획에 없는 다리는 실행 전에 거부된다 (46차 P0-11)
+✅ pipeline smoke 통과
+SMOKE_RC=0
+```
+
+**strict 였음을 같이 실측했다** — `SMOKE_DIRTY` 가 서지 않아 `clean_worktree` 와
+`코드_identity` 를 건너뛰지 **않았다**:
+
+```
+$ python3 -c "from src.io import git_info; g=git_info('.'); print(g['git_dirty'], g['git_dirty_out_of_scope'], g['git_commit'][:12])"
+False [] cf10f3459861
+```
+
+이번에는 범위 밖 dirty 도 **0건**이다 (이전 판에서는 `mode-observability/` README 둘).
+
+### 2-2b 시험이 등록부를 오염시키지 않는다 — 이번 실행으로 확인
+
+P0-8 의 실행 class 등록부(`docs/22p_gap/_exec_class/`)에는 실물 4건만 커밋되어야
+한다. 그런데 시험 fixture 가 `record_execution_class()` 를 부르므로 회귀를 돌리면
+항목이 늘어난다. 실제로 이번 회귀 **도중**에 74개까지 늘어난 것을 관측했다
+(커밋된 4 + fixture 70). `tests/conftest.py` 의 세션 autouse guard
+`_exec_class_registry_is_not_polluted_by_tests` 가 시작 시점 이름을 스냅샷하고
+teardown 에서 새 것을 지운다. 종료 후:
+
+```
+커밋된:  4
+디스크:  4
+untracked: 0        # git status --porcelain 전체가 비었다
+```
+
+`[해석]` 이 guard 는 사후 대책이다 — 앞선 라운드에서 `git add -A` 가 fixture
+93건을 **커밋된 등록부에 밀어 넣었고** 그것을 걷어내야 했다. 등록부가 authority 인
+이상 시험이 거기 쓰는 것 자체가 설계 냄새다. **리뷰어가 더 나은 격리(예: 시험
+전용 등록부 root)를 요구하면 그 방향이 맞다고 본다.**
 
 ### 2-3 변이 전수 — 등록부 **170 scenario** (executable 161 · declared 9)
 
@@ -188,6 +276,47 @@ strict 였음을 같이 실측했다 (`git_info(".")["git_dirty"] = False`) — 
 | 은퇴 | `finalize-requires-the-credential` | anchor 를 잘못 잡았다 (그 자리의 guard 시험은 항상 `token=` 을 명시로 넘겨 안 문다). 회귀는 `resume-compares-the-verifier` 의 selector 로 옮겼다 |
 
 12조각을 **HEAD 를 고정한 채** 끝까지 돌렸고 조각별 문제는 0건이다.
+
+**⚠ 조각이 기록한 HEAD 는 대상 커밋과 다르다 — 먼저 설명한다.** 12조각 전부
+`binding.head = 775a9630` 이고 대상 커밋은 `cf10f345` 다. 리뷰어가 이 불일치를
+먼저 볼 것이므로 근거를 붙인다:
+
+```
+$ git diff --name-only 775a9630 cf10f345 | grep -v mutation_coverage/
+degradation-degeneracy/docs/08_REVIEW_RESPONSE.md
+degradation-degeneracy/docs/22p_gap/GATE57_REQUEST.md
+webapp/app.py
+webapp/static/css/style.css
+webapp/templates/index.html
+webapp/templates/pipeline.html
+webapp/templates/trust.html
+
+$ git diff --name-only 775a9630 cf10f345 \
+    | grep -E 'degradation-degeneracy/(src/|tools/|configs/|scripts/|run\.sh|requirements|docs/22p_gap/mutation_replay\.py)'
+(출력 없음)
+```
+
+**변이 대상 코드(RUN_SCOPE)와 등록부(`mutation_replay.py`) 둘 다 그 사이에 안
+바뀌었다.** 그래서 합집합 증명이 지금도 통과한다 — 2026-09-07 재실행:
+
+```
+$ python3 docs/22p_gap/mutation_replay.py --check-coverage docs/22p_gap/mutation_coverage/s*.json
+모든 변이 지점이 정확히 한 번 나타난다
+등록부 scenario 170 (executable 161 · declared 9) · 조각 12개에서 관측 170
+조각 합집합이 등록부 전체를 정확히 덮었다
+COVERAGE_RC=0
+```
+
+`[해석]` 검사는 **조각들이 서로 같은 HEAD 인가** 와 **그 HEAD 가 이 저장소에
+실재하는가** 를 묻지, 현재 HEAD 와 같은지는 묻지 않는다. 우리는 그 선택이 옳다고
+보지만 — 문서·webapp 커밋으로 증거를 무효화하지 않기 위해 — **리뷰어가 "현재
+HEAD 와 같아야 한다" 를 요구하면 그것도 방어 가능한 입장이다.** 그러면 RUN_SCOPE
+밖 커밋마다 12조각(약 60분)을 다시 돌려야 하므로 우리는 안 골랐다. 이 판단이
+틀렸다고 보면 지적해 달라.
+
+`[관련]` §65 — 첫 재생성은 **실패했다.** 12조각이 도는 동안 webapp 커밋을 해서
+조각들이 두 HEAD (`2989298f`·`775a9630`) 에 걸쳤고 체커가 그것을 잡았다. 저장소를
+얼리고 다시 돌려 한 HEAD 로 맞춘 것이 위 결과다.
 
 ```
 모든 변이 지점이 정확히 한 번 나타난다
@@ -290,6 +419,35 @@ identity 의 **정의**다. cross-cohort 비교는 여전히 금지다 — 같�
 8. **증거를 소비한다는 주장.** `_assert_execution_is_current()` 가 셋을
    본다 — 두 필드가 있는가 · 본문이 그 digest 로 해시되는가 · 지금 환경과
    같은가. 셋을 다 만족시키면서 **다른 실행**의 증거를 제출할 수 있는가.
+9. **내용 키의 도메인** (P0-8, §64). `run_content_id()` 는 세 manifest
+   (`curves_manifest.yaml`·`fits_manifest.yaml`·`manifest.yaml`) 중 있는 것의
+   sha256 이다. **서로 다른 실행이 같은 `content_id` 를 갖는 입력**이 있는가 —
+   manifest 가 담지 않는 축(예: 같은 계획·같은 입력인데 실행권이 다른 두 leg).
+   반대로 정상 산출이 manifest 를 정당하게 갱신해 **키가 바뀌면** 등록이 사라진
+   것처럼 보이는가 (`등록 없음 = 거부` 이므로 fail-closed 쪽으로 틀리긴 한다).
+10. **`classify_legacy_run()` 의 1회 창.** 경로를 **딱 한 번 보고 영수증에
+   적는** 설계다. 그 한 번을 **공격자가 고른 시점에** 일으킬 수 있는가 —
+   아직 분류되지 않은 legacy 산출을 smoke namespace 밖으로 옮겨 두고 분류를
+   유도하면 `canonical` 영수증이 발급되는가. 발급된 영수증이 나중에 정상
+   등록과 구분되는가 (`evidence` 문자열 말고 구조로).
+
+### 우리가 **묻는** 것 (판정이 갈릴 수 있고, 되돌릴 수 있다)
+
+| # | 선택 | 우리가 고른 쪽 | 되돌리면 |
+|---|---|---|---|
+| Q1 | 실행 class 를 몇 종 둘 것인가 | **2종** (`canonical`·`smoke`). 조건 원문의 `compare`·`nested`·`archive-external`·`전이 report source` 는 미착수 — 값만 늘리면 되는 구조이나 **그 넷의 승격 정책은 우리가 정할 일이 아니라고 판단** | 정책을 주면 이번 라운드에 넣는다 |
+| Q2 | 변이 증거를 **현재 HEAD** 에 묶을 것인가 | **아니오** — "조각들이 한 HEAD 를 공유하고 그것이 실재하는가" 만 본다 (§2-3) | 묶으면 RUN_SCOPE 밖 커밋마다 12조각 ~60분 재생 |
+| Q3 | 등록부에 **삭제·만료**를 둘 것인가 | **아니오** — 덮어쓰기를 허용하면 등록부가 authority 가 아니라 마지막 쓴 사람의 의견이 된다. 잘못 분류하면 사람이 파일을 지운다 (운용 절차로 남음) | 서명된 철회 레코드를 넣는 쪽이 대안 |
+| Q4 | 시험이 **실물 등록부**에 쓰는 것 | 지금은 conftest guard 로 사후 청소 (§2-2b) | 시험 전용 등록부 root 로 격리하는 편이 낫다고 본다 |
+
+### §63 이 남긴, 우리가 못 닫은 물음 둘
+
+1. **§62 의 실측표(`1391 passed · 0 failed`)가 어느 트리를 가리키는지 재구성
+   못 했다.** 그 사이 시험이 늘고 P0-1 이 자리를 옮겼다. **기록된 증거와 트리가
+   어긋나는 자리**이고, 우리가 스스로 못 메운 구멍이다.
+2. **변이 등록부에 "앞단 verifier 무력화"(A형)가 들어 있는가.** 자체 변이로는
+   **살아남았는데** 12조각 전수는 문제 0건이었다. 등록부가 이 지점을 안 덮고
+   있다면 덮어야 한다 — 리뷰어가 확인해 주기 바란다.
 
 ---
 
@@ -312,4 +470,35 @@ python -m pytest tests/test_lifecycle_e2e.py -q
 
 **`--check-coverage` 는 이제 실행 환경까지 본다** (P1-2). 검토 환경의 설치
 패키지가 다르면 조각을 그 환경에서 다시 재생해야 한다 — 그것이 결함이 아니라
-이번에 고친 것이다.
+이번에 고친 것이다. `[실측]` 이 요청문을 쓰다가 `pip install brotli` 하나로
+곧바로 `✗ 증거가 가리키는 실행 환경이 지금과 다르다 (다른 항목: ['packages'])`
+가 떴고, `pip uninstall` 로 되돌리자 통과했다.
+
+---
+
+## §5 GO 가 나오면 무엇을 하는가
+
+리뷰어가 판정 근거로 삼도록, GO 이후 순서를 미리 적는다. **GO 없이는 아무것도
+시작하지 않는다.**
+
+| 순 | 명령 / 행위 | 산출 | 시간 |
+|---|---|---|---|
+| 1 | baseline 캐시 재생성 — `source_digest` 가 `2f1e1077…` 로 움직였으므로 `.cache/discharged_state` 가 무효다 | 새 캐시 + 계획의 `discharged_cache_sha256` 갱신 | ~28분 |
+| 2 | `LEG_PRESERVATION.yaml` 의 `planned:` 에 본 실행 leg 를 적는다 (계획 gate 는 계획에 없는 다리를 거부한다) | 계획 원장 커밋 | — |
+| 3 | `./run.sh` 본 격자 — 실행 전 gate 가 계획·실행권 claim 을 확인한 뒤 시작 | `results/grid_*` | **~10시간** |
+| 4 | `tools/make_results.py` → `docs/RESULTS*.md` 갱신 | 정본 수치 | — |
+| 5 | 산출물 봉인 · 투영 재생성 · 검증 영수증 | g13 cohort | — |
+
+**보존할 증거** (이 라운드 판정의 근거가 되는 것들 — 실행 전후로 건드리지 않는다):
+
+| 무엇 | 자리 |
+|---|---|
+| 변이 12조각 + 재생 report | `docs/22p_gap/mutation_coverage/s1..s12.json` · `.../reports/` |
+| 실행 class 등록부 (실물 4건) | `docs/22p_gap/_exec_class/` |
+| 발견 원장 (§1~§65) | `docs/08_REVIEW_RESPONSE.md` |
+| 이 요청문과 이전 라운드 요청문 | `docs/22p_gap/GATE*_REQUEST.md` |
+| g12 cohort 와 그 영수증 | 원장 + 투영 `proj_g12` |
+
+**한 가지 절차 규칙** (§65 에서 배운 것): 변이 증거를 재생성하는 동안에는
+저장소를 얼린다. 각 조각이 실행 시점 HEAD 를 기록하므로, 재생성 중 커밋 한 번이
+진행 중인 증거를 무효로 만든다.
