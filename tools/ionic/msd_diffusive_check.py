@@ -737,7 +737,7 @@ def mto_from_traj(json_path, save_fs=None, cache=True):
     except BaseException:
         return None
     try:
-        frames = _read(str(traj), index=":")
+        frames = _ase_read(traj, ":")
     except BaseException as e:
         print(f"   ⚠ traj 읽기 실패: {type(e).__name__} {e}")
         return None
@@ -773,6 +773,24 @@ def mto_from_traj(json_path, save_fs=None, cache=True):
         except (OSError, ValueError) as e:
             print(f"   ⚠ 되쓰기 실패({type(e).__name__}) — 이번만 쓰고 버린다")
     return out
+
+
+def _ase_read(path, index=":"):
+    """ase.io.read 를 **한 곳에서만** 부른다. 실패하면 이유를 말하고 예외를 낸다.
+
+    ⛔⛔ 2026-09-07 — `_read` 가 `directional_msd_tensor`/`n_per_elem_from_traj` **안의
+      지역 import** 였는데 `mto_from_traj`(L740)와 `haven_from_traj` 가 그 이름을 그냥
+      불렀다. 파이썬 지역 import 는 전역 이름을 만들지 않으므로 **NameError** 다.
+      · `haven_from_traj` 는 첫 실행에서 바로 드러났고,
+      · `mto_from_traj` 는 `except BaseException` 이 삼켜 *"traj 읽기 실패"* 로만 찍혔다
+        ⇒ **`--rebuild_mto` 가 조용히 전부 실패하고 있었다.** 예외를 넓게 잡으면
+        "궤적이 없다" 와 "코드가 틀렸다" 가 같은 문장이 된다.
+    """
+    try:
+        from ase.io import read as _r
+    except ImportError as e:
+        raise RuntimeError(f"ase 를 못 불러온다 ({e}) — `conda activate uma` 필요") from e
+    return _r(str(path), index=index)
 
 
 def haven_curves(cart_li, dt_ps, cart_ref=None, n_lag=150):
@@ -846,7 +864,7 @@ def haven_from_traj(json_path, save_fs=None, lo=2.0, hi=50.0):
     if assumed:
         save_fs = 100.0
     try:
-        frames = _read(str(traj), index=":")
+        frames = _ase_read(traj, ":")
     except BaseException as e:                                     # noqa: BLE001
         print(f"   ⚠ traj 읽기 실패: {type(e).__name__} {e}")
         return None
@@ -1795,6 +1813,45 @@ def selftest():
     chk(_hall is not None and _hall > _hfw * 1.15,
         f"[Haven·음성·핵심] **전 원자 COM** 기준은 Li 신호를 갉아먹어 H_R 을 과대하게 만든다 "
         f"(골격 {_hfw:.3f} → 전원자 {_hall:.3f}) — 첫 판의 버그다")
+
+    # ⑦ ⛔음성 **끝단(end-to-end)** — 위 ①~⑥ 은 순수 함수만 봤다. 실제 실패는
+    #   **파일 경로**에서 났다: `_read` 가 다른 함수의 지역 import 라 NameError 였고,
+    #   `mto_from_traj` 는 `except BaseException` 이 그걸 삼켜 "traj 읽기 실패" 로만 찍혔다.
+    #   ⇒ 수학만 시험하고 I/O 를 안 시험하면 도구가 원격에서 죽는다. 합성 궤적을 실제로 쓴다.
+    import tempfile as _tf, os as _os
+    with _tf.TemporaryDirectory() as _td:
+        _rd = _os.path.join(_td, "T600_s2"); _os.makedirs(_rd)
+        _json.dump({"T_K": 600}, open(_os.path.join(_rd, "msd.json"), "w"))
+        _nl, _nf, _nfr = 6, 6, 400
+        _st = _rng.normal(0, 0.30, (_nfr, _nl, 3))            # Li: 독립 확산 → H_R ≈ 1
+        _pli = _np.concatenate([_np.zeros((1, _nl, 3)), _np.cumsum(_st, axis=0)])
+        with open(_os.path.join(_rd, "traj.xyz"), "w") as _fh:
+            for _k in range(_nfr + 1):
+                _fh.write(f"{_nl + _nf}\nFrame {_k}\n")
+                for _i in range(_nl):
+                    _fh.write("Li %.5f %.5f %.5f\n" % tuple(_pli[_k, _i]))
+                for _i in range(_nf):                          # 골격: 고정
+                    _fh.write("S %.5f %.5f %.5f\n" % (_i * 2.0, _i * 1.5, 0.0))
+        try:
+            _r = haven_from_traj(_os.path.join(_rd, "msd.json"),
+                                 save_fs=100.0, lo=1.0, hi=15.0)
+            _err = None
+        except BaseException as _e:                            # noqa: BLE001
+            _r, _err = None, f"{type(_e).__name__}: {_e}"
+        chk(_err is None,
+            f"[Haven·끝단] haven_from_traj 가 예외 없이 돈다 ({_err or 'OK'})")
+        chk(_r is not None and _r.get("haven_ratio") is not None,
+            "[Haven·끝단·음성] **traj.xyz 를 실제로 읽는다** — None 으로 조용히 빠지지 않는다")
+        if _r and _r.get("haven_ratio"):
+            chk(0.5 < _r["haven_ratio"] < 2.0,
+                f"[Haven·끝단] 독립 확산 합성 궤적 → H_R ≈ 1 (측정 {_r['haven_ratio']:.3f})")
+            chk(_r.get("drift_reference", "").startswith("framework"),
+                f"[Haven·끝단] 드리프트 기준이 **골격** 이라고 기록된다 ({_r.get('drift_reference')})")
+        # 같은 구멍을 공유하던 mto_from_traj 도 함께 본다
+        _m = mto_from_traj(_os.path.join(_rd, "msd.json"), save_fs=100.0, cache=False)
+        chk(_m is not None and _m.get("msd_Li_A2_mto"),
+            "[MTO·끝단·회귀] --rebuild_mto 경로도 궤적을 실제로 읽는다 "
+            "(2026-09-07 이전엔 NameError 를 except 가 삼켜 조용히 실패)")
 
     print(f"selftest {'PASS' if not n_bad else 'FAIL'} — {n_ok} ok, {n_bad} bad")
     return 1 if n_bad else 0
