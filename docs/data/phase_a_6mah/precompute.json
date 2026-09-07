@@ -15,61 +15,61 @@
  "totals": {
   "V_AM_um3": 159978.2755012018,
   "S_AM_um2": 125965.29903833634,
-  "V_SE_um3": 83069.46934744575,
-  "Ah_um3": 283547.5,
-  "phi_se_local": 0.6722504708140631,
-  "porosity": 0.1428323478477237,
-  "se_frac_of_solid": 0.34178251437459484,
+  "V_SE_um3": 83088.84250214288,
+  "Ah_um3": 283694.96386781096,
+  "phi_se_local": 0.6716057760609148,
+  "porosity": 0.14320961257316156,
+  "se_frac_of_solid": 0.3418349762183775,
   "n_am": 1498,
-  "n_se": 158651,
+  "n_se": 158688,
   "source": "measured_from_scaffold"
  },
  "dh_gate": {
-  "d_h_um": 0.9809782967386207,
-  "d_h_void_only_um": 0.32151517489770526,
+  "d_h_um": 0.9821489673037426,
+  "d_h_void_only_um": 0.3225320479102865,
   "gate": 3.5,
   "n_grid_min_pass": 179,
   "rows": [
    {
     "n_grid": 192,
-    "dx_um": 0.2604166666666667,
-    "dh_over_dx": 3.7669566594763033,
+    "dx_um": 0.260484375,
+    "dh_over_dx": 3.7704717118013034,
     "pass": true
    },
    {
     "n_grid": 256,
-    "dx_um": 0.1953125,
-    "dh_over_dx": 5.022608879301738,
+    "dx_um": 0.19536328125,
+    "dh_over_dx": 5.027295615735071,
     "pass": true
    },
    {
     "n_grid": 288,
-    "dx_um": 0.1736111111111111,
-    "dh_over_dx": 5.650434989214455,
+    "dx_um": 0.17365624999999998,
+    "dh_over_dx": 5.655707567701955,
     "pass": true
    },
    {
     "n_grid": 320,
-    "dx_um": 0.15625,
-    "dh_over_dx": 6.278261099127173,
+    "dx_um": 0.156290625,
+    "dh_over_dx": 6.284119519668839,
     "pass": true
    },
    {
     "n_grid": 384,
-    "dx_um": 0.13020833333333334,
-    "dh_over_dx": 7.533913318952607,
+    "dx_um": 0.1302421875,
+    "dh_over_dx": 7.540943423602607,
     "pass": true
    },
    {
     "n_grid": 448,
-    "dx_um": 0.11160714285714286,
-    "dh_over_dx": 8.78956553877804,
+    "dx_um": 0.11163616071428571,
+    "dh_over_dx": 8.797767327536373,
     "pass": true
    },
    {
     "n_grid": 512,
-    "dx_um": 0.09765625,
-    "dh_over_dx": 10.045217758603476,
+    "dx_um": 0.097681640625,
+    "dh_over_dx": 10.054591231470143,
     "pass": true
    }
   ],
@@ -79,7 +79,7 @@
   {
    "vgcf_wt_pct": 1.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 26967,
+   "n_vgcf": 26968,
    "n_ptfe": 2206,
    "vgcf_vol_pct_of_solid": 1.961,
    "ptfe_vol_pct_of_solid": 1.782,
@@ -89,19 +89,19 @@
   {
    "vgcf_wt_pct": 2.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 54490,
+   "n_vgcf": 54493,
    "n_ptfe": 2229,
    "vgcf_vol_pct_of_solid": 3.962,
    "ptfe_vol_pct_of_solid": 1.801,
-   "am_wt_pct": 79.75,
-   "se_wt_pct": 17.25
+   "am_wt_pct": 79.74,
+   "se_wt_pct": 17.26
   },
   {
    "vgcf_wt_pct": 3.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 82587,
+   "n_vgcf": 82590,
    "n_ptfe": 2252,
-   "vgcf_vol_pct_of_solid": 6.005,
+   "vgcf_vol_pct_of_solid": 6.004,
    "ptfe_vol_pct_of_solid": 1.82,
    "am_wt_pct": 78.92,
    "se_wt_pct": 17.08
@@ -109,9 +109,9 @@
   {
    "vgcf_wt_pct": 4.0,
    "ptfe_wt_pct": 1.0,
-   "n_vgcf": 111275,
+   "n_vgcf": 111279,
    "n_ptfe": 2276,
-   "vgcf_vol_pct_of_solid": 8.091,
+   "vgcf_vol_pct_of_solid": 8.09,
    "ptfe_vol_pct_of_solid": 1.839,
    "am_wt_pct": 78.1,
    "se_wt_pct": 16.9
@@ -121,52 +121,52 @@
   "rows": [
    {
     "vgcf_wt_pct": 0.5,
-    "n_computed": 13280,
+    "n_computed": 13281,
     "n_measured": 13281,
-    "rel_pct": -0.0075295534974761935
+    "rel_pct": 0.0
    },
    {
     "vgcf_wt_pct": 1.0,
-    "n_computed": 26695,
+    "n_computed": 26696,
     "n_measured": 26696,
-    "rel_pct": -0.00374587953251293
+    "rel_pct": 0.0
    },
    {
     "vgcf_wt_pct": 2.0,
-    "n_computed": 53934,
+    "n_computed": 53936,
     "n_measured": 53529,
-    "rel_pct": 0.7565992265874621
+    "rel_pct": 0.7603355190644256
    },
    {
     "vgcf_wt_pct": 4.0,
-    "n_computed": 110116,
+    "n_computed": 110120,
     "n_measured": 110120,
-    "rel_pct": -0.0036324010170729615
+    "rel_pct": 0.0
    }
   ],
-  "max_abs_rel_pct": 0.7565992265874621
+  "max_abs_rel_pct": 0.7603355190644256
  },
  "angular_screen": "scripts/step4_angular_risk.py (별도 산출물)",
  "provenance": {
-  "code_sha": "205fa7686047be79063ff866d407084840f0a8d3",
-  "code_dirty": true,
+  "code_sha": "8aa69af34d1e1b99730608b1986f0d0dc3bad0c4",
+  "code_dirty": false,
   "dirty_scope": [
    "scripts/"
   ],
   "branch": "claude/stoic-knuth-NObVQ",
   "argv": [
    "--am",
-   "docs/data/phase_a_6mah/am_scaffold.csv",
+   "docs/data/phase_a_6mah/am_scaffold.csv.gz",
    "--se",
-   "docs/data/phase_a_6mah/se_scaffold.csv",
+   "docs/data/phase_a_6mah/se_scaffold.csv.gz",
    "--thickness-um",
    "113.419",
    "--lateral-um",
-   "50.0",
+   "50.013",
    "--out",
    "docs/data/phase_a_6mah/precompute.json"
   ],
-  "utc": "2026-09-07T11:44:04Z",
+  "utc": "2026-09-07T12:33:54Z",
   "note": "이 측정을 만든 코드 상태.  `code_sha` 가 없거나 `code_dirty` 가 참이면 수치를 인용하지 말 것 (CL-75)."
  }
 }
