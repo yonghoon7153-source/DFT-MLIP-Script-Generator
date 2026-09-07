@@ -1431,6 +1431,127 @@ else
   fi
 fi
 export VASP_EXE VASP_LAUNCHER_KIND VASP_NPROC LAUNCHER_BIN VASP_WRAPPER
+
+# ── 동시 실행 잡 수. **메모리 사전검사가 먼저 써야 해서 여기서 정합니다.** ──────
+#   (아래 물결 실행이 같은 $NPAR 을 씁니다 — 두 곳에 복사하지 않습니다.)
+NPAR=${JOBS_PARALLEL:-$(python3 -c '
+import json
+print((json.load(open("MANIFEST.json")).get("submission") or {}).get("max_concurrency") or 1)'
+)}
+case "$NPAR" in ''|*[!0-9]*) NPAR=1 ;; esac
+[ "$NPAR" -ge 1 ] || NPAR=1
+
+# ══ 메모리 사전검사 ════════════════════════════════════════════════════════
+#   왜 생겼나 (2026-09-04 실패) — 인수처에서 **슬랩 잡이 전부 OOM** 났습니다.
+#   원인은 INCAR 도 물리도 아니고 **랭크 배치**였습니다. 잡 하나를 노드 하나에
+#   몰아넣으면(48 랭크 / 1 노드) 최악 잡이 162.6 GB 를 요구하는데 노드 가용은
+#   159.8 GB 였습니다. 2.8 GB 차이로 슬랩은 죽고 분자(56.1 GB)는 살아남아
+#   로그만 봐서는 원인이 안 보였습니다.
+#   ⇒ 벽시계는 몇 시간 뒤에나 알지만 메모리는 **시작 전에** 계산됩니다. 여기서 막습니다.
+#   ⛔ 이 검사가 **못 하는 것**: 실제 사용량을 재지 않습니다. 모형이고 ±2배가
+#     예상 범위입니다(위 실패에서 역산한 범위는 0.98~2.85배). 통과가 안전 보증이
+#     아니라, **명백한 불가를 시작 전에 거르는** 것입니다.
+if [ "${MEM_GUARD:-on}" = "off" ]; then
+  echo "  ⚠ 메모리 사전검사를 껐습니다 (MEM_GUARD=off)."
+  echo "     2026-09-04 의 OOM 은 정확히 이 검사가 막는 종류였습니다."
+else
+  MEMG_NPAR="$NPAR" MEMG_NPROC="${VASP_NPROC:-1}" python3 <<'PYMEM' || exit 2
+import json, math, os, sys
+
+man = json.load(open("MANIFEST.json"))
+mm = (man.get("submission") or {}).get("memory_model") or man.get("memory_model")
+if not mm:
+    print("  ⚠ MANIFEST 에 memory_model 이 없습니다 — 메모리 사전검사를 건너뜁니다.")
+    print("     (2026-09-07 이전 묶음이면 정상입니다. 그 판에는 검사할 상수가 없습니다.)")
+    sys.exit(0)
+
+floor = float(mm["floor_GB"]); repl = float(mm["repl_GB_per_rank"])
+frac = float(mm.get("usable_frac", 0.85))
+worst = mm.get("worst_job", "(이름 없음)")
+npar = max(1, int(os.environ.get("MEMG_NPAR", "1")))
+nproc = max(1, int(os.environ.get("MEMG_NPROC", "1")))
+
+# ── 노드 메모리 [GB] ──────────────────────────────────────────────────────
+mem, src = None, None
+if os.environ.get("NODE_MEM_GB"):
+    mem, src = float(os.environ["NODE_MEM_GB"]), "NODE_MEM_GB"
+elif os.environ.get("SLURM_MEM_PER_NODE"):          # MB
+    mem, src = float(os.environ["SLURM_MEM_PER_NODE"]) / 1024.0, "SLURM_MEM_PER_NODE"
+else:
+    try:
+        for ln in open("/proc/meminfo"):
+            if ln.startswith("MemTotal:"):
+                mem, src = float(ln.split()[1]) / 1024.0 / 1024.0, "/proc/meminfo"
+                break
+    except OSError:
+        pass
+
+# ── 이 잡이 걸치는 노드 수 ────────────────────────────────────────────────
+tot = os.environ.get("VASP_TOTAL_NODES") or os.environ.get("SLURM_JOB_NUM_NODES") \
+      or os.environ.get("SLURM_NNODES")
+if os.environ.get("VASP_NODES"):
+    nodes, nsrc = max(1, int(os.environ["VASP_NODES"])), "VASP_NODES"
+elif tot:
+    nodes, nsrc = max(1, int(tot) // npar), f"할당 {tot} 노드 ÷ 동시 {npar} 잡"
+else:
+    nodes, nsrc = None, None
+
+if mem is None or nodes is None:
+    miss = []
+    if mem is None:
+        miss.append("노드 메모리 (NODE_MEM_GB 로 알려 주세요, 단위 GB)")
+    if nodes is None:
+        miss.append("잡 하나가 걸치는 노드 수 (VASP_NODES 로 알려 주세요)")
+    print("⛔ 메모리 사전검사에 필요한 값을 알아내지 못했습니다:")
+    for m in miss:
+        print("   · " + m)
+    print("   예:  export NODE_MEM_GB=188   export VASP_NODES=4")
+    print("   ⚠ 모르는 채로 지나가지 않습니다 — 2026-09-04 OOM 이 정확히 그 경로였습니다.")
+    print("   정말 검사 없이 돌리시려면  export MEM_GUARD=off  (권장하지 않습니다).")
+    sys.exit(2)
+
+jobs_per_node = 1
+if tot and not os.environ.get("VASP_NODES"):
+    jobs_per_node = max(1, math.ceil(npar * nodes / max(1, int(tot))))
+
+need = (floor + nproc * repl) / nodes * jobs_per_node
+usable = mem * frac
+print(f"  ── 메모리 사전검사 (모형 · ±2배 범위) ──")
+print(f"     최악 잡 {worst}")
+print(f"     바닥 {floor:.1f} GB + 랭크 {nproc} x {repl:.2f} GB = {floor + nproc * repl:.1f} GB")
+print(f"     노드 {nodes} 개에 펼침 ({nsrc}) · 노드당 동시잡 {jobs_per_node}"
+      f"  ->  노드당 {need:.1f} GB")
+print(f"     노드 메모리 {mem:.0f} GB ({src}) x {frac:.2f} = 가용 {usable:.1f} GB")
+
+if need <= usable:
+    tol = usable / need
+    sf = float((mm.get("권고") or {}).get("안전계수") or 2.0)
+    print(f"     ✔ {need / usable * 100:.0f} % 사용 — 통과 "
+          f"(모형이 {tol:.2f}배 틀려도 견딥니다)")
+    if tol < sf:
+        # ⚠ 통과했다고 안전한 것이 아니다. 2026-09-04 실패에서 역산한 모형 오차는
+        #   0.98~2.85배였다 — 여유가 그 안이면 "모형이 맞을 때만 산다" 는 뜻이다.
+        want = math.ceil((floor + nproc * repl) * sf * jobs_per_node / usable)
+        print(f"     ⚠ 다만 여유 {tol:.2f}배는 권고 안전계수 {sf:.1f}배보다 얇습니다.")
+        print(f"        2026-09-04 실패에서 역산한 모형 오차가 0.98~2.85배라, 이 여유는")
+        print(f"        모형이 거의 정확할 때만 버팁니다. 여유를 주시려면 노드 {want} 개"
+              f"(현재 {nodes})로 펼쳐 주십시오.")
+        print(f"        그래도 돌리시겠다면 그대로 두셔도 됩니다 — 막지는 않습니다.")
+    sys.exit(0)
+
+want = math.ceil((floor + nproc * repl) * jobs_per_node / usable)
+print(f"     ⛔ {need / usable * 100:.0f} % — **이대로 돌리면 OOM 입니다.**")
+print()
+print("   고치는 법 (INCAR 은 건드리지 마십시오 — 해시로 동결돼 있습니다):")
+print(f"     · 랭크 {nproc} 을 **노드 {want} 개 이상에 펼쳐** 주십시오 "
+      f"(현재 {nodes} 개). 예: --nodes={want} --ntasks-per-node={max(1, nproc // want)}")
+print(f"     · 동시 실행을 줄이는 것도 방법입니다: export JOBS_PARALLEL=<값>")
+print(f"     · 필요한 총 노드 = {want} x 동시잡 {npar} = {want * npar} 개")
+print("   ⚠ 랭크 수를 **줄이지 마십시오** — KPAR x NCORE 배수 조건이 깨집니다.")
+sys.exit(2)
+PYMEM
+fi
+
 PP=${PP:?PP 를 지정하세요 (POTCAR 원본 트리)}
 POTCAR_ALLOWLIST=${POTCAR_ALLOWLIST:?POTCAR_ALLOWLIST 를 지정하세요 (절대경로)}
 
@@ -1660,12 +1781,9 @@ PYEXE
 #     canary(`*__nzmag`)는 `PARENT_GEOM` 이 가리키는 부모의 최종 기하를 받으므로
 #     부모가 먼저 끝나야 한다.
 #   `JOBS_PARALLEL` 로 조절한다 (기본 = MANIFEST 의 max_concurrency).
-NPAR=${JOBS_PARALLEL:-$(python3 -c '
-import json
-print((json.load(open("MANIFEST.json")).get("submission") or {}).get("max_concurrency") or 1)'
-)}
-case "$NPAR" in ''|*[!0-9]*) NPAR=1 ;; esac
-[ "$NPAR" -ge 1 ] || NPAR=1
+#   ⚠ $NPAR 은 **위 메모리 사전검사 앞에서 이미 정했다** — 가드가 그 값을 써야 하기
+#     때문이다. 여기서 다시 계산하면 두 곳이 갈린다 (실제로 갈린 전례가 있다).
+[ -n "${NPAR:-}" ] || { echo "⛔ 내부 오류: NPAR 이 안 정해졌다"; exit 3; }
 
 : > _wave1.txt; : > _wave2.txt
 while read -r j; do
@@ -13732,6 +13850,34 @@ def _run_env_block(man: Dict[str, Any], a, manifest_sha: str = "<메일 본문�
     ⛔ 이 함수가 못 하는 것: 러너 소스에서 필수 변수를 **자동으로 추출하지 않는다**.
       추가되면 여기와 러너가 갈라질 수 있다 — selftest 가 러너의 `:?` 목록과 대조한다.
     """
+    # ── 메모리 배치 (2026-09-07, 인수처 OOM 이후) ─────────────────────────────
+    #   러너의 사전검사가 요구하는 값과 **같은 이름**을 여기 적는다. 문서에 없는
+    #   변수를 러너가 요구하면 외주처는 첫 실행에서 멈춘다 (BH P1-1 과 같은 종류).
+    _mm = man.get("memory_model") or {}
+    _rec = _mm.get("권고") or {}
+    if _rec:
+        _memblk = (
+            "# ── 메모리 배치 (**2026-09-04 OOM 재발 방지 · 필수**) ──\n"
+            "export NODE_MEM_GB=%s          # 노드 하나의 메모리 [GB]\n"
+            "export VASP_NODES=%d                        # 잡 하나를 **이만큼의 노드에 펼쳐** 주십시오\n"
+            "#    잡 하나가 노드 하나에 몰리면 최악 잡이 노드당 %.1f GB 를 요구해 OOM 납니다.\n"
+            "#    노드 %d 개에 펼치면 노드당 %.1f GB (가용 %.1f GB 의 %d 퍼센트) 로 내려갑니다.\n"
+            "#    필요한 총 노드 = %d (노드/잡) x %d (동시잡) = **%d 노드**.\n"
+            "#    러너가 **첫 VASP 실행 전에** 이 값으로 계산해 보고, 넘치면 멈춥니다.\n"
+            % (("%g" % _rec["노드_메모리_GB"]), int(_rec["권고_노드_per_잡"]),
+               float(_mm.get("계획_랭크_잡_전체_GB", 0.0)),
+               int(_rec["권고_노드_per_잡"]), float(_rec["그때_노드당_GB"]),
+               float(_rec["가용_GB"]),
+               int(round(100.0 * _rec["그때_노드당_GB"] / max(_rec["가용_GB"], 1e-9))),
+               int(_rec["권고_노드_per_잡"]), int(_rec["동시잡"]), int(_rec["필요_총_노드"])))
+    else:
+        _memblk = (
+            "# ── 메모리 배치 (**2026-09-04 OOM 재발 방지 · 필수**) ──\n"
+            "export NODE_MEM_GB=<노드 하나의 메모리 GB>   # 예: 188\n"
+            "export VASP_NODES=<잡 하나가 걸치는 노드 수>  # 예: 4\n"
+            "#    러너가 첫 VASP 실행 전에 최악 잡의 노드당 메모리를 계산해 보고, 넘치면 멈춥니다.\n"
+            "#    두 값을 모르면 러너가 **추측하지 않고 멈춥니다** — 2026-09-04 OOM 이 그 경로였습니다.\n")
+
     return """cd <이 묶음을 푼 디렉터리>              # 묶음 **루트**
 
 # ── POTCAR 원본 트리와 allowlist (조립기가 쓴다) ──
@@ -13760,8 +13906,9 @@ export VASP_NPROC=%d                        # 랭크 수 (잡 하나당) — **K
 #      줄이지 마시고(배수 조건이 깨집니다) 노드를 늘려 주십시오.
 export VASP_EXE=/abs/path/to/vasp_std       # 실행파일 절대경로 (봉인 대상)
 
+%s
 # ⚠ 러너는 기본으로 잡 %d개를 **동시에** 띄웁니다 (= %d × VASP_NPROC 랭크).
-#    할당이 그보다 적으면:  export JOBS_PARALLEL=<할당코어 ÷ VASP_NPROC>
+#    할당이 그보다 적으면:  export JOBS_PARALLEL=<동시에 돌릴 잡 수>
 
 # (선택) PAW release 기록 — 첫 VASP 실행 **전에만** 가능 · 안 하셔도 러너·판정에 영향 없음.
 #   위 export 들이 같은 셸에 있어야 합니다. 결함이면 러너가 생산 **전에** 멈춥니다 (지우면 다시 돌아갑니다).
@@ -13777,6 +13924,7 @@ bash run_staged.sh 2     # 1단계 통과(STAGE1_PASS.json) 뒤에만""" % (
             c for c in (48, 64, 96, 128, 192, 256, 384, 512,
                         int(getattr(a, "cores", 48) or 48))
             if c % (KPAR_VAL * NCORE_VAL) == 0})),
+        _memblk,
         int(((man.get("submission") or {}).get("max_concurrency")) or getattr(a, "concurrency", 8) or 8),
         int(((man.get("submission") or {}).get("max_concurrency")) or getattr(a, "concurrency", 8) or 8))
 
@@ -16376,6 +16524,7 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
         _jkcap = []        # 🔴 2026-09-04 (렌즈 K1 P1-2) — 잡별 k 병렬 상한 min(KPAR, k점 수)
         _jrel = []         # 🔴 2026-09-04 — 잡 상대경로 (PARENT_GEOM 사슬 판정용)
         _jph = []          # 🔴 2026-09-04 — 잡별 {상: 시간} (NELM 천장 계산용)
+        _jmem = []         # 🔴 2026-09-07 — 잡별 메모리 모형 (인수처 OOM 이후)
         for _jp in sorted(out.rglob("job.json")):
             _m = json.loads(_jp.read_text())
             # 그 잡에서 제일 무거운 상의 격자로 상한을 잡는다 (상별 시간 가중은 안 한다 — 근사).
@@ -16398,6 +16547,20 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             _jph.append(_pd)
             _jrel.append(str(_jp.parent.relative_to(out)))
             _jh.append(sum(_pd.values()))
+            # ── 메모리 모형. ⚠ 모형 자체는 CE.job_memory 가 **단일 출처**다 —
+            #   여기서 다시 쓰지 않는다. 종/개수가 없는 잡은 건너뛴다 (원자수만으로는
+            #   NELECT 를 못 내고, 0 으로 채우면 조용한 과소추정이 된다).
+            _sp_j, _ct_j = _m.get("species_order"), _m.get("counts")
+            if _sp_j and _ct_j:
+                _ct_j = list(_ct_j.values()) if isinstance(_ct_j, dict) else list(_ct_j)
+                try:
+                    _mem_j = CE.job_memory(
+                        _vol or CE.BASE["volume_A3"], _sp_j, _ct_j,
+                        (_m.get("kmesh") or {}).get("static", "3 4 1"), kpar=KPAR_VAL)
+                    _jmem.append((_mem_j["floor_GB"], str(_jp.parent.relative_to(out)),
+                                  _mem_j["repl_GB_per_rank"]))
+                except (ValueError, KeyError):
+                    pass          # 모르는 종 등 — 조용히 0 을 만들지 않고 그냥 뺀다
         # 🔴 회신 AB/AE — `--cores` 가 **라벨만 바꾸고 숫자는 안 바꿨다.** _jh 는
         #   추정기 기준선(48코어)의 시간이라, `--cores 256` 을 줘도 README·계약이
         #   48코어 시간을 "256코어 기준" 이라고 적었다. 외주 견적이 여기서 틀어진다
@@ -16505,6 +16668,65 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             "estimator_baseline_sec_per_estep": round(_base.get("sec_per_estep", 0), 4),
             "repo_commit": man.get("repo_commit"),
             "uncertainty": "±2배 (모형이지 벤치마크가 아니다)"}
+
+        # ── 메모리 모형을 MANIFEST 에 싣는다 (2026-09-07, 인수처 OOM 이후) ─────
+        #   왜 여기 싣나: 인수처에는 우리 추정기가 없다. run_staged.sh 의 사전검사가
+        #   쓸 수 있도록 **최악(바닥이 가장 큰) 잡의 두 상수**만 보낸다.
+        # ⚠ 이 블록은 **자기 예외를 자기가 잡는다.** 바깥 try 를 같이 쓰면 여기서
+        #   난 오류가 `cost_frozen` 을 통째로 error 로 바꿔 버린다 — 실제로 그렇게
+        #   깨졌다(2026-09-07 selftest: longest_job_h KeyError). 새로 붙인 축이
+        #   기존 축을 무너뜨리면 안 된다.
+        try:
+          if _jmem:
+              _f_gb, _f_rel, _f_repl = max(_jmem)
+              _mm = {
+                  "schema": "vasp_node_memory/v1",
+                  "worst_job": _f_rel,
+                  "floor_GB": round(_f_gb, 2),
+                  "repl_GB_per_rank": round(_f_repl, 3),
+                  "usable_frac": CE.USABLE_FRAC,
+                  "정의": ("노드당 GB = (floor_GB + 랭크수 × repl_GB_per_rank) "
+                           "÷ 잡이_걸친_노드수 × 그_노드의_동시잡수"),
+                  "계획_랭크": getattr(a, "cores", 48),
+                  "계획_랭크_잡_전체_GB": round(_f_gb + a.cores * _f_repl, 1),
+                  "⚠_모형이다": ("±2배가 예상 범위. 2026-09-04 인수처 OOM 에서 역산한 "
+                                 "오차 범위는 0.98~2.85배 — 슬랩(162.6 GB 예측)은 죽고 "
+                                 "분자(56.1 GB 예측)는 살았다는 사실이 양쪽을 묶는다."),
+                  "⛔_실측_아님": ("실제 사용량을 재지 않는다. 사전검사 통과는 안전 보증이 "
+                                   "아니라 '명백한 불가' 를 시작 전에 거른 것이다."),
+                  "출처": "tools/sdcp/vasp_cost_estimate.py job_memory() — 모형의 단일 출처",
+              }
+              if getattr(a, "node_mem_gb", None):
+                  import math as _math
+                  _us = float(a.node_mem_gb) * CE.USABLE_FRAC
+                  _tot_gb = _f_gb + a.cores * _f_repl
+                  _sf = max(1.0, float(getattr(a, "mem_safety", 2.0) or 1.0))
+                  _bare = max(1, _math.ceil(_tot_gb / _us))
+                  _npj = max(1, _math.ceil(_tot_gb * _sf / _us))
+                  _mm["권고"] = {
+                      "노드_메모리_GB": float(a.node_mem_gb),
+                      "가용_GB": round(_us, 1),
+                      "안전계수": _sf,
+                      # ⚠ 최소값은 **모형이 딱 맞아야 사는** 값이다. 권고와 나란히 남겨
+                      #   두 수의 차이가 곧 우리가 모르는 폭이라는 걸 보이게 한다.
+                      "최소_노드_per_잡": _bare,
+                      "최소일때_견디는_모형오차": round(_us / (_tot_gb / _bare), 2),
+                      "권고_노드_per_잡": _npj,
+                      "그때_노드당_GB": round(_tot_gb / _npj, 1),
+                      "견디는_모형오차": round(_us / (_tot_gb / _npj), 2),
+                      "동시잡": getattr(a, "concurrency", 1),
+                      "필요_총_노드": _npj * int(getattr(a, "concurrency", 1) or 1),
+                      "왜_최소가_아닌가": ("2026-09-04 OOM 에서 역산한 모형 오차 범위가 "
+                                           "0.98~2.85배다. 최소 노드 수는 그 범위의 아래끝에서만 "
+                                           "살아남는다 — 안전계수로 위쪽을 덮는다."),
+                  }
+              man["memory_model"] = _mm
+          else:
+              man["memory_model"] = {
+                  "error": ("잡에서 species_order/counts 를 못 읽어 모형을 못 냈다 — "
+                            "run_staged.sh 의 메모리 사전검사가 **건너뛴다**")}
+        except Exception as _me:
+            man["memory_model"] = {"error": f"{type(_me).__name__}: {_me}"}
     except Exception as _e:
         man["cost_frozen"] = {"error": f"{type(_e).__name__}: {_e}"}
 
@@ -17657,6 +17879,20 @@ def selftest() -> int:
         chk("JOBS_PARALLEL" in _rs and "xargs" in _rs and "_wave2" in _rs,
             "⛔음성 AS 10: 러너가 **실제로 병렬**로 돌고(직렬인데 MANIFEST 는 "
             "동시 8이라고 적고 있었다) 부모 의존 잡을 뒤 물결로 민다")
+        # ── 2026-09-07 메모리 사전검사 (인수처 OOM 이후) ────────────────────
+        chk(_rs.count("NPAR=${JOBS_PARALLEL:-") == 1,
+            "⛔음성: NPAR 계산이 러너에 **한 번만** 있다 (가드가 쓰려고 앞으로 옮겼는데 "
+            "뒤 사본을 안 지우면 두 곳이 갈린다)")
+        _mg_at = _rs.find("메모리 사전검사")
+        chk(0 < _mg_at < _rs.find('PP=${PP:?'),
+            "⛔음성: 메모리 사전검사가 **PP 검사보다 앞**에 있다 (뒤에 있으면 "
+            "환경이 덜 갖춰진 현장에서 메모리 판정을 못 보고 죽는다)")
+        chk(_mg_at < _rs.find("run_wave"),
+            "⛔음성: 메모리 사전검사가 **첫 VASP 실행보다 앞**이다")
+        chk("NODE_MEM_GB" in _rs and "VASP_NODES" in _rs and "MEM_GUARD" in _rs,
+            "가드가 읽는 세 변수가 러너에 있다")
+        chk("sys.exit(2)" in _rs[_mg_at:_mg_at + 4000],
+            "⛔음성: 값을 모르면 **멈춘다** (조용히 통과하면 2026-09-04 가 재발한다)")
         # ⚠ 회신 BB P1 — census 본문이 러너에서 `census.py` 로 빠졌다. 검사도
         #   실물이 있는 곳을 봐야 한다 (러너에는 **호출**이 남는다).
         # ⚠ `RECHECK_SEAL=1 python3 census.py …` 도 앞 문자열을 **포함**한다 —
@@ -20328,6 +20564,12 @@ def _runner_e2e(bundle: Path, chk) -> bool:
     env["EXPECT_MANIFEST_SHA256"] = hashlib.sha256(
         (bundle / "MANIFEST.json").read_bytes()).hexdigest()
     env["PYTHONIOENCODING"] = "utf-8"
+    # 🔴 2026-09-07 — 메모리 사전검사가 이 값들을 요구한다. **끄지 않고 채운다** —
+    #   `MEM_GUARD=off` 로 넘기면 e2e 가 가드를 한 번도 안 지나가서, 가드가 정상 경로를
+    #   막아도 selftest 가 못 잡는다 (실제로 여기서 처음 걸렸다).
+    #   픽스처는 작은 셀이라 넉넉히 통과한다.
+    env["NODE_MEM_GB"] = "188"
+    env["VASP_NODES"] = "1"
 
     def _run(root, extra_env=None):
         e = dict(env, **(extra_env or {}))
@@ -21374,6 +21616,14 @@ def main():
     ap.add_argument("--min_vacuum", type=float, default=MIN_VACUUM_A_DEFAULT,
                     help="흡착종↔다음 주기 슬랩 최소 분리(Å). 미달이면 c 를 늘린다. "
                          "0 이면 게이트를 끈다 (권장하지 않음)")
+    ap.add_argument("--node_mem_gb", type=float, default=None,
+                    help="인수처 노드 하나의 메모리 [GB]. 주면 MANIFEST·README 에 "
+                         "**노드/잡 권고**를 계산해 싣는다 (2026-09-04 OOM 이후). "
+                         "⚠ 현장 값이므로 기본값을 두지 않는다 — 모르면 권고를 안 낸다.")
+    ap.add_argument("--mem_safety", type=float, default=2.0,
+                    help="메모리 권고의 안전계수 (기본 2.0). 모형 오차의 실측 범위가 "
+                         "0.98~2.85배라 **최소 노드 수는 여유가 없다** — 2.0 이면 그 범위의 "
+                         "대부분을 덮는다. 1.0 을 주면 최소값(= 모형이 딱 맞아야 산다)이 된다.")
     ap.add_argument("--concurrency", type=int, default=8,
                     help="외주처가 동시에 돌릴 잡 수 — MANIFEST 에 기록. "
                          "⚠ 한 잡의 static→dense 사슬보다 짧아질 수 없다")
