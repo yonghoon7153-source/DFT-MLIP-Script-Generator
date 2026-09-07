@@ -1,10 +1,10 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 361
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-07 · managed-files: 362
 
 규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
-## concepts/ (12)
+## concepts/ (13)
 - `kb/concepts/bandgap.md` — Band gap — 밴드 갭 (전자 밴드 간극)
 - `kb/concepts/beta-gate.md` — β 게이트 — 확산영역 판정 (diffusive-regime gate)
 - `kb/concepts/bvse.md` — BVSE — Bond Valence Site Energy (결합가 자리 에너지)
@@ -12,6 +12,7 @@
 - `kb/concepts/dft.md` — DFT — Density Functional Theory (밀도범함수이론)
 - `kb/concepts/elastic.md` — Elastic constants — 탄성상수 $C_{ij}$ 와 VRH 평균
 - `kb/concepts/md.md` — MD (MLIP) / MSD / Arrhenius — 분자동역학 이온수송
+- `kb/concepts/msd_reading.md` — MSD 그림을 읽는 법 — 창 · σ · Ea 는 서로 무엇인가 ○미열람
 - `kb/concepts/neb.md` — NEB / CI-NEB — 최소에너지경로 (Nudged Elastic Band)
 - `kb/concepts/neb_intermediate_minimum.md` — NEB 경로 가운데가 움푹 파이는 것 — 중간 준안정 자리 ○미열람
 - `kb/concepts/ordered_vs_disordered.md` — Ordered vs Disordered — 어떤 LPSCl 구조로 계산할 것인가
