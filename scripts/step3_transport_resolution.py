@@ -33,6 +33,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from step3_sigma import solve_sigma_z                            # noqa: E402
+from measure_provenance import provenance                        # noqa: E402  (CL-75)
 
 SID_AM, SID_SE, SID_SDCP = 1, 6, 5
 SIGMA_ION_SE = 3.0e-3                                            # S/cm (Cronau, se_material)
@@ -295,5 +296,6 @@ if __name__ == '__main__':
           f'{vd["max_origin_spread_pct"]:.2f} %.  단일 origin σ 인용 금지 한계도 그만큼이다.')
     if a.out:
         json.dump({'kit': a.kit, 'len_um': a.len_um, 'se_d_um': d_se,
-                   'rows': rows, 'verdict': vd}, open(a.out, 'w'), ensure_ascii=False, indent=1)
+                   'rows': rows, 'verdict': vd, **provenance()},
+                  open(a.out, 'w'), ensure_ascii=False, indent=1)
         print(f'\n  → {a.out}')

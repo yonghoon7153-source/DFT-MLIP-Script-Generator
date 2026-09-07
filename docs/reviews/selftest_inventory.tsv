@@ -114,6 +114,7 @@ scripts/step3_sigma.py	--selftest-swcnt	fast	both	claude	초록 0.8s (실측)
 scripts/step3_sigma.py	--selftest-temp	fast	both	claude	초록 0.8s (실측)
 scripts/step3_sigma.py	--selftest-trackb	fast	both	claude	초록 0.8s (실측)
 scripts/step3_transport_resolution.py	--selftest	fast	none	claude	초록 3.9s (실측)
+scripts/step4_angular_risk.py	--selftest	fast	none	claude	초록 0.5s (실측) — 순수 기하, 외부 데이터 불요
 scripts/step4_dyn.py	--selftest	fast	none	claude	초록 12.8s (실측)
 scripts/step4_viz_from_npz.py	--selftest	fast	none	claude	초록 2.8s (실측)
 scripts/step6_surrogate.py	--selftest	fast	none	claude	초록 5.9s (실측)
