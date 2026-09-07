@@ -108,10 +108,18 @@ C-12 노드는 아직 `proposed` 인데 **전역 closure policy** 를 이미 `su
 | | 상태 |
 |---|---|
 | P0-1 (1/3) 데이터 계층 — 지위를 정본에서 파생 (`_wave1_gate`·`_wave1_status`) | ✅ `1e5f3f0` 계열 |
-| P0-1 (2/3) 화면 · (3/3) 시험 | ⏳ |
-| P0-2 다섯 표면 상태 결속 | ⏳ |
-| P0-3 거버넌스 간선 제거 | ⏳ |
-| P0-4 fail-closed 봉인 | ⏳ |
-| P1 6건 | ⏳ |
+| P0-1 (2/3) 화면 · (3/3) 시험 | ✅ basin 불일치 우선순위 정정 + 결과 원장 fail-closed |
+| P0-2 다섯 표면 상태 결속 | ✅ `test_retracted_canonical_values_are_bound_on_every_surface` (7표면·레지스트리 구동) |
+| P0-3 거버넌스 간선 제거 | ✅ `sdcp-c12-path` 의 supersedes 는 `ddE_obs` 하나뿐 · 전역 `closure-criteria-first` 는 **active 유지** |
+| P0-4 fail-closed 봉인 | ✅ `canonical._by_id` (중복 ID) + `index()` 충돌 표시 + validator 음성시험 7건 |
+| P1 ⑤ signed drift · base-T | ✅ 2026-09-07 — `max(key=abs)` · `abs(drift)>25` · base-T 조용한 대체 중단 · `--selftest` 10건 |
+| P1 ⑥ 동적 라우트 | ✅ 2026-09-07 — fixture 11 + EXEMPT 3(사유 명시), 고아 금지·404 통과 금지 |
+| P1 나머지 (Q2 화면 파생 · Q5 hazard 전행 · Q7 3상태 · Q4 카드 범위) | ⏳ |
 
-재제출 라벨은 **AY** 다 (AX 는 LPSOCl 600 K 개정에 이미 나가 있다).
+> ⚠ **2026-09-07 정정.** 이 표는 오랫동안 ⏳ 로 멈춰 있었는데 **문서가 낡은 것이었다** —
+> 실제로는 P0 넷이 이미 이행돼 있었고, 이번에 코드로 대조해 채웠다. **"⏳ 로 보이는 것"과
+> "안 된 것"을 섞지 않는다.** 대조에서 진짜로 안 돼 있던 것은 P1 ⑤⑥ 둘이었고 그날 닫았다.
+> ⛔ 단, 이 갱신은 **우리 자체 대조**다 — NO-GO 해제는 리뷰어 판정이 필요하다 (요청 BG).
+
+재제출 라벨: **BG** (`kb/reviews/codex_BG_prompt_webapp_aw_release_2026_09_07.md`).
+⚠ AW 회신이 적었던 "재제출 라벨 AY" 는 **소진됐다** — AY·AZ 는 c12 v19·v20 에 나갔다.
