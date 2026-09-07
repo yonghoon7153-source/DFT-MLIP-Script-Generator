@@ -742,13 +742,18 @@ def api_structure(fn):
 def api_csv(rel):
     # ⛔ 2026-08-14 (Codex Round-3 P0-3) — 정책이 headline 에만 걸려 있어서
     #   화면에서 숨긴 artifact 를 이 경로로 그냥 받을 수 있었다. 이제 공통 resolver 를 탄다.
-    v = AP.resolve(f"db/{rel}" if not str(rel).startswith("db/") else rel, request.args)
+    # ⛔ 2026-09-07 — resolve 는 `db/…` 로 물어보면서 envelope 에는 접두 없는 rel 을
+    #   넘기고 있었다. 봉투의 `artifact` 는 인용 시 지위를 값에 붙들어 두는 식별자인데
+    #   그 값이 원장의 source_path(`db/properties/…`)와 **달라서** 대조가 안 됐다.
+    #   한 번만 정규화해서 두 곳에 같은 경로를 쓴다.
+    gov_rel = rel if str(rel).startswith("db/") else f"db/{rel}"
+    v = AP.resolve(gov_rel, request.args)
     if not v["allowed"]:
         return jsonify({"error": v["reason"], "needs": v["needs"],
-                        **AP.envelope(rel, v)}), 403
+                        **AP.envelope(gov_rel, v)}), 403
     out = D.read_csv(rel)
     if v["governed"]:
-        out = {**out, "_artifact_status": AP.envelope(rel, v)}
+        out = {**out, "_artifact_status": AP.envelope(gov_rel, v)}
     return jsonify(out)
 
 

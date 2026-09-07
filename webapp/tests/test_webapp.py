@@ -20,9 +20,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "webapp"))
 
-import app as A          # noqa: E402
-import canonical as C    # noqa: E402
-import data as D         # noqa: E402
+import app as A                 # noqa: E402
+import artifact_policy as AP    # noqa: E402
+import canonical as C           # noqa: E402
+import data as D                # noqa: E402
 
 
 # ── 1) 정본 레지스트리 ↔ 원자료 ─────────────────────────────────────────────
@@ -1161,6 +1162,67 @@ def test_artifact_policy_gates_every_api_path():
     for url, want in cases:
         got = c.get(url).status_code
         assert got == want, f"{url} → {got} (want {want})"
+
+
+def test_csv_api_survives_a_non_csv_and_names_the_reason():
+    """`/api/csv/<png>` 가 500 이 아니라 **사유를 적은 오류**여야 한다.
+
+    실측 (2026-09-07): db/properties 아래에 png 가 실제로 있고, 그 경로로 부르면
+      `read_csv()` 의 맨몸 `open(encoding='utf-8-sig')` 에서 UnicodeDecodeError 가
+      새어 나와 라우트가 500 이었다. 500 은 화면에 아무 말도 못 하고, 브라우저 콘솔의
+      JS 는 `d.error` 를 기대하는데 JSON 이 아예 안 온다.
+
+    음성 경로 세 가지: 텍스트가 아닌 파일 · 없는 파일 · 경로 탈출.
+    """
+    c = A.app.test_client()
+    pngs = sorted((ROOT / "db" / "properties").glob("*.png"))
+    assert pngs, "이 시험의 전제(png 가 db/properties 에 있다)가 깨졌다"
+    r = c.get("/api/csv/properties/" + pngs[0].name)
+    assert r.status_code == 200, f"비-CSV 에 {r.status_code} — 500 회귀"
+    d = r.get_json()
+    assert d.get("error"), "비-CSV 인데 error 를 안 준다 (조용히 빈 표로 보인다)"
+    assert "UnicodeDecodeError" in d["error"] or "읽을 수 없다" in d["error"], d["error"]
+    # 없는 파일 · 경로 탈출은 여전히 막혀 있어야 한다 (느슨해지지 않았는지)
+    assert c.get("/api/csv/properties/nope_does_not_exist.csv").get_json()["error"]
+    assert c.get("/api/csv/../../etc/passwd").get_json()["error"], "경로 탈출이 뚫렸다"
+    # 정상 CSV 는 그대로 (양성 대조군)
+    ok = c.get("/api/csv/properties/" + sorted(
+        (ROOT / "db" / "properties").glob("*.csv"))[0].name).get_json()
+    assert ok.get("columns") and not ok.get("error")
+
+
+def test_artifact_envelope_path_matches_the_ledger():
+    """봉투의 `artifact` 는 원장의 source_path 와 **대조 가능한 같은 표기**여야 한다.
+
+    실측 (2026-09-07): `/api/csv` 가 resolve 에는 `db/properties/…` 를 주면서 envelope
+      에는 접두 없는 `properties/…` 를 줬다. 봉투는 인용 시 지위를 값에 붙들어 두는
+      장치인데, 그 식별자로 원장을 못 찾으면 붙들어 두는 일을 못 한다.
+    """
+    man = json.loads(D.CASCADE_MANIFEST_PATH.read_text(encoding="utf-8"))
+    gov = [a["source_path"] for a in man["artifacts"]
+           if str(a["source_path"]).startswith("db/properties/")]
+    assert gov, "이 시험의 전제(원장에 db/properties artifact 가 있다)가 깨졌다"
+    c = A.app.test_client()
+    seen_denied = seen_allowed = 0
+    for src in gov[:6]:
+        entry = AP._load()[src]
+        gate = AP.SCOPE_GATE[entry["use_scope"]]
+        # 접두 있는 요청과 없는 요청이 **같은** 봉투를 내야 한다
+        for url in (f"/api/csv/{src[3:]}", f"/api/csv/{src}"):
+            for qs in ("", f"?{gate[0]}={gate[1]}" if gate else ""):
+                r = c.get(url + qs)
+                d = r.get_json()
+                env = d.get("_artifact_status") or d
+                assert env.get("artifact") == src, (
+                    f"{url+qs} ({r.status_code}): 봉투가 {env.get('artifact')!r} 라는데 "
+                    f"원장은 {src!r} 다 — 이 표기로는 원장 대조가 안 된다")
+                if r.status_code == 403:
+                    seen_denied += 1
+                elif "_artifact_status" in d:
+                    seen_allowed += 1
+    # 두 갈래를 **둘 다** 밟았는지 — 한쪽만 보면 다른 쪽 회귀를 못 잡는다
+    assert seen_denied and seen_allowed, (
+        f"거부 갈래 {seen_denied}건 · 허용 갈래 {seen_allowed}건 — 두 갈래를 다 밟아야 한다")
 
 
 def test_manifest_has_a_single_owner():

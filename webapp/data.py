@@ -3122,6 +3122,13 @@ def read_csv(rel: str) -> dict:
     ⚠ 루트를 넓히는 게 아니라 **두 개만** 허용한다 — 임의 경로 탈출을 막는
       is_relative_to 검사는 양쪽 다 유지한다. db/ 안엔 docs 디렉터리가 없어서
       기존 호출(properties/…, spectra/…)과 충돌하지 않는다.
+
+    ⛔ 이 함수가 못 하는 것
+      · CSV 가 맞는지 확인하지 않는다 — 확장자를 안 본다. 텍스트로 안 열리는 파일
+        (png 등)은 `{"error": …}` 로 돌려준다. 종전엔 여기서 UnicodeDecodeError 가
+        새어 나가 `/api/csv/<png>` 가 **500** 이었다 (2026-09-07 실측, db/properties
+        아래에 png 가 실제로 있다).
+      · 값이 맞는지 검증하지 않는다. 파싱만 한다.
     """
     if rel.startswith("docs/figures/"):
         root = (DB.parent / "docs" / "figures").resolve()
@@ -3133,7 +3140,13 @@ def read_csv(rel: str) -> dict:
     # ⚠ utf-8-**sig**. 하우스 스타일 CSV 는 Origin 호환을 위해 BOM 을 붙여 쓰는데,
     #   'utf-8' 로 열면 첫 셀이 '﻿# …' 이 되어 lstrip('# ') 검사에 안 걸린다.
     #   그러면 **첫 줄 주석이 헤더로 잡혀** 표가 통째로 1열짜리가 된다 (2026-07-30 발견).
-    rows = list(csv.reader(p.open(encoding="utf-8-sig")))
+    try:
+        with p.open(encoding="utf-8-sig", newline="") as fh:
+            rows = list(csv.reader(fh))
+    except (UnicodeDecodeError, csv.Error, OSError) as exc:
+        # 사유를 감추지 않는다 — "not found" 와 "못 읽었다" 는 다른 사실이다.
+        return {"error": f"CSV 로 읽을 수 없다 ({type(exc).__name__})", "columns": [],
+                "data": [], "notes": []}
     # 헤더 = 선행 주석(#)·빈 줄을 건너뛴 첫 실질 행
     # ⚠ 주석줄을 **버리지 않고 모은다.** CSV 가 자기 안에 적어 둔 규율 캐비앳
     #   (예: "absolute sigma = MLIP Nernst-Einstein upper bound; RT extrapolation NOT reportable")
