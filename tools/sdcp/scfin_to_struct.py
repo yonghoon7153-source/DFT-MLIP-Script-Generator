@@ -562,6 +562,44 @@ VBONDS = [("Ni", "O", 2.40, 1),   # NiO6 팔면체 + 분자 O 와의 흡착결�
           ("C", "F", 1.60, 0)]      # PTFE 조각 — C-F 는 1.33~1.36 A
 
 
+def viewing_supercell(cell, elems, labels, pos, sel_mol, mult):
+    """표시용 슈퍼셀 — **슬랩만** 타일링하고 분자는 하나로 둔다. → (cell2, elems2, labels2, pos2)
+
+    왜 필요한가 (2026-09-07, 사용자 제보): C10F22 는 b 축 분율 span 이 **1.033** 이라
+    한 셀보다 길다. VESTA 는 좌표를 [0,1) 로 **접어서** 그리므로, 어떻게 평행이동해도
+    3.3 % 는 반대편으로 넘어가 분자가 조각나 보인다 (실측: 편 좌표 1조각 → 접은 좌표
+    4조각 = 29원자 + 낱개 F 3개). BOUND 를 넓혀도 이미 접힌 것을 되돌리지 못한다.
+    ⇒ 상자를 키우는 수밖에 없다.
+
+    ⚠ 이것은 **그림 전용**이다. 계산 셀이 아니다 — 호출부가 제목·주석에 그 사실을
+      반드시 적는다 (mol_xyz 의 VIEWING BOX 와 같은 규율).
+    ⚠ 분자를 하나만 두는 것도 **표시 선택**이다. 실제 계는 셀마다 분자가 하나씩 있다.
+      그림에서 이웃 분자를 지운 것이므로 피복률처럼 읽으면 안 된다.
+
+    ⛔ 못 하는 것: 결합·에너지·거리를 바꾸지 않는다(주기 복제일 뿐). 그리고 분자가
+      **주기결합으로 감긴** 경우는 이걸로도 안 펴진다 — 그건 구조 자체의 문제다.
+    """
+    m = [max(1, int(x)) for x in mult]
+    cell2 = np.array([cell[i] * m[i] for i in range(3)])
+    inv2 = np.linalg.inv(cell2)
+    E, L, P = [], [], []
+    slab = ~np.asarray(sel_mol, bool)
+    for i in range(m[0]):
+        for j in range(m[1]):
+            for k in range(m[2]):
+                sh = i * cell[0] + j * cell[1] + k * cell[2]
+                for idx in np.flatnonzero(slab):
+                    E.append(elems[idx]); L.append(labels[idx]); P.append(pos[idx] + sh)
+    # 분자는 **한 번만**. 새 셀 기준으로 면내 가운데에 둔다.
+    midx = np.flatnonzero(np.asarray(sel_mol, bool))
+    if len(midx):
+        fm = pos[midx] @ inv2
+        d = np.array([0.5 - fm[:, 0].mean(), 0.5 - fm[:, 1].mean(), 0.0]) @ cell2
+        for idx in midx:
+            E.append(elems[idx]); L.append(labels[idx]); P.append(pos[idx] + d)
+    return cell2, E, L, np.array(P)
+
+
 def parse_bond_max(specs):
     """`--bond_max Li:O=2.30` 들을 {(A,B): max} 로. 원소쌍은 순서 무관. → dict
 
@@ -755,7 +793,7 @@ def default_tag(path):
 
 
 def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recenter=True,
-                box_pad=None, bond_max=None):
+                box_pad=None, bond_max=None, vesta_super=None):
     """한 계산 → xyz + .vasp + .vesta + 거리 세 층 감사. → meta(dict)
 
     box_pad 를 주면 셀 없는 분자 xyz 를 **보기용 상자**에 담아 읽는다 (read_mol_xyz).
@@ -845,7 +883,19 @@ def emit_struct(path, out, tag=None, scale=RAD_SCALE_DEFAULT, quiet=False, recen
               f"AFM sublattice colors (NiA blue / NiB purple)")
     if meta:
         vt += f" - basin {meta['basin']}, E0 {meta['E0']:.4f} eV"
-    write_vesta(os.path.join(out, f"{tag}.vesta"), cell, labels, elems, pos, vt, scale=scale,
+    # ── 표시용 슈퍼셀 (그림 전용). xyz·vasp 는 **원래 셀 그대로** 두고 .vesta 만 바꾼다 —
+    #   구조 파일이 계산 셀을 잃으면 나중에 그걸로 계산을 돌린다.
+    v_cell, v_el, v_lab, v_pos = cell, elems, labels, pos
+    if vesta_super and tuple(int(x) for x in vesta_super) != (1, 1, 1):
+        _mol = split_molecule(cell, elems, pos)
+        v_cell, v_el, v_lab, v_pos = viewing_supercell(cell, list(elems), list(labels),
+                                                       pos, _mol, vesta_super)
+        _ms = "x".join(str(int(x)) for x in vesta_super)
+        vt += (f" - VIEWING SUPERCELL {_ms}: slab tiled for display only, ONE molecule kept "
+               f"(the calculation cell is 1x1x1 of this and holds one molecule per cell)")
+        print(f"  ⚠ {tag}: 표시용 슈퍼셀 {_ms} — .vesta 만 (xyz·vasp 는 원래 셀). "
+              f"원자 {len(elems)} → {len(v_el)}")
+    write_vesta(os.path.join(out, f"{tag}.vesta"), v_cell, v_lab, v_el, v_pos, vt, scale=scale,
                 bond_max=bond_max)
     meta.update({"tag": tag, "nat": len(elems), "out": out})
     if not quiet:
@@ -1460,6 +1510,33 @@ def selftest():
         lo = [l for l in _v if l.split()[1:3] == ["Li", "O"]]
         chk(not lo, "종에 없는 쌍(Li-O)은 애초에 안 쓰인다")
 
+        # ── 표시용 슈퍼셀 ────────────────────────────────────────────────────
+        #   셀보다 긴 분자를 VESTA 가 접어서 조각내는 문제. 실물 재현:
+        #   b 축으로 셀보다 살짝 긴 2원자 "분자" 를 만들고, 슈퍼셀 전후로
+        #   **접었을 때 조각이 나는지**를 본다 (BOUND 만으로는 안 고쳐진다).
+        _c1 = np.array([[10.0, 0, 0], [0, 4.0, 0], [0, 0, 20.0]])
+        _el = ["Li", "Li", "C", "C"]          # 슬랩 2 + 분자 2
+        _p = np.array([[1.0, 1.0, 1.0], [6.0, 1.0, 1.0],      # 슬랩
+                       [5.0, 0.1, 10.0], [5.0, 4.3, 10.0]])   # 분자: b 로 4.2 Å > 셀 4.0
+        _sel = np.array([False, False, True, True])
+        _c2, _e2, _l2, _p2 = viewing_supercell(_c1, _el, _el, _p, _sel, (1, 2, 1))
+        chk(abs(np.linalg.norm(_c2[1]) - 8.0) < 1e-9, f"b 축이 2배 (측 {np.linalg.norm(_c2[1]):.2f})")
+        chk(_e2.count("Li") == 4, f"슬랩은 타일링된다 (Li 2 -> {_e2.count('Li')})")
+        chk(_e2.count("C") == 2, f"⛔음성: 분자는 **한 번만** (C 2 -> {_e2.count('C')}) — "
+            "타일링하면 피복률처럼 읽힌다")
+        _fm = (_p2[np.array([e == "C" for e in _e2])]) @ np.linalg.inv(_c2)
+        chk(0.0 <= _fm[:, 1].min() and _fm[:, 1].max() <= 1.0,
+            f"분자가 새 셀 [0,1] 안에 들어온다 (b {_fm[:,1].min():.3f}~{_fm[:,1].max():.3f}) "
+            "— 이래야 VESTA 가 접어도 안 갈린다")
+        # ⛔음성: 원래 셀에서는 접으면 갈린다 (이 시험이 무엇을 고쳤는지 보증)
+        _f1 = (_p[_sel]) @ np.linalg.inv(_c1)
+        chk(_f1[:, 1].max() > 1.0,
+            "⛔음성: 원래 셀에서는 분자가 b 축 1.0 을 넘는다 (그래서 갈렸다)")
+        # ⛔음성: 배수 1 1 1 은 아무것도 안 바꾼다
+        _c3, _e3, _l3, _p3 = viewing_supercell(_c1, _el, _el, _p, _sel, (1, 1, 1))
+        chk(len(_e3) == len(_el) and np.allclose(_c3, _c1),
+            "⛔음성: 배수 1 1 1 이면 원자 수·셀이 그대로")
+
     print(f"── {'PASS' if not fails else 'FAIL ' + str(len(fails))} ──")
     return 1 if fails else 0
 
@@ -1496,6 +1573,10 @@ def main():
                     help="VESTA 결합 컷오프 덮어쓰기 (예: Li:O=2.30). 어떤 자세에서는 "
                          "기본 컷오프가 분자<->슬랩 접촉선까지 그린다. ⚠ 원소쌍 단위라 "
                          "**같은 쌍의 슬랩 내부 결합도 같이** 줄어든다")
+    ap.add_argument("--vesta_super", nargs=3, type=int, default=None, metavar=("A","B","C"),
+                    help="표시용 슈퍼셀 배수 — **.vesta 에만** 적용한다 (xyz·vasp 는 원래 셀). "
+                         "셀보다 긴 분자는 VESTA 가 접어서 조각내므로 상자를 키운다. "
+                         "⚠ 슬랩만 타일링하고 분자는 하나만 남긴다 — 피복률로 읽으면 안 된다")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
@@ -1513,11 +1594,13 @@ def main():
     metas = []
     for path in list(a.mol_xyz):
         metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
-                                 recenter=False, box_pad=a.box_pad, bond_max=bmax))
+                                 recenter=False, box_pad=a.box_pad, bond_max=bmax,
+                                 vesta_super=a.vesta_super))
     for path in list(a.scf_in) + list(a.outcar) + list(a.poscar):
         if a.out:
             metas.append(emit_struct(path, a.out, tag=a.tag, scale=a.vesta_scale,
-                                     recenter=not a.no_recenter, bond_max=bmax))
+                                     recenter=not a.no_recenter, bond_max=bmax,
+                                     vesta_super=a.vesta_super))
         else:
             cell, labels, pos, meta = read_outcar(path)
             meta.update(tag=default_tag(path), nat=len(pos))
