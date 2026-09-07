@@ -285,7 +285,11 @@ areal current 와 path length 가 함께 늘어 거시 옴 분극이 대략 `L²
 
 ### 남은 순서
 
-1. **(A)/(B) 예산 결정** — 96 primary 냐, 72 상한 + 좁힌 판정이냐.
+1. ~~**(A)/(B) 예산 결정**~~ → **(A) primary 96 팔 선택됨 (2026-09-07).**
+   재작성 사전등록 = **`phase_a_6mah_order_prereg_20260907.md`**.
+   Codex 가 제시한 두 갈래 중 *"상별 독립 RNG 스트림 + common-random-number 정책 구현"* 을
+   택해 `--add-rng-per-phase` 를 신설했다 (CL-77) — 조성 축이 morphology 교란과 분리된다.
+   예산 = **82 ~ 130 h = 3.4 ~ 5.4 일** (단일 GPU 직렬, 실측 앵커 2개 기반; 사전등록 §7).
 2. **exact replay 를 먼저** 돌려 `δ_num` 이 실제로 0.04 % 안인지 본다 (§0-2 의 0.108 % 때문).
 3. 6 mAh scaffold 를 DEM dump 에서 뽑아 **SHA 봉인** → `d_h/dx` 게이트 사전 계산.
 4. 각도 대리 지표 5종을 두 endpoint 에서 계산 (STEP4 파일럿 **전**, GPU 불필요).
