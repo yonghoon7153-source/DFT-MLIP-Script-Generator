@@ -344,9 +344,12 @@ if __name__ == '__main__':
                   'd_s': a.d_s, 'd_s_sc': a.d_s_sc, 'split_um': a.split_um,
                   'assumptions': ('I_i ∝ V_i (균일 활용, §F1) — H 절대값 인용 금지, 순위·분포만.  '
                                   'coverage = geometric_coverage 와 같은 강체-구 gap 규약.')})
-        #  ★ CL-75 — 측정 JSON 은 그것을 만든 코드 상태를 봉인한다.  스캐폴드 CSV 도 dirty 범위에
+        #  ★ CL-75 — 측정 JSON 은 그것을 만든 코드 상태를 봉인한다.  **입력** 스캐폴드도 범위에
         #    넣는다 (그 데이터가 커밋된 것인지까지 봉인해야 재현이 성립한다).
-        s.update(provenance(paths=('scripts/', 'docs/data/')))
+        #  ⚠ 범위에 **출력 디렉터리를 넣지 말 것** — 첫 실측을 쓰면 그것이 dirty 로 잡혀 다음
+        #    실측이 자기 게이트에 걸린다.  실제로 그렇게 걸렸다 (2026-09-07, 배치 2건 중 2번째).
+        #    dirty 범위는 **입력**이지 산출물이 아니다.
+        s.update(provenance(paths=('scripts/', a.am, a.se)))
         with open(a.out, 'w') as fh:
             json.dump(s, fh, ensure_ascii=False, indent=1)
         print(f'\n  → {a.out}')
