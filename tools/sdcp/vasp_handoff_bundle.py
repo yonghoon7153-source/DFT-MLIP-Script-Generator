@@ -16554,9 +16554,14 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             if _sp_j and _ct_j:
                 _ct_j = list(_ct_j.values()) if isinstance(_ct_j, dict) else list(_ct_j)
                 try:
+                    # ⚠ KPAR 은 **잡마다 다르다.** 기체 기준 6잡은 Γ 하나라 KPAR=1 이고
+                    #   슬랩은 4 다. 여기에 모듈 상수 KPAR_VAL(=4) 을 박으면 기체 잡의
+                    #   바닥이 4배로 부풀어, 조합이 바뀌었을 때 **부풀려진 기체 잡이
+                    #   최악으로 뽑힌다**. INCAR 을 쓰는 그 함수를 그대로 쓴다.
+                    _km_mem = (_m.get("kmesh") or {}).get("static", "3 4 1")
                     _mem_j = CE.job_memory(
                         _vol or CE.BASE["volume_A3"], _sp_j, _ct_j,
-                        (_m.get("kmesh") or {}).get("static", "3 4 1"), kpar=KPAR_VAL)
+                        _km_mem, kpar=_kpar_for_mesh(_km_mem))
                     _jmem.append((_mem_j["floor_GB"], str(_jp.parent.relative_to(out)),
                                   _mem_j["repl_GB_per_rank"]))
                 except (ValueError, KeyError):
