@@ -1016,6 +1016,94 @@ MUTANTS = [
      "    if False:\n"
      "        return 1",
      None),
+    # ── 58차 (게이트 57차 반증 조건) ─────────────────────────────────────
+    #   58차 L13: 등록부에 57·58차 **신규 방어의 anchor 가 하나도 없었다.**
+    #   그래서 "170/170 정확히 덮음" 은 참이지만 그것이 말하는 것은 현재
+    #   등록부의 완전성뿐이었다 — 새 방어에 대한 변이 증거가 아니다. 우리는
+    #   그 문장을 요청문에서 강한 증거처럼 제시했고, 그것은 과대 주장이었다.
+    #   여기서 축을 심는다: 각 발견마다 **고친 자리를 되돌리는** 변이 하나.
+    ("smoke-gate-records-the-execution-class-g58", PRESERVE,          # L1
+     "        record_execution_class(\n"
+     "            x, cls,\n"
+     '            evidence=(f"산출 완료 시점 등록 · leg={leg_id} phase={phase} "\n'
+     '                      f"class={cls}"),\n'
+     "            ledger=ledger)\n"
+     "        done.append(x)",
+     "        done.append(x)",
+     "production_smoke_gate_records_the_execution_class"),
+    ("content-id-hashes-every-manifest-g58", PRESERVE,                # L2
+     '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts},',
+     '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts[:1]},',
+     "two_fits_sharing_curves_do_not_share_a_content_id"),
+    ("execution-class-record-is-exclusive-g58", PRESERVE,             # L3
+     "        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)",
+     "        fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)",
+     "only_one_writer_can_create_an_execution_class"),
+    ("smoke-containment-is-a-kernel-coordinate-g58", PRESERVE,        # L4
+     "    return p_fs == ns_fs or ns_fs in p_fs.parents",
+     "    return True",
+     "bind_mounted_outside_directory_is_not_inside_the_smoke_namespace or "
+     "an_unplanned_leg_under_a_bind_alias_is_not_exempted"),
+    ("frozen-seal-is-consulted-first-g58", RP,                        # L5
+     "    _sealed = frozen_coordinate_covering(dest)",
+     "    _sealed = None",
+     "hiding_every_name_of_a_frozen_ancestor_does_not_make_it_writable"),
+    ("phase-receipt-is-write-once-g58", PRESERVE,                     # L6
+     '                if _canon_json(prev.get("receipt")) != _canon_json(receipt):',
+     "                if False:",
+     "a_closed_phase_cannot_be_rewritten_with_a_different_receipt"),
+    ("bundle-uri-must-be-repo-relative-g58", PRESERVE,                # L7
+     '    d = _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")',
+     '    d = root / evidence["bundle_uri"]',
+     "an_absolute_bundle_uri_is_refused or "
+     "a_bundle_uri_that_escapes_the_repository_is_refused"),
+    ("issuance-fsync-is-strict-g58", PRESERVE,                        # L8
+     '    _fsync_dir_strict(p.parent, "attempt-token-publish")',
+     "    pass",
+     "issuance_fails_closed_when_a_directory_cannot_be_flushed"),
+    ("decorators-are-import-time-effects-g58", RP,                    # L9-a
+     '    out = [ast.copy_location(ast.Expr(value=d), d)\n'
+     '           for d in (getattr(node, "decorator_list", ()) or ())]\n'
+     "    heads = []",
+     "    out = []\n"
+     '    heads = list(getattr(node, "decorator_list", ()) or ())',
+     "a_name_only_decorator_changes_the_identity_when_its_body_changes"),
+    ("capability-can-not-leave-the-call-site-g58", RP,                # L9-b
+     "        if spelling in caps and is_load and id(sub) not in callees:",
+     "        if False:",
+     "a_capability_that_leaves_the_call_site_is_refused"),
+    ("lifecycle-owned-evidence-is-refused-g58", PRESERVE,             # L10
+     "    _assert_evidence_domain(evidence)\n    import yaml",
+     "    import yaml",
+     "normal_finalize_cannot_forge_the_migration_provenance or "
+     "lifecycle_owned_evidence_keys_are_refused_from_callers"),
+    ("execution-receipt-binds-the-startup-g58", MR,                   # L11
+     '            "startup": _observed_environment(),\n', "",
+     "the_execution_receipt_binds"),
+    ("report-attests-the-environment-g58", MR,                        # L12
+     "        if execution is not None:\n"
+     "            tag = environment_tag(execution)",
+     "        if False:\n"
+     "            tag = environment_tag(execution)",
+     "execution_evidence_can_not_be_laundered_without_the_reports or "
+     "a_report_that_attests_another_environment_is_refused"),
+    ("coverage-checks-the-execution-receipt-g58", MR,                 # L13-a
+     "    if _assert_execution_is_current(paths) != 0:          # 57차 P1-1\n"
+     "        return 1\n", "",
+     "the_top_level_checker_consumes_the_execution_receipt"),
+    ("replay-forces-the-declared-environment-g58", MR,                # L13-b
+     "            cwd=_sandboxed(ROOT), env=replay_env(),\n"
+     "            capture_output=True, text=True, timeout=1800)\n"
+     "        if rep.is_file() and rep.stat().st_size:",
+     "            cwd=_sandboxed(ROOT), env=None,\n"
+     "            capture_output=True, text=True, timeout=1800)\n"
+     "        if rep.is_file() and rep.stat().st_size:",
+     "the_replayed_run_itself_sees_only_a_declared_environment"),
+    ("smoke-registry-is-split-by-class", PRESERVE,                # L14
+     "    return (local_exec_class_root_for_ledger(ledger) if cls == EXEC_CLASS_SMOKE\n"
+     "            else exec_class_root_for_ledger(ledger))",
+     "    return exec_class_root_for_ledger(ledger)",
+     "smoke_records_do_not_land_in_the_shared_registry"),
 ]
 
 #: 여러 지점을 **함께** 되돌려야 관측되는 변이 (심층 방어라 하나만 지우면
