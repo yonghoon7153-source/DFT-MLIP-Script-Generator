@@ -1032,10 +1032,59 @@ case "$VASP_LAUNCHER_KIND" in
     esac ;;
   *) echo "⛔ 모르는 VASP_LAUNCHER_KIND: $VASP_LAUNCHER_KIND"; exit 1 ;;
 esac
+# ── 랭크 배치를 launcher 에 **실제로** 넘긴다 ────────────────────────────────
+#   ⛔⛔ 2026-09-07 Codex v37 P0-1 — 종전엔 `-np $VASP_NPROC` 만 넘겼다. 러너는
+#   "잡당 4노드" 로 메모리를 나눠 놓고 **그 배치를 실행에 강제하지 않았다** — 스케줄러가
+#   192 랭크를 한 노드에 몰아도 검사는 통과한 채로 OOM 이 났다. 산술만 하고 끝내면
+#   가드가 장식이다. run_staged 가 정한 VASP_RANKS_PER_NODE 를 여기서 플래그로 만든다.
+#
+#   ⚠ 플래그 이름이 MPI 구현마다 다르다. **추측하지 않고 `--version` 으로 판별**한다:
+#     Open MPI  → `-N <ppn>`      (= --npernode)
+#     MPICH/Hydra·Intel MPI → `-ppn <ppn>`
+#     srun      → `--nodes/--ntasks-per-node`  (모호하지 않다)
+#   판별에 실패하면 **거부한다** — 모르는 채로 배치 없이 던지는 것이 P0-1 그 자체다.
+_PLACE=""
+if [ "$VASP_LAUNCHER_KIND" = srun ] || [ "$VASP_LAUNCHER_KIND" = mpirun ] \
+   || [ "$VASP_LAUNCHER_KIND" = mpiexec ]; then
+  if [ -z "${VASP_RANKS_PER_NODE:-}" ]; then
+    echo "⛔ VASP_RANKS_PER_NODE 가 없습니다 — 랭크 배치를 강제할 수 없습니다."
+    echo "   'bash run_staged.sh {1|2}' 로 실행하면 사전검사가 이 값을 정해 넘깁니다."
+    echo "   (직접 부르실 때는 VASP_NODES 와 함께 지정해 주십시오.)"
+    exit 1
+  fi
+  case "${VASP_RANKS_PER_NODE}" in ''|*[!0-9]*|0)
+    echo "⛔ VASP_RANKS_PER_NODE 가 양의 정수가 아닙니다: $VASP_RANKS_PER_NODE"; exit 1 ;;
+  esac
+  if [ $(( 10#$VASP_NPROC % 10#$VASP_RANKS_PER_NODE )) -ne 0 ]; then
+    echo "⛔ 랭크 $VASP_NPROC 이 노드당 $VASP_RANKS_PER_NODE 로 안 나뉩니다"; exit 1
+  fi
+  _NODES_EFF=$(( 10#$VASP_NPROC / 10#$VASP_RANKS_PER_NODE ))
+  if [ "$VASP_LAUNCHER_KIND" = srun ]; then
+    _PLACE="--nodes=$_NODES_EFF --ntasks-per-node=$VASP_RANKS_PER_NODE"
+  else
+    _mpiver=$("$LAUNCHER_BIN" --version 2>&1 | head -5 || true)
+    case "$_mpiver" in
+      *"Open MPI"*|*"OpenRTE"*|*"open-mpi"*) _PLACE="-N $VASP_RANKS_PER_NODE" ;;
+      *HYDRA*|*Hydra*|*MPICH*|*"Intel(R) MPI"*) _PLACE="-ppn $VASP_RANKS_PER_NODE" ;;
+      *)
+        echo "⛔ MPI 구현을 판별하지 못해 **랭크 배치를 강제할 수 없습니다.**"
+        echo "   $LAUNCHER_BIN --version 이 Open MPI / MPICH·Hydra / Intel MPI 중"
+        echo "   어느 것도 아닙니다. 배치를 못 박으면 192 랭크가 한 노드에 몰려 OOM 납니다."
+        echo "   → srun 을 쓰시거나(VASP_LAUNCHER_KIND=srun), 현장 방식으로 배치를 고정한"
+        echo "     래퍼를 만들어 VASP_LAUNCHER_KIND=wrapper 로 주십시오."
+        echo "   관측된 --version 앞부분:"
+        printf '     %s\n' "$_mpiver"
+        exit 1 ;;
+    esac
+  fi
+  echo "  ✔ 랭크 배치: 노드 $_NODES_EFF × ${VASP_RANKS_PER_NODE}랭크  ($LAUNCHER_BIN $_PLACE)"
+fi
 _launch() {
   case "$VASP_LAUNCHER_KIND" in
-    mpirun|mpiexec|srun) "$LAUNCHER_BIN" "$_np_flag" "$VASP_NPROC" "$VASP_EXE" ;;
+    # shellcheck disable=SC2086  — _PLACE 는 우리가 만든 고정 토큰이다 (사용자 문자열 아님)
+    mpirun|mpiexec|srun) "$LAUNCHER_BIN" $_PLACE "$_np_flag" "$VASP_NPROC" "$VASP_EXE" ;;
     none)                "$VASP_EXE" ;;
+    # ⚠ wrapper 는 현장이 배치를 책임진다 — 우리가 강제하지 못한다 (그 사실을 적는다)
     wrapper)             "$VASP_WRAPPER" "$VASP_EXE" "$VASP_NPROC" ;;
   esac
 }
@@ -1452,104 +1501,152 @@ case "$NPAR" in ''|*[!0-9]*) NPAR=1 ;; esac
 #     예상 범위입니다(위 실패에서 역산한 범위는 0.98~2.85배). 통과가 안전 보증이
 #     아니라, **명백한 불가를 시작 전에 거르는** 것입니다.
 if [ "${MEM_GUARD:-on}" = "off" ]; then
-  echo "  ⚠ 메모리 사전검사를 껐습니다 (MEM_GUARD=off)."
+  echo "  ⚠ 메모리·배치 사전검사를 껐습니다 (MEM_GUARD=off)."
   echo "     2026-09-04 의 OOM 은 정확히 이 검사가 막는 종류였습니다."
 else
-  MEMG_NPAR="$NPAR" MEMG_NPROC="${VASP_NPROC:-1}" python3 <<'PYMEM' || exit 2
+  MEMG_NPAR="$NPAR" MEMG_NPROC="${VASP_NPROC:-1}" python3 <<'PYMEM' > ._memguard.env || exit 2
 import json, math, os, sys
+
+def out(*a):                       # 판정 출력은 stderr (stdout 은 export 용)
+    print(*a, file=sys.stderr)
 
 man = json.load(open("MANIFEST.json"))
 mm = (man.get("submission") or {}).get("memory_model") or man.get("memory_model")
 if not mm:
-    print("  ⚠ MANIFEST 에 memory_model 이 없습니다 — 메모리 사전검사를 건너뜁니다.")
-    print("     (2026-09-07 이전 묶음이면 정상입니다. 그 판에는 검사할 상수가 없습니다.)")
+    out("  ⚠ MANIFEST 에 memory_model 이 없습니다 — 메모리 사전검사를 건너뜁니다.")
+    out("     (2026-09-07 이전 묶음이면 정상입니다.)")
     sys.exit(0)
 
 floor = float(mm["floor_GB"]); repl = float(mm["repl_GB_per_rank"])
-frac = float(mm.get("usable_frac", 0.85))
-worst = mm.get("worst_job", "(이름 없음)")
+frac = float(mm.get("usable_frac", 0.85)); worst = mm.get("worst_job", "(이름 없음)")
 npar = max(1, int(os.environ.get("MEMG_NPAR", "1")))
 nproc = max(1, int(os.environ.get("MEMG_NPROC", "1")))
 
-# ── 노드 메모리 [GB] ──────────────────────────────────────────────────────
-mem, src = None, None
-if os.environ.get("NODE_MEM_GB"):
-    mem, src = float(os.environ["NODE_MEM_GB"]), "NODE_MEM_GB"
-elif os.environ.get("SLURM_MEM_PER_NODE"):          # MB
-    mem, src = float(os.environ["SLURM_MEM_PER_NODE"]) / 1024.0, "SLURM_MEM_PER_NODE"
-else:
+# ══ ① 노드 메모리는 **관측을 먼저** 한다 ═══════════════════════════════════
+#   ⛔ 2026-09-07 Codex v37 P0-1 — 종전엔 NODE_MEM_GB 를 그대로 믿었다. 노드에
+#   64 GB 만 배정된 상태에서 NODE_MEM_GB=188 을 주면 **그대로 통과**했다.
+#   ⇒ 관측 가능한 상한을 모두 모아 **가장 작은 것**을 쓰고, 선언이 그보다 크면 거부한다.
+obs = []
+try:
+    v = os.environ.get("SLURM_MEM_PER_NODE")
+    if v: obs.append((float(v) / 1024.0, "SLURM_MEM_PER_NODE"))
+except ValueError:
+    pass
+for path, name in (("/sys/fs/cgroup/memory.max", "cgroup v2 memory.max"),
+                   ("/sys/fs/cgroup/memory/memory.limit_in_bytes", "cgroup v1 limit")):
     try:
-        for ln in open("/proc/meminfo"):
-            if ln.startswith("MemTotal:"):
-                mem, src = float(ln.split()[1]) / 1024.0 / 1024.0, "/proc/meminfo"
-                break
-    except OSError:
+        t = open(path).read().strip()
+        if t not in ("max", "") and int(t) < (1 << 62):
+            obs.append((int(t) / 1024.0 ** 3, name))
+    except (OSError, ValueError):
         pass
+try:
+    for ln in open("/proc/meminfo"):
+        if ln.startswith("MemTotal:"):
+            obs.append((float(ln.split()[1]) / 1024.0 ** 2, "/proc/meminfo MemTotal")); break
+except OSError:
+    pass
 
-# ── 이 잡이 걸치는 노드 수 ────────────────────────────────────────────────
-tot = os.environ.get("VASP_TOTAL_NODES") or os.environ.get("SLURM_JOB_NUM_NODES") \
-      or os.environ.get("SLURM_NNODES")
-if os.environ.get("VASP_NODES"):
-    nodes, nsrc = max(1, int(os.environ["VASP_NODES"])), "VASP_NODES"
+decl = os.environ.get("NODE_MEM_GB")
+decl = float(decl) if decl else None
+if obs:
+    mem, src = min(obs)
+    if decl is not None and decl > mem * 1.001:
+        out("⛔ NODE_MEM_GB 선언이 이 노드의 **실제 상한보다 큽니다.**")
+        out(f"   선언 {decl:.0f} GB  vs  관측 {mem:.1f} GB ({src})")
+        for g, n in sorted(obs):
+            out(f"     · {n}: {g:.1f} GB")
+        out("   더 큰 값을 선언해도 커널이 그만큼 주지 않습니다 — 그대로 돌리면 OOM 입니다.")
+        out("   실제 배정을 늘리시거나 NODE_MEM_GB 를 관측값 이하로 낮춰 주십시오.")
+        sys.exit(2)
+    if decl is not None and decl < mem:
+        mem, src = decl, f"NODE_MEM_GB (관측 {mem:.1f} GB 보다 보수적)"
+elif decl is not None:
+    mem, src = decl, "NODE_MEM_GB (⚠ 관측 불가 — 선언을 검증하지 못했습니다)"
+else:
+    mem, src = None, None
+
+# ══ ② 노드 수도 **할당과 대조** 한다 ══════════════════════════════════════
+#   ⛔ 같은 P0-1 — 총 4노드 할당에 "잡당 4노드 × 동시 4잡"(=16 필요) 이 통과했다.
+tot = None
+for k in ("VASP_TOTAL_NODES", "SLURM_JOB_NUM_NODES", "SLURM_NNODES"):
+    if os.environ.get(k):
+        try:
+            tot = (int(os.environ[k]), k); break
+        except ValueError:
+            pass
+
+nd = os.environ.get("VASP_NODES")
+if nd:
+    nodes, nsrc = max(1, int(nd)), "VASP_NODES"
 elif tot:
-    nodes, nsrc = max(1, int(tot) // npar), f"할당 {tot} 노드 ÷ 동시 {npar} 잡"
+    nodes, nsrc = max(1, tot[0] // npar), f"할당 {tot[0]} 노드 ÷ 동시 {npar} 잡"
 else:
     nodes, nsrc = None, None
 
+if tot and nodes is not None:
+    need = nodes * npar
+    if need > tot[0]:
+        out("⛔ 요청한 배치가 **이 할당에 들어가지 않습니다.**")
+        out(f"   잡당 {nodes} 노드 × 동시 {npar} 잡 = {need} 노드 필요"
+            f"  vs  할당 {tot[0]} 노드 ({tot[1]})")
+        out(f"   → 노드를 {need} 개로 늘리시거나, export JOBS_PARALLEL={max(1, tot[0] // nodes)}"
+            f" 로 동시 실행을 줄여 주십시오.")
+        sys.exit(2)
+
 if mem is None or nodes is None:
     miss = []
-    if mem is None:
-        miss.append("노드 메모리 (NODE_MEM_GB 로 알려 주세요, 단위 GB)")
-    if nodes is None:
-        miss.append("잡 하나가 걸치는 노드 수 (VASP_NODES 로 알려 주세요)")
-    print("⛔ 메모리 사전검사에 필요한 값을 알아내지 못했습니다:")
+    if mem is None:   miss.append("노드 메모리 (NODE_MEM_GB, 단위 GB)")
+    if nodes is None: miss.append("잡 하나가 걸치는 노드 수 (VASP_NODES)")
+    out("⛔ 메모리·배치 사전검사에 필요한 값을 알아내지 못했습니다:")
     for m in miss:
-        print("   · " + m)
-    print("   예:  export NODE_MEM_GB=188   export VASP_NODES=4")
-    print("   ⚠ 모르는 채로 지나가지 않습니다 — 2026-09-04 OOM 이 정확히 그 경로였습니다.")
-    print("   정말 검사 없이 돌리시려면  export MEM_GUARD=off  (권장하지 않습니다).")
+        out("   · " + m)
+    out("   예:  export NODE_MEM_GB=188   export VASP_NODES=4")
+    out("   ⚠ 모르는 채로 지나가지 않습니다 — 2026-09-04 OOM 이 정확히 그 경로였습니다.")
+    out("   정말 검사 없이 돌리시려면  export MEM_GUARD=off  (권장하지 않습니다).")
     sys.exit(2)
 
-jobs_per_node = 1
-if tot and not os.environ.get("VASP_NODES"):
-    jobs_per_node = max(1, math.ceil(npar * nodes / max(1, int(tot))))
+# ══ ③ 랭크를 노드에 **정수로** 나눌 수 있어야 한다 ═════════════════════════
+if nproc % nodes != 0:
+    out(f"⛔ 랭크 {nproc} 을 노드 {nodes} 개에 고르게 못 나눕니다 ({nproc} % {nodes} != 0).")
+    out("   불균등 분산은 한 노드에 랭크가 몰려 그 노드만 OOM 납니다.")
+    out(f"   → VASP_NODES 를 {nproc} 의 약수로 주십시오.")
+    sys.exit(2)
+ppn = nproc // nodes
 
-need = (floor + nproc * repl) / nodes * jobs_per_node
+need_gb = (floor + nproc * repl) / nodes
 usable = mem * frac
-print(f"  ── 메모리 사전검사 (모형 · ±2배 범위) ──")
-print(f"     최악 잡 {worst}")
-print(f"     바닥 {floor:.1f} GB + 랭크 {nproc} x {repl:.2f} GB = {floor + nproc * repl:.1f} GB")
-print(f"     노드 {nodes} 개에 펼침 ({nsrc}) · 노드당 동시잡 {jobs_per_node}"
-      f"  ->  노드당 {need:.1f} GB")
-print(f"     노드 메모리 {mem:.0f} GB ({src}) x {frac:.2f} = 가용 {usable:.1f} GB")
+out("  ── 메모리·배치 사전검사 (모형) ──")
+out(f"     최악 잡 {worst}")
+out(f"     바닥 {floor:.1f} GB + 랭크 {nproc} x {repl:.2f} GB = {floor + nproc * repl:.1f} GB")
+out(f"     노드 {nodes} 개 x 랭크 {ppn} 개/노드 ({nsrc})  ->  노드당 {need_gb:.1f} GB")
+out(f"     노드 메모리 {mem:.1f} GB ({src}) x {frac:.2f} = 가용 {usable:.1f} GB")
 
-if need <= usable:
-    tol = usable / need
-    sf = float((mm.get("권고") or {}).get("안전계수") or 2.0)
-    print(f"     ✔ {need / usable * 100:.0f} % 사용 — 통과 "
-          f"(모형이 {tol:.2f}배 틀려도 견딥니다)")
-    if tol < sf:
-        # ⚠ 통과했다고 안전한 것이 아니다. 2026-09-04 실패에서 역산한 모형 오차는
-        #   0.98~2.85배였다 — 여유가 그 안이면 "모형이 맞을 때만 산다" 는 뜻이다.
-        want = math.ceil((floor + nproc * repl) * sf * jobs_per_node / usable)
-        print(f"     ⚠ 다만 여유 {tol:.2f}배는 권고 안전계수 {sf:.1f}배보다 얇습니다.")
-        print(f"        2026-09-04 실패에서 역산한 모형 오차가 0.98~2.85배라, 이 여유는")
-        print(f"        모형이 거의 정확할 때만 버팁니다. 여유를 주시려면 노드 {want} 개"
-              f"(현재 {nodes})로 펼쳐 주십시오.")
-        print(f"        그래도 돌리시겠다면 그대로 두셔도 됩니다 — 막지는 않습니다.")
-    sys.exit(0)
+if need_gb > usable:
+    want = math.ceil((floor + nproc * repl) / usable)
+    out(f"     ⛔ {need_gb / usable * 100:.0f} % — **이대로 돌리면 OOM 입니다.**")
+    out("")
+    out("   고치는 법 (INCAR 은 해시로 동결돼 있어 건드리지 마십시오):")
+    out(f"     · 랭크 {nproc} 을 **노드 {want} 개 이상에 펼쳐** 주십시오 (현재 {nodes}).")
+    out(f"     · 또는 동시 실행을 줄이십시오: export JOBS_PARALLEL=<값>")
+    out(f"     · 필요한 총 노드 = {want} x 동시 {npar} = {want * npar} 개")
+    out("   ⚠ 랭크 수를 **줄이지 마십시오** — KPAR x NCORE 배수 조건이 깨집니다.")
+    sys.exit(2)
 
-want = math.ceil((floor + nproc * repl) * jobs_per_node / usable)
-print(f"     ⛔ {need / usable * 100:.0f} % — **이대로 돌리면 OOM 입니다.**")
-print()
-print("   고치는 법 (INCAR 은 건드리지 마십시오 — 해시로 동결돼 있습니다):")
-print(f"     · 랭크 {nproc} 을 **노드 {want} 개 이상에 펼쳐** 주십시오 "
-      f"(현재 {nodes} 개). 예: --nodes={want} --ntasks-per-node={max(1, nproc // want)}")
-print(f"     · 동시 실행을 줄이는 것도 방법입니다: export JOBS_PARALLEL=<값>")
-print(f"     · 필요한 총 노드 = {want} x 동시잡 {npar} = {want * npar} 개")
-print("   ⚠ 랭크 수를 **줄이지 마십시오** — KPAR x NCORE 배수 조건이 깨집니다.")
-sys.exit(2)
+out(f"     ✔ {need_gb / usable * 100:.0f} % 사용 — 통과 (모형 기준 {usable / need_gb:.2f}배 여유)")
+if not obs:
+    out("     ⚠ 노드 메모리를 **관측하지 못했습니다** — 위 판정은 선언값에만 근거합니다.")
+if not tot:
+    out("     ⚠ 할당 노드 수를 **관측하지 못했습니다** — 배치가 선언대로인지 검증 못 했습니다.")
+
+# 검사한 배치를 **실행에 결박**한다 (P0-1 의 핵심 — 산술만 하고 끝내지 않는다)
+print(f"VASP_NODES={nodes}")
+print(f"VASP_RANKS_PER_NODE={ppn}")
 PYMEM
+  # shellcheck disable=SC1091
+  . ./._memguard.env && rm -f ._memguard.env
+  export VASP_NODES VASP_RANKS_PER_NODE
+  echo "     → 배치 결박: VASP_NODES=$VASP_NODES · VASP_RANKS_PER_NODE=$VASP_RANKS_PER_NODE"
 fi
 
 PP=${PP:?PP 를 지정하세요 (POTCAR 원본 트리)}
@@ -17083,9 +17180,19 @@ exit 0
 
 
 FAKE_MPIRUN = r"""#!/usr/bin/env bash
-# 가짜 mpirun — `-np N <exe>` 만 받아 그대로 실행한다 (봉인 경로 시험용).
+# 가짜 mpirun — 실물처럼 `--version` 에 답하고, `[-N ppn] -np N <exe>` 를 받아 실행한다.
+# ⚠ 2026-09-07 (v37 P0-1) — 러너가 랭크 배치 플래그를 **앞에** 붙이게 됐다. 종전 스텁은
+#   "첫 인자가 -np" 를 강제해서 그 변경을 실패로 잡았다 — 시험이 제 일을 한 것이다.
+#   이제 배치 플래그를 받되, **그것이 실제로 왔는지 기록**해 시험이 확인할 수 있게 한다.
 set -u
-[ "${1:-}" = "-np" ] || [ "${1:-}" = "-n" ] || { echo "FAKE_MPIRUN: 첫 인자가 -np/-n 이 아니다: ${1:-}"; exit 9; }
+case "${1:-}" in
+  --version|-V) echo "mpirun (Open MPI) 4.1.5"; echo "Report bugs to http://www.open-mpi.org/community/help/"; exit 0 ;;
+esac
+_ppn=""
+if [ "${1:-}" = "-N" ] || [ "${1:-}" = "--npernode" ]; then _ppn="${2:-}"; shift 2; fi
+[ -n "${STUB_PLACE_LOG:-}" ] && printf '%s
+' "ppn=${_ppn:-none}" >> "$STUB_PLACE_LOG"
+[ "${1:-}" = "-np" ] || [ "${1:-}" = "-n" ] || { echo "FAKE_MPIRUN: -np/-n 이 아니다: ${1:-}"; exit 9; }
 shift 2
 exec "$@"
 """
@@ -17151,8 +17258,12 @@ def _runner_launcher_regression(out: Path, chk) -> None:
     def go(jd, extra=None, token=None):
         log = jd / "_ph.log"
         log.unlink(missing_ok=True)
+        # ⚠ 2026-09-07 (v37 P0-1) — 러너가 랭크 배치를 요구한다. 생산에서는
+        #   run_staged 의 사전검사가 정해 넘긴다. 여기서는 그 값을 흉내낸다.
         env = {**os.environ, "PATH": f"{bindir}:{os.environ.get('PATH','')}",
                "VASP_LAUNCHER_KIND": "mpirun", "VASP_NPROC": "2",
+               "VASP_NODES": "2", "VASP_RANKS_PER_NODE": "1",
+               "STUB_PLACE_LOG": str(jd / "_place.log"),
                "VASP_EXE": str(exe), "STUB_LOG": str(log)}
         if token is not None:
             env["RUNNER_TOKEN"] = token
@@ -17173,6 +17284,21 @@ def _runner_launcher_regression(out: Path, chk) -> None:
         "완주한다 (rc=%d · 상 %s)%s — 이 시험이 없어서 봉인 경로 오타로 16잡이 전부 "
         "죽는 것을 못 봤다"
         % (r.returncode, ran, "" if r.returncode == 0 else " | " + (r.stdout + r.stderr).strip()[-160:]))
+    # ── v37 P0-1 — **배치가 launcher 에 실제로 도착했는지** 본다 (산술만 하고 끝내지 않는다)
+    _pl = (jd / "_place.log")
+    chk(_pl.is_file() and "ppn=1" in _pl.read_text(),
+        "★ v37 P0-1: 랭크 배치(-N 1)가 **mpirun 에 실제로 전달됐다** "
+        f"(스텁 기록: {_pl.read_text().split() if _pl.is_file() else '없음'}) — "
+        "종전엔 VASP_NODES 가 산술에만 쓰이고 실행에는 안 갔다")
+    # ⛔음성 — 배치 변수가 없으면 **거부**한다 (조용히 배치 없이 던지지 않는다)
+    _b2, _jd2 = stage("noplace")
+    _t2 = (_b2 / ".lock_bundle")
+    if not _t2.is_file():
+        _t2.write_text("selftest-token\n")
+    _r2, _ = go(_jd2, extra={"VASP_RANKS_PER_NODE": ""}, token=_t2.read_text().strip())
+    chk(_r2.returncode != 0 and "VASP_RANKS_PER_NODE" in (_r2.stdout + _r2.stderr),
+        "⛔음성 v37 P0-1: VASP_RANKS_PER_NODE 가 없으면 run_job 이 **멈춘다** "
+        f"(rc={_r2.returncode})")
     rcpt = jd / "EXECUTABLE_RECEIPT.tsv"
     _rows = [l.split("\t") for l in rcpt.read_text().splitlines() if l.strip()] \
         if rcpt.is_file() else []
@@ -17896,8 +18022,32 @@ def selftest() -> int:
             "⛔음성: 메모리 사전검사가 **첫 VASP 실행보다 앞**이다")
         chk("NODE_MEM_GB" in _rs and "VASP_NODES" in _rs and "MEM_GUARD" in _rs,
             "가드가 읽는 세 변수가 러너에 있다")
-        chk("sys.exit(2)" in _rs[_mg_at:_mg_at + 4000],
+        chk("sys.exit(2)" in _rs[_mg_at:_mg_at + 8000],
             "⛔음성: 값을 모르면 **멈춘다** (조용히 통과하면 2026-09-04 가 재발한다)")
+        # ── 2026-09-07 Codex v37 P0-1 회귀 ───────────────────────────────────
+        #   가드가 산술만 하고 실행에 결박되지 않아 "장식" 이었다. 두 구멍이 실물로
+        #   재현됐다 — 여기서 소스 수준으로 막고, e2e 가 동작으로 확인한다.
+        _mg = _rs[_mg_at:_mg_at + 9000]
+        chk("SLURM_MEM_PER_NODE" in _mg and "cgroup" in _mg and "/proc/meminfo" in _mg,
+            "P0-1: 노드 메모리를 **관측**한다 (선언만 믿지 않는다)")
+        chk("실제 상한보다" in _mg and "관측" in _mg,
+            "⛔음성 P0-1: 선언이 관측을 넘으면 **거부**한다 (64 GB 노드에 188 선언 통과 사고)")
+        chk("이 할당에 들어가지 않습니다" in _mg,
+            "⛔음성 P0-1: 잡당노드 × 동시잡 을 **할당과 대조**한다 (4노드에 16 필요가 통과 사고)")
+        chk("VASP_RANKS_PER_NODE=" in _mg and "export VASP_NODES VASP_RANKS_PER_NODE" in _rs,
+            "P0-1: 검사한 배치를 **실행에 결박**해 넘긴다 (산술만 하고 끝내지 않는다)")
+        chk("고르게 못 나눕니다" in _mg,
+            "⛔음성 P0-1: 랭크가 노드로 정수 분할 안 되면 거부 (한 노드만 OOM 난다)")
+        # 러너(run_job)가 그 배치를 실제 플래그로 만든다
+        chk("VASP_RANKS_PER_NODE" in RUN_JOB and "--ntasks-per-node=" in RUN_JOB,
+            "P0-1: run_job 이 srun 배치 플래그를 실제로 만든다")
+        chk('"$LAUNCHER_BIN" $_PLACE' in RUN_JOB,
+            "P0-1: 그 플래그가 **launcher 호출에 실제로 들어간다**")
+        chk("-N $VASP_RANKS_PER_NODE" in RUN_JOB and "-ppn $VASP_RANKS_PER_NODE" in RUN_JOB
+            and "--version" in RUN_JOB,
+            "P0-1: MPI 구현을 --version 으로 판별해 플래그를 고른다 (추측하지 않는다)")
+        chk("MPI 구현을 판별하지 못해" in RUN_JOB,
+            "⛔음성 P0-1: 판별 실패 시 **거부**한다 (배치 없이 던지는 것이 사고 자체다)")
         # ⚠ 회신 BB P1 — census 본문이 러너에서 `census.py` 로 빠졌다. 검사도
         #   실물이 있는 곳을 봐야 한다 (러너에는 **호출**이 남는다).
         # ⚠ `RECHECK_SEAL=1 python3 census.py …` 도 앞 문자열을 **포함**한다 —
@@ -20573,8 +20723,15 @@ def _runner_e2e(bundle: Path, chk) -> bool:
     #   `MEM_GUARD=off` 로 넘기면 e2e 가 가드를 한 번도 안 지나가서, 가드가 정상 경로를
     #   막아도 selftest 가 못 잡는다 (실제로 여기서 처음 걸렸다).
     #   픽스처는 작은 셀이라 넉넉히 통과한다.
-    env["NODE_MEM_GB"] = "188"
-    env["VASP_NODES"] = "1"
+    #   ⚠ NODE_MEM_GB 는 **선언하지 않는다.** 선언하면 관측 경로를 안 지나가고,
+    #     이 컨테이너보다 큰 값을 적으면 (v37 P0-1 이후) 가드가 옳게 거부한다.
+    #     관측(/proc/meminfo)에 맡겨야 e2e 가 실제 경로를 밟는다.
+    env.pop("NODE_MEM_GB", None)
+    #   ⚠ 노드 수는 **이 시험기의 실제 메모리에 맞춘다.** 픽스처는 생산과 같은
+    #     227원자 슬랩이라 바닥이 ~100 GB 다 — 노드 1개로는 (옳게) 거부된다.
+    #     16 노드 × 1랭크로 펼치면 통과하고, 그 경로가 실제 판정 경로다.
+    #     ⛔ MEM_GUARD=off 로 넘기지 않는다 — 그러면 가드를 한 번도 안 지나간다.
+    env["VASP_NODES"] = str(KPAR_VAL * NCORE_VAL)      # = VASP_NPROC → 노드당 1랭크
 
     def _run(root, extra_env=None):
         e = dict(env, **(extra_env or {}))
