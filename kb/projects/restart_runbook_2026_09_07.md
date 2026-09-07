@@ -177,7 +177,14 @@ bash tools/sdcp/watch_stage_a.sh ~/work/runs/sdcp_stageA_run   # rc·relaxed 를
 cat ~/work/runs/sdcp_stageA_run/gs5/receipt.json
 ```
 
-### ⚠ 그런데 gs 를 지금 다시 걸 이유가 없다 (2026-09-07 판단)
+### ✅ gs 는 돌리지 않는다 — **1저자 결정 (2026-09-07)**
+
+> *"gs는 돌리지말자, 굳이인거잖아"*
+
+아래 근거로 제안했고 1저자가 받았다. `gs4` 는 `DONE` 으로 남기고 나머지 여섯은 놔둔다.
+**재개하려면 아래 표의 전제(Stage B NO-GO · doped 경로가 gs 를 안 읽음)가 깨져야 한다.**
+
+### 근거 (2026-09-07 판단)
 
 | | |
 |---|---|
