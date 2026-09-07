@@ -97,6 +97,22 @@ restart_mode_for() {
   fi
 }
 
+# ⛔⛔ 중복 실행 가드 (2026-09-07 실물)
+#   이 스크립트가 **4개**, `pw.x` 가 **2개** 떠서 같은 `.save` 에 동시에 썼다.
+#   원인은 단순하다 — 터미널이 끊겨 잡이 죽은 줄 모르고 사람이 다시 걸었고, 막는 것이 없었다.
+#   `mkdir` 은 원자적이라 경합에 안전하다. 죽은 lock 은 pid 로 확인하고 스스로 치운다
+#   (남의 lock 을 무조건 지우지도, 무조건 믿지도 않는다).
+#   ⚠ `--run` 일 때만 건다. 판정만 하는 실행은 몇 개가 돌든 해롭지 않다.
+LOCKDIR="${QE_RESTART_LOCK:-${TMPDIR:-/tmp}/.restart_qe_relax.lock}"
+acquire_lock() {   # 0 = 잡았다 · 1 = 이미 돌고 있다
+  if mkdir "$LOCKDIR" 2>/dev/null; then echo $$ > "$LOCKDIR/pid"; return 0; fi
+  local p; p=$(cat "$LOCKDIR/pid" 2>/dev/null)
+  if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then return 1; fi
+  echo "· 죽은 lock 을 치운다 (pid ${p:-?})" >&2
+  rm -rf "$LOCKDIR" && mkdir "$LOCKDIR" 2>/dev/null || return 1
+  echo $$ > "$LOCKDIR/pid"; return 0
+}
+
 gpu_free_mib() {
   command -v nvidia-smi >/dev/null || { echo 999999; return; }   # 못 재면 막지 않는다
   local t u
@@ -157,6 +173,15 @@ if [ "$SELFTEST" = 1 ]; then
   kill "$_fp" 2>/dev/null
   chk "$([ "$(restart_mode_for "$T/run" dead)" = from_scratch ] && echo 1 || echo 0)" \
       "⛔음성: 마커 없이 죽은 잡은 save 가 있어도 처음부터 (쓰다 만 save 를 못 믿는다)"
+  # ── 중복 실행 lock (2026-09-07 실물: 스크립트 4개 · pw.x 2개가 같은 .save 에 썼다) ──
+  LOCKDIR="$T/lock"
+  chk "$(acquire_lock && echo 1 || echo 0)" "처음엔 lock 을 잡는다"
+  ( LOCKDIR="$T/lock"; acquire_lock ) && _dup=0 || _dup=1
+  chk "$_dup" "⛔음성: **살아있는 lock 주인이 있으면 두 번째는 못 잡는다** (이게 없으면 pw.x 가 둘이 된다)"
+  echo 999999 > "$T/lock/pid"          # 존재하지 않는 pid = 죽은 lock
+  chk "$(acquire_lock && echo 1 || echo 0)" "죽은 lock 은 스스로 치우고 잡는다 (사람 손 안 빌린다)"
+  chk "$([ "$(cat "$T/lock/pid")" = "$$" ] && echo 1 || echo 0)" "치운 뒤 자기 pid 를 적는다"
+  rm -rf "$T/lock"
   # ⛔음성: nstep 소진은 JOB DONE 을 **찍는다** — 완주로 읽으면 안 된다
   chk "$([ "$(classify "$T/exhaust/00_control_relax.out")" = exhaust ] && echo 1 || echo 0)" \
       "⛔음성: JOB DONE 이 있어도 nstep 소진을 완주로 세지 않는다"
@@ -236,6 +261,15 @@ done
 echo
 [ "${#TODO[@]}" -gt 0 ] || { echo "다시 걸 것이 없다."; exit 0; }
 [ "$RUN" = 1 ] || { echo "판정만 했다. 실제로 걸려면 --run 을 준다."; exit 0; }
+
+acquire_lock || {
+  echo "⛔ 이미 돌고 있다 (pid $(cat "$LOCKDIR/pid" 2>/dev/null)) — **걸지 않는다.**"
+  echo "   같은 잡에 pw.x 가 둘이면 같은 .save 를 서로 덮어써 둘 다 못 쓰게 된다 (09-07 실물)."
+  echo "   상태:  bash tools/sei/watch_qe_relax.sh"
+  echo "   정말 갈아엎으려면:  pkill -f restart_qe_relax; pkill -f 'pw\\.x -in'"
+  exit 3
+}
+trap 'rm -rf "$LOCKDIR"' EXIT
 
 # shellcheck disable=SC1090
 . "$(dirname "${BASH_SOURCE[0]}")/qe_env.sh"

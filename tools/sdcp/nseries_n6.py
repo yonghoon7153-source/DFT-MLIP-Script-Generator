@@ -62,6 +62,21 @@ RUN_SH = """#!/usr/bin/env bash
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# ⛔⛔ 중복 실행 가드 — 같은 폴더에서 ORCA 가 이미 돌면 **절대** 새로 걸지 않는다.
+#   두 인스턴스가 같은 `.gbw` · `.tmp` · `.xyz` 를 덮어써 **둘 다** 망가진다.
+#   2026-09-07 실물: 이 가드가 없는 QE 쪽에서 `pw.x` 두 개가 같은 `.save` 에 썼다.
+#   ⚠ 전역 `pgrep orca` 로 보면 안 된다 — 다른 폴더의 정상 잡까지 막는다. **cwd 로** 가른다.
+_here=$(pwd -P)
+for _p in $(pgrep -x orca 2>/dev/null) $(pgrep -f orca_leanscf_mpi 2>/dev/null); do
+  _c=$(readlink "/proc/$_p/cwd" 2>/dev/null) || continue
+  if [ "$_c" = "$_here" ]; then
+    echo "⛔ 이 폴더에서 ORCA 가 이미 돌고 있다 (pid $_p) — 걸지 않는다."
+    echo "   상태:  bash <repo>/tools/sdcp/watch_n6.sh $_here"
+    echo "   정말 갈아엎으려면 먼저 그 잡을 죽인다:  kill $_p"
+    exit 3
+  fi
+done
+
 # ⛔ MPI 전송층 처방 (정본 한 벌). 이게 없으면 단일노드인데 TCP BTL 로 통신하다
 #   LEANSCF 에서 끊긴다 — gs3 두 번(09-05) · n6_doped 한 번(09-06) 실측.
 # shellcheck disable=SC1090
@@ -308,6 +323,11 @@ def selftest():
     chk("command -v orca" in sh and "exit 2" in sh,
         "⛔음성: ORCA 를 **절대경로로 못 찾으면 돌리지 않고 멈춘다** (%pal 은 full pathname 요구)")
     chk("n6_doped.out." in sh, "옛 .out 을 지우지 않고 밀어 둔다 (재구성 이력이 증거다)")
+    # ── 중복 실행 가드 (2026-09-07: QE 쪽에서 pw.x 둘이 같은 .save 에 썼다) ──
+    chk("readlink" in sh and "/proc/" in sh and "cwd" in sh,
+        "⛔음성: 중복 판정을 **cwd 로** 한다 (전역 pgrep 은 다른 폴더의 정상 잡까지 막는다)")
+    chk("exit 3" in sh and sh.index("pgrep -x orca") < sh.index("orca_mpi_env.sh"),
+        "⛔음성: 가드가 **실행보다 먼저** 온다 (뒤에 있으면 이미 파일을 건드린 뒤다)")
     import subprocess as _sp
     chk(_sp.run(["bash", "-n", "-c", sh], capture_output=True).returncode == 0,
         "⛔음성: 생성된 run.sh 가 **문법으로 성립한다** (bash -n — 돌려 봐야 아는 건 너무 늦다)")
