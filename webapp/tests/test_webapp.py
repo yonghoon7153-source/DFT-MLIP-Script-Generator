@@ -2855,3 +2855,34 @@ def test_generation_badge_survives_unknown_vocabulary():
     assert "어휘 밖" in b["why"], b["why"]
     # 세대 필드가 아예 없으면 배지도 없다 (그건 MD_* 검사가 따로 잡는다)
     assert D.generation_badge({"metric": "MD_Ea_eV"}) is None
+
+
+def test_md_crosscut_ledgers_land_in_ionic():
+    """MD 횡단 원장(계 이름으로 시작하지 않는 파일)이 Ionic 으로 간다.
+
+    2026-09-07 발견: haven_ratio_measured_* · md_protocol_generations ·
+    md_traj_inventory 가 전부 'other' 로 떨어져 Ionic 탭에 안 보였다.
+    """
+    for stem in ("haven_ratio_measured_2026_09_07", "md_protocol_generations",
+                 "md_traj_inventory", "li_transport"):
+        assert D.categorize(stem) == "ionic", f"{stem} -> {D.categorize(stem)}"
+
+
+def test_phonon_dos_is_structural_not_electronic():
+    """⛔음성: 'dos' 가 'phonon_dos' 를 삼키면 안 된다.
+
+    _csv_kind() 는 이 함정을 이미 고쳐 놨는데 categorize() 는 안 고쳐져서
+    b2o3_phonon_dos 가 Electronic 으로 분류되고 있었다 (규약 2곳 복사).
+    함께: 진짜 전자 DOS 는 electronic 에 남아야 한다 — 과잉교정 방지.
+    """
+    assert D.categorize("b2o3_phonon_dos") == "structural"
+    assert D.categorize("comp1_phonon") == "structural"
+    assert D.categorize("modelc_dos") == "electronic"
+    assert D.categorize("b2o3_pdos_B") == "electronic"
+
+
+def test_categorize_does_not_over_claim_ionic():
+    """⛔음성: ionic 키를 넓힌 뒤에도 남의 파일을 끌어오지 않는다."""
+    for stem, expect in (("adhesion", "interface"), ("elastic_cij", "mechanical"),
+                         ("comp1_bonds", "bonding"), ("sdcp_neutral_closed_2026_08_28", "other")):
+        assert D.categorize(stem) == expect, f"{stem} -> {D.categorize(stem)} (기대 {expect})"

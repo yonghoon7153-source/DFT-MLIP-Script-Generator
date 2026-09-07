@@ -408,7 +408,10 @@ CATEGORIES = [
     {"id": "electronic", "label": "Electronic",  "icon": "⚡", "keys": ["electronic", "dos", "pdos", "bader", "elf", "xps"]},
     {"id": "mechanical", "label": "Mechanical",  "icon": "🔩", "keys": ["elastic", "eos", "thermal_thprime"]},
     {"id": "bonding",    "label": "Bonding",     "icon": "🔗", "keys": ["bonds", "icohp", "cohp", "nd_icohp"]},
-    {"id": "ionic",      "label": "Ionic",       "icon": "🔋", "keys": ["diffusion", "li_transport", "md_arrhenius", "bvse", "msd", "dualx", "neb", "barrier", "drag", "conductivity"]},
+    # ⚠ 2026-09-07 — haven/md_protocol/md_traj 가 'other' 로 떨어져 Ionic 탭에 안 뜨고 있었다.
+    #   파일명이 계 이름으로 시작하지 않는 **횡단 원장**이라 _PREFIX 로도 조성 페이지에 안 붙는다
+    #   (그건 의도한 것 — 3계에 걸친 자료다). 카테고리만 제자리로 돌린다.
+    {"id": "ionic",      "label": "Ionic",       "icon": "🔋", "keys": ["diffusion", "li_transport", "md_arrhenius", "bvse", "msd", "dualx", "neb", "barrier", "drag", "conductivity", "haven", "md_protocol", "md_traj"]},
     {"id": "interface",  "label": "Interface",   "icon": "🧩", "keys": ["adhesion", "oxidation", "sei", "interface", "esw", "anode", "binding", "adsorption"]},
     {"id": "structural", "label": "Structural",  "icon": "🧊", "keys": ["phonon", "voronoi", "coordination", "bond_lengths", "eos_dft"]},
     {"id": "cascade",    "label": "Screening·ML",  "icon": "🤖", "keys": ["cascade", "doping", "alpha_sensitivity"]},
@@ -416,8 +419,18 @@ CATEGORIES = [
 # 참고: 'literature' 열은 제거함 — 조성별 문헌 유무는 원소 기반이라 항상 True(vanity)였음.
 # 문헌은 Literature 페이지 + 원소/용어 논문칩으로 충분히 노출.
 
+# ⚠ 부분문자열 포함관계 때문에 **먼저 봐야 하는** 짝. CATEGORIES 순서만으로는 못 고친다.
+#   'dos' 가 'phonon_dos' 를 삼켜서 b2o3_phonon_dos 가 Electronic 으로 떨어져 있었다.
+#   _csv_kind() 는 같은 함정을 이미 고쳐 놨는데 categorize() 는 안 고쳐져 있었다 —
+#   같은 규약이 두 곳에 복사된 전형이다 (2026-09-07 발견).
+_CATEGORY_FIRST = [("phonon", "structural")]
+
+
 def categorize(prop_name: str) -> str:
     n = prop_name.lower()
+    for k, cid in _CATEGORY_FIRST:
+        if k in n:
+            return cid
     for c in CATEGORIES:
         if any(k in n for k in c["keys"]):
             return c["id"]
