@@ -172,6 +172,37 @@ producer 닫힘·증거층이고 **계산식이 아니다.** `src.scoring` 과 a
 freeze 는 journal seq 11 로 chain 에 붙었다 (prev `e10102a38f8d1038…`).
 `proj_g12/.FROZEN` 이 tree 안에 있고, 이제 좌표까지 봉인된다 (L5).
 
+### 2-3 변이 등록부 — 16축을 심었고, 조각은 **이 HEAD 에서 다시 만드는 중이다**
+
+57차 판정이 지적한 대로 "170/170 exact coverage" 는 **현재 등록부의 완전성**만
+말했다. 57·58차가 만든 방어에는 anchor 가 하나도 없었다. 이번에 16축을 심었다
+(`-k g58` 로 고를 수 있다):
+
+    L1 실행 class 배선 · L2 내용 identity · L3 배타(MULTI: flock+O_EXCL) ·
+    L4 커널 좌표 담김 · L5 얼린 좌표 봉인 · L6 write-once receipt ·
+    L7 repo-relative 도메인 · L8 strict fsync(규칙 자신) · L9-a 데코레이터 ·
+    L9-b 능력 escape · L10 lifecycle 소유 필드 · L11 startup 증언 ·
+    L12 report 환경 증언 · L13-a top-level 배선 · L13-b 재생 환경 ·
+    L14 등록부 분리
+
+EXPECT 는 전부 관측값이다 — 13축은 `--emit-expect`, 3축은 지역 실행(§0-⑤).
+
+**지금 커밋돼 있는 `docs/22p_gap/mutation_coverage/s*.json` 12개는 57차 것이고
+이 HEAD 에서는 거부된다** (`_assert_trees_are_current` — 이 라운드가
+`src/`·`tools/`·`tests/` 를 고쳤으므로 tree digest 가 다르다). 그것이 결속이
+살아 있다는 증거이기도 하다. 새 조각 12개는 **이 HEAD 에서** 전수 재생 중이고
+뒤따르는 커밋으로 들어간다. 그 커밋 전에는 §4 의 4번 명령이 rc 1 이 정상이다.
+
+조각을 만드는 과정 자체가 두 가지를 잡았다 (커밋 `f983401f`):
+
+| 무엇 | 왜 |
+|---|---|
+| L5 의 봉인이 57차 변이 `destination-is-compared-in-filesystem-coordinates` 를 **가렸다** | 좌표 비교를 되돌려도 봉인이 먼저 거부한다 → MULTI 에 봉인 조회를 함께 넣었다 |
+| 한글 parametrize id 가 **두 철자**를 갖는다 | report 는 `\ucee8…` 로 escape 하고 EXPECT(파이썬 소스)는 그것을 다시 디코드한다 → id 를 ASCII 로 |
+
+둘째는 값이 아니라 **표기 경계**를 건넌 오류다. `--emit-expect` 가 찍어 준 것을
+그대로 붙여 넣었는데도 어긋났다.
+
 ---
 
 ## §3 무엇을 반증해 주기 바라는가
