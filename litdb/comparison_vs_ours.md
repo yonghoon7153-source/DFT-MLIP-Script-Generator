@@ -93,6 +93,7 @@
 | **[Ren26]** ⛔프리프린트·⚠할라이드 | **Yuan Ren\*** 외 8인(内蒙古科技大 Baotou) **Authorea 프리프린트(동료심사 전)**, DOI 10.22541/authorea.15005774/v1 — "**Regulation of the Lattice Dynamics of Li₂ZrCl₆ SEs via Low-Ion-Potential Element Doping**". **할라이드 Li₂₊ₓZr₁₋ₓMₓCl₆(M=Er/Nd)**. exp(볼밀 45 h·XRD/Rietveld·XPS·Raman·EIS·NCM811셀) + DFT/AIMD/NEB/**phonon VDOS**. σ_RT 0.227→**1.32/1.13 mS/cm**(≈5–6×)·NEB 0.658→0.370/0.417 eV·100 cyc 82.5 %. **🔑 우리 수확은 그들 결론이 아니라 *재분석* 3건**: ①**"ion potential" = Φ = Z/r (Shannon VI, pm⁻¹)** 정의 확정(Table S6 18계 **18/18 역산 일치**) → **`lee2024` inductive effect와 *같은 축·반대 부호·다른 인과경로***(그들 ref[29] JACS 2026이 곧 inductive effect인데 이 논문은 저-Φ 처방; **Bader/COHP 0건**) ②**서술자 붕괴**: Table S6 재분석 **R²=0.065·Spearman −0.089**(문헌 16쌍만 보면 −0.045), 같은 Φ=0.0781서 Ta 1.42 vs Nb 0.55(2.6×), **Li 함량이 더 나은 예측자(ρ +0.628)** ③**σ 격차=외삽 산물**: NE 역산으로 셀 72원자·N_Li=8(2+x)·**단일부피**·11/11 재현 확정 → D₀ 복원 → **Meyer–Neldel R²=0.93·E_MN 57 meV≈시뮬 kT**, **600–900 K 분산 2.3–3.6× → 300 K 외삽 29.6×**. ⚠ 본문 volcano ↔ SI Table S5 모순(Er 첫 도핑 σ **8.8× 하락**)·**Er x=0.25 이론/실험 방향 반대**·⟨ω⟩ 값 없음·E_hull/ESW/gap/탄성 0 | ✅ `papers/ren2026_li2zrcl6_low_ion_potential_doping.md` | exp + DFT/AIMD/NEB/phonon (**프리프린트**) |
 | **[Wu26]** ⭐⭐계면 산물품질 최신·★★방법론 반례 | Xin Wu/Lixin Liang/…/**Shaochun Tang\***/**Guangjin Hou\***(DICP)/**Haoshen Zhou\***/**Ping He\*** (**Nanjing University**) 2026 *Angew. Chem. Int. Ed.* **65**, e23225, DOI 10.1002/anie.202523225 (**VIP**) — "**High-Conductivity Argyrodite Electrolyte with Self-Passivating Stability for Single-Electrolyte ASSLBs**". **`Li₅.₅P₀.₉₄Ta₀.₀₆S₄.₅Cl₀.₇₅Br₀.₇₅`** (Cl/Br 이중 할로겐 ΔS_conf/R 2.08 최대 + P-자리 Ta⁵⁺ 6 %). σ **12 mS/cm**(30 °C)·Ea 0.32→0.28 eV·σ_e 9.7e-9→1.4e-9·CCD 0.8→2.4 mA/cm²·대칭셀 >1600 h·1200 cyc 81 %·**10×6 cm² 파우치 200 cyc 96.4 %**. **핵심 = 계면 XPS 비대칭 CEI LiTaO₃ / SEI 금속 Ta⁰**. exp 강 + **계산층(밴드갭 스크리닝·NEB·AIMD·ICOHP·COMSOL) 절반 붕괴** — AIMD **300 K 20 ps 1시드**, Ta DFT 셀 **+22.8 % 부피(실험 +1.03 %)·x≈0.25(명목 4배)**, U/스핀 0, COHP 부호규약 붕괴, 계면 열역학 계산 0건, 오차막대 0 | ✅ `papers/wu2026_ta_argyrodite_selfpassivating.md` (감사 §4·§11) | exp 주 + DFT/AIMD 보조 + COMSOL |
 | **[Ling26]** ⭐열수송 축 신규·★★계산감사 2호 | **Bingyue Ling**/**Kun Li**/Y.Meng/Z.Fang/K.Qian/**Xu Yang\***/G.Wang/B.Li/F.Kang/**Dong Zhou\*** (**칭화대 선전국제대학원** + Great Bay Univ. + UTS Sydney) 2026 *Angew. Chem. Int. Ed.* e1775824 — "**Dual Thermal Stabilization Toward Highly Safe and Durable ASSLMBs Based on Sulfide Electrolytes**". **전해질은 시판 `Li₆PS₅Cl` 그대로**(우리 comp1 과 같은 화학식), 바꾼 건 배치 두 곳: 음극쪽 **3층 `LPSC/LPSC–FG/LPSC`**(불소화 그래핀 10 wt%) + 양극쪽 도전재를 **산소공공 CuO₁₋ₓ** 로 교체. 본문 11 pp + **SI(.docx)** Fig S1–S31·Table S1–S4 전문. **DFT 는 산소흡착 막대 4개 + 계면 AIMD 10 ps 가 전부**(NEB/DOS/Bader/COHP 0건) | ✅ `papers/ling2026_dual_thermal_stabilization_fg_cuox.md` | exp 주도 + DFT/AIMD 보조 + COMSOL |
+| **[Ahn26CEJ]** 🔴**[우리 원고·미출판]**·자기감사 축 §L | D. Kim/J. Kang/T. Y. Lee(공동1저자 3인)/H. R. Shin/**Yonghoon An** (DFT 담당)/**Jong-Won Lee\*** (한양대 MSE + 배터리공학과 · SK On) 2026 ***Chem. Eng. J.* 투고본 (DOI 없음)** — "**Electrochemical precursor conversion for coupled control of Li nucleation and transport in anode-free all-solid-state batteries**". **AgNO₃–C–PVP 계면층**: PVP 카보닐–Ag⁺ 배위 → AgNO₃ 도메인 **53.4 ± 58.6 → 7.82 ± 2.61 nm**, 첫 충전 in-situ 전환 → **Ag–Li 자리 + Li₃N 계면상**. NCA anode-free 풀셀 **350 cy**(Ag–C 174 단락 · AgNO₃–C 125), 15 wt% 에서 **54.2 vs 35.4 %** (+18.8 %p). 계산 2갈래 = **1D 전기화학–크리프 모델**(`Fig. 3`) + **DFT Li adatom 확산**(`Fig. 5c–e`: Li₃N **0.118** vs LiC₆ **0.290 eV**, ≈59 %↓). ⛔ **물성 4축(A/B/C/D)에 넣지 않는다** — σ·ESW·탄성·밴드갭을 하나도 계산하지 않는다 | ✅ `papers/ahn2026_cej_agno3_pvp_li3n_anodefree.md` | **[우리 원고] 자기감사 전용** — exp 주도 + 연속체모델 + DFT(QE 2점 구속이완 · UMA-oc20 CI-NEB) |
 
 ---
 
@@ -1235,6 +1236,115 @@ code · 범함수 · vdW · 유사퍼텐셜 · k-mesh · cutoff · 슬랩두께/
 - **"520 Wh kg⁻¹"** 를 실측 셀 에너지밀도로 (본문은 *theoretical*).
 - **§K-1 의 발표 소환값과 §K-5 의 논문값을 같은 표에** — 전해질(2 M ZnSO₄+ZnI₂ vs 1 M ZnSO₄)·기판·
   프로토콜이 전부 다르다. ⛔ 방향은 **논문 → talk** 단방향.
+
+---
+
+## L. 🔴 **자기감사 축 — 우리 CEJ 투고본** (2026-09-07 신설) — ⛔ "문헌 vs 우리" 가 아니다
+
+> **[Ahn26CEJ]** = `papers/ahn2026_cej_agno3_pvp_li3n_anodefree.md`
+> D. Kim/J. Kang/T.Y. Lee/H.R. Shin(공동1저자 3인), **Yonghoon An (DFT 담당)**, 교신 Jong-Won Lee (한양대)
+> "Electrochemical precursor conversion for coupled control of Li nucleation and transport in
+> anode-free all-solid-state batteries", **Chem. Eng. J. 투고본 (DOI 없음, 2026-09-07 업로드)**
+
+### L-0. 이 축을 여는 규율 (다른 축과 다르다)
+
+이건 **외부 문헌이 아니라 우리 원고**다. 따라서:
+
+- ⛔ **"소환값" 규율이 적용되지 않는다.** Fig. 5c–e / Table S2 의 DFT 수치는 `db/properties/diffusion.json`·
+  `li3n_barrier_origin.csv`·`li3n_barrier_fig_origin.csv` 와 **같은 계보**다 — 남의 값이 아니다.
+- ⛔ **물성 4축(A 이온전도 / B 산화안정 / C 기계 / D 전자구조) 표에 넣지 않는다.**
+  이 논문은 σ·ESW·탄성·밴드갭을 **하나도 계산하지 않는다**. 넣을 칸이 없다.
+- ✅ 대신 여기서 하는 일은 **감사**다: *원고가 주장하는 수치가 우리 정본과 같은가, 그리고
+  원고가 기술한 방법이 그 수치를 실제로 낼 수 있는가.*
+- ⛔ **방향은 원고 → db 가 아니다.** 불일치가 나오면 **원고를 고친다**(우리 db 가 정본).
+  단 L-2 의 db 내부 분열(0.287 vs 0.28968)은 db 쪽을 정리해야 하는 예외다.
+
+### L-1. ✅ 값 대조 — 원고 vs 우리 정본 (전부 일치)
+
+| 원고 주장 | 값 | 어디 | 우리 정본 | 판정 |
+|---|---|---|---|---|
+| Li₃N(001) Li adatom 확산장벽 | **0.118 eV** | `Fig. 5e` · `Table S2` · Highlights | `diffusion.json` `li3n_001_p0_2point_constrained_dft_2026-07-15` = **0.1182**; `li3n_barrier_origin.csv` `DFTpoint_eV` max **0.11820** | ✅ 일치 |
+| E_ads 흡착최소 | **−2.988 eV** | `Fig. 5c` | `li3n_barrier_fig_origin.csv` `onN_min4` **−2.9877** (converged) | ✅ 일치 |
+| E_ads 안장영역 | **−2.870 eV** | `Fig. 5c` | `li3n_barrier_fig_origin.csv` `bridge_saddle3` **−2.8695** (converged) | ✅ 일치 |
+| 감소율 | **≈59 %** (2.46×) | Results | 방어카드 A-7 "0.118 eV / ≈59 %, 비율 2.46×" | ✅ 일치 (확정결정 반영) |
+| 진공 | **≈15.7 Å** | `Table S2` | 방어카드 A-2 "→ 15.7 Å" | ✅ 일치 (수정 반영) |
+| 자리 이름 미사용 (`Minimum`/`Saddle`) | — | `Fig. 5c,d` | 방어카드 C-2·C4·C7 "자리 명명 금지" | ✅ 일치 (노출 차단됨) |
+| LiC₆(0001) 장벽 | **0.290 eV** | `Fig. 5e` · `Table S2` | `li3n_barrier_origin.csv` `LiC6_DFT_eV` max **0.28968** | ✅ 값은 일치 / ⚠ 계보는 L-2 |
+
+**⇒ 숫자는 하나도 안 틀렸다.** 문제는 전부 **방법 귀속과 그림 표현**에 있다.
+
+### L-2. 🔴 P0 — 방법 귀속 2건 (여기가 이 감사의 전부다)
+
+| # | 무엇 | 근거 | 조치 |
+|---|---|---|---|
+| **P0-1** | **`Fig. 5d` 가 Li₃N 을 실선 연속 MEP 로 그리고, 캡션에서 "*Symbols in (d) denote DFT-calculated configurations and the lines are guides to the eye*" 가 빠졌다.** 계산한 Li₃N 점은 **2개**뿐이고 곡선은 *폐기된* mirrored-spline NEB 형상 × 진폭재조정(`Li3N_guide_eV` = `li3n_neb_fit_optimal.csv` × 0.1182/0.10201, 편차 5e-7) | `kb/syntheses/li3n_barrier_revision_defense_2026_08_12.md` (status **확정**) 이 캡션 문장과 **"실선 금지·점선"** 을 못 박았다 | 캡션 두 문장 복원 + Li₃N 곡선 **점선화**. LiC₆ 는 실측 7점이니 **심볼을 찍어** 캡션과 짝 맞추기 |
+| **P0-2** | **Methods §4.6 이 LiC₆ 를 "CI-NEB + UMA-oc20" 로만 기술하고 QE 단일점 단계를 빠뜨렸다.** 그 경로 **단독** 우리 값은 **0.241 eV** 이지 0.290 이 아니다. 반면 `Table S2` 는 QE 파라미터 7행을 **gridSpan=2 로 두 열 병합**(원본 XML 실측)해 "LiC₆ 도 QE" 라고 말한다 → **표와 Methods 가 서로 다른 말** | `kb/methodology/li_adatom_neb_protocol.md` §OUTCOME: UMA-oc20 CI-NEB **0.241** / DFT-SCF on UMA 기하 **0.287**. 방어카드 A-4 는 "LiC₆(CI-NEB **+ DFT 단일점**)" 를 요구했는데 **뒷절반 미반영** | §4.6 에 한 문장 추가: *"Single-point DFT calculations were then performed on the resulting NEB image geometries using the same plane-wave settings as for Li₃N (Table S2)…"* |
+
+**노출 지점**: Highlights 가 "*Li₃N lowers the Li-adatom diffusion barrier **from 0.290 to 0.118 eV**.*"
+라고 **아무 단서 없이** 쓴다. §4.6 만 읽은 리뷰어에겐 **MLIP 값 − DFT 값**으로 보인다.
+방어카드가 준비한 반박 문구("MLIP 기하 위 DFT 단일점 → TS 가 매끄러워짐 → 이 비율은 **보수적 하한**")는
+옳지만 **원고 어디에도 없다**. 문헌 정합값 **0.133** 도 원고·SI 전문에서 **0회**.
+
+### L-3. 🟠 P1 — `0.290` 의 계보 + db 내부 분열
+
+`li3n_barrier_origin.csv` 직접 검산:
+
+| 항목 | 값 |
+|---|---|
+| 스플라인 최대 | **0.28968 eV @ xi = 0.4100** ← 원고의 0.290 |
+| 7 이미지 **실계산점** | 0.0000 / 0.1684 / 0.2816 / **0.2866** / 0.2762 / 0.1594 / **−0.0222** |
+| 실제 최고 계산점 | **img3 = 0.2866 eV** |
+| `diffusion.json` 헤드라인 | **0.287** |
+
+⇒ ① 보고값 0.290 은 **계산된 이미지가 아니라 이미지 사이 스플라인의 오버슛**이다.
+⇒ ② **우리 db 안에서 값이 갈라져 있다**(0.287 vs 0.28968) — 이건 **db 쪽을 정리해야 하는 예외**다.
+
+영향은 작다(58.8 % vs 59.3 % — 결론 불변). **그러나 P0-1 을 고쳐 "심볼 = 계산된 배치" 라고 캡션에
+쓰는 순간, 막대(0.290)와 심볼 최대(0.2866)가 그림 안에서 모순**이 된다.
+**⇒ P0-1 과 P1 은 반드시 같이 고친다.** 권장: **0.287 로 통일**(계산점 기반이라 방어가 쉽다).
+
+### L-4. ✅ 금지규율 전수검사 — **위반 0건**
+
+| 규율 | 원고 해당 문장 | 판정 |
+|---|---|---|
+| **⛔ UMA 를 Li₃N 에 사용 금지** (2026-06 결정론적 편향) ← 최우선 확인 | **없다.** §4.6 은 Li₃N 을 **QE 두 점 구속이완**으로 명시. UMA-oc20 은 **LiC₆ 에만** | ✅ **통과**. 폐기값 **0.054 / 0.237 은 원고에 0회** |
+| ⛔ MD σ 절대값 인용 금지 · 비율도 멀티시드만 | MD/MSD/Nernst–Einstein/σ 계산이 **아예 없음** (`mS cm⁻¹`·`molecular dynamics` 전문검색 0회) | ✅ 해당 없음 |
+| ⛔ `b2o3_vs_lpscl16_conductivity.csv` FORBIDDEN 문구 (`statistically equivalent transport` / `conductivity preserved` / `equivalent sigma` / 순위·기전) | 전문검색 **0회** | ✅ 해당 없음 |
+| ⛔ b2o3 UMA-MD 축 전체 인용 불가 (2026-08-25, 0.222 eV 포함) | 전문검색 **0회** | ✅ 해당 없음 |
+| ⛔ Band gap = fixed-occupations nscf VBM/CBM 만 (DOS-threshold 금지) | 밴드갭·DOS 계산 **없음** | ✅ 해당 없음 |
+| BVSE 정량·순위는 원본 주기셀만 | BVSE 없음 | ✅ 해당 없음 |
+
+> **요점**: 위험은 **"금지값을 인용했다"가 아니라 "방법 귀속이 불완전하다"** 에 있다.
+> 2026-09-07 Codex BH P0-1 이 kb 카드에서 잡아낸 종류의 위반(FORBIDDEN 문구 재현)은 **이 원고엔 없다.**
+
+### L-5. 🔧 방법 원전으로만 가져오는 것 (물성값 없음 → 4축 표에 안 넣는다)
+
+| 항목 | 원고 | 우리 활용 |
+|---|---|---|
+| **재료–방법 궁합 규칙** | Li₃N = 구속이완(NEB 실패) / LiC₆ = CI-NEB | 새 SEI 표면(Li₂O·LiF·Li₂CO₃) 칠 때 **먼저** `kb/methodology/li_adatom_neb_protocol.md` 표 보고 방법 선택 |
+| **DRT 3-피크 분해** (R_SE / R_interface / R_CT,Li–Ag) | `Fig. 6d`, Ciucci–Chen 베이지안 [44] | 우리 LPSCl 반쪽셀에서 반원이 겹칠 때 계면 vs 전하전달 분리 — 아직 우리가 안 쓰는 도구 |
+| **ΔE_t = E₀⁺ − E_τ** (펄스내 분극) | `Fig. 6b`, 정의 `Fig. S9` | GITT 펄스에서 준평형 말고 **전이 분극**만 뽑는 깔끔한 정의 |
+| **압력–온도 크리프 지도** | `Fig. 3e`, 10–30 MPa × 30–60 °C | **우리 스택압 규율 20 MPa 와 같은 창** → 우리 셀에서 크리프 지배 여부를 바로 읽음 |
+| **operando 압력 자체검증** | `Fig. 7a` 240 kg / ⌀13 mm = **17.7 MPa** vs 본문 20 MPa | 셀 압력 보고 시 하중↔압력 환산을 도식에 같이 두는 관례 |
+
+⛔ **인용 금지 / 주의**
+- **`Fig. 3d` 의 j_creep,eq (0.39/0.10/0.08 mA cm⁻²) 를 재현값으로 쓰지 말 것** — Table S1 값으로
+  Eq. (2) 를 풀면 Coble 지배(NH 대비 ~2.4×10³)라 10 nm/100 nm 가 **2.0×** 여야 하는데 그림은 **4.8×** 다.
+  차이는 본문이 **크리프율→전류밀도 변환식을 안 준** 데서 온다 ⇒ **논문만으로 재현 불가**.
+- **`Fig. 4` 의 EDS Ag 맵을 8 nm vs 53 nm 도메인 증거로 쓰지 말 것** — SEM-EDS 상호작용 부피(~µm)가
+  그 스케일을 못 가른다. 그 그림이 보여 주는 건 **µm 스케일 균일성**뿐.
+- **CCD "2.0 mA cm⁻²" 를 임계값으로 쓰지 말 것** — 두 온도 모두 그 값에서 **시험이 종료**된다 → **≥2.0**.
+- 이 원고의 실험값(η_nuc·ΔP·용량유지율)을 `db/properties/` 계산값과 **같은 표에** 놓지 말 것.
+
+### L-6. 미해소 (리비전 대비 — kb 에서 그대로 살아 있는 것)
+
+| kb 항목 | 내용 | 상태 |
+|---|---|---|
+| **C2** 슬랩 두께 수렴 | 우리 4층(135+1) vs 문헌 6층. **미실행** | 🟠 가장 약한 지점 |
+| **C3** 전역 최소 | 4층 슬랩에 min4 보다 **0.085 eV 낮은 2N-bridge pocket** → 엄밀 escape barrier 는 **0.2035 eV** | 🟠 C2 의 6층 테스트가 동시에 결판 |
+| **C6** 안장점 정체 | 계산된 TS 가 최근접 hop(2.107 Å) 직선 위 **xi = 1.20** — 그 hop 의 안장(N–N 다리)은 **계산된 적 없다**. 계산하면 0.118 보다 **낮아질 수 있다**(= 주장이 강해진다) | 🟠 서술은 "saddle-region" 이라 방어 범위 안 |
+| **Gap 1** | **6층 243원자 2점 테스트** — C2·C3 를 한 번에 닫는 유일한 실험 | ⬜ 미실행. 리비전까지 시간 있으면 지금 걸어야 함 |
+| 등록부 | 0.118 / 0.287 이 `db/properties/canonical_registry.json` **42 entries 안에 없다** | ⬜ 투고본 headline 수치는 등록 대상 (CLAUDE.md 마감규율) |
 
 ---
 
