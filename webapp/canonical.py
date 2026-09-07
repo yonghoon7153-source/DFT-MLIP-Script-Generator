@@ -72,18 +72,33 @@ def resolve(source_path: str, source_key: str, root=None):
       (db/properties/*.json)을 직접 고쳤다 뺐다 해야 하는데, hard kill·전원 손실처럼
       finally 가 안 도는 중단에서 **정본이 오염된 채 남는다** (2026-08-07 Codex 3라운드).
       root 를 임시 디렉터리로 주면 fixture 가 repo 밖에서 완결된다.
+
+    ⛔⛔ 2026-09-07 — **못 읽는 사유 중 하나만 ResolveError 였다.** "파일 없음" 은
+      ResolveError 라 `load_registry` 가 그 항목을 `source_error` 로 내리는데(설계대로),
+      **깨진 JSON/CSV** 는 `json.load` 의 JSONDecodeError 가 그대로 올라가
+      `/`·`/compare`·`/explorer`·`/governance` 가 통째로 **500** 이었다(실측).
+      `float(node)` 가 dict/list 를 만나는 경우도 TypeError 로 샜다.
+      load_registry 의 문서가 이미 "원자료를 못 읽으면 status 를 source_error 로
+      내린다" 고 적어 놓은 설계인데, 그 경로를 **한 종류만** 타고 있었다.
+      ⇒ 못 읽는 사유는 **전부** ResolveError 로 모은다. 판정은 안 바꾼다 —
+        source_error 는 여전히 자동판정에서 빠지고 화면에 '출처오류' 배지가 붙는다.
     """
     p = (Path(root) if root else ROOT) / source_path
     if not p.is_file():
         raise ResolveError(f"{source_path}: 파일 없음")
     toks = [t for t in source_key.split("/") if t != ""]
-    if p.suffix.lower() == ".csv":
-        # ⚠ 우리 CSV 는 '#' 주석 줄이 섞여 있다(인용 금지 문구가 거기 산다). 걸러내고 읽는다.
-        with open(p, encoding="utf-8", errors="ignore") as f:
-            rows = [ln for ln in f if not ln.lstrip().startswith(("#", '"#'))]
-        node = list(csv.DictReader(rows))
-    else:
-        node = json.load(open(p, encoding="utf-8"))
+    try:
+        if p.suffix.lower() == ".csv":
+            # ⚠ 우리 CSV 는 '#' 주석 줄이 섞여 있다(인용 금지 문구가 거기 산다). 걸러내고 읽는다.
+            with open(p, encoding="utf-8", errors="ignore") as f:
+                rows = [ln for ln in f if not ln.lstrip().startswith(("#", '"#'))]
+            node = list(csv.DictReader(rows))
+        else:
+            with open(p, encoding="utf-8") as f:
+                node = json.load(f)
+    except (OSError, ValueError, csv.Error) as ex:      # JSONDecodeError ⊂ ValueError
+        raise ResolveError(
+            f"{source_path}: 원자료를 못 읽었다 ({type(ex).__name__}: {ex})") from ex
     for t in toks:
         node = _step(node, t, source_path)
     if isinstance(node, str):
@@ -94,7 +109,11 @@ def resolve(source_path: str, source_key: str, root=None):
         return float(m.group(1))
     if isinstance(node, bool) or node is None:
         raise ResolveError(f"{source_path}:{source_key}: 수가 아니다 ({node!r})")
-    return float(node)
+    try:
+        return float(node)
+    except (TypeError, ValueError) as ex:
+        raise ResolveError(f"{source_path}:{source_key}: 수로 못 바꾼다 "
+                           f"({type(node).__name__} {str(node)[:40]!r})") from ex
 
 
 def load_registry(path=None, live=True, root=None) -> dict:

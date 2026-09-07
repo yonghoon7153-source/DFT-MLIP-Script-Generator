@@ -432,6 +432,53 @@ def test_source_error_drops_out_of_canonical():
         assert C.validate(reg, root=tmp), "원자료를 못 읽는데 validator 가 통과한다"
 
 
+def test_unreadable_source_takes_the_same_path_as_a_missing_one():
+    """⛔ '못 읽음' 의 **모든 사유**가 source_error 로 가야 한다 — 500 이 아니라.
+
+    실측 (2026-09-07): 위 시험은 원자료를 `unlink()` 하는 한 가지 사유만 봤다.
+      그건 `ResolveError("파일 없음")` 이라 설계대로 `source_error` 로 내려간다.
+      그런데 **깨진 JSON** 은 `json.load` 의 JSONDecodeError 가 그대로 올라가
+      `/`·`/compare`·`/explorer`·`/governance` 를 통째로 **500** 으로 만들었다.
+      `load_registry` 문서가 이미 "원자료를 못 읽으면 source_error 로 내린다" 고
+      적어 둔 설계인데 경로를 한 종류만 타고 있었다 — 게이트가 위험보다 좁았다.
+
+    ⛔ 이 시험이 못 하는 것: source_error 가 **옳은 처분인지**는 판정하지 않는다.
+      그건 이미 정해진 설계(2026-08-07 Codex 3라운드)고, 여기서는 모든 사유가
+      그 설계로 수렴하는지만 본다.
+    """
+    import tempfile
+
+    BROKEN = {
+        "깨진 JSON": lambda p: p.write_text("{ not json", encoding="utf-8"),
+        "빈 파일": lambda p: p.write_text("", encoding="utf-8"),
+        # source_key 는 "/gap_eV" 라, 그 자리에 dict 를 두면 float() 이 TypeError 를 낸다
+        "수가 아닌 노드": lambda p: p.write_text(
+            json.dumps({"gap_eV": {"nested": 1}}), encoding="utf-8"),
+    }
+    for label, break_it in BROKEN.items():
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            regp = _fixture_registry(tmp)
+            src = tmp / "db" / "properties" / "fake_gap.json"
+            break_it(src)
+            reg = C.load_registry(regp, root=tmp)      # ① 예외로 죽지 않는다
+            e = [x for x in reg["entries"] if x["system"] == "lpsocl"][0]
+            assert e["status"] == "source_error", (
+                f"{label}: status 가 {e['status']} 다 — 검증 안 된 값이 정본에 남는다")
+            assert e.get("resolve_error"), f"{label}: 사유를 안 남긴다"
+            # ② 자동판정(순위·차트)에서 빠진다
+            assert "lpsocl" not in C.canonical_map(
+                reg, "gap_eV", group="gap-fixedocc-eigenvalue-v1"), label
+            assert C.validate(reg, root=tmp), f"{label}: validator 가 통과한다"
+    # ⛔음성 대조군: 멀쩡한 원자료는 여전히 canonical 이어야 한다 (전부 source_error 로
+    #   내려 버리는 구현도 위 단언을 통과하므로, 반대쪽을 같이 잠근다)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        reg = C.load_registry(_fixture_registry(tmp), root=tmp)
+        e = [x for x in reg["entries"] if x["system"] == "lpsocl"][0]
+        assert e["status"] != "source_error", "멀쩡한 원자료까지 출처오류로 내린다"
+
+
 def test_running_process_sees_source_change():
     """★ 오래 사는 worker 에서도 db 수정이 다음 요청에 반영돼야 한다 (Codex 3라운드).
 
