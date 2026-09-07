@@ -244,8 +244,27 @@ VBM 이 내려가고(−0.058) gap 이 넓어진다. §5 의 일반론대로다.
 
 실측한 것은 **원소별** PDOS 다 — *"b2o3 의 CBM 은 B 가 지배한다"*(원자당 46 %).
 그것이 **p_z 냐**는 BS₃ 삼각평면 기하에서 나온 **화학적 추론**이다.
-확인하려면 **궤도별(l-분해) PDOS** 로 B 의 s vs p 를 가르고, 가능하면 p_x/p_y(σ) vs p_z 까지
-봐야 한다. QE `projwfc.x` 나 LOBSTER 출력에 이미 있을 수 있어 **재계산 없이** 될 가능성이 있다.
+
+**2026-09-07 확인 결과 — 지금 repo 에는 없다.**
+`tools/electronic/standard_dos/projwfc.in` 주석이 *"sum per-orbital PDOS afterwards"* 라고
+적혀 있다. 즉 **궤도별 파일이 만들어졌는데 원소별로 합치면서 detail 을 버렸다.**
+`db/properties/` 의 b2o3 PDOS 는 전부 원소별·자리별뿐이다.
+
+원자료는 오프라인 백업(외장 SSD) `kisti_backup_2026-07-14/kgy_b2o3_eos_2026-07-14/b2o3_eos/`
+에 있을 수 있는데, `kb/methodology/offline_archive_index_2026_08_20.md` 의 그 폴더 목록에는
+cube 6종·Bader 55개만 적혀 있고 **`*.pdos_atm*` 은 목록에 없다** — 보존 여부 미확인.
+
+회수 사다리 (비용 순):
+1. SSD 에서 `ls *pdos_atm*` — 있으면 **재계산 0**, B 원자의 `wfc#N(l)` 만 l 별로 합치면 끝
+2. 없으면 `tmp/`(저장된 파동함수) 확인 — 있으면 `projwfc.x` 만 재실행 (nscf 불필요, 분 단위)
+3. 둘 다 없으면 nscf + projwfc 재계산 (그때 비용 발생)
+
+> [!warning] 그때까지 쓰는 법
+> 허용: *"b2o3 의 CBM 은 원자당 성분에서 B 가 지배한다(46 %)"*
+> 조건부: *"삼각평면 BS₃ 기하에서 **예상되는** 빈 p_z"*
+> ⛔ 금지: *"b2o3 의 CBM 은 B 의 p_z 다"* — l-분해 전까지 단정하지 않는다.
+
+기계 판독용 기록: `db/properties/b2o3_cbm_character_2026_09_07.json`
 
 *출처: `db/properties/electronic.json` (eigenvalue_gaps_v100_2026_06_16) ·
 `b2o3_pdos_element_smooth.csv` · `modelc_pdos_element_smooth.csv` · `b2o3_icohp.json` ·
