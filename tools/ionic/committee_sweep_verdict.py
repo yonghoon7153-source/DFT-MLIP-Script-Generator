@@ -36,13 +36,68 @@ from mlip_committee import load_preds, frame_disagreement, force_scale   # noqa:
 BASE_T = 600
 
 
+# ── 판정 조각 (순수 함수 — selftest 가 여기를 그대로 부른다) ──────────────────
+def signed_max_by_magnitude(values):
+    """크기가 제일 큰 값을 **부호를 유지한 채** 돌려준다.
+
+    ⛔⛔ 왜 이 함수가 따로 있나 (회신 AW 해제조건 ⑤ · 2026-09-07)
+      종전 코드는 `max(...)` 였다. `(-30%, -5%)` 가 오면 `-5%` 가 뽑혀
+      `abs(drift) < 10` 을 통과했다 — **30 % 표류가 "열적 스케일링" 초록으로 나갔다.**
+      크기로 골라야 게이트가 성립하고, 부호는 진단(어느 방향으로 벌어지나)이라 남긴다.
+    """
+    vals = list(values)
+    return max(vals, key=abs) if vals else 0.0
+
+
+def drift_class(drift, resid, n_frames):
+    """표류·잔차 → `'ok' | 'extrapolation' | 'middle'`.
+
+    resid/n_frames 는 `{T: 개수}` · `{T: 프레임수}`.
+    ⚠ 문턱(10 % · 25 % · 잔차 10 %)은 종전 값 그대로다 — 이번 변경은 **부호 처리만**이다.
+    """
+    if abs(drift) < 10 and all(v <= 0.10 * n_frames[T] for T, v in resid.items()):
+        return "ok"
+    if abs(drift) > 25:          # ⚠ abs — 종전 `drift > 25` 는 음의 큰 표류를 놓쳤다
+        return "extrapolation"
+    return "middle"
+
+
+def _selftest():
+    ok = bad = 0
+    def chk(c, msg):
+        nonlocal ok, bad
+        print(("  ⭕ " if c else "  ⛔ ") + msg); ok, bad = ok + (1 if c else 0), bad + (0 if c else 1)
+
+    chk(signed_max_by_magnitude([5.0, 3.0]) == 5.0, "양수는 큰 쪽")
+    chk(signed_max_by_magnitude([]) == 0.0, "빈 입력은 0")
+    chk(signed_max_by_magnitude([-30.0, -5.0]) == -30.0,
+        "⛔음성: **(−30, −5) 에서 −30 을 고른다** — 종전 max 는 −5 를 골라 게이트를 통과시켰다")
+    chk(signed_max_by_magnitude([-30.0, 12.0]) == -30.0, "⛔음성: 부호가 섞여도 크기로 고른다")
+    chk(signed_max_by_magnitude([-4.0, 9.0]) == 9.0, "크기가 같은 방향이면 그대로")
+
+    nf = {800: 100, 1000: 100}
+    chk(drift_class(5.0, {800: 0, 1000: 0}, nf) == "ok", "작은 표류 + 잔차 없음 = ok")
+    chk(drift_class(-30.0, {800: 0, 1000: 0}, nf) == "extrapolation",
+        "⛔음성: **음의 30 % 표류를 잡는다** (종전 `drift > 25` 는 못 잡았다)")
+    chk(drift_class(30.0, {800: 0, 1000: 0}, nf) == "extrapolation", "양의 30 % 도 잡는다")
+    chk(drift_class(15.0, {800: 0, 1000: 0}, nf) == "middle", "사이는 middle — 단정 금지")
+    chk(drift_class(5.0, {800: 50, 1000: 0}, nf) == "middle",
+        "⛔음성: 표류가 작아도 **잔차가 문턱을 넘으면 ok 가 아니다**")
+    print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
+    return 0 if bad == 0 else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--glob", default="~/work/committee_modelc_T*")
     ap.add_argument("--base_T", type=int, default=BASE_T)
     ap.add_argument("--out_json", default=None)
     ap.add_argument("--out_csv", default=None)
+    ap.add_argument("--selftest", action="store_true",
+                    help="판정 조각만 시험한다 (자료·GPU 불필요)")
     a = ap.parse_args()
+    if a.selftest:
+        raise SystemExit(_selftest())
 
     dirs = {}
     for p in sorted(glob(os.path.expanduser(a.glob))):
@@ -73,7 +128,16 @@ def main():
                    "relative_median": float(np.median(pf)) / scale,
                    "by_element_relative": rel_el}
 
-    bT = a.base_T if a.base_T in rows else sorted(rows)[0]
+    # ⛔⛔ 2026-09-07 (회신 AW 해제조건 ⑤) — 종전엔 기준 온도가 없으면 **말없이**
+    #   최저 T 로 갈아탔다. 그러면 "600 K 대비 표류" 라고 찍힌 숫자가 실은 800 K 대비이고,
+    #   화면·JSON 어디에도 그 사실이 안 남는다. 표류는 기준이 바뀌면 값이 통째로 바뀌는 양이다.
+    #   ⇒ 대체하지 않고 **멈춘다.** 일부러 다른 기준을 쓰려면 `--base_T` 로 **선언**한다.
+    if a.base_T not in rows:
+        raise SystemExit(
+            f"⛔ 기준 온도 {a.base_T} K 의 자료가 없다 (있는 것: {sorted(rows)}).\n"
+            f"   최저 T 로 조용히 갈아타지 않는다 — 표류는 기준이 바뀌면 값이 바뀐다.\n"
+            f"   다른 기준을 쓰려면 명시한다:  --base_T {sorted(rows)[0]}")
+    bT = a.base_T
     brk = rows[bT]["p95"]
     s0 = rows[bT]["force_scale_eV_per_A"]
 
@@ -124,18 +188,23 @@ def main():
     # ── 판정 ────────────────────────────────────────────────────────────
     rel = {T: rows[T]["relative_median"] for T in rows}
     hi = [T for T in rel if T > bT]
-    drift = max((rel[T] / rel[bT] - 1) * 100 for T in hi) if hi else 0.0
-    print(f"상대 불일치 표류 (고온 최대 vs T{bT}): {drift:+.1f}%")
+    drift = signed_max_by_magnitude((rel[T] / rel[bT] - 1) * 100 for T in hi)
+    print(f"상대 불일치 표류 (고온 **최대 크기** vs T{bT}): {drift:+.1f}%")
     resid = {T: rows[T]["n_above_scaled"] for T in hi}
     print(f"스케일 문턱 초과 (고온): " + " · ".join(
         f"T{T} {resid[T]}/{rows[T]['n_frames']}" for T in sorted(resid)) if resid else "")
-    if abs(drift) < 10 and all(v <= 0.10 * rows[T]["n_frames"] for T, v in resid.items()):
+    _cls = drift_class(drift, resid, {T: rows[T]["n_frames"] for T in rows})
+    if _cls == "ok":
         verdict = ("✅ **열적 스케일링이다 — 외삽 아님.** 절대 불일치 증가는 힘 크기(√T) 를 "
                    "따라간 것이고, 상대 불일치는 평평하다. 600/800/1000 K 3점 Arrhenius 는 "
                    "이 지표로는 막히지 않는다. watch 의 '⚠⚠ 급증' 은 고정 절대 문턱의 착시.")
-    elif drift > 25:
-        verdict = ("⛔ **진짜 외삽 신호.** 힘 크기로 정규화해도 상대 불일치가 크게 는다 → "
-                   "고온 배열이 훈련 분포 밖. Arrhenius 상단 신뢰 불가.")
+    elif _cls == "extrapolation":
+        # ⚠ 방향을 문구에 적는다 — 커지는 것과 작아지는 것은 다른 얘기다.
+        _dir = ("커진다" if drift > 0 else
+                "**작아진다**(고온에서 상대 불일치가 줄어든다 — 스케일링 가정이 "
+                "반대로 깨진 것일 수 있다)")
+        verdict = (f"⛔ **진짜 외삽 신호.** 힘 크기로 정규화해도 상대 불일치가 {_dir} → "
+                   "고온 배열이 훈련 분포 밖일 수 있다. Arrhenius 상단 신뢰 불가.")
     else:
         verdict = ("🔶 **중간 — 단정 금지.** 상대 표류가 작지 않지만 결정적이지도 않다. "
                    "프레임 수를 늘리거나(200→500) 고온 표본에 DFT 단일점 스팟체크를 붙여야 한다.")

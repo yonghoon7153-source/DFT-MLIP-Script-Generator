@@ -564,8 +564,90 @@ def _routes():
                    and not r.rule.startswith("/static")})
 
 
+def _dynamic_routes():
+    """`<...>` 를 낀 GET 라우트. `_routes()` 가 **일부러 뺀** 쪽이다."""
+    return sorted({r.rule for r in A.app.url_map.iter_rules()
+                   if "GET" in r.methods and "<" in r.rule
+                   and not r.rule.startswith("/static")})
+
+
+#: 동적 라우트별 **대표 인자**. 실물에 있는 값을 쓴다 — 없는 값을 넣으면 404 만 보게 되고
+#: 그건 렌더 경로를 안 탄 것이라 검사가 아니다. (전부 2026-09-07 실측으로 200 확인)
+#: ⚠ 여기에도 EXEMPT 에도 없는 동적 라우트가 생기면 아래 시험이 **그 사실 자체로** 실패한다.
+DYNAMIC_FIXTURES = {
+    "/api/comments/<path:rel>":   ["CLAUDE.md"],
+    "/api/concept/<cid>":         ["ordered_vs_disordered", "beta-gate"],
+    "/api/csv/<path:rel>":        ["db/properties/b2o3_msd.csv"],
+    "/api/fairchem/v1/<name>":    ["models"],
+    "/api/file/<path:rel>":       ["db/properties/electronic.json"],
+    "/api/highlights/<path:rel>": ["CLAUDE.md"],
+    "/api/paper/<pid>":           ["deng2026_polysulfate_layer_moisture_oxidation_lpsc"],
+    "/api/property/<name>":       ["electronic", "li_transport"],
+    "/api/structure/<path:fn>":   ["sei_li3nd_mp-976264.vasp"],
+    "/composition/<cid>":         ["comp1", "modelc"],
+    "/concept/<cid>":             ["ordered_vs_disordered", "beta-gate"],
+}
+
+#: 스모크로 못 미는 동적 라우트 — **사유를 반드시 적는다**(빈 사유 금지).
+#: ⚠ 여기 넣는 것은 "검사 안 함" 이라는 선언이다. 늘어나면 그만큼 눈이 먼다.
+DYNAMIC_EXEMPT = {
+    "/api/handoff/<hid>":
+        "handoff 는 실행 중 생기는 무상태 id 라 저장소에 고정 표본이 없다. "
+        "id 생성까지 하려면 스모크가 아니라 통합시험이다.",
+    "/api/note-image/<name>":
+        "사용자가 노트에 붙인 이미지. 저장소에 커밋되지 않는다(업로드 산물).",
+    "/talk/<slug>":
+        "발표 슬러그가 kb/seminars 파일명과 1:1 이 아니다 — 대응 규칙을 확인하기 전에는 "
+        "임의 슬러그를 넣어 404 를 통과로 세게 된다. ⏳ 규칙 확인 후 fixture 로 옮긴다.",
+}
+
 #: 기본 요청에서 **일부러 403** 인 라우트 — fail-closed 가 목적이라 200 이면 오히려 버그다.
 GATED_ROUTES = {"/cascade/diagnostic": ("view=diagnostic", 403)}
+
+
+def test_dynamic_routes_are_covered_not_skipped():
+    """⛔음성: **동적 라우트가 검사 밖에 있으면 안 된다** (회신 AW 해제조건 ⑥).
+
+    `_routes()` 는 `"<" not in r.rule` 로 동적 라우트를 통째로 뺀다. 그래서
+    `/api/property/<name>` · `/api/csv/<path:rel>` 처럼 **화면이 실제로 부르는** 경로가
+    한 번도 안 밟혔다. 리뷰가 "GET 42개 패턴 중 14개가 빠진다" 고 지적한 자리다.
+
+    이 시험이 지키는 것 둘:
+      ① 새 동적 라우트가 생기면 **fixture 없이 지나갈 수 없다** (고아 금지)
+      ② fixture 가 있는 것은 **실제로 렌더까지** 간다 (404/500 이 아니다)
+    """
+    dyn = _dynamic_routes()
+    known = set(DYNAMIC_FIXTURES) | set(DYNAMIC_EXEMPT)
+    unknown = [r for r in dyn if r not in known]
+    assert not unknown, (
+        f"fixture 도 EXEMPT 도 없는 동적 라우트가 있다 — 검사 밖이다: {unknown}\n"
+        f"DYNAMIC_FIXTURES 에 대표 인자를 넣거나, DYNAMIC_EXEMPT 에 **사유와 함께** 적어라.")
+    stale = [r for r in known if r not in dyn]
+    assert not stale, f"없어진 라우트의 fixture/EXEMPT 가 남아 있다: {stale}"
+    empty = [r for r, why in DYNAMIC_EXEMPT.items() if not (why or "").strip()]
+    assert not empty, f"⛔ EXEMPT 에 사유 없는 항목: {empty} — 빈 사유는 검사를 끄는 뒷문이다"
+
+
+def test_dynamic_routes_actually_render():
+    """양성 + ⛔음성: fixture 가 있는 동적 라우트가 **200 으로 렌더**된다.
+
+    ⚠ 404 를 통과로 세면 안 된다 — 그건 라우트를 밟긴 했어도 **렌더 경로를 안 탄 것**이다.
+      그래서 아래는 200 만 통과로 센다.
+    """
+    c = A.app.test_client()
+    bad, checked = [], 0
+    for rule, args in DYNAMIC_FIXTURES.items():
+        for v in args:
+            u = re.sub(r"<[^>]+>", v, rule)
+            try:
+                r = c.get(u)
+                checked += 1
+                if r.status_code != 200:
+                    bad.append(f"{u} → {r.status_code}")
+            except Exception as ex:
+                bad.append(f"{u} → {type(ex).__name__}: {ex}")
+    assert checked >= 10, f"밟은 동적 라우트가 너무 적다 ({checked}) — fixture 가 비었나"
+    assert not bad, "동적 라우트가 렌더 안 된다: " + " · ".join(bad)
 
 
 def test_all_get_routes_200():
