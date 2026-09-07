@@ -69,6 +69,17 @@
 {%- set c = {'CITABLE':'#0d9488','NO_VERDICT':'#c05621','HOLD':'#c05621','BLOCKED':'#be123c'} -%}
 <span class="mono" style="font-size:.7rem;font-weight:700;color:{{ c.get(s, '#6b7280') }}">{{ s }}</span>
 {%- endmacro %}
+{% if data and data.unreadable %}
+{# ⛔ 2026-09-07 — 결과 원장을 못 읽으면 종전에는 위 `data.jobs` 조건에 걸려 표가
+   **통째로 사라졌다.** 사라진 표는 "잡이 없다" 로 읽힌다. 사라진 이유를 적는다. #}
+<div class="doc">
+  <h2>📊 원자료 — 표를 그릴 수 없다</h2>
+  <div style="border-left:4px solid #be123c;background:#fef2f2;padding:10px 14px;margin:10px 0">
+    <b>⛔ {{ data.unreadable }}</b> — 이 표가 비어 있는 것은 <b>잡이 없어서가 아니라
+    원장을 못 읽어서다.</b> 값이 철회됐다는 뜻도, 계산이 없다는 뜻도 아니다.
+  </div>
+</div>
+{% endif %}
 {% if data and data.jobs %}
 <div class="doc">
   <h2>📊 원자료 (db/properties/sdcp_wave1_results.json)</h2>

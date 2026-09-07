@@ -228,9 +228,15 @@ def sdcp_wave1_rows() -> dict:
       · 값을 숨기지도 않는다. 지위를 붙여 **접힌 역사 절**로 내려보낸다
         (삭제하면 감사 추적이 끊기고, 현재형으로 두면 철회가 되살아난다).
     """
-    if not SDCP_WAVE1_JSON.exists():
-        return {}
-    d = json.loads(SDCP_WAVE1_JSON.read_text(encoding="utf-8"))
+    # ⛔ 2026-09-07 — 종전엔 없으면 `{}`(→ 템플릿 `{% if data.jobs %}` 에 걸려 표가
+    #   **말없이 사라짐**), 깨졌으면 맨몸 json.loads 라 `/sdcp` 가 **500** 이었다(실측).
+    #   지위 원장(_wave1_gate)은 이미 fail-closed 인데 정작 결과 원장이 fail-crash 였다.
+    #   못 읽음은 "잡이 없다" 가 아니다 — 사유를 실어 화면이 말하게 한다.
+    d, unreadable = _read_ledger(SDCP_WAVE1_JSON)
+    if unreadable:
+        return {"unreadable": unreadable, "jobs": [], "dE": [], "meta": {},
+                "gate": _wave1_gate(), "n_valid": 0, "n_dE": 0,
+                "n_citable_dE": 0, "n_blocked": 0}
     jobs = d.get("jobs", [])
     gate = _wave1_gate()
 

@@ -258,7 +258,29 @@ def test_invalid_delta_e_not_counted_as_valid():
                               == x["basin_pair"].split("/")[1])
 
 
-def test_missing_json_degrades_quietly(monkeypatch):
-    """⛔음성: 원자료가 없으면 빈 dict — 예외로 화면 전체를 죽이지 않는다."""
-    monkeypatch.setattr(D, "SDCP_WAVE1_JSON", ROOT / "db" / "properties" / "__none__.json")
-    assert D.sdcp_wave1_rows() == {}
+def test_missing_or_broken_json_says_so_instead_of_vanishing(monkeypatch, tmp_path):
+    """⛔음성: 원자료를 못 읽어도 예외로 안 죽고, **못 읽었다고 화면이 말한다.**
+
+    종전 시험은 `sdcp_wave1_rows() == {}` 만 봤다("quietly"). 그런데 `{}` 는
+    doc.html 의 `{% if data.jobs %}` 에 걸려 표가 **통째로 사라지고**, 사라진 표는
+    "잡이 없다"로 읽힌다. 그리고 파일이 **깨진** 경우는 아예 검사 밖이라
+    맨몸 `json.loads` 가 `/sdcp` 를 **500** 으로 만들고 있었다 (2026-09-07 실측).
+
+    ⇒ 계약을 좁힌다: 예외 없음 + 사유를 실어 나름 + 화면이 그 사유를 적음.
+      값·지위 판정은 그대로다 — 못 읽었을 때의 **말**만 달라진다.
+    """
+    for scenario, path in (("없는 파일", ROOT / "db" / "properties" / "__none__.json"),
+                           ("깨진 파일", tmp_path / "broken.json")):
+        if scenario == "깨진 파일":
+            path.write_text("{ not json", encoding="utf-8")
+        monkeypatch.setattr(D, "SDCP_WAVE1_JSON", path)
+        r = D.sdcp_wave1_rows()                      # ① 예외로 죽지 않는다
+        assert r.get("unreadable"), f"{scenario}: 못 읽은 사유를 안 싣는다 — {r!r}"
+        assert r["jobs"] == [] and r["dE"] == [], f"{scenario}: 없는 행을 지어낸다"
+        assert r["n_citable_dE"] == 0, f"{scenario}: 못 읽었는데 인용 가능 행을 센다"
+        rv = app.test_client().get("/sdcp")           # ② 500 이 아니라 사유를 실은 화면
+        assert rv.status_code == 200, f"{scenario}: /sdcp 가 {rv.status_code}"
+        body = rv.data.decode()
+        assert "못 읽" in body, f"{scenario}: 화면이 못 읽은 사실을 안 적는다"
+        assert "잡이 없어서가 아니라" in body, (
+            f"{scenario}: 빈 표가 '잡이 없다' 로 읽히는 것을 막는 문구가 없다")
