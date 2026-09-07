@@ -1125,6 +1125,95 @@
     "decision_digest": "sha256:1a1a118aeeaa61483f1950d9a691c631c4a68eb3d6cd30b7104bf1711cabacf5",
     "근거": "1저자 2026-09-04: 'B'. 시간 제약 없음이 확인돼 비용 논거가 사라졌다."
    }
+  },
+  {
+   "id": "D-2026-09-07-b2o3-md-closure-retrospective",
+   "schema_version": 2,
+   "kind": "closure",
+   "scope": "b2o3.uma_md.conductivity_axis",
+   "slot": "campaign_closure",
+   "applies_to": {
+    "systems": [
+     "b2o3"
+    ],
+    "tasks": [
+     "arrhenius_Ea",
+     "diffusion_D",
+     "conductivity_sigma"
+    ],
+    "methods": [
+     "uma-s-1p1-omat__langevin-nvt"
+    ],
+    "use_cases": [
+     "manuscript",
+     "internal"
+    ]
+   },
+   "title": "b2o3 UMA-MD 전도도 축 마감 — **소급 기록** (2026-08-25 에 닫힘)",
+   "statement": "b2o3 의 UMA-MD 전도도 축(D · Ea · σ · 구간 Ea)은 **인용 불가**다. 이 축에서 인용 가능한 수는 0개이며, 상태명은 `closed_no_action / non-citable` 이다. 0 K DFT 축(밴드갭·탄성·ELF/ICOHP)은 이 마감의 범위가 아니다.",
+   "rationale": "골격 게이트 실측 — 800·1000 K 3/3, 1200 K 6/6 이 β≥0.30, 700 K s2 는 β≥0.60, 600 K 도 1/3 이 0.55. 같은 포텐셜·온도의 modelc 7/7 rigid(max 0.27), lpsocl 1000 K 까지 rigid(max 0.17) ⇒ b2o3 조성 고유. Li 'D' 에 골격 이완이 섞여 이온 확산량으로 읽을 수 없다.",
+   "decision_state": "proposed",
+   "record_kind": "retrospective",
+   "⛔_소급_선언": "축은 2026-08-25 에 닫혔고 이 결정은 2026-09-07 에 등록한다. **당시에는 재개 조건이 등록돼 있지 않았다** — 마감 규율 채택(2026-08-28)보다 사흘 빨랐다. 당시 원장의 산문(‘UMA 아닌 포텐셜이나 짧은 AIMD 로 재봐야 한다 — 현재 범위 밖’)은 범위 메모이지 비준된 조건이 아니었고, 이 결정이 그것을 조건으로 승격시키지 않는다.",
+   "card": "db/properties/b2o3_md_closed_retrospective_2026_08_25.json",
+   "evidence": [
+    "db/properties/md_run_ledger.json ★_VERDICT_2026_08_25",
+    "db/properties/b2o3_md_arrhenius.json ⛔⛔_MD_AXIS_RETIRED_2026_08_25",
+    "db/properties/b2o3_committee_2026_09_07.json"
+   ],
+   "method_ref": "tools/ionic/msd_diffusive_check.py --framework --from_traj --window 2 50",
+   "reopen_criteria": "이 마감을 되돌리려면 **별도의 새 카드**가 필요하고 최소 (a) 골격 게이트 통과 (b) 궤적 보존 (c) 계보 배선 셋을 모두 요구한다. 종전 축은 셋 다 미충족. 진단 목적의 재실행(D-2026-09-07-b2o3-cell-expansion-diagnostic)은 결과와 무관하게 이 마감을 바꾸지 않는다.",
+   "enforcement": "canonical_registry 의 b2o3 MD 항목은 retracted/non_citable 로 유지한다. webapp 및 원고 문장은 카드의 허용_서술 목록 밖으로 나가지 않는다.",
+   "proposed_by": "claude-session-2026-09-07",
+   "reviewed_by": "codex-BH-2026-09-07",
+   "ratification": {
+    "state": "pending",
+    "role": "scientific_owner",
+    "근거": "1저자 비준 대기 — proposed 상태에서는 이 결정을 인용하지 않는다."
+   }
+  },
+  {
+   "id": "D-2026-09-07-b2o3-cell-expansion-diagnostic",
+   "schema_version": 2,
+   "kind": "estimand",
+   "scope": "b2o3.uma_md.framework_creep.finite_size",
+   "slot": "cell_expansion_diagnostic",
+   "applies_to": {
+    "systems": [
+     "b2o3"
+    ],
+    "tasks": [
+     "framework_beta_diagnostic"
+    ],
+    "methods": [
+     "uma-s-1p1-omat__langevin-nvt"
+    ],
+    "use_cases": [
+     "internal"
+    ]
+   },
+   "title": "b2o3 셀 확장 2×2×1 — 진단 사전등록 (결과 보기 전 봉인)",
+   "statement": "비교 보고량은 `beta_framework_max` = 비-Li 원소(원자수 ≥ 8) 의 2–50 ps MSD log–log 기울기의 원소별 최대값이다. 2×2×1(512원자·면내 14 Å)·800/1000 K·시드 2·200 ps 로 재고, **두 시드가 같은 방향일 때만** 판정한다. 감소 = 두 시드 모두 β<0.30, 유지 = 두 시드 모두 β≥0.45, 그 사이는 판정하지 않는다.",
+   "rationale": "modelc 가 같은 셀에서 rigid 라는 사실은 ‘셀이 무관하다’ 를 증명하지 않는다 — ‘b2o3 가 그 셀에서 더 취약하다’ 로도 읽힌다. `--framework_com` 은 질량중심만 뺐지 내부 집단모드는 안 뺐다. Codex BH Q4b 조건부 GO.",
+   "decision_state": "proposed",
+   "record_kind": "prospective",
+   "results_seen": false,
+   "card": "db/properties/b2o3_cell_expansion_prereg_2026_09_07.json",
+   "evidence": [
+    "db/properties/t13_msd_length_verdict_2026_08_29.json",
+    "db/properties/lpsocl_shape_compare_70ps_2026_08_27.json",
+    "kb/reviews/codex_BH_prompt_md_axis_audit_2026_09_07.md Q4b"
+   ],
+   "method_ref": "tools/ionic/make_md_supercell.py → tools/modelc_v3/disorder_ensemble_diffusion.py → msd_diffusive_check.py --framework",
+   "reopen_criteria": "판정 문구는 봉인돼 있다 — 감소해도 ‘수렴 증명’ 이 아니고(한 번의 확장), 유지돼도 ‘실물리 확정’ 이 아니다(MLIP 공통오류·형상·더 긴 길이척도 미배제). 어느 결과든 D-2026-09-07-b2o3-md-closure-retrospective 의 인용 불가는 바뀌지 않는다.",
+   "enforcement": "무효 조건 5개(run_meta 로 셀·조성 확인 · 궤적 저장 · save_fs 일치 · 4런 전부 정상종료)를 런 직후 확인하고, 하나라도 어긋나면 판정에 쓰지 않는다. gabia 에서 pw.x 동시 실행 금지.",
+   "proposed_by": "claude-session-2026-09-07",
+   "reviewed_by": "codex-BH-2026-09-07",
+   "ratification": {
+    "state": "pending",
+    "role": "scientific_owner",
+    "근거": "1저자 비준 대기 — **proposed 상태로는 런을 던지지 않는다.**"
+   }
   }
  ]
 }
