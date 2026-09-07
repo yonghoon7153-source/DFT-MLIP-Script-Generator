@@ -44,13 +44,51 @@ evidenceScope: multi-source-primary
 | 무엇 | 값·내용 | 정본 |
 |---|---|---|
 | **파이프라인 설정** | MSD 창 **2–50 ps** · 3점 아레니우스(600/800/1000 K) · Nernst-Einstein(Haven=1) | `kb/methodology/md_conductivity_protocol.md` **§1–§4** |
-| **b2o3 vs LPSCl1.6 온도별 σ 비** | 600 K **1.08±0.18** · 800 K **0.82±0.15** · 1000 K **1.15±0.12** → 1 주변 산포 = **수송 통계적 동등** | `db/properties/b2o3_vs_lpscl16_conductivity.csv` (FINAL 2026-07-07, 3시드×3T 완전대칭) |
-| **b2o3 저온 구간 Ea** | **0.222 eV** (600→800 만) | `kb/results/b2o3_arrhenius_curvature_2026_08_23.md` |
 | **생산길이 판정** | 200 ps 는 **창 2–50 ps 규약에서 타당**하다 (805 ps 궤적이 같은 창에서 같은 D) | `db/properties/t13_msd_length_verdict_2026_08_29.json` |
 | **창 편향** | 2–50 ps 창의 D 는 늦은 창 대비 **과대** (558원자 −12.7 % · 62원자 −20.5 %) — 절대 D 인용 시 **병기 의무** | 같은 파일 |
-| **🔴 유한크기 효과** | 같은 T·같은 길이인데 **셀 크기만으로 D 가 1.79배** — 창 편향(13.5 %)보다 훨씬 크다. *"처방은 시간이 아니라 셀이다"* | 같은 파일 |
+| **🔴 유한크기·형상 결합 효과** | 같은 T·같은 길이인데 **셀이 바뀌면 D 가 1.79배** — 창 편향(13.5 %)보다 훨씬 크다. ⚠ **크기만의 효과가 아니다** — T13 정본이 크기와 **형상 차이가 함께 들어갔다**고 경고한다 (BH P1, 2026-09-07 정정). 부르는 이름은 *finite-size/shape-coupled effect*. | 같은 파일 |
 | **형상 물리** | **Dcc 는 c 폭이 아니라 a·b 폭이 정한다** (작은셀·3×3×1 이 c 폭 동일한데 Dcc 3.2배 차) | `db/properties/lpsocl_shape_compare_70ps_2026_08_27.json` |
 | **대칭에서 얻은 잡음 눈금** | `a`·`b` 가 결정학적으로 등가 ⇒ `\|Daa−Dbb\|` 가 **bootstrap 없이 얻는 산포 하한** (small 29.9 % · 2×2×2 5.0 % · 3×3×1 2.5 %) | 같은 파일 |
+
+## 1.5 🔴 인용 불가 — 진단용으로만 (`diagnostic_only / retracted_for_citation`)
+
+> **2026-09-07 정정 (Codex BH P0-1·P0-2).** 아래 둘은 이 카드 초판에서 **§1 "살아있는 것"
+> 에 잘못 올라가 있었다.** 원자료가 금지한 문구를 그대로 썼다 — 방어할 근거가 없어 내린다.
+> **원자료가 이긴다.**
+
+### ① b2o3 vs LPSCl1.6 σ 비 — `citable: no`
+
+원자료 `db/properties/b2o3_vs_lpscl16_conductivity.csv` 가 **직접 금지한 것**:
+
+```
+FORBIDDEN: 'statistically EQUIVALENT transport' / 'conductivity PRESERVED' /
+           'equivalent sigma' / any ranking or mechanism claim
+           Equality of an unassessed pair is not equivalence
+           — it is a failure to distinguish.
+```
+
+⛔ 초판은 여기에 **"수송 통계적 동등"** 이라고 적었다. 금지 목록 1번을 번역해서 쓴 것이다.
+
+**허용 문장은 CSV 에 축자로 박혀 있고, 그것만 쓴다:**
+
+> 같은 3시드×3온도 집계에서 ΔEa 는 +0.002 eV 였고, 시드조합 산포 ±0.047 eV 가
+> **두 추정치를 구분하지 못했다.** 고온 원궤적이 보존되지 않아 **비-Li 구조 상태는 평가되지 않았다.**
+
+같이 전파해야 하는 결격 사유 셋:
+- **framework gate NOT ASSESSED** — `required_artifact_set_incomplete`
+- **고온 원궤적 미보존** — `run_highT_reseed.sh` 가 `--save_traj` 를 안 넘겼다 (800/1000 K × s2/s3/s4 = 6런)
+- **lineage UNWIRED** — 스크립트가 상위 `msd.json` 을 읽지 않고 **D 를 하드코딩**했다
+
+⇒ **셀이 나중에 같았다고 밝혀져도** 이 파일들만으로는 framework gate 도 수치 계보도
+재검증할 수 없다 (BH P0-3). 셀 문제와 **별개로** 이미 막혀 있다.
+
+### ② b2o3 저온 구간 Ea 0.222 eV — `citable: no`
+
+같은 날 곡률 카드 §후속이 **2026-08-25 골격 creep 판정이 b2o3 UMA-MD 축 전체를 덮는다**
+고 적었고, 거기에 0.222 eV 도 포함된다고 명시했다. 초판이 그걸 §1 에 남긴 것은 모순이다.
+
+남길 수 있는 것: *"그 유한 셀·그 UMA 궤적에서의 **조건부 구간 기울기**"* — 감사 기록용.
+쓸 수 없는 것: **물질의 Li 활성화에너지**.
 
 ## 2. 죽은 것 (철회·폐기 — 되살리지 않는다)
 
@@ -166,6 +204,58 @@ evidenceScope: multi-source-primary
 도구          tools/ionic/msd_diffusive_check.py · committee_sweep_verdict.py
               tools/modelc_v3/disorder_ensemble_diffusion.py           MD 드라이버
 ```
+
+## 8.5 🔴 Codex BH 판정 — **이 색인은 NO-GO 였다** (2026-09-07)
+
+BH 회신이 이 카드 초판을 *"정본·인용 지도로 승인할 수 없다"* 로 반려했다. 검토 기준 커밋 `5312939a`.
+
+| 해제조건 | 상태 | 어디에 |
+|---|---|---|
+| ① 색인에서 σ 비·0.222 eV 를 "살아 있는 인용값" 에서 제거 | ✅ | 이 카드 **§1.5** |
+| ② σ 비에 독립 claim entry (`citable:no`) + CSV 금지문 전파 | ✅ | `canonical_registry.json` `MD_sigma_ratio_{600,800,1000}K` |
+| ③ 실행 셀·궤적 계보 회수 **또는 영구 unknown 선언** | ⏳ **미회수** | 아래 |
+| ④ 위원회 문구를 "모델 간 불일치가 특별히 크지 않았다" 로 제한 | ✅ | `b2o3_committee_2026_09_07.json` `⚠_허용선_…BH_P1` |
+| ⑤ D_inc 문턱 검증 또는 **미검증 운영 gate 표시** | ✅ 표시 | 아래 |
+| ⑥ b2o3 셀 확장 시 소급 마감 + 전향적 재개 조건 **결과 확인 전** 봉인 | ⏳ 미착수 | Q4b 조건부 GO |
+
+### ③ 계보 회수 — 시도 전, 그리고 **한 갈래는 이미 기계적으로 막혔다**
+
+σ 비 행은 **원자료에서 기계로 읽을 수 없다**(2026-09-07 실측):
+CSV 의 비 셀이 `1.08+/-0.18` 같은 **포맷 문자열**이고, 행 식별자 `system` 값이
+`ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 `source_key` 문법으로 지목조차 안 된다.
+⇒ 레지스트리에 `value` 로 못 넣고 표시용 문자열로만 남겼다. **BH P0-3 의 기계적 증거다.**
+
+셀·원자수 회수는 **실행 폴더 · scheduler 출력 · trajectory header** 에서만 한다.
+⛔ **구조 파일 후보로 실행 입력을 추정하지 않는다** (BH Q1). 회수 실패 시 **영구 `unknown`**.
+
+### ⑤ D_inc 문턱은 **검증된 적이 없다**
+
+`DINC_PLATEAU_TOL = 0.10` · `hops ≥ 3.0/이온` 은 **사전등록된 운영 문턱**이지
+**측정 능력이 검증된 문턱이 아니다.** 사전등록은 사후조정을 막을 뿐 거짓통과·거짓탈락률을
+알려주지 않는다. ⇒ **통과를 `citable` 로 읽지 않는다. `HOLD 해제 후보` 까지다.**
+검증하려면 장궤적 절단 실험이나 알려진 확산/비확산 사례의 민감도 검사가 필요하다.
+
+### 함께 고친 P1 둘
+
+- **T13 1.79배** = `finite-size/**shape**-coupled effect`. T13 정본 자체가 크기와 형상이
+  함께 들어갔다고 경고한다 — *"셀 크기만의 효과"* 라고 부르지 않는다. (§1 표 수정)
+- **modelc 600 K 계보 통일 — ⏳ 미해결.** CSV 에는 LPSCl1.6 600 K **3시드**가 있는데
+  이 색인은 modelc 곡률 검사의 600 K 를 **단일시드**라고 적었다. 두 캠페인이 다른 것인지,
+  같은데 왜 3시드를 재사용 못 하는지 **아직 안 적었다.**
+
+### Q 판정에서 우리 서술을 바꾼 것
+
+- **Q7** — 창 4개의 `max−min` 은 **불확도가 아니다.** 겹친 창은 강상관이라 독립 반복처럼
+  읽으면 안 된다. 이름은 `window sensitivity diagnostic`. 불확도는 **독립 시드나 시간블록**
+  으로 따로 낸다.
+- **Q8** — 상태명은 `resolved` 가 아니라 **`closed_no_action / non-citable`**.
+- **Q4b** — 셀 확장은 **진단으로 조건부 GO**. 단 판정표가 너무 이분법이었다:
+  *줄어들면* 면내 유한크기 오염을 **지지**할 뿐 수렴을 증명하지 못하고,
+  *유지되면* 7→14 Å 단순 크기 가설만 약화될 뿐 실물리와 MLIP 공통오류는 여전히 못 가른다.
+- **Q10** — modelc 3×3×1 은 **HOLD**. LPSOCl 이 C1–C4 를 통과하고 원고에 matched 비교가
+  실제로 필요할 때 **별도 사전등록 캠페인**으로 연다.
+
+⛔ **진행 중인 LPSOCl 생산런은 중단 사유 없음** (BH 최종 분기).
 
 ## 9. 이 문서가 못 하는 것
 

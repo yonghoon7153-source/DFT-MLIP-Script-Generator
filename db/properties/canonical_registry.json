@@ -9,7 +9,8 @@
   "prohibitions 는 CLAUDE.md 데이터 규율의 기계 판독 가능한 형태다.",
   "prefer:'registry' 는 **원자료가 반올림 사본일 때만** 쓰는 예외다. 기본은 원자료를 live 로 읽어 db 수정이 화면에 바로 반영되게 한다.",
   "★ **수치 대조는 의미 일치를 보증하지 않는다.** 새 항목을 넣을 때 method_id 가 그 source_path 안의 계산을 실제로 서술하는지 사람이 읽고 확인한다 — comp2 가 값은 맞는데 method_id 가 다른 계산(disorder ensemble)을 가리켰다(2026-08-07 Codex 4라운드).",
-  "finite_duration_2026_08_27: 이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다."
+  "finite_duration_2026_08_27: 이 값은 동일한 200 ps 프로토콜의 독립 초기화 3–4개에서 얻은 **finite-duration 추정치**다. 제시한 산포는 200 ps run 간 변동이며 **단일궤적 block CI 도, 장시간 극한의 수렴도 뜻하지 않는다.** 유한시간 편향·느린 basin 혼합·무질서 realization 불확실도는 분리되지 않았다.",
+  "status: non_citable — 값은 존재하고 재현되지만 **원자료가 인용을 금지**한 항목. citable:false + why_non_citable + allowed_sentence 를 반드시 함께 둔다. canonical/provisional 과 같은 표에 올리지 않는다 (2026-09-07 Codex BH P0-1)."
  ],
  "_history": {
   "2026-08-07": "Codex 코드리뷰 P1 대응으로 신설. 이전에는 webapp/data.py 의 CANONICAL 딕셔너리가 정본이었다. 이관 중 MD_Ea_eV 안에서 단일시드(comp1 0.253 / modelc 0.224)와 4-seed(lpsocl 0.287)가 한 딕셔너리에 섞여 있던 것을 발견 — 대시보드의 '최저값' 순위가 프로토콜을 넘나들고 있었다. group 을 나눠 분리했다.",
@@ -919,6 +920,132 @@
    ],
    "updated": "2026-08-28",
    "note": "MLIP 기하 위 단일점 — DFT 최소 아님 (인용 시 병기) | 2026-08-28 회신 M: 혼합-basin ΔE 금지. 고정-basin net4 쌍은 dimer(B/B)·doped(A/A)뿐. pm1 열이 정본 유지 | ⚠ 2026-08-28 회신 O + INCAR 감사: **절대값 조건부 보류** — 기준 분자가 NUPDOWN 고정·LREAL=F 인데 복합체는 자유·T 라 δ_m + δ_LREAL 이 절대 E_ads 에 남는다. 해제 조건: db/properties/sdcp_neutral_closed_2026_08_28.json. ⚠ dE_site 는 영향 없음(복합체끼리 차라 소거)."
+  },
+  {
+   "system": "b2o3_vs_modelc",
+   "metric": "MD_sigma_ratio_600K",
+   "unit": "dimensionless",
+   "source_path": "db/properties/b2o3_vs_lpscl16_conductivity.csv",
+   "n_seed": 3,
+   "method_id": "uma-s-1p1__600-800-1000K__3seed__msd2-50ps__NE-haven1",
+   "comparison_group": "md-sigma-ratio-v1__NON_CITABLE",
+   "status": "source_pending",
+   "citable": false,
+   "updated": "2026-09-07",
+   "why_non_citable": "Codex BH P0-1 (2026-09-07). 원자료 CSV 가 등가·보존·순위·기전 주장을 **명시적으로 금지**한다. 금지 사유 셋이 모두 미해소: ① framework gate NOT ASSESSED (required_artifact_set_incomplete) ② 고온 원궤적 미보존 (run_highT_reseed.sh 가 --save_traj 미전달; 800/1000 K × s2/s3/s4 = 6런) ③ lineage UNWIRED (build_final_conductivity.py 가 상위 msd.json 을 안 읽고 D 를 하드코딩). ⇒ 셀이 나중에 같았다고 밝혀져도 이 파일들만으로는 gate 도 계보도 재검증 불가 (BH P0-3).",
+   "allowed_sentence": "같은 3시드×3온도 집계에서 ΔEa 는 +0.002 eV 였고, 시드조합 산포 ±0.047 eV 가 두 추정치를 **구분하지 못했다**. 고온 원궤적이 보존되지 않아 **비-Li 구조 상태는 평가되지 않았다**. (CSV 의 ALLOWED sentence 축자 번역)",
+   "prohibitions": [
+    "statistically_equivalent_transport",
+    "conductivity_preserved",
+    "equivalent_sigma",
+    "any_ranking_claim",
+    "any_mechanism_claim",
+    "absolute_sigma",
+    "RT_extrapolation"
+   ],
+   "blocking_gate": "framework_msd_gate",
+   "gate_detail": {
+    "verdict": "not_assessed",
+    "reason": "required_artifact_set_incomplete — high-T raw trajectories not retained",
+    "⛔": "미평가 쌍의 '같음' 은 동등이 아니라 **구분 실패**다 (CSV 축자)."
+   },
+   "lineage": {
+    "numeric_reproduction": "exact (Ea 0.199438 · D0 4.62463e-04 from the 9 per-seed D)",
+    "lineage_status": "UNWIRED",
+    "note": "값은 재현되지만 기계 계보가 배선되지 않았다."
+   },
+   "provenance_unknown": {
+    "what": "σ 비 계산에 쓴 두 셀이 맞춰졌는지 확인 불가 (BH Q1)",
+    "rule": "실행 폴더·scheduler 출력·trajectory header 에서 셀·원자수를 회수하지 못하면 **영구 unknown 으로 고정**한다. 구조 파일 후보로 실행 입력을 추정하지 않는다.",
+    "status": "recovery_not_attempted_yet"
+   },
+   "_ratio_display": "1.08 ± 0.18",
+   "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
+  },
+  {
+   "system": "b2o3_vs_modelc",
+   "metric": "MD_sigma_ratio_800K",
+   "unit": "dimensionless",
+   "source_path": "db/properties/b2o3_vs_lpscl16_conductivity.csv",
+   "n_seed": 3,
+   "method_id": "uma-s-1p1__600-800-1000K__3seed__msd2-50ps__NE-haven1",
+   "comparison_group": "md-sigma-ratio-v1__NON_CITABLE",
+   "status": "source_pending",
+   "citable": false,
+   "updated": "2026-09-07",
+   "why_non_citable": "Codex BH P0-1 (2026-09-07). 원자료 CSV 가 등가·보존·순위·기전 주장을 **명시적으로 금지**한다. 금지 사유 셋이 모두 미해소: ① framework gate NOT ASSESSED (required_artifact_set_incomplete) ② 고온 원궤적 미보존 (run_highT_reseed.sh 가 --save_traj 미전달; 800/1000 K × s2/s3/s4 = 6런) ③ lineage UNWIRED (build_final_conductivity.py 가 상위 msd.json 을 안 읽고 D 를 하드코딩). ⇒ 셀이 나중에 같았다고 밝혀져도 이 파일들만으로는 gate 도 계보도 재검증 불가 (BH P0-3).",
+   "allowed_sentence": "같은 3시드×3온도 집계에서 ΔEa 는 +0.002 eV 였고, 시드조합 산포 ±0.047 eV 가 두 추정치를 **구분하지 못했다**. 고온 원궤적이 보존되지 않아 **비-Li 구조 상태는 평가되지 않았다**. (CSV 의 ALLOWED sentence 축자 번역)",
+   "prohibitions": [
+    "statistically_equivalent_transport",
+    "conductivity_preserved",
+    "equivalent_sigma",
+    "any_ranking_claim",
+    "any_mechanism_claim",
+    "absolute_sigma",
+    "RT_extrapolation"
+   ],
+   "blocking_gate": "framework_msd_gate",
+   "gate_detail": {
+    "verdict": "not_assessed",
+    "reason": "required_artifact_set_incomplete — high-T raw trajectories not retained",
+    "⛔": "미평가 쌍의 '같음' 은 동등이 아니라 **구분 실패**다 (CSV 축자)."
+   },
+   "lineage": {
+    "numeric_reproduction": "exact (Ea 0.199438 · D0 4.62463e-04 from the 9 per-seed D)",
+    "lineage_status": "UNWIRED",
+    "note": "값은 재현되지만 기계 계보가 배선되지 않았다."
+   },
+   "provenance_unknown": {
+    "what": "σ 비 계산에 쓴 두 셀이 맞춰졌는지 확인 불가 (BH Q1)",
+    "rule": "실행 폴더·scheduler 출력·trajectory header 에서 셀·원자수를 회수하지 못하면 **영구 unknown 으로 고정**한다. 구조 파일 후보로 실행 입력을 추정하지 않는다.",
+    "status": "recovery_not_attempted_yet"
+   },
+   "_ratio_display": "0.82 ± 0.15",
+   "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
+  },
+  {
+   "system": "b2o3_vs_modelc",
+   "metric": "MD_sigma_ratio_1000K",
+   "unit": "dimensionless",
+   "source_path": "db/properties/b2o3_vs_lpscl16_conductivity.csv",
+   "n_seed": 3,
+   "method_id": "uma-s-1p1__600-800-1000K__3seed__msd2-50ps__NE-haven1",
+   "comparison_group": "md-sigma-ratio-v1__NON_CITABLE",
+   "status": "source_pending",
+   "citable": false,
+   "updated": "2026-09-07",
+   "why_non_citable": "Codex BH P0-1 (2026-09-07). 원자료 CSV 가 등가·보존·순위·기전 주장을 **명시적으로 금지**한다. 금지 사유 셋이 모두 미해소: ① framework gate NOT ASSESSED (required_artifact_set_incomplete) ② 고온 원궤적 미보존 (run_highT_reseed.sh 가 --save_traj 미전달; 800/1000 K × s2/s3/s4 = 6런) ③ lineage UNWIRED (build_final_conductivity.py 가 상위 msd.json 을 안 읽고 D 를 하드코딩). ⇒ 셀이 나중에 같았다고 밝혀져도 이 파일들만으로는 gate 도 계보도 재검증 불가 (BH P0-3).",
+   "allowed_sentence": "같은 3시드×3온도 집계에서 ΔEa 는 +0.002 eV 였고, 시드조합 산포 ±0.047 eV 가 두 추정치를 **구분하지 못했다**. 고온 원궤적이 보존되지 않아 **비-Li 구조 상태는 평가되지 않았다**. (CSV 의 ALLOWED sentence 축자 번역)",
+   "prohibitions": [
+    "statistically_equivalent_transport",
+    "conductivity_preserved",
+    "equivalent_sigma",
+    "any_ranking_claim",
+    "any_mechanism_claim",
+    "absolute_sigma",
+    "RT_extrapolation"
+   ],
+   "blocking_gate": "framework_msd_gate",
+   "gate_detail": {
+    "verdict": "not_assessed",
+    "reason": "required_artifact_set_incomplete — high-T raw trajectories not retained",
+    "⛔": "미평가 쌍의 '같음' 은 동등이 아니라 **구분 실패**다 (CSV 축자)."
+   },
+   "lineage": {
+    "numeric_reproduction": "exact (Ea 0.199438 · D0 4.62463e-04 from the 9 per-seed D)",
+    "lineage_status": "UNWIRED",
+    "note": "값은 재현되지만 기계 계보가 배선되지 않았다."
+   },
+   "provenance_unknown": {
+    "what": "σ 비 계산에 쓴 두 셀이 맞춰졌는지 확인 불가 (BH Q1)",
+    "rule": "실행 폴더·scheduler 출력·trajectory header 에서 셀·원자수를 회수하지 못하면 **영구 unknown 으로 고정**한다. 구조 파일 후보로 실행 입력을 추정하지 않는다.",
+    "status": "recovery_not_attempted_yet"
+   },
+   "_ratio_display": "1.15 ± 0.12",
+   "unwireable_reason": "⛔ **CSV 의 비(ratio) 행은 기계로 못 읽는다** — 셀 값이 `1.08+/-0.18` 처럼 포맷된 **문자열**이고, 행 식별자(`system` 열)마저 `ratio_b2o3/LPSCl1.6` 라 `/` 를 포함해 source_key 문법으로 지목할 수 없다. 2026-09-07 실측 확인. ⇒ 이 주장은 **수치 계보가 원자료에 배선될 수 없다**. BH P0-3(계보 복원 불가)의 기계적 증거이며, 그래서 값을 `value` 로 두지 않고 표시용 문자열로만 남긴다.",
+   "note": "non_citable — CSV 금지문 전파. 값 아닌 **차단**을 위한 항목이다."
   }
  ],
  "_provenance_audit": {
@@ -934,6 +1061,7 @@
  "changelog": {
   "2026-08-25b": "SDCP wave1 인용 확정분 등록 (basin 일치 · pm1 정본): dE_site 4건 + Eads 7건. comparison_group 을 sdcp-wave1-* 로 분리해 argyrodite 4축과 절대 섞이지 않게. sdcp_doped·net4 Eads·50 meV offset 은 등록하지 않음 (citable.json not_citable). 원자료 재유도 파이프라인: sdcp_wave1_results.json → citable.json → registry.",
   "2026-08-28-eads-hold": "SDCP_Eads_eV__* 7건 canonical → provisional (절대값 보류). 사유: 기준-대상 비대칭 2건(δ_m 스핀제약 · δ_LREAL 실공간투영). dE_site 4건은 복합체끼리 차라 canonical 유지",
-  "2026-08-28-seed-wording": "회신 P 반영: seed '재현' 문구를 realized-basin '일치' 로 강등 (입력 INCAR 미회수 — seed 투입 미검증)"
+  "2026-08-28-seed-wording": "회신 P 반영: seed '재현' 문구를 realized-basin '일치' 로 강등 (입력 INCAR 미회수 — seed 투입 미검증)",
+  "2026-09-07-bh": "Codex BH 해제조건 ②: b2o3/modelc σ 비 3항목을 **non_citable** 로 신설. status 어휘에 non_citable 추가. 배경 — MD 축 색인이 CSV 의 FORBIDDEN 문구('statistically EQUIVALENT transport')를 번역해 §1 '살아있는 것' 에 올렸다. **원자료가 이긴다.**"
  }
 }
