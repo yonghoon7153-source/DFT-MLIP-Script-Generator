@@ -40,6 +40,27 @@ def _mr():
     return mr
 
 
+@pytest.fixture
+def head_check(monkeypatch):
+    """`check_coverage()` 의 **첫 관문**(HEAD 실재)을 이 축에서 빼 준다.
+
+    ★ 변이 sandbox 에는 `.git` 이 없다 — 복사되는 것은 `degradation-degeneracy/`
+      이고 `.git` 은 모노레포 루트에 있다. 그러면 `check_coverage()` 가 맨 앞
+      `_assert_heads_are_real()` 에서 거부하고, 그 뒤의 어떤 축을 변이시켜도
+      시험은 **같은 이유로** 빨갛다. 실측했다: 이 파일의 세 시험이 변이 재생에서
+      "관측된 실패 0" 으로 나왔다 — before 에서도 빨갰기 때문이다.
+
+      물긴 하지만 **선언한 이유로** 물지 않는 증인은 증거가 아니다 (53차).
+      그래서 `.git` 이 없을 때만 그 관문을 통과시킨다. 실제 저장소에서는 진짜
+      검사가 그대로 돌고, HEAD 축은 자기 변이(`coverage-checks-the-recorded-head`)
+      가 따로 지킨다 — 축마다 증인이 하나씩이다.
+    """
+    mr = _mr()
+    if not (REPO / ".git").exists() and not (REPO.parent / ".git").exists():
+        monkeypatch.setattr(mr, "_assert_heads_are_real", lambda paths: 0)
+    return mr
+
+
 def _good_slice(mr, tmp_path: Path) -> Path:
     """등록부 전체를 덮는 정상 조각 하나 (기존 회귀들과 같은 형태)."""
     reg = mr._registry()
@@ -135,7 +156,7 @@ def test_the_execution_receipt_binds_the_interpreter_itself(monkeypatch):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_execution_evidence_can_not_be_laundered_without_the_reports(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, head_check):
     """★ L12 — 조각의 실행 필드만 현재 값으로 갈아 끼우면 통과했다.
 
     리뷰어 실측::
@@ -174,7 +195,8 @@ def test_execution_evidence_can_not_be_laundered_without_the_reports(
         "실행 밖에 있다 (L12)")
 
 
-def test_a_report_that_attests_another_environment_is_refused(tmp_path):
+def test_a_report_that_attests_another_environment_is_refused(tmp_path,
+                                                              head_check):
     """★ L12 의 반대 방향 — report 안의 증언과 조각의 주장이 어긋나면 거부.
 
     세탁을 막는 것이 "report 안에 무언가 있다" 가 되면 안 된다. 있는 값이
@@ -228,7 +250,8 @@ def test_a_report_that_attests_another_environment_is_refused(tmp_path):
 # L13 — 이름이 강한 회귀가 실제 배선을 안 부른다
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_the_top_level_checker_consumes_the_execution_receipt(tmp_path):
+def test_the_top_level_checker_consumes_the_execution_receipt(tmp_path,
+                                                              head_check):
     """★ L13-a — 57차 회귀는 `_assert_execution_is_current()` 를 **직접** 불렀다.
 
     그래서 `check_coverage()` 에서 그 배선을 통째로 지워도 통과했다 (리뷰어
