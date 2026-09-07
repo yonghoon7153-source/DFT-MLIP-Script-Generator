@@ -3998,6 +3998,32 @@ def _is_missing_marker(exc: PreserveError) -> bool:                # noqa: D401
 _is_missing_manifest = _is_missing_marker
 
 
+def local_exec_class_root_for_ledger(ledger=None) -> Path:
+    """**국소** 실행 class 등록부 — smoke 면제가 사는 곳 (58차 L14).
+
+    왜 공유 등록부와 갈랐는가. smoke 는 실행마다 다른 내용을 만들고(실측:
+    연속 두 번에 서로 다른 content id) **끝나면 자기 산출을 지운다.** 그래서
+    공유 자리에 적으면 (a) 등록부가 무한히 자라고 (b) smoke 를 돌릴 때마다
+    저장소가 더러워진다 — 이 저장소의 "smoke 는 clean 커밋에서 돈다" 규율과
+    정면으로 충돌한다. 게다가 남는 레코드는 **가리키는 바이트가 이미 없는**
+    죽은 무게다.
+
+    **방어는 안 잃는다.** 등록이 없으면 승격은 거부다(fail-closed). 그러므로
+    smoke 레코드를 공유하지 않아도 다른 머신에서는 여전히 거부이고, 오히려
+    더 엄격하다. 잃는 것이 없으므로 공유할 이유가 없다.
+
+    반대로 `canonical`·legacy 분류는 **감사 대상**이다 — 리뷰어가 인용하고
+    오래 살아야 하므로 공유 등록부에 남는다.
+    """
+    return exec_class_root_for_ledger(ledger) / "local"
+
+
+def _exec_class_root_for_class(cls: str, ledger=None) -> Path:
+    """이 class 의 레코드가 사는 자리. **class 가 자리를 정한다.**"""
+    return (local_exec_class_root_for_ledger(ledger) if cls == EXEC_CLASS_SMOKE
+            else exec_class_root_for_ledger(ledger))
+
+
 def _exec_class_path(content_id: str, ledger=None) -> Path:
     if not (isinstance(content_id, str) and len(content_id) == 64
             and all(c in "0123456789abcdef" for c in content_id)):
@@ -4017,8 +4043,42 @@ def record_execution_class(run_dir, cls: str, evidence: str,
         raise PreserveError("promote",
                             f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
     cid = run_content_id(run_dir)
-    path = _exec_class_path(cid, ledger)
+    name = _exec_class_path(cid, ledger).name
+    path = _exec_class_root_for_class(cls, ledger) / name
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ★ 58차 L14 의 되돌아온 L3 — **자리를 나누자 CAS 가 깨졌다.**
+    #   L3 은 `O_EXCL` 하나로 닫았는데, class 마다 파일이 달라지자 두 writer 가
+    #   **서로 다른 이름**을 만들어 충돌하지 않는다. 둘 다 성공했다(실측).
+    #   반대쪽을 읽는 교차 검사를 붙였지만 그것은 read-then-write 라 경쟁
+    #   아래 무력하다 — 57차가 정확히 이 형태로 틀렸다.
+    #
+    #   그러므로 **배타 지점을 class 와 무관한 한 자리**로 되돌린다. 내용
+    #   하나당 lock 하나를 잡고, 그 안에서 양쪽을 읽고 쓴다. lock 은 국소
+    #   자리에 둔다 (운용 상태이고 gitignore 된다).
+    _lk = local_exec_class_root_for_ledger(ledger) / f"{cid}.classlock"
+    _lk.parent.mkdir(parents=True, exist_ok=True)
+    with _ledger_lock(_lk):
+        return _record_execution_class_locked(cid, cls, evidence, name, path,
+                                              ledger)
+
+
+def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
+                                   path: Path, ledger) -> Path:
+    """(내부) 내용별 lock 을 쥔 채 등록한다. 자리는 갈라도 불변식은 하나다."""
+    # 두 자리를 **다** 본다 — 같은 내용이 한쪽엔 smoke, 다른 쪽엔 canonical 로
+    # 적히면 읽는 쪽이 무엇을 믿을지 정할 수 없다.
+    for root in (exec_class_root_for_ledger(ledger),
+                 local_exec_class_root_for_ledger(ledger)):
+        prev = _read_exec_class_at(root / name, cid)
+        if prev is None:
+            continue
+        if prev.get("execution_class") != cls:
+            raise PreserveError(
+                "promote",
+                f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 "
+                f"있다 — {cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
+        return root / name              # 같은 class 의 멱등 재시도
 
     # ★ 58차 L3 — **create-if-absent 로 만든다.** 57차는 read → 검사 →
     #   `os.replace` 였다. `os.replace` 는 torn write 를 막을 뿐 lost update 를
@@ -4041,7 +4101,9 @@ def record_execution_class(run_dir, cls: str, evidence: str,
                        separators=(",", ":")) + "\n").encode("utf-8")
     try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError:
+    except FileExistsError:                                # pragma: no cover
+        # lock 안에서 두 자리를 읽고 왔으므로 정상 경로에서는 안 온다.
+        # 그래도 삼키지 않는다 — 오면 그것 자체가 결함이다.
         prev = read_execution_class(cid, ledger=ledger)
         if prev is None:
             # 파일은 있는데 못 읽는다 — 등록부가 authority 이므로 fail-closed.
@@ -4064,8 +4126,7 @@ def record_execution_class(run_dir, cls: str, evidence: str,
     return path
 
 
-def read_execution_class(content_id: str, ledger=None) -> dict | None:
-    p = _exec_class_path(content_id, ledger)
+def _read_exec_class_at(p: Path, content_id: str) -> dict | None:
     if not p.is_file():
         return None
     try:
@@ -4077,6 +4138,25 @@ def read_execution_class(content_id: str, ledger=None) -> dict | None:
     if rec.get("content_id") != content_id:
         return None            # 등록부 안에서 키와 내용이 어긋난다 — 못 믿는다
     return rec
+
+
+def read_execution_class(content_id: str, ledger=None) -> dict | None:
+    """**두 자리를 다 본다** (58차 L14).
+
+    자리를 나눈 뒤에도 읽는 쪽은 하나여야 한다. 호출자가 "어느 등록부를
+    볼까" 를 정하게 되면 그 선택 자체가 새 우회로가 된다 — 48~57차의 경로
+    판정이 정확히 그 형태였다.
+
+    공유(정본)를 **먼저** 본다. 같은 내용이 양쪽에 있으면 그건 결함이고,
+    `record_execution_class()` 가 애초에 막는다 (아래 교차 검사).
+    """
+    name = _exec_class_path(content_id, ledger).name
+    for root in (exec_class_root_for_ledger(ledger),
+                 local_exec_class_root_for_ledger(ledger)):
+        rec = _read_exec_class_at(root / name, content_id)
+        if rec is not None:
+            return rec
+    return None
 
 
 def resolve_execution_class(run_dir, ledger=None) -> dict:

@@ -510,12 +510,12 @@ legs:
     payload_index_sha256: eeb8ae8911083c992710ace2c8f255682b64930a03929f12ae72796ade174716
     member_rehash_by: tools.archive_bundle.check
     verification_receipt: docs/22p_gap/receipts/paired_fixed5_v4.validate.yaml
-    verification_receipt_core_sha256: 96b7a476b2bfd3d327eb8f70fb1ec108e88f66c214766273396d5c71d0a1a31c
+    verification_receipt_core_sha256: 0be402e932ed682bbe91ab76c7ecf54895dfdaa7c519c984ddbc2c878211c627
     verification_receipt_generator: docs/22p_gap/make_receipt.py
     empty_root_restore: true
     rescored_from_restored_fits: true
     validator_identity:
-      source_digest: 758e3c2fce0ed344
+      source_digest: 65b3a61be4f01eed
       n_checks: 34
       ok: true
     leg_source_digest: d50295f980ccaa81

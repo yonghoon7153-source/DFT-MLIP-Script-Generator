@@ -34,6 +34,7 @@
 | L6 | P0 | 소비된 phase receipt 를 늦은 writer 가 덮어씀 | `preserve.py:4606-4610` · `5934` | 대기 |
 | L7 | P0 | clone 밖 absolute bundle 이 `full_bundle` | `preserve.py:5661` · `5670` | 대기 |
 | L8 | P0 | directory fsync 실패를 삼키고 issuance 성공 | `preserve.py:5029` · `5226` | **GREEN** |
+| L14 | P0 | (자체 발견) smoke 레코드가 공유 등록부에 쌓여 트리가 더러워진다 | `preserve.py` 등록부 root | **GREEN** |
 | L9 | P0 | producer closure — AnnAssign RHS · name-only decorator · 함수 지역 alias | `row_projection.py:681-722` · `772-808` · `1016-1067` | 대기 |
 | L10 | P1 | normal finalize 가 `verifier_origin` 위조 가능 | `preserve.py:5681` · `5993` | 대기 |
 | L11 | P1 | 강제 환경이 transitive code bytes 를 안 묶음 (`sitecustomize.py`) | `mutation_replay.py:3135-3214` | 대기 |
@@ -152,3 +153,51 @@
 
   **이번에도 가정을 실측이 뒤집었다.** 이 라운드에서 두 번째다 (첫 번째는
   "e2e 실패는 커널 탓" — 아니었다). 가정은 적되 **재기 전에는 주장하지 않는다.**
+
+- 2026-09-07 (이어서) — **묶음 α' (L14) 닫음. 그리고 내 시험의 결함 하나를 더 찾았다.**
+
+  `_exec_class/` 를 갈랐다 — tracked(canonical·legacy) / gitignored(`local/`, smoke).
+  읽기는 `read_execution_class()` 가 양쪽을 보고, 쓰기는 class 가 자리를 정한다.
+
+  **자리를 가르자 L3 의 보장이 깨졌다.** 두 class 가 서로 다른 파일에 쓰므로
+  `O_EXCL` 이 충돌하지 않는다. 반대쪽을 읽는 교차 검사를 붙였지만 그것은
+  read-then-write 라 경쟁에 무력하다 — **57차가 정확히 이 형태로 틀렸던 것을
+  내가 반복했다.** 배타 지점을 **class 와 무관한 내용별 lock**(`<cid>.classlock`,
+  국소 자리)으로 되돌리고 그 안에서 양쪽을 읽고 쓴다.
+
+  ### ★ 변이 감사가 내 시험의 결함을 잡았다 (이 라운드에서 가장 값진 것)
+
+  | 변이 | 1차 | 조치 |
+  |---|---|---|
+  | C: smoke 를 공유 등록부로 되돌림 | 잡힘 | — |
+  | D: 내용별 lock 제거 | **살아남음** | 시험을 고침 |
+
+  D 가 살아남았을 때 **변이가 실제로 적용됐는지부터 확인했다** — 안 그러면
+  "살아남았다" 는 판정 자체가 거짓일 수 있다. 적용은 됐고, 원인은 **barrier 가
+  임계 구역 바깥**(`_exec_class_path()`)에 있던 것이었다. 자리를 가르기 전에는
+  read→replace 창이 넓어 우연히 잡혔지만, 지금은 순전히 타이밍 의존 —
+  **시험이 우연에 기대고 있었다.**
+
+  barrier 를 `_read_exec_class_at()` 로 옮겨 **"둘 다 읽었지만 아직 아무도 안
+  썼다"** 상태를 강제했다. 그것이 lock 이 막아야 하는 바로 그 상태다. 변이 D 를
+  다시 심으니 잡힌다.
+
+  > **규칙**: 배타·순서를 묻는 시험의 barrier 는 **임계 구역 안**에 잡는다.
+  > 바깥에 잡으면 통과가 구현이 아니라 스케줄러를 증명한다.
+  > 남은 L6(phase receipt 덮어쓰기)에 그대로 적용된다.
+
+  이 시험의 barrier 는 **세 번 옮겼고** 그 이력을 파일 주석에 남겼다.
+
+  ### 실측
+
+  | 무엇 | 값 |
+  |---|---|
+  | 전체 회귀 | 1447 passed · 1 failed (영수증 낡음) · 1 xfailed (697.24s) |
+  | 영수증 재생성 뒤 | docs lint 전체 + P0-8 계열 **374 passed** (268.77s) |
+  | 공유 등록부 | **8건 그대로** — 시험 96건은 전부 국소로 갔다 |
+  | 등록부 오염 | **0건** (`git status` 에 `_exec_class` 없음) |
+  | `source_digest` | `758e3c2fce0ed344` → `65b3a61be4f01eed` |
+  | 영수증 | core_sha `0be402e932ed682b` · 원장 갱신 |
+
+  `[해석]` **자리 분리가 설계대로 작동한다는 증거가 이 표의 셋째·넷째 줄이다** —
+  시험이 96건을 만들었는데 공유 등록부는 8건 그대로이고 트리는 깨끗하다.

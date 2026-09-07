@@ -156,28 +156,38 @@ def test_a_class_conflict_is_not_swallowed_by_the_gate(
 def _register(args):
     """다른 process 에서 등록한다.
 
-    barrier 는 `_exec_class_path()` 에 건다 — **고치기 전 코드와 고친 뒤 코드가
-    둘 다 지나는 유일한 자리**다. 앞선 판은 `read_execution_class()` 에 걸었는데,
-    CAS 로 고치면 이긴 writer 는 그 함수를 아예 안 부르므로 barrier 가 영원히
-    안 풀렸다 (실제로 걸려서 이 주석이 있다). seam 은 수정 전후 **공통**이어야
-    한다 — 아니면 시험이 구현을 따라다니게 된다.
+    barrier 는 **임계 구역 안**, 등록부를 읽은 직후에 건다
+    (`_read_exec_class_at()`).
+
+    두 번 틀렸고 그 이력을 남긴다:
+      1. `read_execution_class()` 에 걸었다 → CAS 로 고치니 이긴 writer 가 그
+         함수를 안 불러 barrier 가 안 풀렸다 (무한 대기).
+      2. `_exec_class_path()` 로 옮겼다 → 등록부를 class 별로 가른 뒤
+         **lock 을 지워도 시험이 통과했다** (변이 D 가 살아남았다). 그 자리는
+         임계 구역 **바깥**이라, barrier 를 지난 뒤의 read/write 순서가 순전히
+         타이밍에 달렸기 때문이다. 시험이 우연에 기대고 있었다.
+
+    배타를 묻는 시험의 barrier 는 **"둘 다 읽었지만 아직 아무도 안 썼다" 상태**를
+    강제해야 한다. 그것이 lock 이 막아야 하는 바로 그 상태다.
     """
     run_dir, cls, ledger_path, mark = args
     import tools.preserve as _P
     _P.canonical_ledger = lambda x=None: Path(ledger_path)
-    orig = _P._exec_class_path
+    orig = _P._read_exec_class_at
+    seen = []
 
-    def _at_barrier(cid, ledger=None):
-        path = orig(cid, ledger=ledger)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        Path(mark).touch()                       # 나는 자리를 정했다
-        deadline = time.monotonic() + 20
-        while (len(list(Path(mark).parent.glob("at-*"))) < 2
-               and time.monotonic() < deadline):
-            time.sleep(0.005)                    # 둘 다 도착할 때까지
-        return path
+    def _at_barrier(path, cid):
+        got = orig(path, cid)
+        if not seen:                              # 임계 구역의 첫 read 뒤 한 번만
+            seen.append(1)
+            Path(mark).touch()                    # 나는 읽었다 (아직 안 썼다)
+            deadline = time.monotonic() + 3
+            while (len(list(Path(mark).parent.glob("at-*"))) < 2
+                   and time.monotonic() < deadline):
+                time.sleep(0.005)
+        return got
 
-    _P._exec_class_path = _at_barrier
+    _P._read_exec_class_at = _at_barrier
     try:
         _P.record_execution_class(Path(run_dir), cls, evidence="경쟁",
                                   ledger=Path(ledger_path))
