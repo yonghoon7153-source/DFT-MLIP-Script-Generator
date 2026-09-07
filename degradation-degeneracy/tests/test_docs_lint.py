@@ -11866,9 +11866,13 @@ def test_the_replayed_run_sees_only_a_declared_environment(monkeypatch):
         seen.update(kw)
         return _Done()
 
-    monkeypatch.setattr(mr.subprocess, "run", _fake)
     for name in outside:
         monkeypatch.setenv(name, "leaked")
+    # ★ 58차 L11 — 영수증은 이제 **탐침 프로세스**를 띄운다. `subprocess.run` 을
+    #   가로챈 뒤에 부르면 가짜 응답을 JSON 으로 읽으려다 죽는다 (실측). 환경은
+    #   위에서 이미 세웠으므로 여기서 재도 같은 값이다 — 순서만 바꾼다.
+    want_env = mr._execution_receipt()["env"]
+    monkeypatch.setattr(mr.subprocess, "run", _fake)
     mr._nodes("test_y")
 
     assert seen.get("env") is not None, (
@@ -11879,7 +11883,7 @@ def test_the_replayed_run_sees_only_a_declared_environment(monkeypatch):
         f"선언하지 않은 환경변수가 재생에 그대로 들어간다: {leaked}")
 
     # 그리고 영수증은 **고른 것**이 아니라 run 이 실제로 본 것 전부여야 한다.
-    assert mr._execution_receipt()["env"] == seen["env"], (
+    assert want_env == seen["env"], (
         "영수증의 환경이 재생이 실제로 준 환경과 다르다 — 고른 목록은 주장이고, "
         "주장은 다음 변수 하나로 다시 깨진다")
 

@@ -51,3 +51,15 @@ Thumbs.db
 # 않아도 다른 머신에서는 여전히 거부다. `canonical`·legacy 분류는 감사
 # 대상이라 `_exec_class/` 에 그대로 커밋된다.
 docs/22p_gap/_exec_class/local/
+
+# ── 58차 L5 — 얼린 좌표 봉인은 **이 기계의 사실**이다 ──────────────────────
+#
+# `record_frozen_coordinate()` 가 남기는 것은 `(major:minor, filesystem 안의
+# 절대 경로)` 다. 그 값은 얼린 그 기계에서만 의미가 있다 — 다른 clone 에서는
+# 장치 번호도 경로도 다르므로 조회가 아무 것도 안 덮는다.
+#
+# 그래서 공유하지 않는다. 방어는 층이 여럿이고 이 층만 기계 지역이다:
+# clone 에서는 tree 안의 `.FROZEN` marker 와 원장이 그대로 판정하고, 좌표
+# 봉인은 **mount 로 이름을 가리는 공격**을 막는 추가 층이다. 그 공격은 그
+# 기계에서 일어나므로 그 기계의 봉인이 답한다.
+docs/22p_gap/_frozen_coords/
