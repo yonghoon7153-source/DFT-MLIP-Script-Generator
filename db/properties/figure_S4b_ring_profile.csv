@@ -1,0 +1,12 @@
+﻿# Figure S4b. Loewdin spin population on each thiophene ring of the six-unit oligomer, %.
+# spin_pct = ring atoms only (the definition used in the main text); the six values sum to 79.7.
+# spin_pct_incl_ring_H = reference including the terminal alpha-H of ring 0 and ring 5; sums to 79.5,
+# the -0.2 difference being spin polarization on the hydrogen adjacent to the radical.
+# The hydrogen was removed from the sulfonate on ring 3. Source: gabia sdcp_n6b analyze_n6_v2.log
+ring_index,spin_pct,spin_pct_incl_ring_H,is_oxidation_site
+0,3.8,3.8,no
+1,7.3,7.3,no
+2,9.4,9.4,no
+3,15.9,15.9,yes
+4,23.3,23.3,no
+5,20.0,19.8,no
