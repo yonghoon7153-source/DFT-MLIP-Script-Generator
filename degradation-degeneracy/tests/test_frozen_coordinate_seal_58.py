@@ -179,8 +179,23 @@ def test_names_for_does_not_swallow_a_refusal():
     `_names_for()` 는 `except (OSError, SystemExit): continue` 였다. 그 둘은
     좌표를 **못 밝히겠다** 는 fail-closed 신호인데, 그것을 후보 부재로 번역하면
     호출자는 "안전하다" 로 읽는다. 정확히 반대다.
+
+    ★ 59차 P1-4 — 이 시험은 처음에 `dev` 를 `"254:0"` 으로 **하드코딩**했다.
+      이 기계에는 그 장치가 있어서 후보가 하나 잡혔지만, 리뷰어 기계에는 없어서
+      후보 loop 가 한 번도 안 돌았다. 그러면 monkeypatch 한 `_kernel_mount_id`
+      가 **0회 호출**되고 기대한 `BoundaryUnknown` 이 안 난다 (리뷰어 실측:
+      `1 failed`). 이름이 약속한 축을 실행하지 않는 시험 — L13 이 지적한 바로
+      그 형태를 내 새 시험이 되풀이했다.
+
+      그래서 좌표를 **현재 mount table 에서 유도**하고, 후보가 실제로 하나
+      이상임을 **먼저 단언**한다. 전제가 깨지면 그 사실이 보인다.
     """
     table = P._mount_table()
+    dev, fs = P._fs_identity(Path("/tmp"))
+    candidates = P._names_for(dev, fs, table)
+    assert candidates, (
+        f"이 기계에서 /tmp 의 좌표 {dev}:{fs} 에 이름 후보가 없다 — "
+        "시험 전제가 깨졌다 (그러면 아래 단언은 아무것도 증명하지 않는다)")
 
     def _boom(*a, **k):
         raise P.BoundaryUnknown("boundary", "좌표를 못 밝힌다")
@@ -189,6 +204,6 @@ def test_names_for_does_not_swallow_a_refusal():
     P._kernel_mount_id = _boom
     try:
         with pytest.raises(P.BoundaryUnknown):
-            P._names_for("254:0", Path("/tmp"), table)
+            P._names_for(dev, fs, table)
     finally:
         P._kernel_mount_id = orig
