@@ -57,39 +57,48 @@ fi
 #     이미 repo 에 있었다 — tools/ionic/watch_all.py · tools/neb_diffusion/li3n_uma_investigate.py.
 #     `compilers/lib` 가 NVIDIA OpenMP 런타임을 주는 자리다. 그게 빠지면 libgomp 가 이긴다.
 #   여기서 자동으로 찾아 건다. 못 찾으면 **시작하지 않는다** (조용히 GNU 런타임으로 돌지 않게).
-_find_nvhpc() {   # → NVHPC 루트(…/Linux_x86_64/<ver>) 또는 빈 문자열
-  [ -n "${NVHPC_ROOT:-}" ] && { echo "$NVHPC_ROOT"; return; }
-  local c
-  for c in "$HOME"/apps/nvhpc/Linux_x86_64/* /data/apps/nvhpc/Linux_x86_64/* \
-           /opt/nvidia/hpc_sdk/Linux_x86_64/* /usr/local/nvhpc/Linux_x86_64/*; do
-    [ -d "$c/compilers/lib" ] && { echo "$c"; return; }
-  done
-  echo ""
+# ★ 경로를 **추측하지 않는다 — `ldd` 로 바이너리에게 묻는다.**
+#   추측은 세 번 틀렸다: ① conda mpirun 탓으로 봤고 ② 런처를 뺐다가 libgomp 를 만났고
+#   ③ hpcx 를 자동탐지했는데 kgy 의 pw.x 는 hpcx 가 아니라 ~/apps/openmpi-4.1.6 로
+#   빌드돼 있었다(hpcx 에서 오는 건 scalapack 뿐). 머신마다 다르니 규칙이 아니라
+#   **바이너리의 실제 링크**가 유일한 근거다.
+_setup_mpi_from_binary() {
+  command -v ldd >/dev/null 2>&1 || return 1
+  local out; out=$(ldd "$PWX" 2>/dev/null) || return 1
+  # 실제로 링크된 libmpi.so 의 디렉터리 → 그 부모가 MPI prefix
+  local libmpi; libmpi=$(echo "$out" | awk '/libmpi\.so/ {print $3; exit}')
+  [ -n "$libmpi" ] && [ -f "$libmpi" ] || return 1
+  local mdir mprefix; mdir=$(dirname "$libmpi"); mprefix=$(dirname "$mdir")
+  # 링크된 다른 라이브러리들의 디렉터리도 전부 넣는다 (NVHPC compilers/lib 등)
+  local extra; extra=$(echo "$out" | awk '$3 ~ /^\// {print $3}' | xargs -r -n1 dirname \
+                       | sort -u | tr '\n' ':' | sed 's/:$//')
+  export OPAL_PREFIX="$mprefix"
+  export PATH="$mprefix/bin:$PATH"
+  export LD_LIBRARY_PATH="$mdir:$extra:${LD_LIBRARY_PATH:-}"
+  echo "[$(ts)] MPI 를 바이너리에서 읽었다: $libmpi"
+  echo "[$(ts)]   prefix=$mprefix · mpirun=$mprefix/bin/mpirun"
+  # ⚠ libnvomp 와 libgomp 가 **둘 다** 링크돼 있으면 OpenMP 런타임이 둘이다
+  #   (kgy 실측: libfftw3_omp 가 GNU 쪽을 끌고 온다) → `libgomp: TODO` 로 즉사한다.
+  #   스레드를 1로 두면 병렬 진입 자체가 없어 충돌 경로를 안 탄다.
+  if echo "$out" | grep -q "libnvomp" && echo "$out" | grep -q "libgomp"; then
+    export OMP_NUM_THREADS=1
+    echo "[$(ts)]   ⚠ libnvomp + libgomp 동시 링크 — OMP_NUM_THREADS=1 로 고정(libgomp: TODO 회피)"
+  fi
+  [ -x "$mprefix/bin/mpirun" ] && { BIN_MPIRUN="$mprefix/bin/mpirun"; return 0; }
+  BIN_MPIRUN=""; return 0
 }
-_setup_nvhpc() {
-  local root; root=$(_find_nvhpc)
-  [ -n "$root" ] || return 1
-  local h; h=$(ls -d "$root"/comm_libs/*/hpcx/hpcx-*/ompi 2>/dev/null | head -1)
-  [ -n "$h" ] || return 1
-  export OPAL_PREFIX="$h"
-  export PATH="$h/bin:$PATH"
-  export LD_LIBRARY_PATH="$h/lib:$root/compilers/lib:/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH:-}"
-  echo "[$(ts)] NVHPC 정렬: root=$root"
-  echo "[$(ts)]   mpirun=$h/bin/mpirun · compilers/lib 포함(libgomp 충돌 방지)"
-  NVHPC_MPIRUN="$h/bin/mpirun"
-  return 0
-}
-NVHPC_MPIRUN=""
+BIN_MPIRUN=""
 MPI=""
 if [[ "$PWX" == *gpu* ]] || [ "${FORCE_NVHPC:-0}" = 1 ]; then
-  if ! _setup_nvhpc; then
-    echo "⛔ GPU 빌드(pw.x=$PWX)인데 NVHPC 를 못 찾았다 — 시작하지 않는다."
-    echo '   NVHPC_ROOT=/…/nvhpc/Linux_x86_64/<ver> 로 지정하거나, CPU 빌드로 돌려라.'
-    echo "   (런타임을 안 맞추면 MPI_Init 또는 libgomp 에서 죽는다 — 2026-09-08 실측 2회)"
+  if ! _setup_mpi_from_binary; then
+    echo "⛔ GPU 빌드(pw.x=$PWX)인데 링크된 MPI 를 못 읽었다 — 시작하지 않는다."
+    echo '   ldd <pw.x> | grep libmpi 를 직접 확인해라. 런타임을 안 맞추면'
+    echo "   MPI_Init 또는 libgomp 에서 죽는다 (2026-09-08 실측 2회)."
     exit 2
   fi
+  [ -n "$BIN_MPIRUN" ] || { echo "⛔ $OPAL_PREFIX/bin/mpirun 이 없다 — 시작하지 않는다"; exit 2; }
   # GPU 빌드는 GPU 하나당 랭크 하나. -nk 1 도 repo 의 검증된 관례다.
-  MPI="$NVHPC_MPIRUN --oversubscribe -np $NP"
+  MPI="$BIN_MPIRUN --oversubscribe -np $NP"
   PW_EXTRA=${PW_EXTRA:-"-nk 1"}
 elif command -v mpirun >/dev/null 2>&1; then
   _OS=""; mpirun --version 2>&1 | grep -qi "open mpi" && _OS="--oversubscribe"

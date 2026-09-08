@@ -86,7 +86,8 @@ PSEUDOS = {
 def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
                  kpoints='2 2 1', pseudo_dir=None, pp_names=None,
                  calculation='relax', nosym=True, occupations='smearing',
-                 conv_thr='1.0d-8') -> str:
+                 conv_thr='1.0d-8', nspin=1, start_mag=None, hubbard=None,
+                 tot_magnetization=None) -> str:
     """⚠ 2026-09-08 — `occupations`/gamma k-점을 열었다 (힘 대조 카드 §4).
     금속용 smearing 을 절연체 단일점에 그대로 쓰면 힘에 smearing 항이 섞인다.
     `kpoints='gamma'` 를 주면 `K_POINTS gamma` 를 쓴다 (automatic 1 1 1 과 다르다 —
@@ -127,6 +128,20 @@ def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
         lines.append("    smearing    = 'mv'")
         lines.append("    degauss     = 0.01")
     lines.append(f"    nosym       = .{str(bool(nosym)).lower()}.")
+    # ── 스핀·U (2026-09-08 · Nd O-모티프 순위 재채점) ─────────────────────────
+    #   ⚠ Nd³⁺ = 4f³ 이다. z≈14 PP(4f 원자가)를 쓰면서 nspin=1 로 두면 전자 3개가
+    #     7겹 f 다중항에 **분수 점유**로 퍼져 계가 인공적으로 금속이 된다 (2026-08-07 실측:
+    #     화학이 다른 세 상의 갭이 −0.021/−0.022/−0.028 eV 로 7 meV 안에 몰렸다).
+    #   ⛔ 그리고 **씨앗 자화를 계마다 다르게 주면 총에너지 차가 무의미해진다** —
+    #     비교하는 두 구조가 다른 f 점유로 수렴할 수 있다 (SDCP wave1 교훈).
+    #     그래서 이 함수는 값을 정하지 않고 호출부가 준 것을 그대로 찍는다.
+    if int(nspin) == 2:
+        lines.append("    nspin       = 2")
+        for el, m in sorted((start_mag or {}).items()):
+            i = species.index(el) + 1              # ATOMIC_SPECIES 순서 = 아래 정렬과 같다
+            lines.append(f"    starting_magnetization({i}) = {float(m)}")
+        if tot_magnetization is not None:
+            lines.append(f"    tot_magnetization = {float(tot_magnetization)}")
     lines.append("/")
     lines.append("&ELECTRONS")
     lines.append(f"    conv_thr     = {conv_thr}")
@@ -158,6 +173,14 @@ def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
     else:
         lines.append("K_POINTS automatic")
         lines.append(f"  {kpoints} 0 0 0")
+    # ⛔ 원자가에 없는 껍질에 U 를 걸면 QE 가 죽거나 **조용히 무시**한다 (2026-08-29 실측:
+    #   frozen-4f PP 인데 `HUBBARD U Nd-4f 6.0` 을 찍고 있었다). 여기서는 호출부가 준
+    #   목록을 그대로 찍되, 판별은 호출부 몫이다 — 이 함수는 PP 의 z_valence 를 모른다.
+    #   형식은 tools/sei/build_dft_inputs.py 와 **같아야 한다** (갈라지면 두 트랙이 어긋난다).
+    if hubbard:
+        lines.append("HUBBARD (ortho-atomic)")
+        for man in hubbard:
+            lines.append(f"  U {man}")
     return "\n".join(lines) + "\n"
 
 
@@ -481,6 +504,30 @@ def _selftest():
         chk(_s2 == ["Li", "Li"] and
             float(_np2.abs(_np2.asarray(_cart) - a1.get_positions()).max()) < 1e-9,
             "scf.in 분수좌표 → 카티전이 frame 과 일치")
+
+    # \u2500\u2500 \uc2a4\ud540\u00b7U \ubc29\ucd9c (2026-09-08 \u00b7 Nd O-\ubaa8\ud2f0\ud504 \uc7ac\ucc44\uc810) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    from ase import Atoms as _At
+    _nd = _At('NdOLi', positions=[[0, 0, 0], [2, 0, 0], [0, 2, 0]], cell=[8, 8, 8], pbc=True)
+    _pp = {'Nd': 'Nd.paw.z_14.atompaw.wentzcovitch.v1.2.upf'}
+    _plain = generate_pwin(_nd, 'x', calculation='scf', pp_names=_pp, pseudo_dir='/p')
+    # \u26d4\uc74c\uc131: \uc548 \uc2dc\ud0a4\uba74 \uc548 \ub098\uc628\ub2e4 (\uae30\ubcf8\uc774 \uc870\uc6a9\ud788 \uc2a4\ud540\u00b7U \ub97c \ucf1c\uba74 \uc61b \uacc4\uc0b0\uacfc \ubabb \ube44\uad50\ud55c\ub2e4)
+    chk('nspin' not in _plain and 'HUBBARD' not in _plain,
+        "\u26d4\uc74c\uc131: nspin/HUBBARD \ub294 **\uc548 \uc8fc\uba74 \uc548 \ucc0d\ud78c\ub2e4**")
+    _spin = generate_pwin(_nd, 'x', calculation='scf', pp_names=_pp, pseudo_dir='/p',
+                          nspin=2, start_mag={'Nd': 0.3}, hubbard=['Nd-4f 6.0'],
+                          tot_magnetization=6)
+    _sp = sorted(set(_nd.get_chemical_symbols()))          # ATOMIC_SPECIES \uc21c\uc11c
+    chk(f'starting_magnetization({_sp.index("Nd") + 1}) = 0.3' in _spin,
+        "starting_magnetization \uc774 **Nd \uc758 \uc885 \ubc88\ud638**\uc5d0 \ubd99\ub294\ub2e4")
+    chk('nspin       = 2' in _spin and 'tot_magnetization = 6' in _spin, "nspin\u00b7\ucd1d\uc790\ud654 \ubc29\ucd9c")
+    chk('HUBBARD (ortho-atomic)' in _spin and '  U Nd-4f 6.0' in _spin,
+        "HUBBARD \uce74\ub4dc \ud615\uc2dd\uc774 tools/sei/build_dft_inputs.py \uc640 \uac19\ub2e4")
+    # \u26d4\uc74c\uc131: \uc885 \ubc88\ud638\ub97c 1\ub85c \ubc15\uc544 \ub450\uba74 \uc6d0\uc18c \uc21c\uc11c\uac00 \ubc14\ub014 \ub54c **\uc5c9\ub6b1\ud55c \uc6d0\uc18c\uc5d0 \uc790\ud654\uac00 \uac78\ub9b0\ub2e4**
+    _nd2 = _At('LiNdO', positions=[[0, 0, 0], [2, 0, 0], [0, 2, 0]], cell=[8, 8, 8], pbc=True)
+    _s2x = generate_pwin(_nd2, 'x', calculation='scf', pp_names=_pp, pseudo_dir='/p',
+                         nspin=2, start_mag={'Nd': 0.3})
+    chk(f'starting_magnetization({sorted(set(_nd2.get_chemical_symbols())).index("Nd") + 1}) = 0.3'
+        in _s2x, "\u26d4\uc74c\uc131: \uc6d0\uc18c \uad6c\uc131\uc774 \ub2ec\ub77c\ub3c4 Nd \uc758 \ubc88\ud638\ub97c \ub2e4\uc2dc \uc13c\ub2e4")
 
     print(f"  selftest: \u2b55 {ok} \u00b7 \u26d4 {fail}")
     return 0 if fail == 0 else 1

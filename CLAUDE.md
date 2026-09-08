@@ -31,20 +31,22 @@
 - **KISTI** neuron(x3430a02): Slurm, QOS 제출 제한 — scancel 직후 재제출 금지(카운터 지연). pseudo는
   /scratch/x3430a02/kgy/manuscript_support/pseudo.
 - **kgy** (RTX3090, QE-GPU + uma env): ssh kgy@59.12.161.91.
-  ⛔⛔ **QE-GPU 는 NVHPC 스택을 통째로 맞춰서 띄운다.** 런처만 바꾸면 다른 자리에서 또 죽는다:
-  다른 mpirun(conda)이 잡히면 `MPI_Init_thread … NULL communicator`, mpirun 을 빼면
-  `libgomp: TODO`(NVHPC 빌드가 GNU OpenMP 를 잡음). **둘 다 같은 병이다 — 런타임 불일치.**
-  검증된 처방 (gabia 판이 `tools/ionic/watch_all.py`·`tools/neb_diffusion/li3n_uma_investigate.py`
-  에 이미 있었다. kgy 는 경로만 다르다):
+  ⛔⛔ **QE-GPU 런타임은 추측하지 말고 `ldd` 로 바이너리에게 묻는다.** 2026-09-08 에
+  같은 자리에서 **세 번** 틀렸다: ① conda mpirun 탓 → ② 런처를 뺐더니 `libgomp: TODO`
+  → ③ hpcx 를 자동탐지했는데 kgy 의 pw.x 는 **`~/apps/openmpi-4.1.6`** 로 빌드돼 있었다
+  (hpcx 에서 오는 건 scalapack 뿐). 머신마다 다르므로 규칙이 아니라 링크가 근거다.
   ```
-  H=<nvhpc>/comm_libs/<cuda>/hpcx/hpcx-*/ompi
-  export OPAL_PREFIX=$H PATH=$H/bin:$PATH
-  export LD_LIBRARY_PATH=$H/lib:<nvhpc>/compilers/lib:/usr/local/cuda-12.6/lib64
-  $H/bin/mpirun --oversubscribe -np 1 <pw.x> -nk 1 -in x.in > x.out
+  ldd <pw.x> | grep -E "libmpi|libnvomp|libgomp"   # ← 항상 여기서 시작
+  M=$(ldd <pw.x> | awk '/libmpi\.so/{print $3}')   # 실제 링크된 MPI
+  export OPAL_PREFIX=$(dirname $(dirname $M)) PATH=$OPAL_PREFIX/bin:$PATH
+  export LD_LIBRARY_PATH=$(dirname $M):<nvhpc>/compilers/lib:/usr/local/cuda-12.6/lib64
+  export OMP_NUM_THREADS=1     # libnvomp + libgomp 동시 링크 시 필수
+  $OPAL_PREFIX/bin/mpirun --oversubscribe -np 1 <pw.x> -nk 1 -in x.in > x.out
   ```
-  ★ `<nvhpc>/compilers/lib` 가 **NVIDIA OpenMP 런타임**이다 — 이게 빠지면 libgomp 가 이긴다.
-  `tools/doping/run_force_check_scf.sh` 가 자동 탐지해서 걸고, 못 찾으면 **시작하지 않는다**
-  (`NVHPC_ROOT` 로 지정 가능). 2026-09-08 같은 자리에서 두 번 죽고 명문화.
+  ★ `libnvomp` 와 `libgomp` 가 **둘 다** 링크돼 있으면(kgy: libfftw3_omp 가 GNU 를 끌고 옴)
+  OpenMP 런타임이 둘이라 `libgomp: TODO` 로 즉사한다 → `OMP_NUM_THREADS=1`.
+  `tools/doping/run_force_check_scf.sh` 가 이 전부를 ldd 에서 유도하고, 못 읽으면
+  **시작하지 않는다**.
   · pw.x 를 던지기 전 `nvidia-smi` 로 **python3(UMA)가 GPU 를 쓰고 있는지** 본다 — kgy 도 공유다.
 - **gabia** (A6000 단일 GPU, QE-GPU + fairchem/UMA): root@121.78.116.27. **pw.x와 UMA 동시 실행 금지**
   (VRAM 47/48 GB 점유 사례) — nvidia-smi로 확인 후 실행.
