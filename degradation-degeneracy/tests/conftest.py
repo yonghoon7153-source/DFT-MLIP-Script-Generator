@@ -13,9 +13,45 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def _bootstrap_frozen_coordinate_seals() -> list:
+    """이 **checkout 이 놓인 자리**의 얼린 좌표를 처음 한 번 봉인한다 (59차 자체 발견).
+
+    59차 M6 은 "봉인 없는 frozen cohort 가 하나라도 있으면 아무 데도 안 쓴다" 를
+    게시 경로에 넣었다. 그런데 좌표 봉인(`_frozen_coords/`)의 이름은 **좌표**이고
+    좌표에는 그 filesystem 안의 경로가 들어간다 — 그래서 트리를 복사하면 봉인
+    파일이 **함께 복사돼 있어도** 새 자리에 대해서는 없는 것이다.
+
+    실측: 변이 재생 1/12 조각의 baseline 이 `_assert_writable()` 의 그 거부로
+    3건 빨갛게 죽었다 (sandbox 는 복사본이다). 시험이 쓰는 자리는 pytest 의
+    tmp 디렉터리이고 얼린 cohort 와 아무 관계가 없는데도 막혔다. fresh clone 의
+    `pytest tests/` 도 같은 이유로 빨갛다.
+
+    `[해석]` 봉인 파일은 지역 파일이고 그것을 쓸 수 있는 자는 다시 쓸 수도
+    있다. 그러므로 이 층이 실제로 막는 것은 **"봉인한 뒤에 대상이 바뀌는 것"**
+    이지 "처음 본 것이 남의 것인 경우" 가 아니다. 사람에게 명령 한 줄을
+    요구해도 그 사실은 안 바뀌고, 바뀌는 것은 새 checkout 의 시험이 빨갛다는
+    것뿐이다. 그래서 **시험 세션은 자기 자리를 처음 한 번 봉인하고, 무엇을
+    봉인했는지 출력한다** (조용히 하지 않는다 — 조용한 bootstrap 은 없는 층을
+    있는 척하는 것과 구별되지 않는다).
+
+    게시 경로의 거부는 **그대로 둔다**: 사람이 `--seal-frozen` 없이 새 세대를
+    게시하려 하면 여전히 멈춘다 (`test_frozen_clean_clone_59.py` 의 앞 두 시험).
+    """
+    gap = ROOT / "docs" / "22p_gap"
+    if str(gap) not in sys.path:
+        sys.path.insert(0, str(gap))
+    import row_projection as R
+
+    return R.seal_frozen_cohorts()
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: 실제 PyBaMM solve가 필요한 테스트 (Phase 게이트에서 실행)")
+    sealed = _bootstrap_frozen_coordinate_seals()
+    if sealed:
+        print(f"\n[conftest] 이 checkout 을 처음 보았다 — 얼린 cohort "
+              f"{len(sealed)}개의 좌표를 이 자리에서 봉인했다: {sealed}")
 @pytest.fixture(scope="session")
 def _isolated_discharged_cache(tmp_path_factory):
     """★ 12차 발견 8 — slow 테스트가 **작업 디렉터리의 ambient 캐시**에 의존하면

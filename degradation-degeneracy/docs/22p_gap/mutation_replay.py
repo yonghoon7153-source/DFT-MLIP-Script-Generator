@@ -497,6 +497,11 @@ MUTANTS = [
      "                raise PreserveError(",
      "closed_run_cannot_be_resurrected_by_a_late_phase or "
      "released_run_cannot_be_resurrected_by_a_late_phase"),
+    # ★ 59차 M10 이후 **무는 층이 바뀌었다.** 50차에는 claim 이 만들어지고 token 이
+    #   없는 상태가 실제로 생겨서 시험의 assert 가 그것을 봤다. 지금은 발급이
+    #   token 의 durable 여부를 스스로 확인하고 **claim 을 만들기 전에** 거부한다.
+    #   그러므로 이 축의 증인은 그 거부문이다 — 축은 그대로 "token 이 claim 보다
+    #   먼저 굳는가" 를 묻고, 답하는 층만 assert 에서 production 검사로 올라갔다.
     ("token-is-written-before-the-claim", PRESERVE,
      "        token = _new_token()\n"
      "        attempt_hint = uuid.uuid4().hex\n"
@@ -3670,7 +3675,7 @@ EXPECT: dict = {
             "tests/test_preserve.py::test_a_crash_between_the_claim_and_the_token_leaves_nothing_stranded"
         ],
         "witness": {
-            "tests/test_preserve.py::test_a_crash_between_the_claim_and_the_token_leaves_nothing_stranded": "AssertionError: claim 은 남았는데 소유 증명이 없다 — 이어받을 수도 되돌릴 수도 닫을 수도 없는 다리가 생겼다"
+            "tests/test_preserve.py::test_a_crash_between_the_claim_and_the_token_leaves_nothing_stranded": "소유 증명이 **디스크에 굳어 있지 않다**"
         }
     },
     "trust-boundary-declared": {

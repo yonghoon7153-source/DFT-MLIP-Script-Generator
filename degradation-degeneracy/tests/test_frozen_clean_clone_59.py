@@ -98,3 +98,38 @@ def test_the_seal_entry_point_seals_every_declared_frozen_cohort(clean_clone,
 
     # 멱등이다 — 두 번 불러도 같은 상태고 오류가 아니다
     assert R.seal_frozen_cohorts() == []
+
+
+def test_a_never_sealed_checkout_can_still_run_its_own_test_suite(clean_clone,
+                                                                  tmp_path):
+    """★ 59차 **자체 발견** — M6 의 거부가 시험 세션까지 멈춰 세웠다.
+
+    실측(변이 재생 1/12 조각의 baseline): sandbox 는 트리의 복사본이라 좌표가
+    다르고, 그래서 봉인이 **함께 복사돼 있어도** 이 자리에 대해서는 없는 것이다.
+    그 결과 `_assert_writable()` 이 pytest tmp 디렉터리에 쓰는 시험까지 막았고,
+    조각 1 이 `baseline 이 이미 빨갛다` 3건으로 죽었다 — 이 라운드의 증거를
+    만드는 통로 자체가 막힌 것이다. fresh clone 의 `pytest tests/` 도 같다.
+
+    `[해석]` 봉인 파일은 지역 파일이고, 그것을 쓸 수 있는 자는 다시 쓸 수도
+    있다. 그러므로 이 층이 막는 것은 **"나중에 대상이 바뀌는 것"** 이지 "처음
+    보는 것이 남의 것인 경우" 가 아니다. 수동 명령을 요구해도 그 사실은 안
+    바뀌고, 바뀌는 것은 fresh clone 의 시험이 빨개진다는 것뿐이다. 그래서
+    **시험 세션은 자기 위치를 처음 한 번 봉인하고 그 사실을 출력한다.**
+    게시 경로(`_assert_writable`)의 거부는 그대로다 — 위 두 시험이 지킨다.
+    """
+    if str(Path(__file__).resolve().parent) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import conftest as C
+
+    assert R.unsealed_frozen_cohorts() == ["gA"], "이 시험은 봉인 0건에서 시작한다"
+
+    done = C._bootstrap_frozen_coordinate_seals()
+
+    assert done == ["gA"], done
+    assert R.unsealed_frozen_cohorts() == []
+    dest = tmp_path / "시험이-쓰는-자리"
+    dest.mkdir()
+    R._assert_writable(dest)             # 이제 시험이 자기 자리에 쓸 수 있다
+
+    # 두 번째 세션은 아무 것도 새로 봉인하지 않는다 (출력이 조용해진다)
+    assert C._bootstrap_frozen_coordinate_seals() == []
