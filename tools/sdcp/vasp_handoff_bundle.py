@@ -1791,10 +1791,13 @@ print(f"VASP_RANKS_PER_NODE={ppn}")
 print(f"MEMG_NEED_GB={need_gb:.3f}")       # 노드당 필요량 — 프로브가 실행 노드마다 다시 판정한다
 print(f"MEMG_FRAC={frac}")
 print(f"MEMG_LOCAL_GB={mem:.3f}")
+# 스케줄러 할당(SLURM_* 관측)만 따로 넘긴다 — 프로브가 'cgroup 무제한(검증)' 노드의 상한을 min(할당, MemTotal) 로 잡는 데 쓴다 (Codex v39 P1).
+_sched = [g for g, n in obs if n.startswith("SLURM_")]
+print(f"MEMG_SCHED_GB={min(_sched):.3f}" if _sched else "MEMG_SCHED_GB=")
 PYMEM
   # shellcheck disable=SC1091
   . ./._memguard.env && rm -f ._memguard.env
-  export VASP_NODES VASP_RANKS_PER_NODE MEMG_NEED_GB MEMG_FRAC MEMG_LOCAL_GB
+  export VASP_NODES VASP_RANKS_PER_NODE MEMG_NEED_GB MEMG_FRAC MEMG_LOCAL_GB MEMG_SCHED_GB
   echo "     → 배치 결박: VASP_NODES=$VASP_NODES · VASP_RANKS_PER_NODE=$VASP_RANKS_PER_NODE"
 fi
 
@@ -1893,28 +1896,66 @@ PYPOOL
   #   자기 노드에서 cgroup 계층(리프→루트)의 최소와 MemTotal 을 읽어 보낸다. POSIX sh 만 쓴다.
   cat > _probe_node.sh <<'PN'
 #!/bin/sh
-# 출력: <hostname>\t<cgroup 최소 제한 bytes | none>\t<MemTotal bytes>
+# 출력: <hostname>\t<제한: bytes | max | none>\t<MemTotal bytes>\t<상태>\t<근거>
+#   상태 finite     — cgroup 계층(리프→루트) 어딘가에서 **유한 제한을 읽었다** (최소값 · 근거 = 그 파일)
+#        unlimited  — 제한 파일을 **실제로 읽었고** 전부 max(v2)/무제한 센티널(v1) 이었다, 또는
+#                     memory 컨트롤러가 보이는 루트 cgroup 이다 (v2 루트에는 memory.max 가 없다)
+#        unobserved — /proc/self/cgroup 이 없다 · memory 계층 줄이 없다 · cgroup 경로가 이 마운트에 없다 ·
+#                     루트인데 memory 컨트롤러가 안 보인다 (namespace 밖의 제한을 못 본다)
+#   ⛔ Codex v39 P1 — 'none' 은 **못 읽었다**는 뜻이다. 커널이 정의하는 memory.max 의 'max'(무제한)와
+#      읽기 실패는 다른 상태다. 둘을 합쳐 'none' 으로 내던 종전 출력을 폐기한다.
 h=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo unknown)
-mt=$(awk '/^MemTotal:/{print $2*1024; exit}' /proc/meminfo 2>/dev/null); [ -n "$mt" ] || mt=0
-lim=""
-while IFS=: read -r id ctrl path; do
-  root=""; f=""
-  if [ "$id" = "0" ] && [ -z "$ctrl" ]; then root=/sys/fs/cgroup; f=memory.max; fi
-  case ",$ctrl," in *,memory,*) root=/sys/fs/cgroup/memory; f=memory.limit_in_bytes ;; esac
-  [ -n "$root" ] || continue
-  p="$path"
-  while :; do
-    v=$(cat "$root$p/$f" 2>/dev/null)
-    case "$v" in ''|max) ;; *)
-      if [ "$v" -lt 4611686018427387904 ] 2>/dev/null; then
-        if [ -z "$lim" ] || [ "$v" -lt "$lim" ]; then lim=$v; fi
-      fi ;;
-    esac
-    case "$p" in ""|"/") break ;; esac
-    p="${p%/*}"
-  done
-done < /proc/self/cgroup 2>/dev/null
-printf '%s\t%s\t%s\n' "$h" "${lim:-none}" "$mt"
+# MemTotal: awk 로는 **필드만** 뽑고 곱셈은 셸 산술(64비트)로 한다 — awk 구현에 따라 큰 수를 6.87e+10 처럼
+# 지수표기로 내어 판정기의 int() 가 줄을 버릴 수 있다 (Codex v39 §4 호환성 지적).
+mt=$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null); mt=$(( ${mt:-0} * 1024 ))
+lim=""; limsrc=""; nread=0; nhier=0; nroot=0; miss=""; state=""; why=""
+if [ ! -r /proc/self/cgroup ]; then
+  state=unobserved; why="no-proc-self-cgroup"
+else
+  while IFS=: read -r id ctrl path; do
+    root=""; f=""
+    if [ "$id" = "0" ] && [ -z "$ctrl" ]; then root=/sys/fs/cgroup; f=memory.max; fi
+    case ",$ctrl," in *,memory,*) root=/sys/fs/cgroup/memory; f=memory.limit_in_bytes ;; esac
+    [ -n "$root" ] || continue
+    nhier=$((nhier+1))
+    p="$path"
+    if [ ! -d "$root$p" ]; then miss="cgroup-path-not-mounted:$root$p"; continue; fi
+    while :; do
+      if [ -r "$root$p/$f" ]; then
+        v=$(cat "$root$p/$f" 2>/dev/null)
+        case "$v" in
+          '') ;;
+          max) nread=$((nread+1)) ;;
+          *) if [ "$v" -lt 4611686018427387904 ] 2>/dev/null; then
+               nread=$((nread+1))
+               if [ -z "$lim" ] || [ "$v" -lt "$lim" ]; then lim=$v; limsrc="$root$p/$f"; fi
+             elif [ "$v" -ge 4611686018427387904 ] 2>/dev/null; then nread=$((nread+1)); fi ;;
+        esac
+      else
+        case "$p" in ""|"/")
+          # v2 루트에는 memory.max 가 없다. memory 컨트롤러가 여기서 **보이면** 루트=무제한으로 인정하고,
+          # 안 보이면(namespace 루트인데 부모가 memory 를 위임하지 않음) 제한을 못 본 것이다.
+          if [ "$f" = "memory.max" ]; then
+            if grep -qw memory "$root/cgroup.controllers" 2>/dev/null; then nroot=$((nroot+1))
+            else miss="memory-controller-not-visible-at-root:$root"; fi
+          fi ;;
+        esac
+      fi
+      case "$p" in ""|"/") break ;; esac
+      p="${p%/*}"
+    done
+  done < /proc/self/cgroup
+  # 우선순위: 유한 > 실제로 읽은 계층이 전부 max > 경로 미마운트 > memory 계층 없음 > 루트(컨트롤러 보임) > 그 외 미관측
+  #   hybrid(v1 memory + `0::/`) 에서는 v2 루트 검사가 헛돌 수 있지만, v1 을 읽었으면 그것이 memory 계층이다.
+  if [ -n "$lim" ]; then state=finite; why="$limsrc"
+  elif [ "$nread" -gt 0 ]; then state=unlimited; why="all-readable-levels-max:$nread"
+  elif [ -n "$miss" ]; then state=unobserved; why="$miss"
+  elif [ "$nhier" -eq 0 ]; then state=unobserved; why="no-memory-hierarchy-in-proc-self-cgroup"
+  elif [ "$nroot" -gt 0 ]; then state=unlimited; why="root-cgroup-v2(memory-controller-visible,no-memory.max-on-root)"
+  else state=unobserved; why="no-limit-file-readable"; fi
+fi
+case "$state" in finite) l="$lim" ;; unlimited) l=max ;; *) l=none ;; esac
+printf '%s\t%s\t%s\t%s\t%s\n' "$h" "$l" "$mt" "$state" "$why"
 PN
   chmod +x _probe_node.sh
   # ── 동시 프로브 ────────────────────────────────────────────────────────
@@ -1931,27 +1972,48 @@ PN
 import sys, json, collections, os, time
 npr, nodes, ppn, mode, src = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]
 need_gb = float(os.environ.get("MEMG_NEED_GB") or 0); frac = float(os.environ.get("MEMG_FRAC") or 0.85)
+# 러너 호스트에서 관측한 **스케줄러 할당**(SLURM_MEM_PER_NODE · MEM_PER_CPU×CPUS) — 할당 전 노드에 같이 적용된다.
+_sg = os.environ.get("MEMG_SCHED_GB") or ""
+sched_gb = float(_sg) if _sg.strip() else None
 GiB = 1024.0 ** 3
-res, bad, seen_all, node_mem = [], [], {}, {}
+_RANK = {"unobserved": 0, "finite": 1, "unlimited": 2}      # 같은 호스트에 여러 줄이면 **더 나쁜 상태**를 남긴다
+res, bad, seen_all, node_mem, node_info = [], [], {}, {}, {}
 for k in range(1, npr + 1):
     try:
         raw = [l.rstrip("\n") for l in open(f"_probe_{k}.out") if l.strip()]
     except OSError:
         raw = []
-    # 각 줄: host \t limit|none \t memtotal  (구판 hostname 전용 출력도 첫 필드로 받는다)
+    # 각 줄: host \t limit(bytes|max|none) \t memtotal \t state(finite|unlimited|unobserved) \t why
+    #   (구판 hostname 전용 출력도 첫 필드로 받는다. 구판 3필드 'none' 은 **미관측**으로 읽는다 —
+    #    Codex v39 P1: 못 읽은 것을 무제한으로 간주하지 않는다.)
     lines = []
     for l in raw:
-        f = l.split("\t")
-        lines.append(f[0].strip())
-        if len(f) >= 3:
-            try:
-                lim = None if f[1].strip() in ("none", "") else int(f[1]) / GiB
-                mt = int(f[2]) / GiB if int(f[2]) > 0 else None
-                g = min([x for x in (lim, mt) if x is not None] or [None]) if (lim or mt) else None
-                if g is not None:
-                    node_mem[f[0].strip()] = min(g, node_mem.get(f[0].strip(), g))
-            except ValueError:
-                pass
+        f = [x.strip() for x in l.split("\t")]
+        h = f[0]; lines.append(h)
+        if len(f) < 3:
+            continue
+        try:
+            mt = int(f[2]) / GiB if int(f[2]) > 0 else None
+        except ValueError:
+            mt = None
+        lim, st, why = None, (f[3] if len(f) >= 4 else None), (f[4] if len(f) >= 5 else "")
+        if st is None:                                   # 구판 3필드
+            if f[1].isdigit(): st, lim = "finite", int(f[1]) / GiB
+            else: st, why = "unobserved", "legacy-probe-format(none)"
+        elif st == "finite":
+            if f[1].isdigit(): lim = int(f[1]) / GiB
+            else: st, why = "unobserved", "finite-without-value"
+        elif st == "unlimited":
+            if f[1] != "max": st, why = "unobserved", f"unlimited-with-value({f[1]})"
+        else:
+            st = "unobserved"; why = why or "probe-said-unobserved"
+        ni = {"state": st, "limit_GiB": lim, "memtotal_GiB": mt, "why": why}
+        old = node_info.get(h)
+        if old is None or _RANK[st] < _RANK[old["state"]]:
+            node_info[h] = ni
+        elif _RANK[st] == _RANK[old["state"]]:
+            for key in ("limit_GiB", "memtotal_GiB"):
+                if ni[key] is not None and (old[key] is None or ni[key] < old[key]): old[key] = ni[key]
     cnt = collections.Counter(lines)
     want = None
     if mode != "wrapper":
@@ -1973,21 +2035,47 @@ for k in range(1, npr + 1):
         if h in seen_all:
             why.append(f"프로브 {seen_all[h]} 와 호스트 {h} 겹침 — 동시 잡이 같은 노드를 쓴다")
         seen_all.setdefault(h, k)
-    # ── 노드별 메모리 판정 (Codex v38 P1-2) — 러너 호스트가 아니라 **실행 노드**의 제한으로 본다
+    # ── 노드별 메모리 판정 (Codex v38 P1-2 · v39 P1) — 러너 호스트가 아니라 **실행 노드**의 제한으로 본다
+    #   세 상태를 가른다: finite → 그 값 · unlimited(검증) → min(스케줄러 할당, 물리 RAM) · unobserved → **정지**.
+    #   ⛔ 못 읽은 노드를 물리 RAM 으로 통과시키지 않는다 (v39 P1 — 종전 코드가 그렇게 했다).
+    rec_nm = {}
     if need_gb > 0:
         # 같은 사유는 접는다 — 96 노드가 전부 같은 이유면 96 줄이 아니라 한 줄이어야 읽힌다
-        _nomem, _short = [], {}
+        _unobs, _short = {}, {}
         for h in sorted(cnt):
-            g = node_mem.get(h)
-            if g is None:
-                _nomem.append(h)
-            elif need_gb > g * frac:
+            ni = node_info.get(h)
+            if ni is None:
+                _unobs.setdefault("no-probe-line", []).append(h); rec_nm[h] = {"state": "unobserved", "why": "no-probe-line"}; continue
+            st, lim, mt = ni["state"], ni["limit_GiB"], ni["memtotal_GiB"]
+            if st == "unobserved":
+                _unobs.setdefault(ni["why"], []).append(h)
+                rec_nm[h] = {"state": st, "limit_GiB": None, "memtotal_GiB": (round(mt, 2) if mt else None), "bound_GiB": None,
+                             "basis": f"미관측 ({ni['why']}) — 물리 RAM 으로 대체하지 않는다"}
+                continue
+            if st == "finite":
+                cands = [x for x in (lim, mt) if x is not None]
+                basis = f"cgroup 유한 제한 {lim:.1f} GiB ({ni['why']})" + (f" · MemTotal {mt:.1f}" if mt else "")
+            else:                                                       # unlimited (검증됨)
+                if mt is None:
+                    _unobs.setdefault("unlimited-but-no-MemTotal", []).append(h)
+                    rec_nm[h] = {"state": "unobserved", "why": "unlimited-but-no-MemTotal"}; continue
+                cands = [mt] + ([sched_gb] if sched_gb else [])
+                basis = (f"cgroup 무제한 (검증: {ni['why']}) · 상한 = "
+                         + (f"min(스케줄러 할당 {sched_gb:.1f}, MemTotal {mt:.1f})" if sched_gb
+                            else f"MemTotal {mt:.1f} (러너 호스트에서 스케줄러 할당 미관측)"))
+            g = min(cands)
+            node_mem[h] = g
+            rec_nm[h] = {"state": st, "limit_GiB": (round(lim, 2) if lim else None), "memtotal_GiB": (round(mt, 2) if mt else None),
+                         "bound_GiB": round(g, 2), "basis": basis}
+            if need_gb > g * frac:
                 _short.setdefault(round(g, 1), []).append(h)
-        if _nomem:
-            why.append(f"{len(_nomem)} 노드 메모리 제한을 못 읽었다 (예 {_nomem[:3]})")
+        for r_, hs in sorted(_unobs.items()):
+            why.append(f"{len(hs)} 노드 메모리 제한 **미관측** ({r_} · 예 {hs[:3]}) — 물리 RAM 으로 대체하지 않고 멈춘다")
         for g, hs in sorted(_short.items()):
             why.append(f"{len(hs)} 노드(예 {hs[0]}…{hs[-1]}): 노드당 필요 {need_gb:.1f} GiB > 가용 {g:.1f}×{frac:.2f}={g*frac:.1f} GiB")
     rec["node_mem_GiB"] = {h: round(node_mem[h], 2) for h in cnt if h in node_mem}
+    rec["node_mem"] = rec_nm
+    rec["limit_states"] = dict(collections.Counter(v["state"] for v in rec_nm.values()))
     rec["ok"] = not why; rec["why"] = why
     res.append(rec)
     if why: bad.append((k, why, dict(cnt)))
@@ -1996,8 +2084,12 @@ json.dump({"schema": "placement_probe/v1", "at": time.strftime("%Y-%m-%dT%H:%M:%
            "expected": {"nodes_per_job": nodes, "ranks_per_node": ppn,
                         "need_GiB_per_node": round(need_gb, 3), "usable_frac": frac},
            "node_mem_GiB_min": (round(min(node_mem.values()), 2) if node_mem else None),
+           "scheduler_alloc_GiB_runner": sched_gb,
+           "limit_state_rule": {"finite": "cgroup 계층에서 읽은 유한 제한 (min(제한, MemTotal))",
+                                "unlimited": "제한 파일을 실제로 읽었고 전부 max — 상한 = min(스케줄러 할당(관측 시), MemTotal)",
+                                "unobserved": "제한을 못 읽음 — **정지** (물리 RAM 으로 대체하지 않는다 · Codex v39 P1)"},
            "probes": res, "all_ok": not bad,
-           "⛔_이_기록이_보증하지_않는_것": "메모리 대역·통신망·NUMA. VASP 자체의 배치도 아니다 — 같은 launcher·같은 플래그로 hostname 을 놓아 본 결과다."},
+           "⛔_이_기록이_보증하지_않는_것": "메모리 대역·통신망·NUMA. VASP 자체의 배치도 아니다 — 같은 launcher·같은 플래그로 프로브를 놓아 본 결과다. 'unlimited' 는 cgroup 이 안 막는다는 뜻이지 스케줄러가 코어·메모리를 예약했다는 증거가 아니다."},
           open("PLACEMENT_PROBE.json", "w"), ensure_ascii=False, indent=1)
 if bad:
     print("⛔ 배치 프로브 실패 — **launcher 가 요청한 대로 랭크를 놓지 않았습니다.** 첫 VASP 전에 멈춥니다.", file=sys.stderr)
@@ -2006,8 +2098,10 @@ if bad:
         print(f"      관측 rank→host: {cnt}", file=sys.stderr)
     print("   PLACEMENT_PROBE.json 에 전부 기록했습니다. 이 상태로 VASP 를 띄우면 노드가 겹쳐 OOM 납니다.", file=sys.stderr)
     sys.exit(2)
+_states = collections.Counter(v["state"] for r in res for v in r.get("node_mem", {}).values())
 print(f"  ✔ 배치 프로브 {npr} 개 동시 통과: 각 {nodes} 호스트 × {ppn} 랭크 · 프로브 간 호스트 서로소"
       + (f" · 실행 노드 메모리 최소 {min(node_mem.values()):.1f} GiB ≥ 필요 {need_gb:.1f}/{frac:.2f}" if node_mem and need_gb > 0 else "")
+      + (f" · 제한 상태 {dict(_states)}" if _states else "")
       + " · PLACEMENT_PROBE.json", file=sys.stderr)
 PYPROBE
   rm -f _probe_*.out       # 관측은 PLACEMENT_PROBE.json 에 있다 (실패 시엔 exit 2 로 위에서 끝나 _unlock 이 치운다)
@@ -14275,8 +14369,9 @@ def _run_env_block(man: Dict[str, Any], a, manifest_sha: str = "<메일 본문�
             "# ── 메모리 배치 (**2026-09-04 OOM 재발 방지 · 필수**) ──\n"
             "export NODE_MEM_GB=%s          # 노드 하나의 메모리 [GB]\n"
             "export VASP_NODES=%d                        # 잡 하나를 **이만큼의 노드에 펼쳐** 주십시오\n"
-            "#    잡 하나가 노드 하나에 몰리면 최악 잡이 노드당 %.1f GB 를 요구해 OOM 납니다.\n"
-            "#    노드 %d 개에 펼치면 노드당 %.1f GB (가용 %.1f GB 의 %d 퍼센트) 로 내려갑니다.\n"
+            "#    잡 하나가 노드 하나에 몰리면 최악 잡이 노드당 %.1f GB 를 요구해 OOM 납니다 (**모형값** · 실측 아님).\n"
+            "#    노드 %d 개에 펼치면 노드당 %.1f GB (가용 %.1f GB 의 %d 퍼센트) 로 내려갑니다 — 이것도 모형값이라\n"
+            "#    예약 요구량이나 안전 보장이 아닙니다. 실제 판정은 아래 관측·프로브가 합니다.\n"
             "#    필요한 총 노드 = %d (노드/잡) x %d (동시잡) = **%d 노드**.\n"
             "#    러너가 **첫 VASP 실행 전에** 이 값으로 계산해 보고, 넘치면 멈춥니다.\n"
             % (("%g" % _rec["노드_메모리_GB"]), int(_rec["권고_노드_per_잡"]),
@@ -14300,6 +14395,9 @@ def _run_env_block(man: Dict[str, Any], a, manifest_sha: str = "<메일 본문�
         "#      · 노드 메모리 — 러너 호스트에서 SLURM_MEM_PER_NODE(·MEM_PER_CPU×CPUS) · 이 작업의 cgroup 제한(계층 전부)\n"
         "#        · /proc/meminfo 중 **가장 작은 값**을 먼저 보고, 배치 프로브가 **실행 노드 전부**에서 같은 값을\n"
         "#        읽어 노드마다 다시 판정합니다. 어느 노드든 부족하면 멈춥니다. 선언이 관측보다 크면 멈춥니다.\n"
+        "#        프로브는 노드마다 제한을 **유한 / 무제한(검증) / 미관측** 세 상태로 가릅니다 — 유한이면 그 값,\n"
+        "#        무제한(제한 파일을 실제로 읽었고 전부 max)이면 스케줄러 할당·물리 RAM 의 최소, **미관측(못 읽음)이면\n"
+        "#        멈춥니다.** 못 읽은 것을 무제한으로 보지 않습니다. 상태·근거는 PLACEMENT_PROBE.json 에 남습니다.\n"
         "#      · 노드 수 — SLURM_JOB_NUM_NODES 또는 아래 VASP_HOSTFILE 의 고유 호스트 수와 대조.\n"
         "#        잡당 노드 × 동시 잡이 할당을 넘으면 멈춥니다.\n"
         "# export VASP_HOSTFILE=/abs/hosts.txt   # SLURM 밖에서 돌리실 때만: 할당 호스트를 한 줄에 하나씩\n"
@@ -17623,9 +17721,18 @@ _np="${2:-1}"; shift 2
 _is_probe=0
 case "$(basename "${1:-}")" in hostname) _is_probe=1 ;; sh|bash) case "${2:-}" in *_probe_node.sh) _is_probe=1 ;; esac ;; esac
 if [ "$_is_probe" = 1 ]; then
-  _mt_local=$(awk '/^MemTotal:/{print $2*1024; exit}' /proc/meminfo 2>/dev/null); _mt_local=${_mt_local:-0}
+  _mt_local=$(awk '/^MemTotal:/{print $2; exit}' /proc/meminfo 2>/dev/null); _mt_local=$(( ${_mt_local:-0} * 1024 ))
   if [ -n "${STUB_NODE_MEM_GB:-}" ]; then _mt=$(( STUB_NODE_MEM_GB * 1024 * 1024 * 1024 )); else _mt=$_mt_local; fi
-  _line() { printf '%s\t%s\t%s\n' "$1" "none" "$_mt"; }
+  # 제한 상태 (Codex v39 P1 회귀시험용): STUB_NODE_LIMIT = unlimited(기본) | finite:<GiB> | unobserved | legacy(구판 3필드 none)
+  _st="${STUB_NODE_LIMIT:-unlimited}"
+  _line() {
+    case "$_st" in
+      finite:*) printf '%s\t%s\t%s\tfinite\tstub:/sys/fs/cgroup/stub/memory.max\n' "$1" "$(( ${_st#finite:} * 1024 * 1024 * 1024 ))" "$_mt" ;;
+      unobserved) printf '%s\tnone\t%s\tunobserved\tstub:cgroup-path-not-mounted:/sys/fs/cgroup/nope\n' "$1" "$_mt" ;;
+      legacy) printf '%s\tnone\t%s\n' "$1" "$_mt" ;;
+      *) printf '%s\tmax\t%s\tunlimited\tstub:all-readable-levels-max:2\n' "$1" "$_mt" ;;
+    esac
+  }
   if [ -z "$_hf" ] || [ ! -f "$_hf" ]; then _line "$(hostname)"; exit 0; fi
   mapfile -t _hosts < "$_hf"
   if [ "${STUB_BAD_PLACEMENT:-0}" = "1" ]; then
@@ -17640,6 +17747,103 @@ if [ "$_is_probe" = 1 ]; then
 fi
 exec "$@"
 """
+
+
+def _probe_script_regression(rs: str, chk) -> None:
+    """★ Codex v39 P1 — 프로브 스크립트(`_probe_node.sh`)가 **유한 / 검증된 무제한 / 미관측** 을 가르는지
+    픽스처 트리로 시험한다.
+
+    생산 스크립트에 시험용 훅(경로 환경변수)을 두지 않는다 — 대신 `/proc/self/cgroup` ·
+    `/sys/fs/cgroup` · `/proc/meminfo` 문자열을 임시 트리로 치환한 **사본**을 `/bin/sh` 로 돌린다.
+    ⛔ 못 하는 것: 실제 커널의 cgroup namespace 동작은 재현하지 않는다 (경로가 다르게 보이는
+      환경은 '미관측 → 정지' 로 떨어지는 것까지만 확인한다).
+    """
+    import subprocess as _sp
+    import tempfile as _tf
+    body = rs[rs.index("<<'PN'\n") + len("<<'PN'\n"): rs.index("\nPN\n")]
+    T = Path(_tf.mkdtemp(prefix="probe_pn_"))
+    GiB = 1024 ** 3
+    MT_KB = 67108864                       # 64 GiB
+
+    def run(proc_lines, tree, tag):
+        d = T / tag
+        sysroot = d / "sys"
+        sysroot.mkdir(parents=True)
+        for rel, content in tree.items():
+            p = sysroot / rel
+            if content is None:
+                p.mkdir(parents=True, exist_ok=True)
+            else:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(content)
+        pc = d / "proc_cgroup"
+        if proc_lines is not None:
+            pc.write_text("".join(l + "\n" for l in proc_lines))
+        mi = d / "meminfo"
+        mi.write_text(f"MemTotal:       {MT_KB} kB\nMemFree:        1 kB\n")
+        s = (body.replace("/proc/self/cgroup", str(pc))
+                 .replace("/sys/fs/cgroup", str(sysroot))
+                 .replace("/proc/meminfo", str(mi)))
+        sh = d / "probe.sh"
+        sh.write_text(s + "\n")
+        r = _sp.run(["/bin/sh", str(sh)], capture_output=True, text=True, timeout=30)
+        return r.stdout.strip("\n").split("\t"), r
+
+    CTRL = "cpuset cpu io memory pids"
+    # ① v2 유한 — 리프 max · job 64 GiB → finite 64 GiB, 근거 = job 파일
+    f, r = run(["0::/job_1/step_0"], {"cgroup.controllers": CTRL, "job_1/memory.max": str(64 * GiB),
+                                     "job_1/step_0/memory.max": "max"}, "v2fin")
+    chk(len(f) == 5 and f[3] == "finite" and f[1] == str(64 * GiB) and f[4].endswith("job_1/memory.max")
+        and f[2] == str(MT_KB * 1024) and r.returncode == 0,
+        f"★ v39 P1 프로브: v2 계층(리프 max · job 64 GiB) → finite 64 GiB · 근거 파일 기록 · 5필드 ({f[3]})")
+    # ② v2 검증된 무제한 — 리프·job 둘 다 max (루트에는 memory.max 없음)
+    f, _ = run(["0::/job_1/step_0"], {"cgroup.controllers": CTRL, "job_1/memory.max": "max",
+                                     "job_1/step_0/memory.max": "max"}, "v2unl")
+    chk(f[3] == "unlimited" and f[1] == "max" and f[4].startswith("all-readable-levels-max:2"),
+        f"★ v39 P1 프로브: 제한 파일을 **실제로 읽었고** 전부 max → unlimited (읽은 계층 2) ({f[4]})")
+    # ③ ⛔음성 — 경로가 이 마운트에 없다 (namespace 불일치 흉내) → unobserved
+    f, _ = run(["0::/job_9/step_0"], {"cgroup.controllers": CTRL}, "v2miss")
+    chk(f[3] == "unobserved" and f[1] == "none" and f[4].startswith("cgroup-path-not-mounted:"),
+        f"⛔음성 v39 P1 프로브: cgroup 경로가 마운트에 없으면 **unobserved** (none ≠ max) ({f[4]})")
+    # ④ ⛔음성 — /proc/self/cgroup 자체가 없다
+    f, _ = run(None, {"cgroup.controllers": CTRL}, "noproc")
+    chk(f[3] == "unobserved" and f[4] == "no-proc-self-cgroup",
+        "⛔음성 v39 P1 프로브: /proc/self/cgroup 이 없으면 unobserved")
+    # ⑤ v2 루트 · memory 컨트롤러 보임 → unlimited (루트에는 memory.max 가 없다 — 커널 규약)
+    f, _ = run(["0::/"], {"cgroup.controllers": CTRL}, "v2root")
+    chk(f[3] == "unlimited" and f[4].startswith("root-cgroup-v2"),
+        f"★ v39 P1 프로브: 루트 cgroup 인데 memory 컨트롤러가 보이면 unlimited ({f[4]})")
+    # ⑥ ⛔음성 — 루트인데 memory 컨트롤러가 안 보인다 (namespace 루트 · 부모가 memory 를 위임하지 않음)
+    f, _ = run(["0::/"], {"cgroup.controllers": "cpu pids"}, "v2rootnomem")
+    chk(f[3] == "unobserved" and f[4].startswith("memory-controller-not-visible-at-root"),
+        f"⛔음성 v39 P1 프로브: 루트인데 memory 컨트롤러가 안 보이면 unobserved (밖의 제한을 못 본다) ({f[4]})")
+    # ⑦ v1 유한 — 리프 128 GiB · 루트 센티널
+    f, _ = run(["4:memory:/slurm/job_2"], {"memory/slurm/job_2/memory.limit_in_bytes": str(128 * GiB),
+                                          "memory/memory.limit_in_bytes": "9223372036854771712"}, "v1fin")
+    chk(f[3] == "finite" and f[1] == str(128 * GiB) and f[4].endswith("job_2/memory.limit_in_bytes"),
+        "★ v39 P1 프로브: v1 계층 리프 128 GiB → finite (루트 센티널은 무제한으로 읽고 무시)")
+    # ⑧ v1 센티널만 → unlimited
+    f, _ = run(["4:memory:/slurm/job_2"], {"memory/slurm/job_2/memory.limit_in_bytes": "9223372036854771712",
+                                          "memory/memory.limit_in_bytes": "9223372036854771712"}, "v1unl")
+    chk(f[3] == "unlimited" and f[4] == "all-readable-levels-max:2",
+        "★ v39 P1 프로브: v1 센티널(2^63−4096)만 → unlimited (읽었다는 사실이 근거)")
+    # ⑨ ⛔음성 — memory 계층 줄이 없다 (cpu 만)
+    f, _ = run(["3:cpu:/"], {"cgroup.controllers": CTRL}, "nomemhier")
+    chk(f[3] == "unobserved" and f[4] == "no-memory-hierarchy-in-proc-self-cgroup",
+        "⛔음성 v39 P1 프로브: /proc/self/cgroup 에 memory 계층 줄이 없으면 unobserved")
+    # ⑩ hybrid — v1 센티널 + `0::/` (v2 루트에 컨트롤러 파일 없음) → v1 을 읽었으니 unlimited
+    f, _ = run(["4:memory:/", "0::/"], {"memory/memory.limit_in_bytes": "9223372036854771712"}, "hybrid")
+    chk(f[3] == "unlimited" and f[4].startswith("all-readable-levels-max"),
+        "★ v39 P1 프로브: hybrid(v1 memory + v2 unified) 에서 v2 루트 검사가 헛돌아도 v1 읽기가 판정을 정한다")
+    # ⑪ 리프에 memory.max 없음(컨트롤러 미활성) · 부모 유한 → 부모 값으로 finite
+    f, _ = run(["0::/job_3/step_0/task_0"], {"cgroup.controllers": CTRL, "job_3/memory.max": str(32 * GiB),
+                                            "job_3/step_0/task_0": None}, "v2parent")
+    chk(f[3] == "finite" and f[1] == str(32 * GiB) and f[4].endswith("job_3/memory.max"),
+        "★ v39 P1 프로브: 리프에 memory.max 가 없어도(컨트롤러 미활성) 부모의 유한 제한을 찾는다")
+    # ⑫ ⛔음성 — 구판 3필드 형식이 아니다 (판정기는 3필드 none 을 미관측으로 읽는다)
+    chk(all(len(run(pl, tr, "fmt%d" % i)[0]) == 5 for i, (pl, tr) in enumerate(
+            ((["0::/"], {"cgroup.controllers": CTRL}), (None, {})))),
+        "v39 P1 프로브: 어느 경로에서도 5필드로 낸다 (구판 3필드 'none' 은 폐기)")
 
 
 def _runner_launcher_regression(out: Path, chk) -> None:
@@ -18545,6 +18749,21 @@ def selftest() -> int:
             "⛔음성 v38 P1-2: wrapper 는 run_staged·run_job **둘 다** 거부한다 (서로소 자원 유지 계약 검증 불가)")
         chk("SLURM_MEM_PER_CPU" in _rs and 'float(v) > 0' in _rs and "--mem=0" in _rs,
             "v38 P2: SLURM_MEM_PER_NODE=0 은 '전부' 로 읽어 미관측 취급 · MEM_PER_CPU×CPUS 도 본다")
+        # ── 2026-09-08 Codex v39 P1 — 유한 / 검증된 무제한 / 미관측 을 가르고 미관측은 멈춘다 ──
+        _pn = _rs[_rs.index("<<'PN'"):_rs.index("\nPN\n")]
+        chk(all(t in _pn for t in ("state=finite", "state=unlimited", "state=unobserved",
+                                   "cgroup-path-not-mounted", "cgroup.controllers", "no-proc-self-cgroup"))
+            and _pn.count("unobserved") >= 4,
+            "★ v39 P1: 프로브 스크립트가 제한을 **finite / unlimited / unobserved** 세 상태로 내고 사유를 붙인다")
+        _pp = _rs[_rs.index("<<'PYPROBE'"):_rs.index("\nPYPROBE\n")]
+        chk("legacy-probe-format(none)" in _pp and '"unobserved"' in _pp
+            and "물리 RAM 으로 대체하지 않고 멈춘다" in _pp and "MEMG_SCHED_GB" in _pp,
+            "⛔음성 v39 P1: 판정기는 못 읽은 노드(구판 'none' 포함)를 **미관측 → 정지** 로 다루고, "
+            "무제한(검증)은 min(스케줄러 할당, MemTotal) 로 판정한다")
+        chk("MEMG_SCHED_GB" in _rs[_rs.index("<<'PYMEM'"):_rs.index("\nPYMEM\n")]
+            and "export VASP_NODES VASP_RANKS_PER_NODE MEMG_NEED_GB MEMG_FRAC MEMG_LOCAL_GB MEMG_SCHED_GB" in _rs,
+            "v39 P1: 러너 호스트의 SLURM 할당 관측을 MEMG_SCHED_GB 로 프로브 판정기에 넘긴다")
+        _probe_script_regression(_rs, chk)
         # ⚠ 회신 BB P1 — census 본문이 러너에서 `census.py` 로 빠졌다. 검사도
         #   실물이 있는 곳을 봐야 한다 (러너에는 **호출**이 남는다).
         # ⚠ `RECHECK_SEAL=1 python3 census.py …` 도 앞 문자열을 **포함**한다 —
@@ -21313,6 +21532,41 @@ def _runner_e2e(bundle: Path, chk) -> bool:
     _rcM, _oM, _dM = _probe_case2("lowmem", {"STUB_NODE_MEM_GB": "1"})
     chk(_rcM == 2 and "배치 프로브 실패" in _oM and "노드당 필요" in _oM and "> 가용" in _oM,
         f"⛔음성 v38 P1-2: 실행 노드 MemTotal 1 GiB 이면 호스트·랭크가 맞아도 **첫 VASP 전에 멈춘다** (rc={_rcM})")
+    # ── 2026-09-08 Codex v39 P1 — 제한 상태 3종을 e2e 로 (스텁이 실행 노드의 프로브 출력을 흉내낸다) ──
+    def _nm(pj):
+        return [v for p in pj.get("probes", []) for v in (p.get("node_mem") or {}).values()]
+    _rcU, _oU, _dU = _probe_case2("unobs", {"STUB_NODE_LIMIT": "unobserved"})
+    _pU = json.loads((_dU / "PLACEMENT_PROBE.json").read_text()) if (_dU / "PLACEMENT_PROBE.json").is_file() else {}
+    chk(_rcU == 2 and "배치 프로브 실패" in _oU and "미관측" in _oU and "물리 RAM 으로 대체하지 않고 멈춘다" in _oU,
+        f"⛔음성 v39 P1: 실행 노드의 cgroup 제한을 **못 읽으면**(경로 미마운트) 물리 RAM 이 넉넉해도 첫 VASP 전에 멈춘다 (rc={_rcU})")
+    chk(_pU.get("all_ok") is False and _nm(_pU) and all(v["state"] == "unobserved" and "cgroup-path-not-mounted" in v["basis"] for v in _nm(_pU)),
+        "v39 P1: 미관측 노드의 상태·사유가 PLACEMENT_PROBE.json 에 노드별로 남는다")
+    _rcL, _oL, _dL2 = _probe_case2("legacy", {"STUB_NODE_LIMIT": "legacy"})
+    chk(_rcL == 2 and "미관측" in _oL and "legacy-probe-format" in _oL,
+        f"⛔음성 v39 P1: 구판 3필드 'none' 출력은 **무제한이 아니라 미관측**으로 읽어 멈춘다 (v39 까지는 통과시켰다) (rc={_rcL})")
+    # ⚠ 이 e2e 는 PP 를 주지 않으므로 프로브를 **통과해도** 뒤의 `PP=${PP:?}` 에서 rc 2 로 끝난다 —
+    #   양성 판정은 rc 가 아니라 "배치 프로브 … 통과" 문구와 PLACEMENT_PROBE.json 으로 본다 (위 `_probe_case("ok")` 와 같은 규약).
+    #   음성의 유한 제한은 1 GiB — 이 픽스처의 노드당 필요량(lowmem 시험이 1 GiB 에서 멈추는 것으로 확인)보다 확실히 작게.
+    _rcF, _oF, _dF = _probe_case2("finsmall", {"STUB_NODE_LIMIT": "finite:1"})
+    chk(_rcF == 2 and "배치 프로브 실패" in _oF and "노드당 필요" in _oF and "> 가용 1.0×0.85" in _oF
+        and (_dF / "PLACEMENT_PROBE.json").is_file()
+        and all(v["state"] == "finite" and v["limit_GiB"] == 1.0 for v in _nm(json.loads((_dF / "PLACEMENT_PROBE.json").read_text()))),
+        f"⛔음성 v39 P1: 유한 제한 1 GiB (MemTotal 은 넉넉) → **제한값**으로 판정해 첫 VASP 전에 멈춘다 (rc={_rcF})")
+    _rcG, _oG, _dG = _probe_case2("finbig", {"STUB_NODE_LIMIT": "finite:64"})
+    _pG = json.loads((_dG / "PLACEMENT_PROBE.json").read_text()) if (_dG / "PLACEMENT_PROBE.json").is_file() else {}
+    chk("배치 프로브 1 개 동시 통과" in _oG and _pG.get("all_ok") is True and _nm(_pG)
+        and all(v["state"] == "finite" and v["limit_GiB"] == 64.0 and "cgroup 유한 제한" in v["basis"] for v in _nm(_pG))
+        and "제한 상태 {'finite'" in _oG,
+        "★ v39 P1 양성: 유한 64 GiB → 프로브 통과하고 노드마다 state=finite · limit · 근거를 기록한다")
+    _rcS, _oS, _dS = _probe_case2("unlim_sched", {"STUB_NODE_LIMIT": "unlimited", "SLURM_MEM_PER_NODE": "16384"})
+    _pS = json.loads((_dS / "PLACEMENT_PROBE.json").read_text()) if (_dS / "PLACEMENT_PROBE.json").is_file() else {}
+    chk("배치 프로브 1 개 동시 통과" in _oS and _pS.get("all_ok") is True and _pS.get("scheduler_alloc_GiB_runner") == 16.0 and _nm(_pS)
+        and all(v["state"] == "unlimited" and "스케줄러 할당 16.0" in v["basis"] for v in _nm(_pS)),
+        "★ v39 P1 양성: 검증된 무제한 + SLURM 할당 16 GiB → 상한 = min(할당, MemTotal) 로 판정하고 근거를 남긴다")
+    _pOK = json.loads((_dP / "PLACEMENT_PROBE.json").read_text())
+    chk(_nm(_pOK) and all(v["state"] == "unlimited" and "스케줄러 할당 미관측" in v["basis"] for v in _nm(_pOK))
+        and _pOK.get("scheduler_alloc_GiB_runner") is None,
+        "v39 P1: 스케줄러 할당을 못 봤으면 근거에 '미관측' 을 적는다 (무제한 노드는 MemTotal 로만 판정)")
     # ⛔음성 v38 P1-1 — 다른 실행이 lock 을 쥔 채 계산 중일 때 중복 호출은 **풀을 건드리지 못한다**
     _dL = base / "lockfirst"
     _sh2.rmtree(_dL, ignore_errors=True); _sh2.copytree(bundle, _dL)

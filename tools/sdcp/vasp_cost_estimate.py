@@ -766,7 +766,7 @@ def _recommend(a, base, man, jobs, nk_cap, kpar_base, cap_h, nelm,
     for c, sp, ceil_max, ok, smk in rows:
         print(f"   {c:4d} 코어/잡 · 속도향상 {sp:4.2f}배 · 천장 {ceil_max:6.1f} h "
               + ("✔ 들어간다" if ok else "⛔ 잘릴 수 있다")
-              + (f" · 동시 {a.concurrent}잡 {smk / 24:5.2f} 일" if smk else ""))
+              + (f" · 동시 {a.concurrent}잡 {smk / 24:5.2f} 일 (LPT 가정 · 참고)" if smk else ""))
     fit = [r for r in rows if r[3]]
     if not fit:
         print(f"   ⛔ 이 격자에서 {cap_h:.0f} h 를 만족하는 코어 수가 없다 — 상을 줄여야 한다")
@@ -778,8 +778,8 @@ def _recommend(a, base, man, jobs, nk_cap, kpar_base, cap_h, nelm,
         print(f"      k-그룹당 랭크 {c // max(1, int(nk_cap)):d} — 기준선 {base_c} 랭크와 "
               "가까울수록 외삽이 짧다")
     if smk:
-        print(f"      동시 {a.concurrent}잡이면 {smk / 24:.2f} 일 (단계·사슬 반영) · "
-              f"총 {c * a.concurrent} 코어")
+        print(f"      동시 {a.concurrent}잡이면 {smk / 24:.2f} 일 (단계·사슬 반영 · **LPT 가정 = 러너 순서 아님 · 참고값**) · "
+              f"총 {c * a.concurrent} 코어 — 계약 숫자는 위 ★(FIFO+장벽) 과 단계 할당 절에서만 가져온다")
     print("   ⚠ 천장은 결정론이지만 **일수는 모형(±2배)** 이다. 둘을 같은 확신으로 쓰지 않는다.")
 
 
@@ -825,6 +825,12 @@ def report_manifest(a, base) -> int:
     n_s2 = len(s2h) + 2 * len(c2)
     s_mk = (staged_makespan(s1h, s2h, a.concurrent, c1, c2)
             if ((s1h or c1) and (s2h or c2)) else None)
+    # ★ 2026-09-08 (Codex v39 P2-2) — 이 CLI 의 표시도 **러너 순서(경로 사전순 FIFO + 물결 장벽)** 로 낸다.
+    #   `staged_makespan`(LPT) 은 러너가 하지 않는 최적화라 4.14 일이 나갔다(생성기는 v39 에서 고쳤는데
+    #   이 CLI 만 남아 있었다). LPT 값은 아래에 '참고 · 러너 순서 아님' 으로만 찍는다.
+    _rows = [(st, (2 if r.endswith("__nzmag") else 1), h, r)          # PARENT_GEOM = canary → 2물결
+             for (r, h, p), st in zip(jobs, stages or [])]
+    _alloc_med = stage_alloc_h(_rows, a.concurrent) if stages else {}
     n_ph = sum(len(p) for _r, _h, p in jobs)
     by_ph: dict = {}
     for _r, _h, p in jobs:
@@ -867,11 +873,13 @@ def report_manifest(a, base) -> int:
     # 🔴 2026-09-03 — staged 번들의 **진짜** 벽시계. 1단계가 다 끝나고 게이트를 통과해야
     #   2단계가 열린다. 종전엔 이 줄이 없어 문서·MANIFEST 가 절반 값을 실었다.
     if s_mk is not None:
-        print(f"  ★ 추정      {s_mk / 24:.2f} 일  (**단계 반영** · 1단계 {n_s1}잡 → 게이트 "
-              f"→ 2단계 {n_s2}잡 · 동시 {a.concurrent}잡)")
-        print(f"     1단계 {schedule_makespan(s1h, a.concurrent) / 24:.2f} 일 "
-              f"(최장 {max(s1h):.0f} h) + 2단계 "
-              f"{schedule_makespan(s2h, a.concurrent) / 24:.2f} 일 (최장 {max(s2h):.0f} h)")
+        _f1, _f2 = _alloc_med.get(1, 0.0), _alloc_med.get(2, 0.0)
+        print(f"  ★ 추정      {(_f1 + _f2) / 24:.2f} 일  (**단계 반영 · 러너 순서 = 경로 사전순 FIFO + 물결 장벽** · "
+              f"1단계 {n_s1}잡 → 게이트 → 2단계 {n_s2}잡 · 동시 {a.concurrent}잡)")
+        print(f"     1단계 {_f1 / 24:.2f} 일 ({_f1:.1f} h · 최장 잡 {max(s1h):.0f} h) + "
+              f"2단계 {_f2 / 24:.2f} 일 ({_f2:.1f} h · 최장 잡 {max(s2h):.0f} h)")
+        print(f"     참고 (러너 순서 아님 · 계약에 쓰지 않는다): LPT 가정 {s_mk / 24:.2f} 일 — "
+              f"러너는 긴 잡 우선 정렬을 하지 않으므로 이 값은 낙관이다")
         print(f"     ⛔ 여기에 **사람의 게이트 판정 왕복**(반송→분석→2단계 지시)은 "
               f"안 들어 있다 — 그건 계산 시간이 아니다")
         print(f"     ⛔ 직렬 하한 {(max(s1h) + max(s2h)) / 24:.2f} 일 — 동시 실행을 "
@@ -880,9 +888,9 @@ def report_manifest(a, base) -> int:
     print("  동시 실행별:")
     for m in (4, 8, 12, 20, 40):
         _one = schedule_makespan(hs, m)
-        _stg = staged_makespan(s1h, s2h, m) if s_mk is not None else None
-        print(f"     {m:3d}잡 → 한물결 {_one / 24:5.2f} 일"
-              + (f" · 단계반영 {_stg / 24:5.2f} 일" if _stg is not None else "")
+        _stg = sum(stage_alloc_h(_rows, m).values()) if s_mk is not None else None   # FIFO+장벽 (러너 순서)
+        print(f"     {m:3d}잡 → 한물결(LPT·참고) {_one / 24:5.2f} 일"
+              + (f" · 단계반영(FIFO+장벽) {_stg / 24:5.2f} 일" if _stg is not None else "")
               + ("   (여기부터는 가장 긴 잡이 지배)"
                  if (_stg if _stg is not None else _one)
                  <= ((max(s1h) + max(s2h)) if s_mk is not None else max(hs)) * 1.001 else ""))
@@ -923,13 +931,9 @@ def report_manifest(a, base) -> int:
     #   ★ 러너의 실제 순서(경로 사전순 FIFO + 물결 장벽)로 센다 — LPT 아님.
     if s_mk is not None:
         _f = {ph: (ceiling_factor(ph) or 1.0) for ph in ESTEP}
-        _rows = []
-        for (r, h, p), st in zip(jobs, stages or []):
-            _w = 2 if r.endswith("__nzmag") else 1          # PARENT_GEOM = canary
-            _rows.append((st, _w, h, r))
         _rows_c = [(st, w, sum(v * _f.get(ph, 1.0) for ph, v in p.items()), r)
                    for (r, h, p), (st, w, _h, _r) in zip(jobs, _rows)]
-        _med = stage_alloc_h(_rows, a.concurrent)
+        _med = _alloc_med
         _nel = stage_alloc_h(_rows_c, a.concurrent)
         _m1, _m2 = _med.get(1, 0.0), _med.get(2, 0.0)
         _n1, _n2 = _nel.get(1, 0.0), _nel.get(2, 0.0)
@@ -964,7 +968,7 @@ def report_manifest(a, base) -> int:
                            base["cores"], a.target_days, nk=_nk_cap,
                            stages=stages if s_mk is not None else None)
         if s_mk is not None:
-            print("   (단계 게이트 반영 · 사람의 판정 왕복은 별도)")
+            print("   (단계 게이트 반영 · **LPT 가정(러너 순서 아님) → 계획 참고값** · 사람의 판정 왕복은 별도)")
         if not sol:
             print(f"   ⛔ 없다 — 이 상 구성으로는 목표에 못 간다.")
             print(f"      가장 긴 잡을 줄여야 한다 (상 제거 · k 축소 · 잡 분할).")
