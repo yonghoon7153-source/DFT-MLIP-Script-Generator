@@ -39,7 +39,7 @@ evidenceScope: multi-source-primary
 
 Density functional theory was used to identify what carries the charge in the oxidized,
 deprotonated chain. A hydrogen atom was removed from the sulfonic acid group of gas-phase oligomers
-of two, three, and six repeat units. The resulting doublets were optimized at the r²SCAN-3c level
+of two, three, and six repeat units (Figure S3). The resulting doublets were optimized at the r²SCAN-3c level
 (Supplementary Note 2). The oxidized state is imposed by this construction; that it is realized in
 the material follows from the infrared spectra above. Löwdin spin populations show the unpaired spin
 migrating from the sulfonate onto the conjugated backbone as the chain grows. The backbone share
@@ -81,6 +81,13 @@ inter-chain transfer. The measured electronic conductivity is given in Section X
 
 ⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Figure S4 캡션에 반드시 넣는다.**
 빠지면 7월 값과 다른 분할(strict 79.5 · extended 91.6)이 같은 그림에 섞여 읽힌다.
+
+**Figure S3 캡션 (구조)** — *Optimized structures of the oxidized (deprotonated) oligomers: two
+repeat units, three repeat units oxidized at a terminal and at the internal ring, and six repeat
+units. The sulfonate from which the hydrogen was removed is indicated in each structure. Boxes are
+for display only; the calculations were performed on isolated molecules without periodic boundary
+conditions.*
+⚠ 마지막 문장 필수 — `.vasp`/`.vesta` 에 보기용 상자가 들어 있어 주기 계산으로 오해될 수 있다.
 
 ## Supplementary Note 2 (초안)
 
