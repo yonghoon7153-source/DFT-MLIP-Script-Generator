@@ -74,6 +74,69 @@ def test_the_startup_probe_binds_what_sitecustomize_pulls_in(tmp_path):
         "그 바이트가 재생이 올리는 코드인데 증거 밖이다 (M14)")
 
 
+def test_a_module_with_no_findable_spec_is_still_bound(tmp_path):
+    """★ M14 — `startup_modules` **만이** 잡는 자리.
+
+    60차 마감의 전수 재생이 위 시험을 이렇게 드러냈다: `startup_modules` 를
+    통째로 지워도 **안 빨개진다.** P1-3·P1-4 가 더한 두 층(`startup_history`
+    로 import 이력, `importable_roots` 로 `PYTHONPATH` 자리의 바이트)이 같은
+    반례를 이미 덮기 때문이다. 층이 셋인 것은 좋지만, 그러면 위 시험은
+    `startup_modules` 의 **증인이 아니게 된다** — 그 필드를 지워도 아무 시험도
+    안 빨개지면 그 필드는 "있는 척" 이다.
+
+    그래서 세 층이 **갈라지는** 자리를 겨눈다: `sitecustomize` 가
+    `spec_from_file_location` 으로 `PYTHONPATH` **밖**의 파일을 올리고
+    `sys.modules` 에 이름을 심는다.
+
+      · `importable_roots` — 그 파일은 `PYTHONPATH` 자리에 없다 → 못 본다.
+      · `startup_history` — importtime 로그에 이름은 남지만
+        `find_spec("_hidden")` 이 그 이름을 못 푼다 → 건너뛴다.
+      · `startup_modules` — `sys.modules["_hidden"].__file__` 을 **직접**
+        해시한다 → 이것만 본다.
+
+    이것은 흉내가 아니라 실제로 남는 구멍이다 (경로로 올린 module 은 이름으로
+    다시 찾을 수 없다). 그래서 이 시험은 장식이 아니라 증거다.
+    """
+    mr = _mr()
+
+    hidden_dir = tmp_path / "elsewhere"
+    hidden_dir.mkdir()
+    hidden = hidden_dir / "hidden_payload.py"
+
+    site = tmp_path / "sitedir"
+    site.mkdir()
+    (site / "sitecustomize.py").write_text(textwrap.dedent(f'''
+        import sys
+        from importlib import util as _u
+        _s = _u.spec_from_file_location("_hidden", {str(hidden)!r})
+        _m = _u.module_from_spec(_s)
+        _s.loader.exec_module(_m)
+        sys.modules["_hidden"] = _m          # 이름으로는 찾을 수 없다
+    '''), encoding="utf-8")
+
+    def _facts() -> dict:
+        src = mr._ENV_PROBE_BODY + (
+            "\nimport json\n"
+            f"print(json.dumps(_env_facts({mr._probe_names()!r}), "
+            "sort_keys=True, ensure_ascii=False))\n")
+        env = dict(mr.replay_env())
+        env["PYTHONPATH"] = str(site)
+        r = subprocess.run([sys.executable, "-c", src], env=env,
+                           capture_output=True, text=True, timeout=300)
+        assert r.returncode == 0, r.stderr[-800:]
+        return json.loads(r.stdout.strip().splitlines()[-1])
+
+    hidden.write_text("VALUE = 'ALPHA'\n", encoding="utf-8")
+    a = _facts()
+    hidden.write_text("VALUE = 'OMEGA'\n", encoding="utf-8")
+    b = _facts()
+
+    assert a != b, (
+        "경로로 올려 `sys.modules` 에 심은 module 의 바이트를 바꿨는데 시작 "
+        "증언이 그대로다 — 이름으로 못 찾는 module 은 이력도 PYTHONPATH 도 "
+        "못 보고, 올린 것을 직접 재는 층만 본다 (M14)")
+
+
 # ── M15 ───────────────────────────────────────────────────────────────────
 def test_the_environment_tag_covers_the_whole_receipt():
     """★ M15 — 증언은 영수증 **전체**를 덮어야 한다.

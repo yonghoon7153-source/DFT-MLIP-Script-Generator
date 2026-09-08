@@ -290,3 +290,45 @@ pytest tests/test_docs_lint.py -q                 → 356 passed (18분 17초)
 전수 재생은 이 수정으로 **또 1조각부터** 다시 돈다 (`tests/`·`mutation_replay.py`
 는 `_tested_tree_digest()` 안이다). RUN_SCOPE 는 안 건드렸으므로 판정 대상
 커밋 `c4e71004` 와 `source_digest d29650980daf6b9a` 는 그대로다.
+
+### 전수 재생이 잡은 셋째 — **같은 형태가 한 번 더** (9조각)
+
+```
+startup-binds-every-loaded-module-g59: 변이 rc 가 1(시험 실패)이 아니다 (0)
+  … 안 빨개짐 ['tests/test_evidence_layer_59.py::
+                test_the_startup_probe_binds_what_sitecustomize_pulls_in']
+```
+
+59차 M14 의 `startup_modules` 를 통째로 지워도 그 시험이 안 빨개진다. 60차
+P1-3(`startup_history`)·P1-4(`importable_roots`)가 같은 반례를 이미 덮기
+때문이다. 층이 셋인 것은 좋지만, **그 필드를 지워도 아무 시험도 안 빨개지면
+그 필드는 "있는 척"** 이다.
+
+세 층이 갈라지는 자리를 겨눈다: `sitecustomize` 가 `spec_from_file_location`
+으로 `PYTHONPATH` **밖**의 파일을 올리고 `sys.modules` 에 이름을 심는다.
+
+| 층 | 이 경우를 보는가 |
+|---|---|
+| `importable_roots` (P1-4) | ✗ — 그 파일은 `PYTHONPATH` 자리에 없다 |
+| `startup_history` (P1-3) | ✗ — importtime 에 이름은 남지만 `find_spec` 이 못 푼다 |
+| `startup_modules` (M14) | ✓ — `sys.modules[…].__file__` 을 직접 해시한다 |
+
+흉내가 아니라 실제로 남는 구멍이다 (경로로 올린 module 은 이름으로 다시 찾을
+수 없다). 그래서 이 시험은 장식이 아니라 증거다.
+
+측정 (방금 실행):
+```
+pytest tests/test_evidence_layer_59.py tests/test_import_time_slice_59.py \
+       tests/test_import_closure_60.py -q            → 25 passed
+mutation_replay.py -k startup-binds-every-loaded-module --emit-expect
+    → 새 시험이 빨개지고 옛 시험은 안 빨개짐 (관측값 그대로 반영)
+mutation_replay.py -k startup-binds-every-loaded-module → 물었다 · ran 1
+mutation_replay.py --check-preimages                   → 모든 변이 지점이 정확히 한 번
+```
+
+**이 라운드의 반복 형태로 굳는다**: *방어를 넓히면 그 방어가 다른 시험의 축을
+가린다.* 세 번 났다 — P0-8 이 symlink 시험을, P0-12 가 `Raise` 시험을,
+P1-3·P1-4 가 `startup_modules` 시험을 가렸다. 전수 재생 없이는 셋 다 초록으로
+보였다. **초록은 방어가 살아 있다는 뜻이 아니라 시험이 안 죽었다는 뜻이다.**
+
+12조각 전수 재생은 세 번째로 1조각부터 다시 돈다.

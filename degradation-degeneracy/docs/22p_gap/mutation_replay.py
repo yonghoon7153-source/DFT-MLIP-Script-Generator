@@ -1204,7 +1204,15 @@ MUTANTS = [
     #   (이 파일이 자기 변이 대상이다).
     ("startup-binds-every-loaded-module-g59", MR,                     # M14
      '            \u0022startup_module\u0073\u0022: loaded,\n', "",
-     "the_startup_probe_binds_what_sitecustomize_pulls_in"),
+     # ★ 60차 마감 — node 를 넓혔다. P1-3·P1-4 가 층을 둘 더하면서
+     #   원래 증인(`..._what_sitecustomize_pulls_in`)은 이 필드를 지워도
+     #   **안 빨개진다** — 이력(`startup_history`)과 `PYTHONPATH` 자리의
+     #   바이트(`importable_roots`)가 같은 반례를 덮기 때문이다. 전수 재생
+     #   9조각이 그것을 드러냈다. 세 층이 갈라지는 자리(경로로 올려
+     #   `sys.modules` 에 심은, 이름으로는 못 찾는 module)를 겨누는 시험을
+     #   더해 이 필드의 **고유한** 증인을 되살린다.
+     "the_startup_probe_binds_what_sitecustomize_pulls_in or "
+     "a_module_with_no_findable_spec_is_still_bound"),
     ("env-tag-covers-the-whole-receipt-g59", MR,                      # M15
      "    body = j\u0073on.dumps(e, sort_keys=True, ensure_ascii=False)",
      '    body = json.dumps(e.get("startup"), sort_keys=True, '
@@ -2244,13 +2252,18 @@ EXPECT: dict = {
                 "에 schema 선언 밖의 manifest 가 있다: ['curves_manifest_start.yaml']",
         }
     },
+    # ★ 60차 마감 — 증인이 바뀌었다 (`--emit-expect` 관측값). 원래 증인은
+    #   P1-3(`startup_history`)·P1-4(`importable_roots`)가 같은 반례를 덮게
+    #   되면서 이 필드를 지워도 안 빨개진다. 새 증인은 세 층이 갈라지는
+    #   자리 — 경로로 올려 `sys.modules` 에 심은, 이름으로는 못 찾는 module —
+    #   을 겨눈다.
     "startup-binds-every-loaded-module-g59": {
         "fail": [
-            "tests/test_evidence_layer_59.py::test_the_startup_probe_binds_what_sitecustomize_pulls_in",
+            "tests/test_evidence_layer_59.py::test_a_module_with_no_findable_spec_is_still_bound",
         ],
         "witness": {
-            "tests/test_evidence_layer_59.py::test_the_startup_probe_binds_what_sitecustomize_pulls_in":
-                "AssertionError: `sitecustomize.py` 가 끌어오는 파일을 바꿨는데 시작 증언이 그대로다 — 그 바이트가 재생이 올리는 코드인데 증거 밖이다 (M14)",
+            "tests/test_evidence_layer_59.py::test_a_module_with_no_findable_spec_is_still_bound":
+                "AssertionError: 경로로 올려 `sys.modules` 에 심은 module 의 바이트를 바꿨는데 시작 증언이 그대로다 — 이름으로 못 찾는 module 은 이력도 PYTHONPATH 도 못 보고, 올린 것을 직접 재는 층만 본다 (M14)",
         }
     },
     # ★ 아래 셋은 **지역 실행**으로 쟀다. 전체 재생은 이 셋을 못 잰다 —
