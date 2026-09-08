@@ -22,7 +22,18 @@ set -u
 ROOT=${1:-}
 [ -n "$ROOT" ] || { echo "usage: $0 <스냅샷 디렉터리> [NP=16]"; exit 2; }
 [ -d "$ROOT" ] || { echo "⛔ 디렉터리가 없다: $ROOT"; exit 2; }
-NP=${NP:-16}
+# ⚠ 랭크 수 기본값 = **물리코어**. `nproc` 은 하이퍼스레드를 포함하는데 Open MPI 는
+#   기본적으로 물리코어만 슬롯으로 세어, nproc 을 그대로 주면 "not enough slots" 로
+#   **전 점이 0분 만에 즉사**한다 (2026-09-08 실측: 16 요청 → 20/20 실패).
+#   QE 는 하이퍼스레드에서 거의 안 빨라지므로 물리코어가 성능 면에서도 맞다.
+_phys_cores() {
+  if command -v lscpu >/dev/null 2>&1; then
+    local n; n=$(lscpu -p=Core,Socket 2>/dev/null | grep -v '^#' | sort -u | wc -l)
+    [ "${n:-0}" -gt 0 ] && { echo "$n"; return; }
+  fi
+  getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
+}
+NP=${NP:-$(_phys_cores)}
 PWX=${PWX:-$HOME/apps/qe-7.4.1-cpu/bin/pw.x}
 DRY_RUN=${DRY_RUN:-0}
 
@@ -39,9 +50,14 @@ fi
 # ── 사전점검: 있어야 하는 것이 다 있나 (없으면 **시작하지 않는다**) ──────────
 [ -x "$PWX" ] || { echo "⛔ pw.x 를 못 찾는다: $PWX  (PWX=... 로 지정)"; exit 2; }
 MPI=""
-if command -v mpirun >/dev/null 2>&1; then MPI="mpirun -np $NP"
+# Open MPI 면 --oversubscribe 를 붙인다 (슬롯 계산이 빡빡한 빌드에서 즉사 방지 · gabia 관례).
+_OS=""
+if command -v mpirun >/dev/null 2>&1; then
+  mpirun --version 2>&1 | grep -qi "open mpi" && _OS="--oversubscribe"
+  MPI="mpirun $_OS -np $NP"
 elif command -v mpiexec >/dev/null 2>&1; then MPI="mpiexec -n $NP"
 else echo "[$(ts)] ⚠ mpirun/mpiexec 없음 — 직렬로 돈다 (느리다)"; NP=1; fi
+echo "[$(ts)] 코어: 물리 $(_phys_cores) · 논리 $(getconf _NPROCESSORS_ONLN 2>/dev/null) → 랭크 $NP
 
 mapfile -t INS < <(find "$ROOT" -mindepth 2 -maxdepth 2 -name scf.in | sort)
 [ "${#INS[@]}" -gt 0 ] || { echo "⛔ scf.in 이 없다: $ROOT/*/scf.in"; exit 2; }
@@ -88,6 +104,13 @@ for i in "${INS[@]}"; do
     echo "[$(ts)] ⛔ $n  실패 — $d/scf.out 마지막 줄:"
     tail -3 "$d/scf.out" | sed 's/^/       /'
     fail_n=$((fail_n+1))
+    # ⚠ 첫 점이 **1분 안에** 죽으면 환경 문제다 (MPI 슬롯·유사포텐셜·바이너리).
+    #   같은 실패를 20번 반복해 로그만 채우지 않는다 — 실측 2026-09-08 (20/20 즉사).
+    if [ "$done_n" = 0 ] && [ $((e-s)) -lt 60 ]; then
+      echo "[$(ts)] ⛔ 첫 점이 $((e-s))초 만에 죽었다 — 환경 문제로 보고 **중단**한다."
+      echo "   나머지 $(( ${#INS[@]} - fail_n )) 점은 던지지 않았다. 위 메시지를 먼저 고쳐라."
+      break
+    fi
   fi
 done
 
