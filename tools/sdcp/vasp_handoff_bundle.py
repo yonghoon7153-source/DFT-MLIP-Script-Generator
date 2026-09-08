@@ -1093,8 +1093,10 @@ _launch() {
     # shellcheck disable=SC2086  — _PLACE 는 우리가 만든 고정 토큰이다 (사용자 문자열 아님)
     mpirun|mpiexec|srun) "$LAUNCHER_BIN" $_PLACE "$_np_flag" "$VASP_NPROC" "$VASP_EXE" ;;
     none)                "$VASP_EXE" ;;
-    # ⚠ wrapper 는 현장이 배치를 책임진다 — 우리가 강제하지 못한다 (그 사실을 적는다)
-    wrapper)             "$VASP_WRAPPER" "$VASP_EXE" "$VASP_NPROC" ;;
+    # ⛔ 2026-09-08 (Codex v38 P1-2) — wrapper 는 이 제출 경로에서 제외. 슬롯 점유·반납이 없어
+    #   동시 잡의 자원이 실행 내내 서로소라는 보장을 확인할 수 없다. run_staged 가 먼저 막지만
+    #   여기서도 막는다 (직접 호출 경로).
+    wrapper)             echo "⛔ wrapper 는 이 제출 경로에서 지원하지 않습니다 (v38 P1-2)"; exit 1 ;;
   esac
 }
 [ -f POTCAR ] || { echo "⛔ POTCAR 를 이 폴더에 놓으세요 (POTCAR_SPEC.txt 의 변형)"; exit 1; }
@@ -1490,6 +1492,76 @@ else
 fi
 export VASP_EXE VASP_LAUNCHER_KIND VASP_NPROC LAUNCHER_BIN VASP_WRAPPER
 
+# ⛔⛔ 2026-09-08 (Codex v38 P1-1) — **잠금을 공유 상태보다 먼저 잡는다.**
+#   종전엔 lock 이 PP 검사 뒤(메모리 가드·호스트 풀·프로브 **뒤**)에 있었다. 계산 중 같은
+#   번들을 실수로 다시 부르면, 두 번째 호출이 lock 에서 거부되기 **전에** 기존 _hostpool 을
+#   지우고 다시 만들어 — 점유 중인 조각이 free 로 돌아가고 다음 잡이 계산 중인 잡과 겹칠 수
+#   있었다. ⇒ lock 을 여기(가드·풀·프로브 앞)로 올린다. 가드가 PP 검사보다 앞이어야 한다는
+#   종전 요구는 그대로 지켜진다 (순서: lock → 가드 → 풀 → 프로브 → PP).
+# ⛔⛔ 회신 AR P0-8 · 해제조건 8 — **경쟁조건 없는 host/run-id 잠금**.
+#   종전 구현: `mkdir $LOCK` 뒤에 pid 를 썼다. 그 사이(디렉터리는 있고 pid 는
+#   아직 없는 창)에 다른 프로세스가 이를 stale 로 보고 `rm -rf` 했다.
+#   게다가 다른 HPC 노드의 pid 에는 `kill -0` 이 유효한 생존검사가 아니다.
+#   ⇒ ① 내용을 **먼저** 쓴 임시 파일을 `ln` 으로 원자적으로 링크한다
+#       (하드링크 생성은 대상이 있으면 실패한다 — 내용이 없는 창이 존재하지 않는다)
+#     ② **모르는 lock 은 절대 지우지 않는다.** 같은 호스트의 죽은 pid 일 때만
+#       안내하고, 그래도 자동 삭제하지 않는다 (사람이 지운다).
+# ⛔⛔ 회신 AS 해제조건 6 (2026-08-31) — lock 을 **단계별이 아니라 번들 전역**으로
+#   바꾼다. 종전엔 `.lock_bundle` 과 `.lock_stage2` 가 따로라 1단계와 2단계를
+#   동시에 던지면 둘 다 lock 을 잡았다. 같은 번들 디렉터리에서 동시에 도는 것은
+#   단계가 달라도 안 된다 — POTCAR·봉인·산출물을 공유하기 때문이다.
+LOCK=".lock_bundle"
+RUNID="$(hostname)|$$|stage$stage|$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+LOCKTMP="$LOCK.tmp.$$"
+printf '%s\n' "$RUNID" > "$LOCKTMP" || exit 3
+if ! ln "$LOCKTMP" "$LOCK" 2>/dev/null; then
+  rm -f "$LOCKTMP"
+  own=$(cat "$LOCK" 2>/dev/null || echo "?")
+  own_host=${own%%|*}
+  rest=${own#*|}; own_pid=${rest%%|*}
+  echo "⛔ 단계 $stage 의 lock 이 이미 있습니다: $own"
+  if [ "$own_host" = "$(hostname)" ] && ! kill -0 "$own_pid" 2>/dev/null; then
+    echo "   같은 호스트의 pid $own_pid 는 살아 있지 않습니다."
+    echo "   그래도 **자동으로 지우지 않습니다** — 다른 노드의 실행일 수 있습니다."
+    echo "   확실하면 손으로: rm -f $LOCK"
+  else
+    echo "   다른 호스트/살아 있는 프로세스입니다. 끝날 때까지 기다리세요."
+  fi
+  exit 3
+fi
+rm -f "$LOCKTMP"
+# 우리 것일 때만 지운다 (남의 lock 을 치우지 않는다)
+# ⛔ 2026-09-08 (Codex v38 P1-1) — 잠금 **소유자만** 이 실행의 공유 상태를 만들고 정리한다.
+#   증거(PLACEMENT_PROBE.json)와 규칙 파일(_place_flags.sh)은 남기고, 실행 중에만 뜻이 있는
+#   호스트 풀·프로브 출력·가드 env 는 소유자가 나갈 때 치운다. 남의 lock 이면 손대지 않는다.
+_unlock() {
+  if [ "$(cat "$LOCK" 2>/dev/null)" = "$RUNID" ]; then
+    rm -rf _hostpool; rm -f ._memguard.env _hosts_all.txt _probe_*.out
+    rm -f "$LOCK"
+  fi
+  return 0
+}
+# 🔴🔴 회신 AT P0-5 — 종전 trap 은 INT/TERM 에서 **lock 만 지우고 러너는 계속
+#   돌았다.** bash 는 핸들러를 돌린 뒤 하던 일을 이어간다. 그 사이 lock 이 비므로
+#   다른 실행이 같은 번들에 들어올 수 있었다 — 잠금이 있으나 마나였다.
+#   ⇒ 신호를 받으면 **자식을 죽이고 정말로 나간다.**
+_bail() {
+  echo ""
+  echo "⛔ 신호를 받았습니다 ($1) — 자식 프로세스를 정리하고 중단합니다."
+  trap - EXIT INT TERM
+  # ⛔ 회신 BA P1 — **unlock 을 먼저** 한다. 종전엔 `kill -TERM 0` 이 앞서서
+  #   호출자 process group 까지 종료시키고 lock 을 남길 수 있었다 (stale lock).
+  _unlock
+  kill -TERM 0 2>/dev/null || true      # 이 프로세스 그룹 전체
+  exit "$2"
+}
+trap '_unlock' EXIT
+trap '_bail INT 130' INT
+trap '_bail TERM 143' TERM
+# 🔴 회신 AV P0-2 — run_job.sh 는 이 토큰 없이는 거부한다 (직접 호출 차단).
+#   토큰 = lock 파일 내용. lock 을 쥔 실행만이 값을 알고, 값이 곧 소유 증명이다.
+export RUNNER_TOKEN="$RUNID"
+
 # ── 동시 실행 잡 수. **메모리 사전검사가 먼저 써야 해서 여기서 정합니다.** ──────
 #   (아래 물결 실행이 같은 $NPAR 을 씁니다 — 두 곳에 복사하지 않습니다.)
 NPAR=${JOBS_PARALLEL:-$(python3 -c '
@@ -1538,9 +1610,15 @@ nproc = max(1, int(os.environ.get("MEMG_NPROC", "1")))
 #   64 GB 만 배정된 상태에서 NODE_MEM_GB=188 을 주면 **그대로 통과**했다.
 #   ⇒ 관측 가능한 상한을 모두 모아 **가장 작은 것**을 쓰고, 선언이 그보다 크면 거부한다.
 obs = []
+# ⚠ 2026-09-08 (Codex v38 P2) — Slurm 의 `--mem=0` 은 "노드 전체 메모리" 다. 0 을 0 GiB 로
+#   읽으면 정상 할당을 거부하거나 0 으로 나눈다. 0 은 **미관측**으로 취급한다.
 try:
     v = os.environ.get("SLURM_MEM_PER_NODE")
-    if v: obs.append((float(v) / 1024.0, "SLURM_MEM_PER_NODE"))
+    if v and float(v) > 0:
+        obs.append((float(v) / 1024.0, "SLURM_MEM_PER_NODE"))
+    vc = os.environ.get("SLURM_MEM_PER_CPU"); nc = os.environ.get("SLURM_CPUS_ON_NODE")
+    if vc and nc and float(vc) > 0 and int(nc) > 0:
+        obs.append((float(vc) * int(nc) / 1024.0, f"SLURM_MEM_PER_CPU×SLURM_CPUS_ON_NODE ({vc}×{nc})"))
 except ValueError:
     pass
 # ⛔ 2026-09-08 (Codex 재검토 P0-1 c) — 종전엔 cgroup **루트 파일만** 읽었다. 작업이 하위
@@ -1710,10 +1788,13 @@ if not obs_n:
 # 검사한 배치를 **실행에 결박**한다 (P0-1 의 핵심 — 산술만 하고 끝내지 않는다)
 print(f"VASP_NODES={nodes}")
 print(f"VASP_RANKS_PER_NODE={ppn}")
+print(f"MEMG_NEED_GB={need_gb:.3f}")       # 노드당 필요량 — 프로브가 실행 노드마다 다시 판정한다
+print(f"MEMG_FRAC={frac}")
+print(f"MEMG_LOCAL_GB={mem:.3f}")
 PYMEM
   # shellcheck disable=SC1091
   . ./._memguard.env && rm -f ._memguard.env
-  export VASP_NODES VASP_RANKS_PER_NODE
+  export VASP_NODES VASP_RANKS_PER_NODE MEMG_NEED_GB MEMG_FRAC MEMG_LOCAL_GB
   echo "     → 배치 결박: VASP_NODES=$VASP_NODES · VASP_RANKS_PER_NODE=$VASP_RANKS_PER_NODE"
 fi
 
@@ -1774,7 +1855,11 @@ PF
           echo "   → srun 을 쓰시거나, 배치를 고정한 현장 래퍼를 VASP_LAUNCHER_KIND=wrapper 로 주십시오."
           exit 2 ;;
       esac ;;
-    wrapper) VASP_PLACE_MODE=wrapper ;;
+    wrapper)
+      echo "⛔ VASP_LAUNCHER_KIND=wrapper 는 **이 제출 경로에서 지원하지 않습니다** (2026-09-08 Codex v38 P1-2)."
+      echo "   래퍼는 잡별 호스트 조각을 점유·반납하지 않아 동시 잡의 자원이 실행 내내 서로소라는"
+      echo "   보장을 이 러너가 확인할 수 없습니다. srun · Open MPI · MPICH/Intel MPI 중 하나로 주십시오."
+      exit 2 ;;
   esac
   export VASP_PLACE_MODE
   # ── 호스트 풀 (잡별 서로소 조각) ─────────────────────────────────────────
@@ -1802,29 +1887,71 @@ for k in range(npar):
 print(f"  ✔ 호스트 풀: {npar} 조각 × {nodes} 호스트 (출처 {len(hosts)} 호스트)", file=sys.stderr)
 PYPOOL
   fi
+  # ── 노드 프로브 페이로드 — 호스트 이름만이 아니라 **그 노드에 적용된 메모리 제한**을 읽는다 ──
+  #   ⛔ 2026-09-08 (Codex v38 P1-2) — 종전 프로브는 hostname 만 찍어, 러너 호스트(188 GiB)와
+  #   실행 노드(64 GiB)가 다른 hostfile 구성에서 **실행 노드의 제한을 보지 못했다.** 각 랭크가
+  #   자기 노드에서 cgroup 계층(리프→루트)의 최소와 MemTotal 을 읽어 보낸다. POSIX sh 만 쓴다.
+  cat > _probe_node.sh <<'PN'
+#!/bin/sh
+# 출력: <hostname>\t<cgroup 최소 제한 bytes | none>\t<MemTotal bytes>
+h=$(hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || echo unknown)
+mt=$(awk '/^MemTotal:/{print $2*1024; exit}' /proc/meminfo 2>/dev/null); [ -n "$mt" ] || mt=0
+lim=""
+while IFS=: read -r id ctrl path; do
+  root=""; f=""
+  if [ "$id" = "0" ] && [ -z "$ctrl" ]; then root=/sys/fs/cgroup; f=memory.max; fi
+  case ",$ctrl," in *,memory,*) root=/sys/fs/cgroup/memory; f=memory.limit_in_bytes ;; esac
+  [ -n "$root" ] || continue
+  p="$path"
+  while :; do
+    v=$(cat "$root$p/$f" 2>/dev/null)
+    case "$v" in ''|max) ;; *)
+      if [ "$v" -lt 4611686018427387904 ] 2>/dev/null; then
+        if [ -z "$lim" ] || [ "$v" -lt "$lim" ]; then lim=$v; fi
+      fi ;;
+    esac
+    case "$p" in ""|"/") break ;; esac
+    p="${p%/*}"
+  done
+done < /proc/self/cgroup 2>/dev/null
+printf '%s\t%s\t%s\n' "$h" "${lim:-none}" "$mt"
+PN
+  chmod +x _probe_node.sh
   # ── 동시 프로브 ────────────────────────────────────────────────────────
   . ./_place_flags.sh
-  _probe_exe=$(command -v hostname); rm -f _probe_*.out
+  rm -f _probe_*.out
   for _k in $(seq 1 "$_NPROBE"); do
-    if [ "$VASP_PLACE_MODE" = wrapper ]; then
-      ( "$VASP_WRAPPER" "$_probe_exe" "$VASP_NPROC" > "_probe_$_k.out" 2>/dev/null ) &
-    else
-      _sf="$PWD/_hostpool/free/slot_$_k"
-      _pa=$(place_args "$VASP_PLACE_MODE" "$_sf" "$VASP_NODES" "$VASP_RANKS_PER_NODE")
-      # shellcheck disable=SC2086
-      ( "$LAUNCHER_BIN" $_pa "$_np_flag_p" "$VASP_NPROC" "$_probe_exe" > "_probe_$_k.out" 2>/dev/null ) &
-    fi
+    _sf="$PWD/_hostpool/free/slot_$_k"
+    _pa=$(place_args "$VASP_PLACE_MODE" "$_sf" "$VASP_NODES" "$VASP_RANKS_PER_NODE")
+    # shellcheck disable=SC2086
+    ( "$LAUNCHER_BIN" $_pa "$_np_flag_p" "$VASP_NPROC" /bin/sh "$PWD/_probe_node.sh" > "_probe_$_k.out" 2>/dev/null ) &
   done
   wait
   python3 - "$_NPROBE" "$VASP_NODES" "$VASP_RANKS_PER_NODE" "$VASP_PLACE_MODE" "$_HOSTS_SRC" <<'PYPROBE' || exit 2
 import sys, json, collections, os, time
 npr, nodes, ppn, mode, src = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5]
-res, bad, seen_all = [], [], {}
+need_gb = float(os.environ.get("MEMG_NEED_GB") or 0); frac = float(os.environ.get("MEMG_FRAC") or 0.85)
+GiB = 1024.0 ** 3
+res, bad, seen_all, node_mem = [], [], {}, {}
 for k in range(1, npr + 1):
     try:
-        lines = [l.strip() for l in open(f"_probe_{k}.out") if l.strip()]
+        raw = [l.rstrip("\n") for l in open(f"_probe_{k}.out") if l.strip()]
     except OSError:
-        lines = []
+        raw = []
+    # 각 줄: host \t limit|none \t memtotal  (구판 hostname 전용 출력도 첫 필드로 받는다)
+    lines = []
+    for l in raw:
+        f = l.split("\t")
+        lines.append(f[0].strip())
+        if len(f) >= 3:
+            try:
+                lim = None if f[1].strip() in ("none", "") else int(f[1]) / GiB
+                mt = int(f[2]) / GiB if int(f[2]) > 0 else None
+                g = min([x for x in (lim, mt) if x is not None] or [None]) if (lim or mt) else None
+                if g is not None:
+                    node_mem[f[0].strip()] = min(g, node_mem.get(f[0].strip(), g))
+            except ValueError:
+                pass
     cnt = collections.Counter(lines)
     want = None
     if mode != "wrapper":
@@ -1846,12 +1973,29 @@ for k in range(1, npr + 1):
         if h in seen_all:
             why.append(f"프로브 {seen_all[h]} 와 호스트 {h} 겹침 — 동시 잡이 같은 노드를 쓴다")
         seen_all.setdefault(h, k)
+    # ── 노드별 메모리 판정 (Codex v38 P1-2) — 러너 호스트가 아니라 **실행 노드**의 제한으로 본다
+    if need_gb > 0:
+        # 같은 사유는 접는다 — 96 노드가 전부 같은 이유면 96 줄이 아니라 한 줄이어야 읽힌다
+        _nomem, _short = [], {}
+        for h in sorted(cnt):
+            g = node_mem.get(h)
+            if g is None:
+                _nomem.append(h)
+            elif need_gb > g * frac:
+                _short.setdefault(round(g, 1), []).append(h)
+        if _nomem:
+            why.append(f"{len(_nomem)} 노드 메모리 제한을 못 읽었다 (예 {_nomem[:3]})")
+        for g, hs in sorted(_short.items()):
+            why.append(f"{len(hs)} 노드(예 {hs[0]}…{hs[-1]}): 노드당 필요 {need_gb:.1f} GiB > 가용 {g:.1f}×{frac:.2f}={g*frac:.1f} GiB")
+    rec["node_mem_GiB"] = {h: round(node_mem[h], 2) for h in cnt if h in node_mem}
     rec["ok"] = not why; rec["why"] = why
     res.append(rec)
     if why: bad.append((k, why, dict(cnt)))
 json.dump({"schema": "placement_probe/v1", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "mode": mode, "hosts_source": src, "concurrent_probes": npr,
-           "expected": {"nodes_per_job": nodes, "ranks_per_node": ppn},
+           "expected": {"nodes_per_job": nodes, "ranks_per_node": ppn,
+                        "need_GiB_per_node": round(need_gb, 3), "usable_frac": frac},
+           "node_mem_GiB_min": (round(min(node_mem.values()), 2) if node_mem else None),
            "probes": res, "all_ok": not bad,
            "⛔_이_기록이_보증하지_않는_것": "메모리 대역·통신망·NUMA. VASP 자체의 배치도 아니다 — 같은 launcher·같은 플래그로 hostname 을 놓아 본 결과다."},
           open("PLACEMENT_PROBE.json", "w"), ensure_ascii=False, indent=1)
@@ -1862,68 +2006,16 @@ if bad:
         print(f"      관측 rank→host: {cnt}", file=sys.stderr)
     print("   PLACEMENT_PROBE.json 에 전부 기록했습니다. 이 상태로 VASP 를 띄우면 노드가 겹쳐 OOM 납니다.", file=sys.stderr)
     sys.exit(2)
-print(f"  ✔ 배치 프로브 {npr} 개 동시 통과: 각 {nodes} 호스트 × {ppn} 랭크 · 프로브 간 호스트 서로소 · PLACEMENT_PROBE.json", file=sys.stderr)
+print(f"  ✔ 배치 프로브 {npr} 개 동시 통과: 각 {nodes} 호스트 × {ppn} 랭크 · 프로브 간 호스트 서로소"
+      + (f" · 실행 노드 메모리 최소 {min(node_mem.values()):.1f} GiB ≥ 필요 {need_gb:.1f}/{frac:.2f}" if node_mem and need_gb > 0 else "")
+      + " · PLACEMENT_PROBE.json", file=sys.stderr)
 PYPROBE
-  rm -f _probe_*.out
+  rm -f _probe_*.out       # 관측은 PLACEMENT_PROBE.json 에 있다 (실패 시엔 exit 2 로 위에서 끝나 _unlock 이 치운다)
 fi
 
 PP=${PP:?PP 를 지정하세요 (POTCAR 원본 트리)}
 POTCAR_ALLOWLIST=${POTCAR_ALLOWLIST:?POTCAR_ALLOWLIST 를 지정하세요 (절대경로)}
 
-# ⛔⛔ 회신 AR P0-8 · 해제조건 8 — **경쟁조건 없는 host/run-id 잠금**.
-#   종전 구현: `mkdir $LOCK` 뒤에 pid 를 썼다. 그 사이(디렉터리는 있고 pid 는
-#   아직 없는 창)에 다른 프로세스가 이를 stale 로 보고 `rm -rf` 했다.
-#   게다가 다른 HPC 노드의 pid 에는 `kill -0` 이 유효한 생존검사가 아니다.
-#   ⇒ ① 내용을 **먼저** 쓴 임시 파일을 `ln` 으로 원자적으로 링크한다
-#       (하드링크 생성은 대상이 있으면 실패한다 — 내용이 없는 창이 존재하지 않는다)
-#     ② **모르는 lock 은 절대 지우지 않는다.** 같은 호스트의 죽은 pid 일 때만
-#       안내하고, 그래도 자동 삭제하지 않는다 (사람이 지운다).
-# ⛔⛔ 회신 AS 해제조건 6 (2026-08-31) — lock 을 **단계별이 아니라 번들 전역**으로
-#   바꾼다. 종전엔 `.lock_bundle` 과 `.lock_stage2` 가 따로라 1단계와 2단계를
-#   동시에 던지면 둘 다 lock 을 잡았다. 같은 번들 디렉터리에서 동시에 도는 것은
-#   단계가 달라도 안 된다 — POTCAR·봉인·산출물을 공유하기 때문이다.
-LOCK=".lock_bundle"
-RUNID="$(hostname)|$$|stage$stage|$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-LOCKTMP="$LOCK.tmp.$$"
-printf '%s\n' "$RUNID" > "$LOCKTMP" || exit 3
-if ! ln "$LOCKTMP" "$LOCK" 2>/dev/null; then
-  rm -f "$LOCKTMP"
-  own=$(cat "$LOCK" 2>/dev/null || echo "?")
-  own_host=${own%%|*}
-  rest=${own#*|}; own_pid=${rest%%|*}
-  echo "⛔ 단계 $stage 의 lock 이 이미 있습니다: $own"
-  if [ "$own_host" = "$(hostname)" ] && ! kill -0 "$own_pid" 2>/dev/null; then
-    echo "   같은 호스트의 pid $own_pid 는 살아 있지 않습니다."
-    echo "   그래도 **자동으로 지우지 않습니다** — 다른 노드의 실행일 수 있습니다."
-    echo "   확실하면 손으로: rm -f $LOCK"
-  else
-    echo "   다른 호스트/살아 있는 프로세스입니다. 끝날 때까지 기다리세요."
-  fi
-  exit 3
-fi
-rm -f "$LOCKTMP"
-# 우리 것일 때만 지운다 (남의 lock 을 치우지 않는다)
-_unlock() { [ "$(cat "$LOCK" 2>/dev/null)" = "$RUNID" ] && rm -f "$LOCK"; return 0; }
-# 🔴🔴 회신 AT P0-5 — 종전 trap 은 INT/TERM 에서 **lock 만 지우고 러너는 계속
-#   돌았다.** bash 는 핸들러를 돌린 뒤 하던 일을 이어간다. 그 사이 lock 이 비므로
-#   다른 실행이 같은 번들에 들어올 수 있었다 — 잠금이 있으나 마나였다.
-#   ⇒ 신호를 받으면 **자식을 죽이고 정말로 나간다.**
-_bail() {
-  echo ""
-  echo "⛔ 신호를 받았습니다 ($1) — 자식 프로세스를 정리하고 중단합니다."
-  trap - EXIT INT TERM
-  # ⛔ 회신 BA P1 — **unlock 을 먼저** 한다. 종전엔 `kill -TERM 0` 이 앞서서
-  #   호출자 process group 까지 종료시키고 lock 을 남길 수 있었다 (stale lock).
-  _unlock
-  kill -TERM 0 2>/dev/null || true      # 이 프로세스 그룹 전체
-  exit "$2"
-}
-trap '_unlock' EXIT
-trap '_bail INT 130' INT
-trap '_bail TERM 143' TERM
-# 🔴 회신 AV P0-2 — run_job.sh 는 이 토큰 없이는 거부한다 (직접 호출 차단).
-#   토큰 = lock 파일 내용. lock 을 쥔 실행만이 값을 알고, 값이 곧 소유 증명이다.
-export RUNNER_TOKEN="$RUNID"
 
 # ⛔⛔ 회신 AR P0-7 · 해제조건 8 — **실행 전 census.** 종전엔 존재하는 job.json
 #   만 분류하고 디렉터리 수만 비교해서, job.json 하나를 지워도 통과했다.
@@ -14205,8 +14297,9 @@ def _run_env_block(man: Dict[str, Any], a, manifest_sha: str = "<메일 본문�
     #   요구하면 현장은 첫 실행에서 멈춘다 (BH P1-1 과 같은 종류).
     _memblk += (
         "#    ⚠ 위 두 값은 **선언**입니다. 러너는 선언을 믿지 않고 관측과 대조합니다:\n"
-        "#      · 노드 메모리 — SLURM_MEM_PER_NODE · 이 작업에 적용된 cgroup 제한(계층 전부) · /proc/meminfo\n"
-        "#        중 **가장 작은 값**. 선언이 그보다 크면 멈춥니다 (선언으로 메모리를 늘릴 수 없습니다).\n"
+        "#      · 노드 메모리 — 러너 호스트에서 SLURM_MEM_PER_NODE(·MEM_PER_CPU×CPUS) · 이 작업의 cgroup 제한(계층 전부)\n"
+        "#        · /proc/meminfo 중 **가장 작은 값**을 먼저 보고, 배치 프로브가 **실행 노드 전부**에서 같은 값을\n"
+        "#        읽어 노드마다 다시 판정합니다. 어느 노드든 부족하면 멈춥니다. 선언이 관측보다 크면 멈춥니다.\n"
         "#      · 노드 수 — SLURM_JOB_NUM_NODES 또는 아래 VASP_HOSTFILE 의 고유 호스트 수와 대조.\n"
         "#        잡당 노드 × 동시 잡이 할당을 넘으면 멈춥니다.\n"
         "# export VASP_HOSTFILE=/abs/hosts.txt   # SLURM 밖에서 돌리실 때만: 할당 호스트를 한 줄에 하나씩\n"
@@ -14236,7 +14329,7 @@ export EXPECT_ZIP_SHA256=%s
 # ── 실행 방식 ──
 # ⛔ 자유형 launcher 문자열(VASP_CMD·VASP_LAUNCHER)은 **폐지됐습니다** (회신 AV P0-2) —
 #    문자열 검사는 우회가 가능해, 종류와 수만 받고 실행 명령은 러너가 조립합니다.
-export VASP_LAUNCHER_KIND=mpirun            # mpirun|mpiexec|srun|none|wrapper
+export VASP_LAUNCHER_KIND=mpirun            # mpirun|mpiexec|srun  (⛔ wrapper 는 이 제출 경로에서 제외 · none 은 스모크용)
 export LAUNCHER_BIN=/abs/path/to/mpirun     # **필수** — PATH 에서 찾지 않습니다. 없으면 exit 2
 export VASP_NPROC=%d                        # 랭크 수 (잡 하나당) — **KPAR × NCORE = %d 의 배수**여야 합니다
 #    이 묶음의 INCAR 은 KPAR=%d · NCORE=%d 로 고정했습니다. 쓸 수 있는 랭크: %s.
@@ -14884,10 +14977,15 @@ n=$(wc -l < JOBS.txt)
     _mk_d = _cf_s.get("makespan_staged_d") or _cf_s.get("makespan_d") or {}
     _conc_s = int(((man.get("submission") or {}).get("max_concurrency")) or getattr(a, "concurrency", 8) or 8)
     _mk_c = _mk_d.get(str(_conc_s), _mk_d.get(_conc_s))
+    # ⛔ 2026-09-08 (Codex v38 P1-3) — "가장 긴 잡 하나가 임계경로" 는 단계 실행과 맞지 않는다.
+    #   러너는 경로 사전순으로 슬롯을 채우므로 **단계 자체가 임계경로**다.
+    _sa_s = (_cf_s.get("stage_alloc_h") or {}).get("중앙_추정") or {}
     _crit_txt = ("한 잡의 static→dense 임계경로가 그 하한보다 길면 하한에 도달할 수 없습니다."
                  if _n_dn_sub else
-                 ("이 묶음은 static 만이라 가장 긴 잡 하나가 임계경로입니다"
-                  + (" — 동시 %d잡이면 약 %s일." % (_conc_s, _mk_c) if _mk_c is not None else ".")))
+                 ("이 묶음은 static 만이라 잡 안의 상 직렬은 없지만, **단계 전체가 임계경로**입니다 — "
+                  "러너가 경로 사전순으로 빈 슬롯을 채우므로(긴 잡 우선 아님) 가장 긴 잡 하나보다 훨씬 깁니다"
+                  + (": 동시 %d잡에서 1단계 %s h + 2단계 %s h ≈ %s일." % (_conc_s, _sa_s.get("1"), _sa_s.get("2"), _mk_c)
+                     if (_mk_c is not None and _sa_s) else ".")))
     return f"""# 제출 계약 (SUBMIT_CONTRACT)
 
 ## 상 의존성
@@ -17032,10 +17130,14 @@ def build_bundle(a, ledger: Optional[Dict[str, Any]] = None) -> Path:
             #   `_walltime_block` 의 조회가 None 이 되고 **"전체 일정" 문장이 두 문서에서
             #   통째로 사라졌다** (외주처가 총 일정을 못 받는다). 랭크 예시가 192 를
             #   빠뜨렸던 것과 같은 계열이다 — 고정 목록은 자기 설정을 빠뜨린다.
-            "makespan_staged_d": ({str(m): round(CE.staged_makespan(
-                _s1, _s2, m, _c1, _c2) / 24, 2)
+            # ⛔ 2026-09-08 (Codex v38 P1-3) — 전체 일정만 옛 LPT(staged_makespan)에 남아
+            #   4.14 일이 나갔다. 단계 할당과 **같은 계산**(러너 순서 = 사전순 FIFO + 물결 장벽)
+            #   으로 낸다: 동시 4잡 55.6 + 51.5 = 107.1 h = 4.46 일.
+            "makespan_staged_d": ({str(m): round(sum(CE.stage_alloc_h(
+                list(zip(_jst, _jwave, _jh, _jrel)), m).values()) / 24, 2)
                 for m in sorted({2, 4, 6, 8, 12, 20, int(a.concurrency)})}
                 if (1 in _jst and 2 in _jst) else None),
+            "makespan_계산_규칙": "단계별 stage_alloc_h(사전순 FIFO + 물결 장벽)의 합. LPT 아님 (2026-09-08 정정 · 종전 4.14 → 4.46 일).",
             "stage_jobs": {"1": _jst.count(1), "2": _jst.count(2)},
             "stage_longest_h": {
                 "1": round(max([h for h, s in zip(_jh, _jst) if s == 1] or [0]), 1),
@@ -17515,20 +17617,27 @@ done
 ' "ppn=${_ppn:-none} hostfile=${_hf:-none}" >> "$STUB_PLACE_LOG"
 [ "${1:-}" = "-np" ] || [ "${1:-}" = "-n" ] || { echo "FAKE_MPIRUN: -np/-n 이 아니다: ${1:-}"; exit 9; }
 _np="${2:-1}"; shift 2
-case "$(basename "${1:-}")" in
-  hostname)
-    if [ -z "$_hf" ] || [ ! -f "$_hf" ]; then hostname; exit 0; fi
-    mapfile -t _hosts < "$_hf"
-    if [ "${STUB_BAD_PLACEMENT:-0}" = "1" ]; then
-      for _i in $(seq 1 "$_np"); do echo "${_hosts[0]}"; done; exit 0
-    fi
-    _n=0
-    for _h in "${_hosts[@]}"; do
-      [ -n "$_h" ] || continue
-      for _i in $(seq 1 "${_ppn:-1}"); do [ "$_n" -lt "$_np" ] && { echo "$_h"; _n=$((_n+1)); }; done
-    done
-    exit 0 ;;
-esac
+# 프로브 페이로드 (2026-09-08): `/bin/sh <root>/_probe_node.sh` → 각 랭크가 host\tlimit\tmemtotal 을 찍는다.
+#   스텁은 hostfile 대로 **놓인 것처럼** 합성한다. STUB_NODE_MEM_GB 가 있으면 그 값을 실행 노드
+#   MemTotal 로 낸다 (음성 시험: 러너 호스트는 넉넉한데 실행 노드가 작은 경우).
+_is_probe=0
+case "$(basename "${1:-}")" in hostname) _is_probe=1 ;; sh|bash) case "${2:-}" in *_probe_node.sh) _is_probe=1 ;; esac ;; esac
+if [ "$_is_probe" = 1 ]; then
+  _mt_local=$(awk '/^MemTotal:/{print $2*1024; exit}' /proc/meminfo 2>/dev/null); _mt_local=${_mt_local:-0}
+  if [ -n "${STUB_NODE_MEM_GB:-}" ]; then _mt=$(( STUB_NODE_MEM_GB * 1024 * 1024 * 1024 )); else _mt=$_mt_local; fi
+  _line() { printf '%s\t%s\t%s\n' "$1" "none" "$_mt"; }
+  if [ -z "$_hf" ] || [ ! -f "$_hf" ]; then _line "$(hostname)"; exit 0; fi
+  mapfile -t _hosts < "$_hf"
+  if [ "${STUB_BAD_PLACEMENT:-0}" = "1" ]; then
+    for _i in $(seq 1 "$_np"); do _line "${_hosts[0]}"; done; exit 0
+  fi
+  _n=0
+  for _h in "${_hosts[@]}"; do
+    [ -n "$_h" ] || continue
+    for _i in $(seq 1 "${_ppn:-1}"); do [ "$_n" -lt "$_np" ] && { _line "$_h"; _n=$((_n+1)); }; done
+  done
+  exit 0
+fi
 exec "$@"
 """
 
@@ -18373,6 +18482,8 @@ def selftest() -> int:
             "⛔음성: NPAR 계산이 러너에 **한 번만** 있다 (가드가 쓰려고 앞으로 옮겼는데 "
             "뒤 사본을 안 지우면 두 곳이 갈린다)")
         _mg_at = _rs.find("메모리 사전검사")
+        # ⚠ 가드 파이썬 블록이 길어졌다(cgroup 계층·노드 관측) — 고정 폭 대신 heredoc 끝(PYMEM)까지 본다
+        _mg = _rs[_mg_at:_rs.index("\nPYMEM\n", _mg_at)]
         chk(0 < _mg_at < _rs.find('PP=${PP:?'),
             "⛔음성: 메모리 사전검사가 **PP 검사보다 앞**에 있다 (뒤에 있으면 "
             "환경이 덜 갖춰진 현장에서 메모리 판정을 못 보고 죽는다)")
@@ -18380,12 +18491,11 @@ def selftest() -> int:
             "⛔음성: 메모리 사전검사가 **첫 VASP 실행보다 앞**이다")
         chk("NODE_MEM_GB" in _rs and "VASP_NODES" in _rs and "MEM_GUARD" in _rs,
             "가드가 읽는 세 변수가 러너에 있다")
-        chk("sys.exit(2)" in _rs[_mg_at:_mg_at + 8000],
+        chk("sys.exit(2)" in _mg,
             "⛔음성: 값을 모르면 **멈춘다** (조용히 통과하면 2026-09-04 가 재발한다)")
         # ── 2026-09-07 Codex v37 P0-1 회귀 ───────────────────────────────────
         #   가드가 산술만 하고 실행에 결박되지 않아 "장식" 이었다. 두 구멍이 실물로
         #   재현됐다 — 여기서 소스 수준으로 막고, e2e 가 동작으로 확인한다.
-        _mg = _rs[_mg_at:_mg_at + 9000]
         chk("SLURM_MEM_PER_NODE" in _mg and "cgroup" in _mg and "/proc/meminfo" in _mg,
             "P0-1: 노드 메모리를 **관측**한다 (선언만 믿지 않는다)")
         chk("실제 상한보다" in _mg and "관측" in _mg,
@@ -18418,6 +18528,23 @@ def selftest() -> int:
             "⛔음성 재검토 b: VASP_TOTAL_NODES 선언이 관측(SLURM·hostfile)을 넘으면 **거부**한다")
         chk("MEMG_NODES_UNOBSERVED" in _rs and "프로브가 실제 호스트로 검증" in _rs,
             "재검토 b: 관측 불가는 '경고 후 진행' 이 아니라 **프로브로 검증**으로 넘긴다")
+        # ── 2026-09-08 Codex v38 P1-1·P1-2·P1-3·P2 ─────────────────────────────
+        chk(_rs.index('LOCK=".lock_bundle"') < _rs.index('MEM_GUARD:-on')
+            < _rs.index('mkdir -p _hostpool/free _hostpool/busy') < _rs.index('PP=${PP:?'),
+            "★ v38 P1-1: 순서가 **lock → 가드 → 호스트풀 → PP** 다 (종전엔 lock 이 PP 뒤라 중복 호출이 실행 중 풀을 지웠다)")
+        chk("rm -rf _hostpool; rm -f ._memguard.env _hosts_all.txt _probe_*.out" in _rs
+            and _rs.index("rm -rf _hostpool; rm -f ._memguard.env") < _rs.index('trap \'_unlock\' EXIT'),
+            "v38 P1-1: 잠금 **소유자**가 나갈 때 자기 실행의 공유 상태를 치운다 (남의 lock 이면 손대지 않음)")
+        chk("<<'PN'" in _rs and "\nPN\n" in _rs
+            and "/proc/self/cgroup" in _rs[_rs.index("<<'PN'"):_rs.index("\nPN\n")]
+            and "MemTotal" in _rs[_rs.index("<<'PN'"):_rs.index("\nPN\n")],
+            "★ v38 P1-2: 프로브 페이로드가 hostname 이 아니라 **노드별 cgroup 제한·MemTotal** 을 읽는 스크립트다")
+        chk("node_mem" in _rs and "노드당 필요" in _rs and "MEMG_NEED_GB" in _rs,
+            "★ v38 P1-2: 프로브 판정기가 **실행 노드마다** 메모리를 다시 판정한다 (러너 호스트만 보지 않는다)")
+        chk("wrapper 는 **이 제출 경로에서 지원하지 않습니다**" in _rs and "wrapper 는 이 제출 경로에서 지원하지 않습니다" in RUN_JOB,
+            "⛔음성 v38 P1-2: wrapper 는 run_staged·run_job **둘 다** 거부한다 (서로소 자원 유지 계약 검증 불가)")
+        chk("SLURM_MEM_PER_CPU" in _rs and 'float(v) > 0' in _rs and "--mem=0" in _rs,
+            "v38 P2: SLURM_MEM_PER_NODE=0 은 '전부' 로 읽어 미관측 취급 · MEM_PER_CPU×CPUS 도 본다")
         # ⚠ 회신 BB P1 — census 본문이 러너에서 `census.py` 로 빠졌다. 검사도
         #   실물이 있는 곳을 봐야 한다 (러너에는 **호출**이 남는다).
         # ⚠ `RECHECK_SEAL=1 python3 census.py …` 도 앞 문자열을 **포함**한다 —
@@ -18526,6 +18653,14 @@ def selftest() -> int:
             f"cost_frozen.stage_alloc_h 가 중앙/NELM/요청_h 를 담는다 (요청 {_sa9.get('요청_h')} h)")
         chk("사전순 FIFO" in str(_sa9.get("★_계산_규칙", "")),
             "★ P0-2 재검토: stage_alloc_h 가 **러너 순서(사전순 FIFO+장벽)** 로 계산됐다고 기록한다")
+        # v38 P1-3 — 전체 일정도 stage_alloc_h 합과 같아야 한다 (LPT 4.14 아님)
+        _mkd9 = _cf9.get("makespan_staged_d") or {}
+        if _sa9.get("중앙_추정") and _cc9 and str(_cc9) in _mkd9:
+            _sum9 = sum(float(v) for v in _sa9["중앙_추정"].values()) / 24.0
+            chk(abs(float(_mkd9[str(_cc9)]) - _sum9) < 0.02,
+                f"★ v38 P1-3: 전체 일정 {_mkd9[str(_cc9)]} 일 == 단계 할당 합 {_sum9:.2f} 일 (FIFO+장벽 · LPT 아님)")
+        chk("가장 긴 잡 하나가 임계경로" not in _sb9 and "단계 전체가 임계경로" in _sb9,
+            "⛔음성 v38 P1-3: SUBMIT 이 '가장 긴 잡 하나가 임계경로' 라고 하지 않고 **단계가 임계경로**라고 적는다")
         for _doc, _nm in ((_rd9, "README"), (_sb9, "SUBMIT")):
             _reqs = re.findall(r"\*\*단계당 (\d+) h\*\*", _doc)
             chk(len(_reqs) == 1,
@@ -21147,15 +21282,57 @@ def _runner_e2e(bundle: Path, chk) -> bool:
         and json.loads((_dP / "PLACEMENT_PROBE.json").read_text()).get("all_ok") is True,
         "★ 재검토 a 양성: 스텁이 hostfile 대로 놓으면 프로브가 통과하고 PLACEMENT_PROBE.json 에 all_ok 가 남는다 "
         f"(rc={_rcP})")
-    chk((_dP / "_hostpool" / "free" / "slot_1").is_file()
-        and (_dP / "_place_flags.sh").is_file(),
-        "재검토 a: run_staged 가 호스트 풀(slot_1)과 _place_flags.sh 를 만든다")
+    chk((_dP / "_place_flags.sh").is_file() and (_dP / "PLACEMENT_PROBE.json").is_file()
+        and not (_dP / "_hostpool").exists() and not (_dP / "._memguard.env").exists(),
+        "재검토 a + v38 P1-1: 규칙 파일·프로브 증거는 남고, 호스트 풀·가드 env 는 **소유자가 나갈 때 치운다**")
     _rcB, _oB, _dB = _probe_case("bad", bad=True)
     chk(_rcB == 2 and "배치 프로브 실패" in _oB and "고유 호스트 1 ≠ VASP_NODES" in _oB,
         f"⛔음성 재검토 a: launcher 가 hostfile 을 무시해 한 노드에 몰면 **첫 VASP 전에 멈춘다** (rc={_rcB})")
     chk((_dB / "PLACEMENT_PROBE.json").is_file()
         and json.loads((_dB / "PLACEMENT_PROBE.json").read_text()).get("all_ok") is False,
         "⛔음성 재검토 a: 실패한 프로브도 PLACEMENT_PROBE.json 에 관측 rank→host 를 남긴다 (증거)")
+    _okP = json.loads((_dP / "PLACEMENT_PROBE.json").read_text())
+    chk(_okP.get("node_mem_GiB_min") is not None and all(p.get("node_mem_GiB") for p in _okP["probes"]),
+        f"★ v38 P1-2: 통과 프로브가 **실행 노드별 메모리**를 기록한다 (최소 {_okP.get('node_mem_GiB_min')} GiB)")
+    # ⛔음성 v38 P1-2 — 러너 호스트는 넉넉해도 **실행 노드**가 작으면 멈춘다
+    def _probe_case2(tag, extra):
+        dst = base / f"probe_{tag}"
+        _sh2.rmtree(dst, ignore_errors=True); _sh2.copytree(bundle, dst)
+        (dst / ".SELFTEST_FIXTURE").write_text("1\n")
+        mb = dst / "_mpibin"; mb.mkdir()
+        (mb / "mpirun").write_text(FAKE_MPIRUN); (mb / "mpirun").chmod(0o755)
+        _nn = KPAR_VAL * NCORE_VAL
+        (dst / "_hosts.txt").write_text("".join(f"probe-node{k:02d}\n" for k in range(1, _nn + 1)))
+        e = {"VASP_LAUNCHER_KIND": "mpirun", "LAUNCHER_BIN": str(mb / "mpirun"),
+             "VASP_HOSTFILE": str(dst / "_hosts.txt"), "VASP_NODES": str(_nn), "JOBS_PARALLEL": "1"}
+        for k in ("SLURM_JOB_NUM_NODES", "SLURM_NNODES", "SLURM_MEM_PER_NODE", "NODE_MEM_GB"):
+            e[k] = ""
+        e.update(extra)
+        rc, out_ = _run(dst, e)
+        return rc, out_, dst
+    _rcM, _oM, _dM = _probe_case2("lowmem", {"STUB_NODE_MEM_GB": "1"})
+    chk(_rcM == 2 and "배치 프로브 실패" in _oM and "노드당 필요" in _oM and "> 가용" in _oM,
+        f"⛔음성 v38 P1-2: 실행 노드 MemTotal 1 GiB 이면 호스트·랭크가 맞아도 **첫 VASP 전에 멈춘다** (rc={_rcM})")
+    # ⛔음성 v38 P1-1 — 다른 실행이 lock 을 쥔 채 계산 중일 때 중복 호출은 **풀을 건드리지 못한다**
+    _dL = base / "lockfirst"
+    _sh2.rmtree(_dL, ignore_errors=True); _sh2.copytree(bundle, _dL)
+    (_dL / ".SELFTEST_FIXTURE").write_text("1\n")
+    (_dL / ".lock_bundle").write_text("other-host|99999|stage1|2026-09-08T00:00:00Z\n")
+    (_dL / "_hostpool" / "busy").mkdir(parents=True)
+    (_dL / "_hostpool" / "free").mkdir(parents=True)
+    (_dL / "_hostpool" / "busy" / "slot_1").write_text("busy-nodeA\nbusy-nodeB\n")
+    (_dL / "_hosts_all.txt").write_text("busy-nodeA\nbusy-nodeB\n")
+    _rcL, _oL = _run(_dL, {"VASP_LAUNCHER_KIND": "mpirun", "LAUNCHER_BIN": str(_dM / "_mpibin" / "mpirun"),
+                            "VASP_HOSTFILE": str(_dM / "_hosts.txt"), "VASP_NODES": str(KPAR_VAL * NCORE_VAL),
+                            "JOBS_PARALLEL": "1"})
+    chk(_rcL == 3 and "lock 이 이미 있습니다" in _oL,
+        f"⛔음성 v38 P1-1: 외부 lock 이 있으면 **가드·풀 전에** 거부된다 (rc={_rcL})")
+    chk((_dL / "_hostpool" / "busy" / "slot_1").is_file()
+        and (_dL / "_hostpool" / "busy" / "slot_1").read_text() == "busy-nodeA\nbusy-nodeB\n"
+        and (_dL / "_hosts_all.txt").read_text() == "busy-nodeA\nbusy-nodeB\n"
+        and not (_dL / "_hostpool" / "free" / "slot_1").exists(),
+        "★ v38 P1-1: 거부된 중복 호출은 **실행 중인 풀·호스트 목록을 한 바이트도 안 바꾼다** "
+        "(종전엔 rm -rf _hostpool 이 lock 검사보다 앞이었다)")
 
     def _copy(tag):
         dst = base / tag
