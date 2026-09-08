@@ -5,10 +5,16 @@
 > 공저자에게는 **쟁점을 결정하기 위한 provisional review package** 로만 보낸다.
 > 해제조건 8개: `docs/reviews/codex_r10_verdict_20260829.md`.
 >
-> ⚠ **정본 원장이 이미 HOLD 다** — `table_s3_data_20260827.md` 헤더가
-> `RAW_W4_VERIFIED_UNTRACKED · 원고 승격 HOLD` 라고 적는다 (W4 16팔 JSON·receipt 가
-> 리포에 없어 제3자가 σ_e 를 재검증할 수 없다).  **그런데 이 초안은 그 값을 reported 로
-> 승격했다** — 내가 쓴 헤더를 내가 어겼다.  원자료 커밋 전까지 이 표는 투고용이 아니다.
+> ✅ **정정 2026-09-08 (Codex Methods 리뷰 Q1) — 위 문단의 옛 판이 낡아 있었다.**
+> 옛 판은 *"정본 원장이 이미 HOLD 다 … W4 16팔 JSON·receipt 가 리포에 없어 제3자가 σ_e 를
+> 재검증할 수 없다"* 라고 적었는데 **둘 다 더는 사실이 아니다**:
+> `table_s3_data_20260827.md` 헤더는 **2026-08-29 부로 `W4_DECISION_AUDITABLE` · σ_e 축
+> HOLD 해제** 이고, `docs/data/w4_ptfe_centerline_20260827/` 에 **16 팔 + receipt 3 = 19 파일이
+> 커밋돼 추적 중**이다 (해제조건 ④ 해소).
+> ⇒ **σ_e 축의 재검증 불가 사유는 없다.**  이 배너가 남아 있는 이유는 해제조건 **⑤(σ_ion 행)
+> 와 ⑦(Figure 4b 재작도) 이 부분 해소** 이기 때문이고, 그 둘뿐이다.
+> ⚠ 이것이 CLAUDE.md 규율 ④ 의 사례다 — 해소된 HOLD 를 문서가 계속 주장했고, 그 문장을
+> 인용한 Codex 리뷰가 *"정본이 하나로 수렴하지 않는다"* 를 P1 으로 잡았다 (원장 CL-86).
 
 > 대상: `Manuscript v6` 의 *"DEM simulations:"* 문단 (Methods) + SI Table S2 · S3.
 > 감사 근거: `ms_si_v6_audit_20260829.md` · 수치 정본 `table_s3_data_20260827.md`.
@@ -96,13 +102,13 @@ derived from composite and glass literature rather than measured directly on pur
 a measured calibration target.
 
 *Stage 2 — MPM compaction.* Plastic deformation was then resolved on the fixed DEM skeleton with
-a GPU-accelerated MPM. VGCF fibres, PTFE fibrils and SDCP particles were **present in the
+a GPU-accelerated MPM. VGCF fibers, PTFE fibrils and SDCP particles were **present in the
 material-point cloud during this stage** at the experimental weight fractions, so their stiffness
 enters the compaction rather than being added afterwards. The deviatoric plasticity follows a
 J2 (von Mises) model with a yield strength of 0.30 GPa; the elastic pair E = 1.53 GPa and
 ν = 0.49 is a **model choice** that sets K = 25.5 GPa and G = 0.51 GPa, confining the softening
 to shear while leaving the bulk response at a dense-solid value. ⚠ The resulting beds are
-**more compacted than the experimental porosity anchor**, so this parameterisation is not a
+**more compacted than the experimental porosity anchor**, so this parameterization is not a
 validation of the present SBE/DBE geometry.
 
 *Stage 3 — voxel transport.* Each microstructure was rasterized onto a cubic grid with a voxel
@@ -115,21 +121,21 @@ excluding its centerline voxels from conduction. Sensitivity of the reported con
 this representation is given in Table S3c.
 
 *Conductivity of the carbon network.* The coefficient assigned to the VGCF phase
-(100 S cm⁻¹) is a **frozen, uncalibrated legacy voxel-network coefficient**, not a fibre
+(100 S cm⁻¹) is a **frozen, uncalibrated legacy voxel-network coefficient**, not a fiber
 material constant and not a value derived from any measurement reported here. It was introduced
 as an explicit order-of-magnitude placeholder, taken from the low end of a range cited at the
-time as the literature band for graphitic fibre (10²–10³ S cm⁻¹); that band was subsequently
+time as the literature band for graphitic fiber (10²–10³ S cm⁻¹); that band was subsequently
 found to describe compacted powder rather than single filaments, VGCF-H having a single-filament
 resistivity of 1 × 10⁻⁴ Ω cm (10⁴ S cm⁻¹). The coefficient therefore coincides with the powder
 regime rather than having been selected against it, and it has not been recalibrated since. It
-is retained so that the results presented in this work remain reproducible. Voxelisation fuses
-touching fibres
-into shared cells and therefore does not resolve fibre–fibre contact resistance, which is one of
+is retained so that the results presented in this work remain reproducible. Voxelization fuses
+touching fibers
+into shared cells and therefore does not resolve fiber–fiber contact resistance, which is one of
 several contributions separating single-filament (≈ 10⁴ S cm⁻¹) from compressed-powder
 (≈ 83 S cm⁻¹) measurements of VGCF-H; packing fraction, orientation, network tortuosity,
 contact number, compaction pressure and the measurement configuration also enter the powder
 value. The coefficient is rescaled with voxel size so that the one-voxel-thick tube carries the
-axial conductance of a 0.15 μm fibre, σ_eff = σ·πd²/(4h²), giving 78.5 S cm⁻¹ at h = 0.15 μm.
+axial conductance of a 0.15 μm fiber, σ_eff = σ·πd²/(4h²), giving 78.5 S cm⁻¹ at h = 0.15 μm.
 Because this coefficient was not independently calibrated, the conductivities and ratios below
 are protocol responses under a stated closure rather than material-level estimates.
 
@@ -151,20 +157,20 @@ its direction is not. Ohmic loss per phase was evaluated as Σ gₖ Δφₖ², s
 voxel-to-voxel connections belonging to that phase. Table S3c gives the two settings.
 
 *Limitations.* The absolute conductivities have not been calibrated against a
-composition-matched measurement and should be read as the output of an idealised bulk model:
+composition-matched measurement and should be read as the output of an idealized bulk model:
 the solver places no contact resistance at any interface — between active particles, between
 active material and carbon, or at the current collector — so it does not reproduce the quantity
-a two-terminal DC-polarisation measurement returns. The ratio is not grid-converged: refining
+a two-terminal DC-polarization measurement returns. The ratio is not grid-converged: refining
 the voxel edge increases it monotonically without following a power law, so the reported gain is
 larger at finer voxels **over the refinement interval examined**; neither a continuum
 extrapolation nor a global bound is established. Explicitly restoring the additive contacts that
-voxelisation drops recovers only about a fifth of that grid dependence — **measured under the
+voxelization drops recovers only about a fifth of that grid dependence — **measured under the
 binder-omitted convention only**, and not transferable to the exact-zero convention. The
 magnitude is also conditional on the carbon conductivity being treated as an effective network
 constant: at the single-filament value, a hundredfold higher, the ordering reverses. That upper
-arm is **not better physics** but a doubly idealised sensitivity at one origin phase, assuming
-perfect fibre–fibre contact on top of equipotential fibres; a single scalar can absorb part of
-the missing resistance numerically but is **not identified** as a fibre–fibre contact parameter.
+arm is **not better physics** but a doubly idealized sensitivity at one origin phase, assuming
+perfect fiber–fiber contact on top of equipotential fibers; a single scalar can absorb part of
+the missing resistance numerically but is **not identified** as a fiber–fiber contact parameter.
 Three further limits apply to the beds themselves. They are more compacted than the experimental
 porosity anchor. **The compaction was not quasi-static**: the platen advanced at 0.27 of the
 dilatational wave speed against an internal limit of 0.01, so the bed state carries a rate
@@ -204,12 +210,12 @@ separator and current-collector faces, the remaining boundaries insulating. NCM8
 SDCP carried the electronic network and LPSCl and SDCP the ionic network. The insulating binder was
 represented by excluding its centerline voxels from conduction; sensitivity to this
 representation is given in Table S3c. The coefficient assigned to the VGCF phase
-(100 S cm⁻¹) is a frozen, uncalibrated legacy value rather than a fibre constant. Voxelisation
-fuses touching fibres and so carries no fibre–fibre contact resistance, one of several
+(100 S cm⁻¹) is a frozen, uncalibrated legacy value rather than a fiber constant. Voxelization
+fuses touching fibers and so carries no fiber–fiber contact resistance, one of several
 contributions — along with packing fraction, orientation, network tortuosity, contact number
 and compaction pressure — separating single-filament (≈ 10⁴ S cm⁻¹) from compressed-powder
 (≈ 83 S cm⁻¹) measurements. The coefficient is rescaled with voxel size to preserve the axial
-conductance of a 0.15 μm fibre (78.5 S cm⁻¹ at the 0.15 μm grid used here). Because it was not
+conductance of a 0.15 μm fiber (78.5 S cm⁻¹ at the 0.15 μm grid used here). Because it was not
 independently calibrated, the conductivities and ratios reported are protocol responses under a
 stated closure rather than material-level estimates.
 
@@ -222,14 +228,14 @@ electronic conductivity is 54.0/70.6 mS cm⁻¹, a paired ratio of 1.308 (spread
 1.302–1.310); omitting the binder instead gives 72.3/81.3 and a ratio of **1.124**. Neither
 convention is a calibrated representation of the binder, so the magnitude is
 convention-dependent while the direction is not. Absolute conductivities are those of
-an idealised bulk model with no interfacial contact resistance anywhere and are not
+an idealized bulk model with no interfacial contact resistance anywhere and are not
 composition-matched to a measurement. The ratio is not grid-converged and grew at finer voxels
 **over the refinement interval examined**; no continuum extrapolation or global bound is
-established. Restoring the additive contacts that voxelisation drops recovers about a fifth of
+established. Restoring the additive contacts that voxelization drops recovers about a fifth of
 that dependence, **measured under the binder-omitted convention only**. The magnitude is also
 conditional on the carbon conductivity being an effective network constant: at the
 single-filament value the ordering reverses, but that arm is **not better physics** — it is a
-doubly idealised sensitivity at one origin phase. Three further limits: the beds are more
+doubly idealized sensitivity at one origin phase. Three further limits: the beds are more
 compacted than the experimental porosity anchor; the compaction was **not quasi-static** (platen at 0.27 of the
 dilatational wave speed against an internal limit of 0.01), and although both electrodes moved at
 the same speed this makes the inputs like-for-like rather than making the rate contribution

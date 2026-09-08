@@ -38,6 +38,9 @@ STATUS_BODY = (
     "사유를 적어 두었습니다."
 )
 
+PTFE_ANCILLARY = (
+    "PTFE 규약에 대해서는 한 가지를 분명히 해 둡니다. 초안은 처음에 '안 그림' 을 주 규약으로 썼는데 이유가 편집 편의였고, 지적을 받고 '차단' 으로 뒤집었는데 이번에는 두 값을 본 뒤에 큰 쪽으로 옮긴 것이라 결과 독립이 아니었습니다. 그래서 지금은 centerline 을 보고용 공칭 규약으로만 쓰고, 그것이 교정됐다거나 참값에 가깝다는 주장은 하지 않으며, 규약을 바꿨을 때의 값 변화는 Table S3c 민감도로 내립니다. 사전등록된 검사는 그 규약을 '채택하지 않는다' 로 판정했고 그 판정은 그대로입니다 — 본문이 그 값을 쓰는 것은 편집 결정이지 판정 번복이 아닙니다. 더 근본적으로, centerline 규약은 PTFE 를 제대로 해상한 규약이 아닙니다 — 한 셀 폭 중심선을 찍고 그 셀을 정확히 0 으로 제거하는 방식이라, 얇은 코팅의 공간 범위는 과소 표현하면서 찍힌 셀에서는 차단을 과대 표현합니다. 직경을 인식하는 변형은 아직 구현돼 있지 않습니다.")
+
 RELEASE_CONDITIONS = [
     ("①", "두 PTFE 규약을 동등한 sensitivity 두 점으로 표기", "해소 (형식은 그 뒤 한 번 더 바뀜)",
      "굵은 글씨·reported·resolved 표기를 전부 제거했습니다. ⚠ 그 뒤 형식을 한 번 더 "
@@ -95,158 +98,21 @@ CHANGES = [
 ]
 
 METHODS_FULL = [
-    ("Microstructure reconstruction and transport simulation.", None),
-    (None,
-     "Three-dimensional SBE and DBE microstructures were built in two stages and then used as "
-     "the geometry for a separate transport calculation, so that three distinct tools are "
-     "involved: a discrete element method (DEM) for the rigid-particle packing, a material point "
-     "method (MPM) for the plastic deformation of the electrolyte, and a finite-volume solver on "
-     "a voxel grid for the effective conductivities."),
-    ("Stage 1 — DEM packing.",
-     "Rigid-sphere packing was computed in LIGGGHTS using 1,271 NCM811 spheres (radius 2.5 μm) "
-     "and 146,420 LPSCl spheres (radius 0.5 μm), sized after the experimental powders and mixed "
-     "at 70:27 by weight in a 50 × 50 μm² domain, compacted under displacement control. "
-     "Rigid-sphere contacts do reproduce particle rearrangement, but not the plastic flattening, "
-     "fracture and grain-boundary deformation that also densify sulfide powders, so the contact "
-     "stiffness of LPSCl was selected against a densification target for sulfide cold pressing "
-     "rather than taken from the dense material. The 1.35 GPa value is an empirical contact-law "
-     "input, not an intrinsic LPSCl modulus and not an independent validation of the present "
-     "SBE/DBE beds; the dense-material value (24 GPa) is listed beside it in Table S2. The ~10 % "
-     "target is derived from composite and glass literature rather than measured directly on pure "
-     "LPSCl at 300 MPa, and the 11–12 % contact overlap is a pure-SE simulation consistency "
-     "result rather than a measured calibration target."),
-    ("Stage 2 — MPM compaction.",
-     "Plastic deformation was then resolved on the fixed DEM skeleton with a GPU-accelerated MPM. "
-     "VGCF fibres, PTFE fibrils and SDCP particles were present in the material-point cloud "
-     "during this stage at the experimental weight fractions, so their stiffness enters the "
-     "compaction rather than being added afterwards. The deviatoric plasticity follows a J2 "
-     "(von Mises) model with a yield strength of 0.30 GPa; the elastic pair E = 1.53 GPa and "
-     "ν = 0.49 is a model choice that sets K = 25.5 GPa and G = 0.51 GPa, confining the softening "
-     "to shear while leaving the bulk response at a dense-solid value. The resulting beds are more "
-     "compacted than the experimental porosity anchor, so this parameterisation is not a "
-     "validation of the present SBE/DBE geometry."),
-    ("Stage 3 — voxel transport.",
-     "Each microstructure was rasterized onto a cubic grid with a voxel edge of 0.15 μm. "
-     "Adjacent conducting voxels were coupled through harmonic-mean conductances and the potential "
-     "field obtained from ∇·(σ∇φ) = 0, with 1 V applied between the separator (φ = 0) and "
-     "current-collector (φ = 1 V) faces and the remaining boundaries insulating; the effective "
-     "conductivity was taken from the total current. NCM811, VGCF and SDCP carried the electronic "
-     "network and LPSCl and SDCP the ionic network. The insulating binder was treated under two "
-     "conventions, reported as equivalent sensitivity points rather than one primary result: "
-     "omitted from the electronic grid, and with its centerline voxels excluded from conduction. "
-     "Neither is established as closer to a real thin coating — the one-cell centerline "
-     "under-represents the coating’s spatial extent while over-blocking where it is stamped, and "
-     "the diameter-aware variant is not implemented. Note that omitting the binder from the "
-     "conduction grid does not remove it from the model: its mass and stiffness are present in the "
-     "DEM–MPM bed, and only its direct insulating exclusion on the electronic grid is absent."),
-    ("Conductivity of the carbon network.",
-     "The conductivity assigned to VGCF is an effective network value, not a fibre material "
-     "constant. Voxelisation fuses touching fibres into shared cells and therefore removes the "
-     "fibre–fibre contact resistance that dominates a real carbon network — the two orders of "
-     "magnitude between the compressed-powder (≈ 83 S cm⁻¹) and single-filament "
-     "(≈ 10⁴ S cm⁻¹) values of VGCF-H is essentially that contact resistance. The powder-scale "
-     "value (100 S cm⁻¹) was therefore adopted and rescaled to the voxel grid so that the axial "
-     "conductance of a fibre is preserved (78.5 S cm⁻¹ at 0.15 μm)."),
-    ("Grid-origin ensemble and reported statistics.",
-     "Because the voxel grid samples the same microstructure differently depending on where its "
-     "origin falls, each electrode was solved at all eight half-voxel origin shifts of a "
-     "2 × 2 × 2 factorial, the SBE and DBE sharing the same origins so that ratios are formed "
-     "pair by pair. The eight phases are a complete factorial of a single bed rather than "
-     "independent replicates, so ratios are reported as the mean over the eight prescribed phases "
-     "together with the spread across them and the observed range; no standard error or confidence "
-     "interval is implied. All arms reached the solver convergence criterion."),
-    ("Values under the two binder conventions.",
-     "With PTFE centerline voxels excluded (exact-zero sensitivity convention) the effective "
-     "electronic conductivity is 54.0 mS cm⁻¹ (SBE) and 70.6 mS cm⁻¹ (DBE), a paired ratio of "
-     "1.308 (spread 0.003 across the eight origin phases; observed range 1.302–1.310). Leaving "
-     "PTFE unresolved gives 72.3 and 81.3 mS cm⁻¹, a ratio of 1.124 (spread 0.003; range "
-     "1.120–1.127). The two differ only in whether the binder’s centerline voxels are excluded "
-     "from conduction — a machine-checked contract confirms that no other parameter differs — and "
-     "neither is established as closer to a real thin coating: the one-cell centerline "
-     "under-represents the coating’s spatial extent while over-blocking where it is stamped. They "
-     "are therefore reported as two equivalent model-form sensitivity points; the direction of the "
-     "change is common to both, its magnitude is not. Where the main text needs a single number it "
-     "quotes the centerline convention; that is a reporting choice and not a determination that "
-     "either convention is closer to a real coating. Ohmic loss per phase was evaluated as "
-     "Σ gₖ Δφₖ², summed over the voxel-to-voxel connections belonging to that phase."),
-    ("Limitations.",
-     "The absolute conductivities have not been calibrated against a composition-matched "
-     "measurement and should be read as the output of an idealised bulk model: the solver places "
-     "no contact resistance at any interface — between active particles, between active material "
-     "and carbon, or at the current collector — so it does not reproduce the quantity a "
-     "two-terminal DC-polarisation measurement returns. The ratio is not grid-converged: refining "
-     "the voxel edge increases it monotonically without following a power law, so the reported "
-     "gain is larger at finer voxels over the refinement interval examined; neither a continuum "
-     "extrapolation nor a global bound is established. Refinement here changes two things at "
-     "once, since the diameter-preserving carbon conductivity is itself a function of the voxel "
-     "edge; a separate arm that moved the carbon conductivity alone over the same factor shifts "
-     "the ratio in the opposite direction and by a small fraction of the observed change, so the "
-     "geometric part of the grid dependence is if anything larger than the combined figure. Explicitly restoring the additive contacts "
-     "that voxelisation drops recovers only about a fifth of that grid dependence — measured under "
-     "the binder-omitted convention only, and not transferable to the exact-zero convention. The "
-     "magnitude is also conditional on the carbon conductivity being treated as an effective "
-     "network constant: at the single-filament value, a hundredfold higher, the ordering reverses. "
-     "That upper arm is not better physics but a doubly idealised sensitivity at one origin phase, "
-     "assuming perfect fibre–fibre contact on top of equipotential fibres; a single scalar can "
-     "absorb part of the missing resistance numerically but is not identified as a fibre–fibre "
-     "contact parameter. Two further limits apply: the beds are more compacted than the "
-     "experimental porosity anchor, and the specimen provenance of the SDCP conductivity "
-     "(250 S cm⁻¹) is not established."),
+    ('Microstructure reconstruction and transport simulation.', None),
+    (None, 'Three-dimensional SBE and DBE microstructures were built in two stages and then used as the geometry for a separate transport calculation, so that three distinct tools are involved: a discrete element method (DEM) for the rigid-particle packing, a material point method (MPM) for the plastic deformation of the electrolyte, and a finite-volume solver on a voxel grid for the effective conductivities.'),
+    ('Stage 1 — DEM packing.', 'Rigid-sphere packing was computed in LIGGGHTS using 1,271 NCM811 spheres (radius 2.5 μm) and 146,420 LPSCl spheres (radius 0.5 μm), sized after the experimental powders and mixed at 70:27 by weight in a 50 × 50 μm² domain, compacted under displacement control. Rigid-sphere contacts do reproduce particle rearrangement, but not the plastic flattening, fracture and grain-boundary deformation that also densify sulfide powders, so the contact stiffness of LPSCl was selected against a densification target for sulfide cold pressing rather than taken from the dense material. The 1.35 GPa value is an empirical contact-law input, not an intrinsic LPSCl modulus and not an independent validation of the present SBE/DBE beds; the dense-material value (24 GPa) is listed beside it in Table S2. The ~10 % target is derived from composite and glass literature rather than measured directly on pure LPSCl at 300 MPa, and the 11–12 % contact overlap is a pure-SE simulation consistency result rather than a measured calibration target.'),
+    ('Stage 2 — MPM compaction.', 'Plastic deformation was then resolved on the fixed DEM skeleton with a GPU-accelerated MPM. VGCF fibers, PTFE fibrils and SDCP particles were present in the material-point cloud during this stage at the experimental weight fractions, so their stiffness enters the compaction rather than being added afterwards. The deviatoric plasticity follows a J2 (von Mises) model with a yield strength of 0.30 GPa; the elastic pair E = 1.53 GPa and ν = 0.49 is a model choice that sets K = 25.5 GPa and G = 0.51 GPa, confining the softening to shear while leaving the bulk response at a dense-solid value. The resulting beds are more compacted than the experimental porosity anchor, so this parameterization is not a validation of the present SBE/DBE geometry.'),
+    ('Stage 3 — voxel transport.', 'Each microstructure was rasterized onto a cubic grid with a voxel edge of 0.15 μm. Adjacent conducting voxels were coupled through harmonic-mean conductances and the potential field obtained from ∇·(σ∇φ) = 0, with 1 V applied between the separator (φ = 0) and current-collector (φ = 1 V) faces and the remaining boundaries insulating; the effective conductivity was taken from the total current. NCM811, VGCF and SDCP carried the electronic network and LPSCl and SDCP the ionic network. The insulating binder was represented by excluding its centerline voxels from conduction. Sensitivity of the reported conductivities to this representation is given in Table S3c.'),
+    ('Conductivity of the carbon network.', 'The coefficient assigned to the VGCF phase (100 S cm⁻¹) is a frozen, uncalibrated legacy voxel-network coefficient, not a fiber material constant and not a value derived from any measurement reported here. It was introduced as an explicit order-of-magnitude placeholder, taken from the low end of a range cited at the time as the literature band for graphitic fiber (10²–10³ S cm⁻¹); that band was subsequently found to describe compacted powder rather than single filaments, VGCF-H having a single-filament resistivity of 1 × 10⁻⁴ Ω cm (10⁴ S cm⁻¹). The coefficient therefore coincides with the powder regime rather than having been selected against it, and it has not been recalibrated since. It is retained so that the results presented in this work remain reproducible. Voxelization fuses touching fibers into shared cells and therefore does not resolve fiber–fiber contact resistance, which is one of several contributions separating single-filament (≈ 10⁴ S cm⁻¹) from compressed-powder (≈ 83 S cm⁻¹) measurements of VGCF-H; packing fraction, orientation, network tortuosity, contact number, compaction pressure and the measurement configuration also enter the powder value. The coefficient is rescaled with voxel size so that the one-voxel-thick tube carries the axial conductance of a 0.15 μm fiber, σ_eff = σ·πd²/(4h²), giving 78.5 S cm⁻¹ at h = 0.15 μm. Because this coefficient was not independently calibrated, the conductivities and ratios below are protocol responses under a stated closure rather than material-level estimates.'),
+    ('Grid-origin ensemble and reported statistics.', 'Because the voxel grid samples the same microstructure differently depending on where its origin falls, each electrode was solved at all eight half-voxel origin shifts of a 2 × 2 × 2 factorial, the SBE and DBE sharing the same origins so that ratios are formed pair by pair. The eight phases are a complete factorial of a single bed rather than independent replicates, so ratios are reported as the mean over the eight prescribed phases together with the spread across them and the observed range; no standard error or confidence interval is implied. All arms reached the solver convergence criterion.'),
+    ('Values.', 'Under the centerline convention selected for reporting, but not calibrated, the effective electronic conductivity is 54.0 mS cm⁻¹ (SBE) and 70.6 mS cm⁻¹ (DBE), a paired ratio of 1.308 (spread 0.003 across the eight origin phases; observed range 1.302–1.310). Omitting the binder from the conduction grid instead gives 72.3 and 81.3 mS cm⁻¹, a ratio of 1.124; the two conventions differ only in whether the binder occupies conduction cells, and neither is a calibrated representation of it, so the magnitude of the increase is convention-dependent while its direction is not. Ohmic loss per phase was evaluated as Σ gₖ Δφₖ², summed over the voxel-to-voxel connections belonging to that phase. Table S3c gives the two settings.'),
+    ('Limitations.', 'The absolute conductivities have not been calibrated against a composition-matched measurement and should be read as the output of an idealized bulk model: the solver places no contact resistance at any interface — between active particles, between active material and carbon, or at the current collector — so it does not reproduce the quantity a two-terminal DC-polarization measurement returns. The ratio is not grid-converged: refining the voxel edge increases it monotonically without following a power law, so the reported gain is larger at finer voxels over the refinement interval examined; neither a continuum extrapolation nor a global bound is established. Explicitly restoring the additive contacts that voxelization drops recovers only about a fifth of that grid dependence — measured under the binder-omitted convention only, and not transferable to the exact-zero convention. The magnitude is also conditional on the carbon conductivity being treated as an effective network constant: at the single-filament value, a hundredfold higher, the ordering reverses. That upper arm is not better physics but a doubly idealized sensitivity at one origin phase, assuming perfect fiber–fiber contact on top of equipotential fibers; a single scalar can absorb part of the missing resistance numerically but is not identified as a fiber–fiber contact parameter. Three further limits apply to the beds themselves. They are more compacted than the experimental porosity anchor. The compaction was not quasi-static: the platen advanced at 0.27 of the dilatational wave speed against an internal limit of 0.01, so the bed state carries a rate contribution. Both electrodes were compacted at the same platen speed, which makes the inputs like-for-like but does not imply that the rate contribution cancels in the ratio — equal driving speed is not equal dynamic response for two different compositions. The reported ratio is therefore conditional on this high-rate compaction protocol, and the absolute geometric quantities are a terminal wall separation and a high-rate simulation-geometry diagnostic rather than quasi-static converged values. Finally, the specimen provenance of the SDCP conductivity (250 S cm⁻¹) is not established.'),
 ]
 
 METHODS_COMPACT = [
-    ("Microstructure reconstruction and transport simulation.",
-     "Three-dimensional SBE and DBE microstructures were built with a discrete element method "
-     "(DEM) for the rigid-particle packing and a material point method (MPM) for the plastic "
-     "deformation of the electrolyte, and the effective conductivities were then obtained with a "
-     "finite-volume solver on a voxel grid. Rigid-sphere packing was computed in LIGGGHTS from "
-     "1,271 NCM811 spheres (r = 2.5 μm) and 146,420 LPSCl spheres (r = 0.5 μm), mixed 70:27 by "
-     "weight in a 50 × 50 μm² domain and compacted under displacement control. Rigid spheres do "
-     "rearrange but cannot flatten, fracture or deform grain boundaries, so the LPSCl contact "
-     "stiffness was selected against a densification target for sulfide cold pressing rather than "
-     "taken from the dense material: 1.35 GPa is an empirical contact-law input, not an intrinsic "
-     "modulus and not a validation of these beds, and 24 GPa is listed alongside it in Table S2. "
-     "The ~10 % target is derived from composite and glass literature rather than measured on pure "
-     "LPSCl, and the 11–12 % overlap is a pure-SE simulation result, not a measured target. "
-     "Plastic deformation was then resolved on the fixed DEM skeleton by MPM with J2 plasticity "
-     "(σ_y = 0.30 GPa); the elastic pair E = 1.53 GPa, ν = 0.49 is a model choice giving "
-     "K = 25.5 GPa and G = 0.51 GPa, confining the softening to shear. VGCF, PTFE and SDCP were "
-     "present in the material-point cloud during compaction at the experimental weight fractions. "
-     "The resulting beds are more compacted than the experimental porosity anchor."),
-    (None,
-     "Each microstructure was rasterized at a voxel edge of 0.15 μm; adjacent conducting voxels "
-     "were coupled through harmonic-mean conductances and ∇·(σ∇φ) = 0 solved with 1 V between "
-     "the separator and current-collector faces, the remaining boundaries insulating. NCM811, VGCF "
-     "and SDCP carried the electronic network and LPSCl and SDCP the ionic network. The insulating "
-     "binder was treated under two conventions reported as equivalent sensitivity points — omitted "
-     "from the electronic grid, and with its centerline voxels excluded — since neither is "
-     "established as closer to a real thin coating: the one-cell centerline under-represents the "
-     "coating’s extent while over-blocking where stamped, and omitting it removes only the "
-     "electronic exclusion, the binder’s mass and stiffness remaining in the bed. The VGCF "
-     "conductivity is an effective network value rather than a fibre constant, since voxelisation "
-     "removes the fibre–fibre contact resistance that separates the powder (≈ 83 S cm⁻¹) and "
-     "single-filament (≈ 10⁴ S cm⁻¹) values; the powder-scale value was adopted and rescaled to "
-     "preserve axial fibre conductance (78.5 S cm⁻¹)."),
-    (None,
-     "Each electrode was solved at all eight half-voxel grid-origin shifts of a 2 × 2 × 2 "
-     "factorial, SBE and DBE sharing the same origins so that ratios are paired. These eight "
-     "phases are a complete factorial of a single bed rather than independent replicates, so ratios "
-     "are given as the mean over the prescribed phases with the spread and observed range; no "
-     "standard error and no confidence interval are implied. Ohmic loss per phase was evaluated as "
-     "Σ gₖ Δφₖ². The two binder conventions give 72.3/81.3 mS cm⁻¹ (ratio 1.124) and "
-     "54.0/70.6 mS cm⁻¹ (ratio 1.308): the direction is common to both, the magnitude is not. "
-     "Absolute conductivities are those of an idealised bulk model with no interfacial contact "
-     "resistance anywhere and are not composition-matched to a measurement. The ratio is not "
-     "grid-converged and grew at finer voxels over the refinement interval examined; no continuum "
-     "extrapolation or global bound is established. Refinement moves the voxel edge and the "
-     "diameter-preserving carbon conductivity together; an arm isolating the latter shifts the "
-     "ratio the other way, so the geometric part is not smaller than the combined figure. Restoring the additive contacts that "
-     "voxelisation drops recovers about a fifth of that dependence, measured under the "
-     "binder-omitted convention only. The magnitude is also conditional on the carbon conductivity "
-     "being an effective network constant: at the single-filament value the ordering reverses, but "
-     "that arm is not better physics — it is a doubly idealised sensitivity at one origin phase. "
-     "Two further limits: the beds are more compacted than the experimental porosity anchor, and "
-     "the specimen provenance of the SDCP conductivity (250 S cm⁻¹) is not established."),
+    ('Microstructure reconstruction and transport simulation.', 'Three-dimensional SBE and DBE microstructures were built with a discrete element method (DEM) for the rigid-particle packing and a material point method (MPM) for the plastic deformation of the electrolyte, and the effective conductivities were then obtained with a finite-volume solver on a voxel grid. Rigid-sphere packing was computed in LIGGGHTS from 1,271 NCM811 spheres (r = 2.5 μm) and 146,420 LPSCl spheres (r = 0.5 μm), mixed 70:27 by weight in a 50 × 50 μm² domain and compacted under displacement control. Rigid spheres do rearrange but cannot flatten, fracture or deform grain boundaries, so the LPSCl contact stiffness was selected against a densification target for sulfide cold pressing rather than taken from the dense material: 1.35 GPa is an empirical contact-law input, not an intrinsic modulus and not a validation of these beds, and 24 GPa is listed alongside it in Table S2. The ~10 % target is derived from composite and glass literature rather than measured on pure LPSCl, and the 11–12 % overlap is a pure-SE simulation result, not a measured target. Plastic deformation was then resolved on the fixed DEM skeleton by MPM with J2 plasticity (σ_y = 0.30 GPa); the elastic pair E = 1.53 GPa, ν = 0.49 is a model choice giving K = 25.5 GPa and G = 0.51 GPa, confining the softening to shear. VGCF, PTFE and SDCP were present in the material-point cloud during compaction at the experimental weight fractions. The resulting beds are more compacted than the experimental porosity anchor.'),
+    (None, 'Each microstructure was rasterized at a voxel edge of 0.15 μm; adjacent conducting voxels were coupled through harmonic-mean conductances and ∇·(σ∇φ) = 0 solved with 1 V between the separator and current-collector faces, the remaining boundaries insulating. NCM811, VGCF and SDCP carried the electronic network and LPSCl and SDCP the ionic network. The insulating binder was represented by excluding its centerline voxels from conduction; sensitivity to this representation is given in Table S3c. The coefficient assigned to the VGCF phase (100 S cm⁻¹) is a frozen, uncalibrated legacy value rather than a fiber constant. Voxelization fuses touching fibers and so carries no fiber–fiber contact resistance, one of several contributions — along with packing fraction, orientation, network tortuosity, contact number and compaction pressure — separating single-filament (≈ 10⁴ S cm⁻¹) from compressed-powder (≈ 83 S cm⁻¹) measurements. The coefficient is rescaled with voxel size to preserve the axial conductance of a 0.15 μm fiber (78.5 S cm⁻¹ at the 0.15 μm grid used here). Because it was not independently calibrated, the conductivities and ratios reported are protocol responses under a stated closure rather than material-level estimates.'),
+    (None, 'Each electrode was solved at all eight half-voxel grid-origin shifts of a 2 × 2 × 2 factorial, SBE and DBE sharing the same origins so that ratios are paired. These eight phases are a complete factorial of a single bed rather than independent replicates, so ratios are given as the mean over the prescribed phases with the spread and observed range; no standard error and no confidence interval are implied. Ohmic loss per phase was evaluated as Σ g_k Δφ_k². Under the centerline convention selected for reporting but not calibrated, the effective electronic conductivity is 54.0/70.6 mS cm⁻¹, a paired ratio of 1.308 (spread 0.003; range 1.302–1.310); omitting the binder instead gives 72.3/81.3 and a ratio of 1.124. Neither convention is a calibrated representation of the binder, so the magnitude is convention-dependent while the direction is not. Absolute conductivities are those of an idealized bulk model with no interfacial contact resistance anywhere and are not composition-matched to a measurement. The ratio is not grid-converged and grew at finer voxels over the refinement interval examined; no continuum extrapolation or global bound is established. Restoring the additive contacts that voxelization drops recovers about a fifth of that dependence, measured under the binder-omitted convention only. The magnitude is also conditional on the carbon conductivity being an effective network constant: at the single-filament value the ordering reverses, but that arm is not better physics — it is a doubly idealized sensitivity at one origin phase. Three further limits: the beds are more compacted than the experimental porosity anchor; the compaction was not quasi-static (platen at 0.27 of the dilatational wave speed against an internal limit of 0.01), and although both electrodes moved at the same speed this makes the inputs like-for-like rather than making the rate contribution cancel, so the ratio is conditional on this protocol and the thickness and ε_union are a terminal wall separation and a high-rate diagnostic; and the specimen provenance of the SDCP conductivity (250 S cm⁻¹) is not established.'),
 ]
 
 # --- tables ---------------------------------------------------------------
@@ -254,19 +120,10 @@ PENDING_ION = "[ 보류 — 쟀으나 입력 규약이 두 침대를 비대칭�
 PENDING_CAP = "[ 협업자 소관 — 면적 하중 0.015904 g cm⁻² 확정, 비용량은 원고 밖 ]"
 
 TABLE_S2 = [
-    ("Block", "Rows carried in that block", "Role label"),
-    ("DEM (packing)",
-     "Domain 50 × 50 μm² · NCM811 r = 2.5 μm, E = 140 GPa · "
-     "LPSCl r = 0.5 μm, E(dense) = 24 GPa, E(DEM contact) = 1.35 GPa",
-     "E(DEM contact): Empirical contact-law input"),
-    ("MPM (plastic compaction)",
-     "E = 1.53 GPa · ν = 0.49 (these give K = 25.5 GPa, G = 0.51 GPa) · σ_y = 0.30 GPa",
-     "E, ν: Model choice · σ_y: Selected against densification target"),
-    ("Voxel transport",
-     "Voxel edge 0.15 μm · σ_e(NCM811) 1.0 × 10⁻² · σ_ion(LPSCl) 3.0 × 10⁻³ · "
-     "σ_e(VGCF, powder) 1.0 × 10² · σ_e(VGCF, voxel diameter-preserving) 78.5 · "
-     "σ_e(SDCP) 250 · PTFE 0  [S cm⁻¹]",
-     "σ_e(VGCF): Effective network constant, not a fibre material constant"),
+    ('Block', 'Rows carried in that block', 'Role label'),
+    ('DEM (packing)', 'Domain 50 × 50 μm² · NCM811 r = 2.5 μm, E = 140 GPa · LPSCl r = 0.5 μm, E(dense) = 24 GPa, E(DEM contact) = 1.35 GPa', 'E(DEM contact): Empirical contact-law input'),
+    ('MPM (plastic compaction)', 'E = 1.53 GPa · ν = 0.49 (these give K = 25.5 GPa, G = 0.51 GPa) · σ_y = 0.30 GPa', 'E, ν: Model choice · σ_y: Selected against densification target'),
+    ('Voxel transport', 'Voxel edge 0.15 μm · σ_e(NCM811) 1.0 × 10⁻² · σ_ion(LPSCl) 3.0 × 10⁻³ · σ_e(VGCF) 1.0 × 10² · σ_e(SDCP) 250 · σ_ion(SDCP) 1.0 × 10⁻³ · PTFE 0  [S cm⁻¹]', 'σ_e(VGCF): Frozen, uncalibrated (rescaled by the Methods equation; 78.5 at h = 0.15 μm — a grid product, not a table value) · σ_e(SDCP): Assumed (specified by the authors, S-PEDOT class)'),
 ]
 
 TABLE_S3 = [
@@ -509,13 +366,8 @@ def build(out_path: Path) -> Path:
     _add_table(doc, [("#", "v6", "v7", "왜 바꾸는가")] + list(CHANGES),
                widths=[0.9, 4.2, 4.6, 7.0], small=True)
 
-    para("PTFE 규약에 대해서는 한 가지를 분명히 해 둡니다. 초안은 처음에 '안 그림' 을 주 규약으로 "
-         "썼는데 이유가 편집 편의였고, 지적을 받고 '차단' 으로 뒤집었는데 이번에는 두 값을 본 뒤에 "
-         "큰 쪽으로 옮긴 것이라 결과 독립이 아니었습니다. 그래서 지금은 어느 쪽도 주 규약으로 "
-         "지정하지 않고 동등한 두 sensitivity 점으로 적습니다. 더 근본적으로, centerline 규약은 "
-         "PTFE 를 제대로 해상한 규약이 아닙니다 — 한 셀 폭 중심선을 찍고 그 셀을 정확히 0 으로 "
-         "제거하는 방식이라, 얇은 코팅의 공간 범위는 과소 표현하면서 찍힌 셀에서는 차단을 과대 "
-         "표현합니다. 직경을 인식하는 변형은 아직 구현돼 있지 않습니다.", size=9.5)
+    # ⚠ 부속 산문은 PTFE_ANCILLARY 상수 (검사 8 이 본문과 대조한다)
+    para(PTFE_ANCILLARY, size=9.5)
 
     doc.add_page_break()
 
@@ -558,10 +410,12 @@ def build(out_path: Path) -> Path:
          "“Material and numerical parameters used for the DEM–MPM–voxel transport workflow”.",
          size=9.5)
     _add_table(doc, TABLE_S2, widths=[3.2, 8.0, 5.5], small=True)
-    para("E(dense) 24 GPa 와 E(DEM contact) 1.35 GPa 는 둘 다 남깁니다. VGCF 의 두 행(powder / "
-         "voxel diameter-preserving)도 그대로 둡니다 — 규약이 표에서 보여야 합니다. 그리고 세 "
-         "값의 역할이 서로 다르므로 'Calibrated' 한 라벨로 뭉치지 않습니다: 접촉 E 는 경험적 "
-         "접촉법칙 입력값, MPM 의 E·ν 는 모델 선택, σ_y 는 치밀화 표적에 맞춰 고른 값입니다.",
+    para("E(dense) 24 GPa 와 E(DEM contact) 1.35 GPa 는 둘 다 남깁니다. VGCF 는 100 S cm⁻¹ 한 행만 두고 "
+         "라벨을 Frozen, uncalibrated 로 답니다 — 78.5 는 격자 산물이라 표가 아니라 Methods 의 식으로 "
+         "보이고, powder 라벨은 100 이 83 에서 유도됐다는 뜻으로 읽히므로 쓰지 않습니다 (2026-09-02). "
+         "SDCP 250 은 Assumed (specified by the authors, S-PEDOT class). 그리고 세 값의 역할이 서로 "
+         "다르므로 'Calibrated' 한 라벨로 뭉치지 않습니다: 접촉 E 는 경험적 접촉법칙 입력값, MPM 의 "
+         "E·ν 는 모델 선택, σ_y 는 치밀화 표적에 맞춰 고른 값입니다.",
          size=9)
 
     # --- Table S3
@@ -688,12 +542,30 @@ def selftest() -> int:
 
     #  6b. 렌더되는 문자열에 마크다운 강조가 남으면 Word 에 별표가 그대로 찍힌다
     #      (para() 는 마크다운을 파싱하지 않는다).  실제로 한 번 찍혔다.
-    _rendered = [STATUS_BODY, TABLE_S3_FOOT, TABLE_S3B_FOOT,
+    _rendered = [STATUS_BODY, TABLE_S3_FOOT, TABLE_S3B_FOOT, PTFE_ANCILLARY,
                  *[c for row in RELEASE_CONDITIONS for c in row],
                  *[c for _, c in OPEN_ITEMS],
                  *[str(c) for row in TABLE_S2 + TABLE_S3 + TABLE_S3B for c in row]]
     _md = [s[:60] for s in _rendered if "**" in s]
     chk("렌더 문자열에 마크다운 강조가 없다", not _md, _md[:2])
+
+    # 8. ★ 본문과 부속 산문이 **같은 규약**을 말하는가 (2026-09-08, Codex Methods 리뷰 Q1)
+    #    실사고: 본문 Values 절은 "centerline convention selected for reporting" 인데
+    #    부속 산문은 "어느 쪽도 주 규약으로 지정하지 않는다" 였다 — 같은 DOCX 안에서 상충.
+    #    검사 2·3 은 금지 숫자와 수치 일치만 보므로 **의미 상충을 원리적으로 못 잡는다**.
+    def _conv_check(body_txt, anc_txt):
+        nominal = "selected for reporting" in body_txt
+        denies = ("어느 쪽도 주 규약" in anc_txt) or ("동등한 두 sensitivity 점으로 적습니다" in anc_txt)
+        return not (nominal and denies)
+    _body = " ".join([b or "" for _, b in METHODS_FULL] + [b for _, b in METHODS_COMPACT])
+    chk("8: 본문(공칭 규약)과 부속 산문이 상충하지 않는다", _conv_check(_body, PTFE_ANCILLARY))
+    chk("8b: 상충을 실제로 잡는다 (반례)",
+        not _conv_check("the centerline convention selected for reporting",
+                        "지금은 어느 쪽도 주 규약으로 지정하지 않고"))
+    chk("8c: 본문이 공칭 지정을 안 하면 부속 산문은 자유다 (과잉차단 아님)",
+        _conv_check("both conventions are given", "어느 쪽도 주 규약으로 지정하지 않고"))
+    chk("8d: 검사가 공허하지 않다 — 본문이 실제로 공칭 규약을 지정한다",
+        "selected for reporting" in _body)
 
     # 7. release conditions must be exactly the eight
     chk("eight release conditions", len(RELEASE_CONDITIONS) == 8)
