@@ -2116,6 +2116,23 @@
    "reviews_work_dated": "2026-09-07",
    "shared_input": null,
    "verdict": "**RUN HOLD — 기하 재하율로 96 팔을 시작하지 않는다.**\n**즉시 고친 것 둘**: ① replay 게이트를 primary 쌍둥이 대비로 바꾸고 QC 부재·orphan·중복을 전부 HOLD 로 (selftest 17/17, 반례 ⑤b~⑤e 신설).  ② `phase_a_plan.py` 를 **실행 거부**로 전환 (15/15 초록인 채로 실행 불가능한 명령을 냈다).\n★★ **교훈 — 필수 토큰을 세는 것은 필수 입력이 빠졌는지 확인하는 것이 아니다.**  계획을 자료구조로 만들어 검사 가능하게 한 것은 옳았고 **무엇을 검사할지 고른 것이 틀렸다.**\n**남은 것**: porosity 정본 단일화(14.321 vs 킷 14.283) · angular_risk 재측정(네 조성 post-STEP2 · periodic-aware · 깨끗한 트리) · 사전등록 v2.\n⛔ **기하 규칙으로 바꾸는 개정은 허용되지 않는다** (Codex).  선택지는 (a) 네 조성 전부 고정 Mach 0.03 → *\"그 규약에 조건부인 순서\"* 로 결론 제한, 또는 (b) rate×composition 대조 추가 (최소 {W1,W4}×{0.03,0.01} = 증분 2 STEP2 + 16 STEP3; 전체 강건성은 8 STEP2 + 64 STEP3).\n⚠ 내 비용 산술도 틀렸다 — (b) 를 20~38 h 로 적었으나 실제 ~70~143 h.\n⚠ smoke 는 **exploratory/excluded pilot** 로 날짜와 함께 남긴다.\n⚠ **W3·W4 STEP2 시작 금지** — 재하율 규약이 정해질 때까지."
+  },
+  {
+   "id": "CL-80",
+   "date": "2026-09-08",
+   "status": "live",
+   "kind": "measurement_record",
+   "claim": "**Phase A W1 두 재하율 실측 — 두 런 다 목표 압력에 도달하지 못했고, 재하율이 도달 압력을 9.6배 바꾼다.**  플래튼이 목표 응력이 아니라 **운동학적으로** 멈춘다 (`docs/mpm_platen_kinematic_stop_defect.md` 가 정본으로 기록해 둔 결함이 Phase A 에서 발현).  ⇒ 네 조성을 이대로 돌리면 *\"300 MPa 전극의 σ_e 순서\"* 가 아니라 **\"각자 다른 압력에 눌린 침대들의 순서\"** 가 된다.",
+   "measured": {
+    "metric": "같은 침대(6 mAh · P:S 7:3 · VGCF 1 + PTFE 1 wt%)를 재하율만 바꿔 두 번.  `mpm_metrics.json` 의 `final_stress_GPa` · `settled_over_target` · `stop_mode` · `porosity_settled_pct`.",
+    "value": "```\n목표 target_GPa = 0.30\n\n                    기하 규칙        Mach 0.03\nplaten_mach_VcP     0.4275          0.03\nfinal_stress_GPa    **0.0139**      **0.1336**      ← 9.6배 차\n목표 대비            4.6 %           44.5 %         (settled_over_target 0.4434)\nstop_mode           legacy_moving   legacy_moving   ← 움직이는 중에 끝남\nframes  사용/예산    40 / 150        90 / 2500      ← 예산이 아니라 다른 이유로 정지\nam_jam              off             off            ← AM 잼이 막은 게 아니다\nwall_z / wall_min   —               2.171 / 0.06   ← 바닥에 닿지도 않음\nporosity_settled    13.699 %        13.848 %       ← **거의 같다**\nthickness_um        115.102         115.302\n소요                 ~1.5 h          **52 분** (01:42:51 → 02:34:56)\n```\n★★ **압력이 9.6배 다른데 porosity 는 0.15 %p 밖에 안 움직인다** — CLAUDE.md 가 이미 적어둔 scaffold 함정의 직접 확인이다: `solid_vol` 은 씨앗 시점에 고정이고 MPM 의 유일한 출력은 `wall_z` 라, 플래튼이 DEM 높이 근처에 서면 ε_sphere 가 **산술적으로** DEM porosity 를 돌려준다.  ⇒ **scaffold 런의 porosity 를 압축 성공의 증거로 읽지 말 것.**",
+    "unit": "GPa / % / h"
+   },
+   "asserted": "`docs/reviews/phase_a_6mah_order_prereg_20260907.md` §9 의 W1 단계 판정 — 나머지 세 조성에 140~270 h 를 쓰기 전에 한 런으로 예산과 완주 가능성을 재는 단계.",
+   "provenance": "kgy RTX 3090, 2026-09-08.  `~/pa/kits03/VGCF_PTFE_1_1/run_…_014251_1158742` (Mach 0.03, 등록 규약) vs `~/pa/kits/…_220027_1100866` (기하 규칙, exploratory pilot).  코드 동일성 확인: STEP2/STEP3 6 파일이 `origin/claude/stoic-knuth-NObVQ` 와 해시 일치.",
+   "reviews_work_dated": "2026-09-08",
+   "shared_input": null,
+   "verdict": "⛔ **W2·W3·W4 를 시작하지 않는다.**  목표 미달 침대 위에서 순서를 재면 등록한 질문의 답이 아니다.\n★ **예산 걱정은 사라졌다** — 52 분이다.  내 추정 20~35 h 가 **약 30배** 빗나갔다 (오늘 세 번째 추정 오류).  ⚠ 그러나 그것이 좋은 소식인 이유가 곧 문제다: **플래튼이 90/2500 프레임에서 멈춰서** 싼 것이다.\n★★ **재하율의 영향이 내가 인용했던 크기가 아니다** — 도달 압력이 **9.6배** 다르다.  (내가 Codex 에 인용했던 \"4.8 %\" 는 애초에 `final_stress_GPa` 를 σ_e 로 오독한 것이었고, 이제 같은 축의 실측이 자릿수급임을 보인다.)\n⇒ 다음은 둘 중 하나를 **정하는 것**이다: (a) 목표 압력에 실제로 도달시키는 경로 — `fam_platen_prereg_20260812.md` 가 이미 다루고, 그 문서가 *\"정지만 고치면 더 나빠진다 (ε_sphere 1.13 % vs 실험 15.6 %)\"* 라고 적어 둔 상태다.  (b) **도달 압력을 규약으로 고정** — 네 조성이 같은 압력에 서도록 만들고 그것을 등록.\n⚠ 어느 쪽도 혼자 정할 문제가 아니고, **Codex 에 다시 물을 값어치가 있다** — 이번 질문은 *\"목표 미달 침대로 조성 순서를 재도 되는가\"* 로 더 근본적이다."
   }
  ],
  "quotation_ban": [
