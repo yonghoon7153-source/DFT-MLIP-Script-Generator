@@ -24,8 +24,8 @@
 | P0-2 | M1 | 공개 `record_execution_class(run_dir, cls,…)` raw sink · `issue_execution_class(…, cls,…)` unrestricted mint · `_ISSUED_EXEC_CAPS` 가 caller 의 **같은 mutable object** 를 증인으로 씀 | β | **GREEN** |
 | P0-3 | M1·M5 | commit/거부 뒤 **nonce 가 살아 있고** `dir_fd=None` 이라 두 번째 호출이 미판정 자리를 canonical 로 굳힌다 | β | **GREEN** |
 | P0-4 | M5 | capability fd 는 마지막 commit 에만 닿는다 — grid chunk/parquet/manifest 는 pathname 으로 쓰여 bind swap 시 **밖에 이미 바이트가 남는다** | γ | **GREEN** |
-| P0-5 | M6·M10 | `_claims`/`_attempts` root 가 pathname 유도라 **부모 symlink** 를 따라 frozen tree 에 token·claim 을 쓴다 | δ | 미착수 |
-| P0-6 | — | lifecycle journal temp 가 unchecked `write_text` — **short write 뒤에도 freeze 성공**, head 는 메모리 record 로 만든다 | δ | 미착수 |
+| P0-5 | M6·M10 | `_claims`/`_attempts` root 가 pathname 유도라 **부모 symlink** 를 따라 frozen tree 에 token·claim 을 쓴다 | δ | **GREEN** |
+| P0-6 | — | lifecycle journal temp 가 unchecked `write_text` — **short write 뒤에도 freeze 성공**, head 는 메모리 record 로 만든다 | δ | **GREEN** |
 | P0-7 | M8 | `lstat` walk 가 **bind mount 된 밖의 파일**을 평범한 inode 로 센다 | ε | 미착수 |
 | P0-8 | M8 | `payload_index` 가 bundle member 일 필요가 없다 — repo 안 gitignored 경로여도 `full_bundle` | ε | 미착수 |
 | P0-9 | M9 | dict 는 snapshot 하지만 **그것이 가리킨 bundle** 은 안 한다 — 검증 뒤 ledger commit 전 member 교체 성공 | ε | 미착수 |
@@ -96,3 +96,22 @@
   "이 이름이 아직 판정한 대상인가" 검사는 전부 이름으로 한다.
 - handle 없음은 이제 **통과가 아니라 거부**다 (59차의 조용한 통과가 P0-3 둘째
   반례의 마지막 한 걸음이었다).
+
+### δ (P0-5·P0-6) — lifecycle root 의 좌표 · journal 의 checked write
+
+**P0-6.** `_write_all_checked()` + `_publish_bytes_checked()` 를 만들고 journal 과
+head 를 **같은 계단**에 올렸다 (write-all → fsync → 정확한 read-back → 대체 →
+최종 read-back → 부모 fsync). anchor 는 이제 **디스크에서 다시 읽은 journal** 의
+마지막 줄에서 유도한다 — 59차까지는 메모리의 의도 record 를 해시했고, 그러면
+anchor 는 "들어갔어야 하는 것" 을 가리킨다 (증거가 아니라 주장).
+
+*시험 하나를 버렸다*: 처음 쓴 "head 가 journal 마지막 줄과 같은가" 는 **처음부터
+통과**했다 — 두 값을 같은 식이 만들므로 아무것도 구별 못 한다. 잘림이 아니라
+**변조**(같은 길이·다른 내용)를 주입하는 시험으로 바꿨다.
+
+**P0-5.** `_lifecycle_root()` 하나로 합치고 root 자신을 본다: ① `lstat` 로 alias
+거부 ② 없으면 `mkdir` (그 자리에 symlink 가 있으면 `EEXIST` → ①이 잡는다) ③
+**얼린 좌표를 덮고 있으면 거부** (symlink 가 아닌 길 — bind·이동 — 로도 같은
+해악이 서므로 이름이 아니라 대상의 좌표를 묻는다).
+
+죽은 변이 축 1건(`claims-root-comes-from-the-ledger`) 재조준.

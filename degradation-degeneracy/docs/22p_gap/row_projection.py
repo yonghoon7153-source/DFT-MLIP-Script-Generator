@@ -3997,6 +3997,69 @@ def _lifecycle_lock():
         os.close(fd)
 
 
+def _write_all_checked(fd: int, data: bytes, where: str) -> int:
+    """짧게 쓰면 이어서 쓴다 — 그리고 **쓴 길이를 돌려준다** (60차 P0-6).
+
+    `os.write()` 는 요청보다 적게 쓰고도 성공한다. 이 저장소는 claim·token·
+    실행 class 레코드에서 이미 세 번 이 계단을 만들었는데, lifecycle journal 과
+    head 만 `Path.write_text()` 로 남아 있었다 — 반환 길이도 안 보고 다시 읽지도
+    않는 쓰기였다.
+    """
+    view = memoryview(data)
+    done = 0
+    while done < len(view):
+        n = os.write(fd, view[done:])
+        if n <= 0:                                       # pragma: no cover
+            raise SystemExit(f"✗ {where} 쓰기가 진행되지 않는다 (n={n})")
+        done += n
+    return done
+
+
+def _publish_bytes_checked(path, body: bytes, where: str) -> None:
+    """**write-all → fsync → 정확한 read-back → 대체 → 최종 read-back → 부모 fsync.**
+
+    (60차 P0-6) 이 저장소가 다른 durable 게시에서 쓰는 것과 같은 계단이다.
+    `Path.write_text()` 는 이 중 어느 것도 안 한다.
+
+    실패하면 **temp 만 남고 목적지는 안 움직인다.** 그래서 전이가 실패해도
+    원장은 직전 상태 그대로 읽힌다 — 반례가 만든 "성공을 보고하면서 못 읽는
+    상태" 가 안 생긴다.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+    published = False
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        try:
+            _write_all_checked(fd, body, where)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        got = tmp.read_bytes()
+        if got != body:
+            raise SystemExit(
+                f"✗ {where} 를 다시 읽었더니 쓴 바이트와 다르다 "
+                f"({len(got)}B ≠ {len(body)}B) — read-back 이 어긋났으므로 "
+                "이름을 붙이지 않는다 (60차 P0-6)")
+        os.replace(tmp, path)
+        published = True
+        if path.read_bytes() != body:                    # pragma: no cover
+            raise SystemExit(
+                f"✗ {where} 를 게시한 뒤 다시 읽었더니 다르다 — 멈춘다")
+    finally:
+        if not published:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+    dfd = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
+
+
 def _append_lifecycle(cohort_id: str, frm, to: str, note: str) -> dict:
     """전이 하나를 **덧붙인다.** 허용 전이가 아니면 만들지 않는다."""
     with _lifecycle_lock():                              # 55차 P0-3
@@ -4037,24 +4100,20 @@ def _append_lifecycle_locked(cohort_id: str, frm, to: str, note: str) -> dict:
            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
            "prev": prev}
     p = _lifecycle_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
     body = "".join(_lifecycle_line(r) + "\n" for r in entries + [rec])
-    tmp = p.with_name(f".{p.name}.{uuid.uuid4().hex}.tmp")
-    tmp.write_text(body, encoding="utf-8")
-    fd = os.open(tmp, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, p)
-    # 사슬의 끝을 anchor 에 고정한다 — journal **다음**에 쓴다.
+    # ★ 60차 P0-6 — 검사하는 계단으로 게시한다. 실패하면 여기서 멈추고 목적지는
+    #   안 움직이므로, 아래의 marker·원장 전이도 일어나지 않는다.
+    _publish_bytes_checked(p, body.encode("utf-8"), "cohort-lifecycle-journal")
+    # ★ 60차 P0-6 — anchor 는 **디스크에서 다시 읽은 journal** 의 마지막 줄에서
+    #   유도한다. 59차까지는 메모리의 의도 record 를 해시했고, 그러면 anchor 는
+    #   "들어갔어야 하는 것" 을 가리킨다 — 증거가 아니라 주장이다.
+    _lines = p.read_text(encoding="utf-8").splitlines()
+    if not _lines or _lines[-1] != _lifecycle_line(rec):
+        raise SystemExit(
+            "✗ journal 을 게시한 뒤 다시 읽었더니 마지막 줄이 방금 쓴 전이가 "
+            "아니다 — anchor 를 만들지 않는다 (60차 P0-6)")
     _write_head_anchor(hashlib.sha256(
-        _lifecycle_line(rec).encode("utf-8")).hexdigest())
-    dfd = os.open(p.parent, os.O_RDONLY)
-    try:
-        os.fsync(dfd)
-    finally:
-        os.close(dfd)
+        _lines[-1].encode("utf-8")).hexdigest())
     return rec
 
 
@@ -4068,15 +4127,10 @@ def _write_head_anchor(tip: str) -> None:
       `read_lifecycle()` 이 위조와 구별해 받아 주고, anchor 완주는
       `repair_lifecycle_anchor()` 가 한다 (53차 P0-6 — 읽기는 쓰지 않는다).
     """
-    hp = _lifecycle_head_path()
-    htmp = hp.with_name(f".{hp.name}.{uuid.uuid4().hex}.tmp")
-    htmp.write_text(tip + "\n", encoding="utf-8")
-    hfd = os.open(htmp, os.O_RDONLY)
-    try:
-        os.fsync(hfd)
-    finally:
-        os.close(hfd)
-    os.replace(htmp, hp)
+    # ★ 60차 P0-6 — head 도 journal 과 **같은 계단**을 쓴다. 한쪽만 고치면
+    #   같은 반례가 한 칸 옆에서 다시 선다.
+    _publish_bytes_checked(_lifecycle_head_path(), (tip + "\n").encode("utf-8"),
+                           "cohort-lifecycle-head")
 
 
 def _finish_pending_anchor() -> bool:

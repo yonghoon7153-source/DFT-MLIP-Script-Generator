@@ -6064,6 +6064,50 @@ def canonical_ledger(ledger=None) -> Path:
     return path
 
 
+def _lifecycle_root(name: str, ledger=None) -> Path:
+    """원장 옆의 파생 root 를 **대상으로** 연다 (60차 P0-5).
+
+    57차는 token 의 **마지막 성분**이 symlink 인 경우를 막았다. 그런데 root
+    자체는 `canonical_ledger(...).parent / name` 이라는 **이름**으로만 유도됐고,
+    `mkdir`·temp·`os.replace` 는 그 부모를 따라갔다. 리뷰어는 `_claims` 와
+    `_attempts` 를 얼린 tree 로 향한 디렉터리 symlink 로 만들고 공개
+    `open_leg_run()` 하나로 그 안에 token 과 claim 을 만들었다.
+
+    경로는 성분의 열이고, **검사한 성분만 검사된 것**이다. 그러므로 여기서는
+    root 자신을 본다:
+
+      ① `lstat` 로 alias 를 거부한다 (symlink 이거나 디렉터리가 아니면 멈춘다).
+      ② 없으면 `mkdir` 로 만든다 — 그 자리에 symlink 가 있으면 `EEXIST` 가 나고
+        ①이 그것을 잡는다. 즉 "따라가서 만든다" 가 구조적으로 불가능하다.
+      ③ 그리고 **얼린 좌표를 덮고 있으면** 거부한다. symlink 가 아닌 길
+        (bind mount·이동)로도 같은 해악이 서기 때문이다 — 이름을 하나 더
+        막는 대신 **대상의 좌표**를 묻는다 (58차 L5 가 세운 층을 여기서도 쓴다).
+    """
+    root = canonical_ledger(ledger).parent / name
+    try:
+        st = os.lstat(root)
+    except FileNotFoundError:
+        root.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.mkdir(root, 0o755)
+        except FileExistsError:                          # 경합 — 아래에서 다시 본다
+            pass
+        st = os.lstat(root)
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise PreserveError(
+            "plan",
+            f"lifecycle root {root} 가 디렉터리가 아니라 **alias** 다 — 이 자리를 "
+            "따라가면 원장 밖(예: 얼린 cohort tree)에 token·claim 이 생긴다. "
+            "마지막 성분만 보는 검사로는 부모 alias 가 안 막힌다 (60차 P0-5)")
+    covering = frozen_coordinate_covering(root)
+    if covering:
+        raise PreserveError(
+            "plan",
+            f"lifecycle root {root} 가 얼린 cohort {covering!r} 의 좌표 안에 있다 "
+            "— 얼린 tree 에는 아무것도 쓰지 않는다 (60차 P0-5)")
+    return root
+
+
 def claims_root_for_ledger(ledger=None) -> Path:
     """실행권이 사는 곳 — **원장이 정한다** (54차 P0-1).
 
@@ -6075,7 +6119,7 @@ def claims_root_for_ledger(ledger=None) -> Path:
     두 쪽이 **같은 authority** 에서 자리를 유도하면 그 schedule 이 표현
     불가능해진다. 그 authority 는 원장이다 — 계획·cohort·동결이 전부 거기 있다.
     """
-    return canonical_ledger(ledger).parent / "_claims"
+    return _lifecycle_root("_claims", ledger)
 
 
 def attempts_root_for_ledger(ledger=None) -> Path:
@@ -6101,7 +6145,7 @@ def attempts_root_for_ledger(ledger=None) -> Path:
     claims 와 **다른** 디렉터리인 이유는 51차 P1-P 의 뿌리다: 전달 통로와
     authority 가 같은 namespace 에 있으면 통로가 authority 경로를 점유한다.
     """
-    return canonical_ledger(ledger).parent / "_attempts"
+    return _lifecycle_root("_attempts", ledger)
 
 
 def attempt_path_for(leg_id: str, ledger=None, attempts_root=None) -> Path:

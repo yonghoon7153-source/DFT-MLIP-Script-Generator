@@ -846,9 +846,12 @@ MUTANTS = [
      "        pass",
      "issuer_refuses_while_a_freeze_is_half_committed"),
     # ★ P0-1 — claim 의 자리는 원장이 정한다 (caller 가 아니다).
+    # ★ 60차 P0-5 — 두 root 의 유도가 공유 helper 로 합쳐졌다 (`_lifecycle_root`).
+    #   축의 물음은 그대로다: **원장이 자리를 정하는가.** 원상을 그 helper 안의
+    #   유도 한 줄로 옮긴다.
     ("claims-root-comes-from-the-ledger", PRESERVE,
-     '    return canonical_ledger(ledger).parent / "_claims"',
-     '    return canonical_ledger(None).parent / "_claims"',
+     "    root = canonical_ledger(ledger).parent / name",
+     "    root = canonical_ledger(None).parent / name",
      "issuer_cannot_choose_where_its_claim_lives"),
     # ★ P0-2 — 정리 경로도 같은 lock 순서를 쓴다.
     # ★ 57차 — **declared** 로 내린다. 이 lock 순서는 그대로 지킬 규칙이지만,
