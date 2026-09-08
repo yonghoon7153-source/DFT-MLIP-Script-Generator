@@ -7,7 +7,7 @@
       "두 칸만 더하면 87.4" 가 왜 정상인지 한눈에 보이게 하는 것이 목적이다.
   (b) n = 1 · 2 · 3(end) · 3(mid) · 6 의 같은 분할 (7월 값은 SO₃·백본 두 칸만 있어
       나머지를 **가르지 못한다** → 빗금 한 칸 'unresolved remainder').
-  (c) n=6 고리별 프로파일 (ring0–ring5).
+  (c) n=6 고리별 프로파일 (ring0–ring5 · 7월 정의 = 고리 원자만 · 합 = backbone_july).
 
 데이터 원본: db/properties/sdcp_nseries_spin_2026_09_08.json — 숫자는 여기서만 읽는다.
   그림 옆에 Origin-ready CSV 두 개를 db/properties/ 에 같이 쓴다.
@@ -17,10 +17,10 @@
   · 전역 최소 스핀 상태를 보증하지 않는다 (fresh SCF 한 번, 7월과 같은 한계).
   · n=1–3 의 나머지를 에테르 O 와 H 로 가르지 못한다 — 7월 표에 그 분해가 없다.
     빗금 칸은 "모른다" 는 표시지 "기타" 가 아니다.
-  · (c) 고리별 값은 **말단 고리(ring0·ring5)에 α-H 1개씩 섞인 값**이다 (옛 groups.json 에
-    symbols 가 없어 도구가 못 걸렀다, 합 79.5 = backbone_strict). 7월 정의(고리 원자만)
-    per-ring 값은 symbols 폴백 반영 뒤 `nseries_n6.py --analyze` 재실행이 있어야 한다.
-    도핑 자리가 어느 고리인지도 이 그림은 말하지 않는다 (JSON site 필드가 비어 있다).
+  · (c) 는 고리 **원자만**(7월 정의)의 값이다 — 말단 α-H 의 −0.2 는 CSV 의 참고 열에만 있다.
+    도핑 자리가 어느 고리인지는 이 그림이 말하지 않는다 (JSON site 필드가 비어 있다) — 그래서
+    "자리 근방에 국재" 같은 해석 라벨을 붙이지 않는다.
+  · 고리별 합이 backbone_july 와 0.1 %p 넘게 다르면 그리지 않는다 (정의가 바뀌었는데 라벨이 그대로인 사고 방지).
   · SP 값과 섞지 않는다 — Opt 계열만 그린다.
 
   python3 tools/figures/fig_sdcp_nseries_spin.py
@@ -88,21 +88,25 @@ def rows(db):
 
 
 def ring_profile(db):
-    """n=6 ring0..ring5 (%, 말단 고리에 α-H 포함) — 합이 backbone_strict 여야 한다."""
+    """n=6 ring0..ring5 (%, 고리 원자만 = 7월 정의) — 합이 backbone_july(backbone_pct) 여야 한다.
+
+    참고 열(+고리H)은 `ring_profile_incl_ringH_pct` 에서 같이 읽어 CSV 에만 싣는다."""
     v6 = [v for v in db["값"] if v["n"] == 6][0]
     prof = v6.get("ring_profile_pct")
     if not prof:
         raise PartitionError("n=6 ring_profile_pct 없음 — (c) 를 그릴 수 없다")
     keys = sorted(prof, key=lambda k: int(k.replace("ring", "")))
     vals = [float(prof[k]) for k in keys]
-    strict = float(v6["backbone_strict_pct"])
-    if abs(sum(vals) - strict) > 0.11:
-        raise PartitionError(f"ring 합 {sum(vals):.1f} ≠ backbone_strict {strict} — "
-                             "정의가 바뀌었는데 라벨이 그대로다")
-    return keys, vals, strict
+    july = float(v6["backbone_pct"])
+    if abs(sum(vals) - july) > 0.11:
+        raise PartitionError(f"ring 합 {sum(vals):.1f} ≠ backbone_july {july} — "
+                             "정의가 바뀌었는데 라벨이 그대로다 (+고리H 값을 넣었나?)")
+    ref = v6.get("ring_profile_incl_ringH_pct") or {}
+    return keys, vals, [float(ref[k]) if k in ref else None for k in keys]
 
 
-def write_csv(rws, keys, vals, repo=REPO):
+def write_csv(rws, keys, vals, ref=None, repo=REPO):
+    ref = ref if ref is not None else [None] * len(keys)
     p1 = Path(repo) / CSV_PART
     p1.parent.mkdir(parents=True, exist_ok=True)
     with p1.open("w", newline="", encoding="utf-8-sig") as f:
@@ -122,14 +126,14 @@ def write_csv(rws, keys, vals, repo=REPO):
                         "yes" if r["resolved"] else "no"])
     p2 = Path(repo) / CSV_RING
     with p2.open("w", newline="", encoding="utf-8-sig") as f:
-        f.write("# n=6 D. Loewdin spin per thiophene ring, %. Ring groups from groups.json "
-                "(pilot); terminal rings ring0/ring5 still include one alpha-H each "
-                "(old groups.json had no symbols) - sum equals backbone_strict 79.5, "
-                "not the July-definition 79.7. Preliminary until --analyze re-run.\n")
+        f.write("# n=6 D. Loewdin spin per thiophene ring, %. spin_pct_ring_atoms = ring atoms only "
+                "(July definition; sums to backbone 79.7). spin_pct_incl_ring_H = reference including the "
+                "terminal alpha-H of ring0/ring5 (sums to 79.5; the -0.2 is spin polarization on ring5's H). "
+                "Re-analysis 2026-09-08 (gabia analyze_n6_v2.log), no recomputation.\n")
         w = csv.writer(f)
-        w.writerow(["ring_index", "ring_label", "spin_pct", "definition"])
-        for k, v in zip(keys, vals):
-            w.writerow([int(k.replace("ring", "")), k, v, "ring atoms (+1 alpha-H on ring0/ring5)"])
+        w.writerow(["ring_index", "ring_label", "spin_pct_ring_atoms", "spin_pct_incl_ring_H", "definition"])
+        for k, v, r in zip(keys, vals, ref):
+            w.writerow([int(k.replace("ring", "")), k, v, "" if r is None else r, "ring atoms only (July definition)"])
     return p1, p2
 
 
@@ -146,7 +150,7 @@ def draw(db, out, repo=REPO):
     from matplotlib.patches import Patch
 
     rws = rows(db)
-    keys, vals, strict = ring_profile(db)
+    keys, vals, _ref = ring_profile(db)
     r6 = [r for r in rws if r["n"] == 6][0]
 
     fig = plt.figure(figsize=(11.5, 7.6))
@@ -243,7 +247,7 @@ def draw(db, out, repo=REPO):
     apply_axes(axC, "thiophene ring along the chain", "spin on ring (%)",
                f"(c)  n = 6, ring by ring  (sum {sum(vals):.1f} %)", fontsize=11)
     axC.title.set_ha("left"); axC.title.set_position((0.0, 1.0))
-    axC.text(0.03, 0.97, "preliminary: ring 0 and ring 5\nstill include one α-H each",
+    axC.text(0.03, 0.97, "ring atoms only (same definition as the\nJuly table); terminal α-H excluded",
              transform=axC.transAxes, ha="left", va="top", fontsize=8, color=MUT)
 
     import textwrap
@@ -285,10 +289,12 @@ def selftest():
     chk(abs(r6["so3"] + r6["ring"] - 87.4) < TOL, "n=6 두 칸 합 87.4 (표에 오르는 값)")
     chk(all(not r["resolved"] for r in rws if r["n"] in (2, 3)),
         "n=2·3 의 나머지는 unresolved 로 표시된다 (7월 표에 분해 없음)")
-    keys, vals, strict = ring_profile(db)
+    keys, vals, ref = ring_profile(db)
     chk(keys == [f"ring{i}" for i in range(6)], "ring0..ring5 순서")
-    chk(abs(sum(vals) - 79.5) < 0.11, "ring 합 79.5 = backbone_strict (7월 정의 79.7 이 아님)")
+    chk(abs(sum(vals) - 79.7) < 0.11, "ring 합 79.7 = backbone_july (고리 원자만 · 7월 정의)")
     chk(max(vals) == vals[4], "최댓값은 ring4 (23.3)")
+    chk(ref[5] == 19.8 and ref[0] == 3.8 and abs(sum(ref) - 79.5) < 0.11,
+        "참고 열(+고리H) 은 합 79.5 — 말단 α-H 의 −0.2 가 ring5 에 있다")
 
     # ⛔음성 ①: 합이 100 이 아닌 행은 그리지 않는다
     bad_db = json.loads(json.dumps(db))
@@ -308,14 +314,14 @@ def selftest():
     except PartitionError as e:
         chk("remainder_pct" in str(e), "⛔음성: remainder_pct 없으면 거부")
 
-    # ⛔음성 ③: ring 합이 strict 와 다르면 (정의가 바뀌었는데 라벨이 그대로면) 거부
+    # ⛔음성 ③: ring 합이 backbone_july 와 다르면 (예: +고리H 값을 잘못 넣으면) 거부
     bad_db = json.loads(json.dumps(db))
-    bad_db["값"][4]["ring_profile_pct"]["ring0"] = 4.6     # 합 80.3
+    bad_db["값"][4]["ring_profile_pct"] = dict(bad_db["값"][4]["ring_profile_incl_ringH_pct"])   # 합 79.5
     try:
         ring_profile(bad_db)
-        chk(False, "⛔음성: ring 합 ≠ strict 가 통과하면 안 된다")
+        chk(False, "⛔음성: +고리H 값(합 79.5)이 7월 정의 자리에 들어가면 막아야 한다")
     except PartitionError as e:
-        chk("backbone_strict" in str(e), "⛔음성: ring 합 ≠ backbone_strict 면 거부")
+        chk("backbone_july" in str(e), "⛔음성: ring 합 ≠ backbone_july 면 거부 (+고리H 값 혼입 차단)")
 
     # ⛔음성 ④: resolved=true 인데 나머지가 남으면 거부
     bad_db = json.loads(json.dumps(db))
@@ -331,13 +337,14 @@ def selftest():
     T = Path(tempfile.mkdtemp())
     out = draw(db, T / "x.png")
     chk(Path(out).stat().st_size > 20_000, "PNG 생성")
-    p1, p2 = write_csv(rws, keys, vals, repo=T)
+    p1, p2 = write_csv(rws, keys, vals, ref, repo=T)
     txt = p1.read_text(encoding="utf-8-sig").splitlines()
     chk(txt[2].startswith("n,site,SO3_pct,aryl_rings_pct,ether_O_pct"), "CSV 열 이름 명시적")
     chk(sum(1 for l in txt if l and not l.startswith("#")) == 6, "CSV 데이터 5행 + 헤더")
     chk(all(float(l.split(",")[7]) == 100.0 for l in txt[3:]), "CSV total_pct 전부 100.0")
-    chk(p2.read_text(encoding="utf-8-sig").count("\nring") >= 0 and
-        len(p2.read_text(encoding="utf-8-sig").splitlines()) == 8, "ring CSV 6행 + 헤더 + 주석")
+    _rl = p2.read_text(encoding="utf-8-sig").splitlines()
+    chk(len(_rl) == 8 and _rl[1].startswith("ring_index,ring_label,spin_pct_ring_atoms,spin_pct_incl_ring_H")
+        and _rl[-1].split(",")[2:4] == ["20.0", "19.8"], "ring CSV 6행 + 헤더 + 주석 · 두 정의 열 (ring5 20.0 / 19.8)")
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return bad == 0
 
@@ -351,9 +358,9 @@ def main():
         sys.exit(0 if selftest() else 1)
     db = load()
     rws = rows(db)
-    keys, vals, _ = ring_profile(db)
+    keys, vals, ref = ring_profile(db)
     out = draw(db, a.out)
-    p1, p2 = write_csv(rws, keys, vals)
+    p1, p2 = write_csv(rws, keys, vals, ref)
     print(f"PNG  {out}\nCSV  {p1}\nCSV  {p2}")
 
 
