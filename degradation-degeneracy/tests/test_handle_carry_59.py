@@ -156,13 +156,16 @@ def test_a_bundle_of_plain_files_still_passes(tmp_path, monkeypatch):
     (bundle / "sub").mkdir(parents=True)
     (bundle / "a.txt").write_text("a\n", encoding="utf-8")
     (bundle / "sub" / "b.txt").write_text("bb\n", encoding="utf-8")
-    idx = root / "index.json"
+    # ★ 60차 P0-8 — index 는 **묶음 안**에 있어야 한다. 밖에 두면 묶음만 받은
+    #   사람에게 그것을 인증한다는 목록이 없다 (`full_bundle` 의 뜻이 성립하지
+    #   않는다). 그래서 이 정상 묶음도 index 를 안에 둔다.
+    idx = bundle / "index.json"
     idx.write_text("{}\n", encoding="utf-8")
     ev = {
         "bundle_uri": "bundle",
-        "bundle_files": 2,
-        "payload_bytes": 2 + 3,
-        "payload_index": "index.json",
+        "bundle_files": 3,
+        "payload_bytes": 2 + 3 + 3,
+        "payload_index": "bundle/index.json",
         "payload_index_sha256": hashlib.sha256(idx.read_bytes()).hexdigest(),
     }
     assert P._verify_declared_bundle(ev, repo_root=root) == []

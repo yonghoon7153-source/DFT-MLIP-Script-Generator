@@ -7070,6 +7070,18 @@ def _repo_relative_or_refuse(root: Path, raw, what: str) -> Path:
     return got
 
 
+def _bundle_root(evidence: dict, repo_root=None) -> Path:
+    """묶음 뿌리를 **한 자리에서** 해석한다 (60차 P0-9 의 부수 정리).
+
+    `bundle_content_id()` 를 만들면서 같은 해석을 두 번 적었더니 그 규칙을
+    겨누던 변이 축(`bundle-uri-must-be-repo-relative-g58`)의 원상이 **두 자리**
+    가 됐고, 등록부가 "합집합을 셀 수 없다" 로 멈췄다. 규칙이 한 자리에 있지
+    않으면 남은 중복이 곧 다음 반례다 (55차 P0-1 이 같은 말을 했다).
+    """
+    root = Path(repo_root or Path(__file__).resolve().parents[1])
+    return _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")
+
+
 def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     """선언한 묶음을 **디스크에서** 확인한다 (48차 P0-4).
 
@@ -7231,8 +7243,7 @@ def bundle_content_id(evidence: dict, repo_root=None) -> str:
     없어지지 않는다. 없애려면 묶음을 immutable content-addressed object 로 먼저
     게시해야 하고, 그것은 이 라운드의 범위 밖이다 — 요청문에 적는다.
     """
-    root = Path(repo_root or Path(__file__).resolve().parents[1])
-    d = _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")
+    d = _bundle_root(evidence, repo_root)
     parts = []
     for x in sorted(d.rglob("*")):
         st = os.stat(x, follow_symlinks=False)

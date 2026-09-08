@@ -755,9 +755,13 @@ def _import_time_heads(node) -> list:
         heads += [d for d in (list(getattr(args, "defaults", ()) or ())
                               + list(getattr(args, "kw_defaults", ()) or ()))
                   if d is not None]
+        # ★ 60차 P0-12 — `*args`·`**kwargs` 의 주석도 **import 때 평가된다.**
+        #   59차는 ordinary·pos-only·kw-only 만 봤고, 그 둘이 목록 밖이었다.
         for a in (list(getattr(args, "args", ()) or ())
                   + list(getattr(args, "posonlyargs", ()) or ())
-                  + list(getattr(args, "kwonlyargs", ()) or ())):
+                  + list(getattr(args, "kwonlyargs", ()) or ())
+                  + [x for x in (getattr(args, "vararg", None),
+                                 getattr(args, "kwarg", None)) if x]):
             if getattr(a, "annotation", None) is not None:
                 heads.append(a.annotation)
     if getattr(node, "returns", None) is not None:
@@ -994,6 +998,19 @@ def _module_defs(src: str) -> dict:
                 continue
             elif kind in _MODULE_COMPOUND:
                 here = top or node
+                # ★ 60차 P0-12 — **head 는 import 때 평가된다.** 59차는 body 와
+                #   target 결속만 기록하고 `If.test`·`While.test`·`For.iter`·
+                #   `With` 의 context·`Match.subject` 를 슬라이스 밖에 뒀다.
+                #   그것들은 조회가 아니라 **실행**이다 (리뷰어 실측:
+                #   `if sc.activate():` 를 더해도 digest 가 그대로였다).
+                for h in (getattr(node, "test", None),
+                          getattr(node, "iter", None),
+                          getattr(node, "subject", None)):
+                    if h is not None:
+                        _bind(MODULE_EFFECTS, here)
+                for item in getattr(node, "items", ()) or ():
+                    if getattr(item, "context_expr", None) is not None:
+                        _bind(MODULE_EFFECTS, here)
                 for name in _target_names(getattr(node, "target", None)):
                     _bind(name, here)
                 for item in getattr(node, "items", ()) or ():
@@ -1022,7 +1039,22 @@ def _module_defs(src: str) -> dict:
                     "문법을 쓰려면 `_MODULE_COMPOUND`/`_MODULE_NONBINDING` 에 "
                     "넣고 `_module_defs()` 가 무엇을 묶는지 정하라 (fail-closed)")
 
-    _visit(ast.parse(src).body, None)
+    _tree = ast.parse(src)
+    # ★ 60차 P0-13 — **module docstring 을 `__doc__` 라는 이름으로 묶는다.**
+    #
+    #   51차 P0-I 는 "버리는 것을 없애면 그 축이 사라진다" 로 docstring 을
+    #   identity 안에 넣었다. 그런데 그 수정은 function·class 에만 적용됐고,
+    #   module 의 첫 문자열은 아래 `_MODULE_NONBINDING`/상수 처리에서 그대로
+    #   버려졌다. 그래서 `__doc__` 를 읽는 계산이 있으면 문서 문자열만 바꿔도
+    #   digest 가 안 움직였다 (리뷰어 실측: ALPHA → OMEGA).
+    #
+    #   철자를 막는 대신 **버리는 것을 없앤다** — 51차가 고른 방향 그대로다.
+    _body = list(_tree.body)
+    if (_body and isinstance(_body[0], ast.Expr)
+            and isinstance(_body[0].value, ast.Constant)
+            and isinstance(_body[0].value.value, str)):
+        _bind("__doc__", _body[0])
+    _visit(_body, None)
     return defs
 
 
@@ -1122,6 +1154,13 @@ _SOURCE_REFLECTION_MODULES = ("inspect", "linecache", "dis", "traceback",
 #:   그것은 **경로 문자열**이지 code·bytes 로 가는 손잡이가 아니다. 남는 한계는
 #:   명시한다 — 그 경로로 파일을 열어 raw source 를 읽는 것은 아직 막지 못했고,
 #:   그 경계는 trusted launcher(§0 의 P0-8)와 같은 자리다.
+#: ★ 60차 P0-13 — `__doc__` 는 여기 **그대로 둔다.** 51차 P0-I 가 이미 이 축의
+#: 방향을 정했다: 철자를 막는 대신 **버리는 것을 없앴다** (버린 것을 읽는 코드를
+#: 철자로 막으면 alias 의 alias 로 계속 이어진다). 60차가 찾은 것은 그 수정이
+#: function·class 에만 적용됐다는 사실이다 — **module docstring** 은 여전히
+#: 버려졌고, 그래서 문서 문자열만 바꿔도 identity 가 안 움직였다. 고칠 자리는
+#: 이 목록이 아니라 `_module_defs()` 이고, 거기서 module docstring 을
+#: `__doc__` 라는 이름으로 묶는다.
 _DUNDER_ALLOWED = ("__name__", "__doc__", "__init__", "__post_init__",
                    "__enter__", "__exit__", "__slots__", "__setattr__",
                    "__future__", "__main__", "__all__", "__version__",
@@ -1360,24 +1399,72 @@ def _binding_shadows(node) -> set:
     import ast
 
     out: set = set()
-    for sub in ast.walk(node):
-        args = getattr(sub, "args", None)
-        if isinstance(args, ast.arguments):
-            for a in (list(args.args) + list(args.posonlyargs)
-                      + list(args.kwonlyargs)
-                      + [args.vararg, args.kwarg]):
-                if a is not None:
-                    out.add(a.arg)
-        if isinstance(sub, (ast.For, ast.AsyncFor)):
-            out |= set(_target_names(sub.target))
-        if isinstance(sub, ast.comprehension):
-            out |= set(_target_names(sub.target))
-        for item in (getattr(sub, "items", ()) or ()):
-            if getattr(item, "optional_vars", None) is not None:
-                out |= set(_target_names(item.optional_vars))
-        if isinstance(sub, ast.ExceptHandler) and sub.name:
-            out.add(sub.name)
+    for _sub, sh in _scoped_shadows(node):
+        out |= sh
     return out
+
+
+def _own_shadows(node) -> set:
+    """이 **한 scope** 가 스스로 묶는 이름 (자식 함수는 안 본다)."""
+    import ast
+
+    out: set = set()
+    args = getattr(node, "args", None)
+    if isinstance(args, ast.arguments):
+        for a in (list(args.args) + list(args.posonlyargs)
+                  + list(args.kwonlyargs) + [args.vararg, args.kwarg]):
+            if a is not None:
+                out.add(a.arg)
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        for sub in ast.iter_child_nodes(cur):
+            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                ast.Lambda, ast.ClassDef)):
+                continue                     # 자식 scope 는 자기 것만 묶는다
+            if isinstance(sub, (ast.For, ast.AsyncFor)):
+                out |= set(_target_names(sub.target))
+            if isinstance(sub, ast.comprehension):
+                out |= set(_target_names(sub.target))
+            for item in (getattr(sub, "items", ()) or ()):
+                if getattr(item, "optional_vars", None) is not None:
+                    out |= set(_target_names(item.optional_vars))
+            if isinstance(sub, ast.ExceptHandler) and sub.name:
+                out.add(sub.name)
+            stack.append(sub)
+    return out
+
+
+def _scoped_shadows(node, inherited: frozenset = frozenset()):
+    """`(하위 node, 그 자리에서 유효한 shadow 집합)` 을 전부 훑는다 (60차 P0-11).
+
+    59차의 `_binding_shadows()` 는 `ast.walk` 로 **중첩 함수의 매개변수까지 한
+    set 에** 합쳤고, 그 set 을 바깥 load 에도 적용했다. 리뷰어는 그것으로
+    바깥 scope 의 능력을 통째로 면제시켰다::
+
+        def score_canonical(df):
+            def innocent(getattr, GET):     # 안쪽 매개변수인데
+                return None
+            GET = getattr                   # 바깥 이 줄이 면제됐다
+            return [GET][0](sc, "external")(df)
+
+    Python 의 scope 는 그렇게 동작하지 않는다. 그러므로 shadow 는 **자기 scope
+    와 바깥 scope** 에서만 유효하고, 자식 scope 의 결속은 부모에 안 올라온다.
+    """
+    import ast
+
+    here = frozenset(inherited | _own_shadows(node))
+    yield node, here
+    stack = [node]
+    while stack:
+        cur = stack.pop()
+        for sub in ast.iter_child_nodes(cur):
+            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                ast.Lambda, ast.ClassDef)):
+                yield from _scoped_shadows(sub, here)
+                continue
+            yield sub, here
+            stack.append(sub)
 
 
 def _imported_module_names(src: str) -> set:
@@ -1418,19 +1505,61 @@ def _namespace_targets(src: str, mods: set) -> set:
     changed = True
     while changed:
         changed = False
+        def _add(names) -> None:
+            nonlocal changed
+            for nm in names:
+                if nm not in out:
+                    out.add(nm)
+                    changed = True
+
+        def _flows(expr) -> bool:
+            """이 식 **어딘가에** 이름 공간이 흘러 있는가."""
+            if expr is None:
+                return False
+            return any(isinstance(x, ast.Name) and x.id in out
+                       for x in ast.walk(expr))
+
         for node in ast.walk(tree):
-            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                value = node.value
+                if isinstance(value, ast.Name) and value.id in out:
+                    targets = (node.targets if isinstance(node, ast.Assign)
+                               else [node.target])
+                    for t in targets:
+                        _add(_target_names(t))
                 continue
-            value = node.value
-            if not (isinstance(value, ast.Name) and value.id in out):
-                continue
-            targets = (node.targets if isinstance(node, ast.Assign)
-                       else [node.target])
-            for t in targets:
-                for nm in _target_names(t):
-                    if nm not in out:
-                        out.add(nm)
-                        changed = True
+            # ★ 60차 P0-10 — **이름 공간은 대입 말고도 흘러든다.**
+            #
+            #   리뷰어 반례: `def score_canonical(df, namespace=sc)` — 매개변수
+            #   기본값이 module 이면 그 매개변수는 이름 공간 이름이다. 그런데
+            #   59차 고정점은 `Assign`/`AnnAssign` 만 따라갔으므로 `namespace`
+            #   는 "벌거벗은 이름" 으로 남았고, 그것이 곧 "이름 공간이 아님의
+            #   증명" 으로 쓰였다 (실측: digest 동일 · 결과 2 → 8).
+            #
+            #   여기서 **shadow 를 통째로 거부하지 않는 이유**: 그러면
+            #   `getattr(df, "columns")` 같은 평범한 속성 읽기가 같이 죽는다
+            #   (실측했다 — 59차가 일부러 지킨 자리다). 그러므로 거부하는 것은
+            #   "매개변수 일반" 이 아니라 **이름 공간이 실제로 흘러든 결속**이다.
+            args = getattr(node, "args", None)
+            if isinstance(args, ast.arguments):
+                pos = list(getattr(args, "posonlyargs", ()) or []) + \
+                    list(args.args)
+                defaults = list(args.defaults or [])
+                for a, d in zip(pos[len(pos) - len(defaults):], defaults):
+                    if _flows(d):
+                        _add([a.arg])
+                for a, d in zip(list(args.kwonlyargs or []),
+                                list(args.kw_defaults or [])):
+                    if _flows(d):
+                        _add([a.arg])
+            if isinstance(node, (ast.For, ast.AsyncFor)) and _flows(node.iter):
+                _add(_target_names(node.target))
+            if isinstance(node, ast.comprehension) and _flows(node.iter):
+                _add(_target_names(node.target))
+            for item in (getattr(node, "items", ()) or ()):
+                if (getattr(item, "optional_vars", None) is not None
+                        and _flows(item.context_expr)):
+                    _add(_target_names(item.optional_vars))
     return out
 
 
@@ -1449,6 +1578,16 @@ def _target_is_provably_not_a_namespace(expr, targets: set) -> bool:
       · 뿌리가 그런 이름인 속성 사슬 (`self.frame`, `df.columns`)
 
     나머지는 값이 어디서 왔는지 이 자리에서 정해지지 않으므로 거부다.
+
+    ★ 60차 P0-10 — **호출자가 값을 주는 이름은 증명이 아니다.** 59차는
+      "벌거벗은 이름이면 증명됐다" 로 뒀는데, 매개변수도 벌거벗은 이름이고 그
+      값은 이 module 이 정하지 않는다 (리뷰어 실측: `namespace=sc` 기본값 ·
+      caller 가 `sc` 를 전달 · `for m in [sc]` — 셋 다 digest 동일).
+
+      59차 M17 과 모순이 아니다. M17 은 **"이 이름이 능력인가"** 를 물었고 거기
+      매개변수는 아닐 수 있다. 여기는 **"이 대상이 이름 공간이 아님을 증명할 수
+      있는가"** 이고, 거기 매개변수는 증명이 안 된다. 같은 집합이 한쪽에서는
+      면제의 근거, 다른 쪽에서는 거부의 근거다.
     """
     import ast
 
@@ -1508,11 +1647,15 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
     #       평범한 대입은 **여전히 능력이다** (58차 L9-b 가 닫은 축이다).
     #     · 속성은 뿌리가 **import 한 module** 일 때만 능력이다
     #       (`operator.attrgetter`). 남의 객체의 `.vars` 는 그냥 속성이다.
-    shadows = _binding_shadows(node)
     modnames = set(modnames or ())
     callees = {id(sub.func) for sub in ast.walk(node)
                if isinstance(sub, ast.Call)}
-    for sub in ast.walk(node):
+    # ★ 60차 P0-11 — shadow 는 **scope 별**이다. 59차는 `ast.walk` 로 중첩
+    #   함수의 매개변수까지 한 set 에 합치고 그것을 바깥 load 에도 적용했다.
+    #   Python 의 scope 는 그렇게 동작하지 않는다.
+    scope_of = {id(sub): sh for sub, sh in _scoped_shadows(node)}
+    shadows_at = lambda x: scope_of.get(id(x), frozenset())     # noqa: E731
+    for sub, shadows in _scoped_shadows(node):
         if isinstance(sub, ast.Name):
             spelling, is_load = sub.id, isinstance(sub.ctx, ast.Load)
             if spelling in shadows:
@@ -1574,6 +1717,18 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
             fname = (sub.func.id if isinstance(sub.func, ast.Name)
                      else sub.func.attr if isinstance(sub.func, ast.Attribute)
                      else None)
+            # ★ 60차 P0-10 — **호출자가 준 이름을 부르면 무엇을 부르는지 모른다.**
+            #   리뷰어 반례: 능력을 매개변수로 넘기기만 해도 그 자리의 이름은
+            #   `caps` 에 없으므로 아래 검사가 하나도 안 돌았다 (실측: digest
+            #   동일 · 결과 1 → 9). 값을 이 module 이 정하지 않는 이름을 호출
+            #   위치에 두면 그 호출은 정적으로 답할 수 없는 호출이다.
+            if isinstance(sub.func, ast.Name) and sub.func.id in shadows_at(sub):
+                raise SystemExit(
+                    f"✗ producer 닫힘 안에서 **호출자가 준 이름을 부른다**: "
+                    f"{where} 의 `{sub.func.id}(...)` — 그 값은 이 module 이 "
+                    "정하지 않으므로 무엇을 부르는지 정적으로 답할 수 없다 "
+                    "(능력을 매개변수로 넘기면 그대로 identity 밖의 계산이 "
+                    "된다). 부를 것을 이 자리에서 이름으로 적으라 (fail-closed)")
             if fname == "attrgetter" or (
                     isinstance(sub.func, ast.Attribute)
                     and sub.func.attr == "attrgetter"):
@@ -1690,8 +1845,8 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
         #   됐다 (리뷰어 실측: `getattr([sc][0], "…")`). 종류를 세는 검사는
         #   다음 종류를 못 센다. `targets` 는 module 을 가리키는 이름의
         #   **고정점**이라 `M = sc` 같은 별칭도 같이 잡는다.
-        if first is None or not _target_is_provably_not_a_namespace(first,
-                                                                   targets):
+        if first is None or not _target_is_provably_not_a_namespace(
+                first, targets):
             target = ("현재 module" if first is None
                       else getattr(first, "id", type(first).__name__))
             raise SystemExit(

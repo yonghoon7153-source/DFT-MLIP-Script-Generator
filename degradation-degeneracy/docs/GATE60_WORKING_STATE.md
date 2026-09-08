@@ -26,15 +26,15 @@
 | P0-4 | M5 | capability fd 는 마지막 commit 에만 닿는다 — grid chunk/parquet/manifest 는 pathname 으로 쓰여 bind swap 시 **밖에 이미 바이트가 남는다** | γ | **GREEN** |
 | P0-5 | M6·M10 | `_claims`/`_attempts` root 가 pathname 유도라 **부모 symlink** 를 따라 frozen tree 에 token·claim 을 쓴다 | δ | **GREEN** |
 | P0-6 | — | lifecycle journal temp 가 unchecked `write_text` — **short write 뒤에도 freeze 성공**, head 는 메모리 record 로 만든다 | δ | **GREEN** |
-| P0-7 | M8 | `lstat` walk 가 **bind mount 된 밖의 파일**을 평범한 inode 로 센다 | ε | 미착수 |
-| P0-8 | M8 | `payload_index` 가 bundle member 일 필요가 없다 — repo 안 gitignored 경로여도 `full_bundle` | ε | 미착수 |
-| P0-9 | M9 | dict 는 snapshot 하지만 **그것이 가리킨 bundle** 은 안 한다 — 검증 뒤 ledger commit 전 member 교체 성공 | ε | 미착수 |
-| P0-10 | M11·M17 | parameter/default 가 module·resolver provenance 를 지운다 (`namespace=sc` · caller 가 `sc`·`getattr` 을 전달) | ζ | 미착수 |
-| P0-11 | M17 | `_binding_shadows()` 가 `ast.walk` 로 **중첩 scope 의 parameter** 를 바깥에 적용 + subscript callee 우회 | ζ | 미착수 |
-| P0-12 | M12 | compound **head**(`If.test`·`While.test`·`For.iter`·`With`·`Match.subject`) 와 **vararg/kwarg annotation** 이 import-time 밖 | ζ | 미착수 |
-| P0-13 | M12 | module docstring 은 버리면서 **`__doc__` 접근은 허용** — 문서 문자열로 값이 흐른다 | ζ | 미착수 |
+| P0-7 | M8 | `lstat` walk 가 **bind mount 된 밖의 파일**을 평범한 inode 로 센다 | ε | **GREEN** |
+| P0-8 | M8 | `payload_index` 가 bundle member 일 필요가 없다 — repo 안 gitignored 경로여도 `full_bundle` | ε | **GREEN** |
+| P0-9 | M9 | dict 는 snapshot 하지만 **그것이 가리킨 bundle** 은 안 한다 — 검증 뒤 ledger commit 전 member 교체 성공 | ε | **GREEN** |
+| P0-10 | M11·M17 | parameter/default 가 module·resolver provenance 를 지운다 (`namespace=sc` · caller 가 `sc`·`getattr` 을 전달) | ζ | **GREEN** |
+| P0-11 | M17 | `_binding_shadows()` 가 `ast.walk` 로 **중첩 scope 의 parameter** 를 바깥에 적용 + subscript callee 우회 | ζ | **GREEN** |
+| P0-12 | M12 | compound **head**(`If.test`·`While.test`·`For.iter`·`With`·`Match.subject`) 와 **vararg/kwarg annotation** 이 import-time 밖 | ζ | **GREEN** |
+| P0-13 | M12 | module docstring 은 버리면서 **`__doc__` 접근은 허용** — 문서 문자열로 값이 흐른다 | ζ | **GREEN** |
 | P1-1 | M3·M13 | hardlink 게시가 temp alias 를 남기고(`nlink=2`) unlink 실패를 삼킨 채 성공 | η | 미착수 |
-| P1-2 | M9 | `phase_done()` 이 caller dict 를 **lock 밖에서 검사하고 같은 reference 를 나중에 직렬화** | ε | 미착수 |
+| P1-2 | M9 | `phase_done()` 이 caller dict 를 **lock 밖에서 검사하고 같은 reference 를 나중에 직렬화** | ε | **GREEN** |
 | P1-3 | M14 | startup 에서 실행됐다 `sys.modules` 를 떠난 byte 를 probe 가 못 본다 | θ | 미착수 |
 | P1-4 | M15 | full receipt 가 **startup 뒤 import 되는 byte** 를 안 담는다 | θ | 미착수 |
 
@@ -115,3 +115,44 @@ anchor 는 "들어갔어야 하는 것" 을 가리킨다 (증거가 아니라 �
 해악이 서므로 이름이 아니라 대상의 좌표를 묻는다).
 
 죽은 변이 축 1건(`claims-root-comes-from-the-ledger`) 재조준.
+
+### ε (P0-7·P0-8·P0-9·P1-2) — 묶음의 물리적 담김 · `23699f02`
+
+- **P0-7**: 구성원이 묶음 뿌리와 **같은 mount 인지** 커널에 묻는다
+  (`_kernel_mount_id`). `lstat` 는 bind mount 를 평범한 inode 로 보고
+  `Path.resolve()` 는 namespace 안의 철자만 증명한다. 회귀는 리뷰어와 같은
+  방식으로 `unshare -Urnm` 안에서 실제 bind mount 를 건다.
+- **P0-8**: index 를 **구성원**으로 강제 + index 가 이름한 집합과 실제로 걸은
+  집합의 **양방향** 대조. index 형식이 구성원을 열거하지 않으면 그 대조는
+  건너뛴다 (억지 해석으로 틀린 집합을 만드는 것보다 정직하다).
+- **P0-9**: `bundle_content_id()` 를 만들고 `finalize_leg()` 이 봉인에 넣는다.
+  **한계**: mutable directory 인 한 "검증 → 봉인" 창 자체는 안 없어진다.
+- **P1-2**: `phase_done()` 이 진입 즉시 정규 바이트로 굳힌다 (M9 와 같은 규칙).
+
+### ζ (P0-10·P0-11·P0-12·P0-13) — producer identity 의 평가 표면
+
+- **P0-12**: compound **head**(`If.test`·`While.test`·`For.iter`·`With` 의
+  context·`Match.subject`)와 **vararg·kwarg 주석**을 실행 슬라이스에 넣었다.
+- **P0-11**: shadow 를 **scope 별**로 (`_scoped_shadows()`). 59차는 `ast.walk`
+  로 중첩 함수의 매개변수까지 한 set 에 합쳐 바깥 load 에 적용했다.
+- **P0-10**: 두 번 고쳐 잡았다.
+  - 첫 판은 "shadow 인 대상은 증명 아님" 으로 **통째로 거부**했는데,
+    `getattr(df, 'columns')` 같은 정상 속성 읽기가 죽었다 (59차가 일부러 지킨
+    자리다). 실측으로 되돌렸다.
+  - 대신 **이름 공간 고정점을 넓혔다**: 기본값·`for` 대상·`with as` 로
+    **이름 공간이 실제로 흘러든** 결속만 namespace 이름으로 본다.
+  - 그리고 **호출자가 준 이름을 부르는 것**(`GET(...)` 에서 `GET` 이 매개변수)
+    은 거부한다 — 능력을 매개변수로 넘기면 `caps` 검사가 하나도 안 돌았다.
+- **P0-13**: `__doc__` 접근 거부가 첫 판이었는데, **51차 P0-I 가 이미 반대
+  방향을 정해 뒀다** ("철자를 막는 것은 종결 조건이 아니다 — 버리는 것을
+  없앤다"). 그 수정이 function·class 에만 적용돼 있었을 뿐이다. 그래서
+  `_module_defs()` 가 **module docstring 을 `__doc__` 로 묶는다.**
+
+죽은 변이 축 1건(`bundle-uri-must-be-repo-relative-g58`, 원상이 2회가 됐다) —
+묶음 뿌리 해석을 `_bundle_root()` 한 자리로 모아 고쳤다.
+
+### 마감에 남은 기계적 항목
+
+- cohort pin drift (row_projection.py 가 바뀌었다) → g14 freeze → g15
+- 검증 영수증 core sha 갱신 (`make_receipt.py paired_fixed5_v4`)
+- 12조각 전수 재생 · 전체 회귀 + strict smoke · 요청문
