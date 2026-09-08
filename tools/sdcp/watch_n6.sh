@@ -96,7 +96,16 @@ if [ -f "$F" ]; then
   grep -a "FINAL SINGLE POINT ENERGY" "$F" | tail -3 | sed 's/^/    /'
   echo
   echo "  수렴 지표 (마지막 사이클)"
-  sed -n '/Geometry convergence/,/^ *---/p' "$F" | tail -12 | sed 's/^/    /'
+  # ⚠ 2026-09-08 — 종전 범위 `/Geometry convergence/,/^ *---/` 는 **헤더 밑줄에서 끊겨**
+  #   표 본문이 한 줄도 안 나오고 헤더만 4번 찍혔다 (실물 화면). ORCA 표는
+  #   "-----|Geometry convergence|-----" 다음에 헤더 2줄 + 본문 + 닫는 밑줄이라,
+  #   마지막 블록의 **시작 줄 번호**를 찾아 그 뒤 12줄을 찍는다.
+  _gc=$(grep -an "Geometry convergence" "$F" | tail -1 | cut -d: -f1)
+  if [ -n "$_gc" ]; then
+    sed -n "$((_gc+1)),$((_gc+12))p" "$F" | sed 's/^/    /'
+  else
+    echo "    (수렴표 아직 없음)"
+  fi
 fi
 
 echo
