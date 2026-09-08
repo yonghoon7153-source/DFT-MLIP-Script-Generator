@@ -1173,12 +1173,6 @@ MUTANTS = [
      "    return isinstance(cur, ast.Name) and cur.id not in targets",
      "    return True",
      "wrapping_the_capability_target_does_not_escape"),
-    ("module-assert-runs-at-import-g59", RP,                          # M12
-     '_MODULE_NONBINDING = ("Pass", "Global", "Nonlocal", "Break", "Continue",\n'
-     '                      "Return")',
-     '_MODULE_NONBINDING = ("Pass", "Raise", "Assert", "Global", "Nonlocal",\n'
-     '                      "Break", "Continue", "Return")',
-     "the_import_time_slice_contains_everything_that_runs"),
     ("class-bases-are-substitution-g59", RP,                          # M12
      '    out += [ast.copy_location(ast.Expr(value=b), b)\n'
      '            for b in (getattr(node, "bases", ()) or ())]\n'
@@ -1546,6 +1540,19 @@ MULTI = [
     # ★ 58차 — L11 이 영수증에 `startup` 을 넣으면서 그 안의 `env` 가 환경을
     #   **대신 증언한다**. `env` 를 비워도 digest 가 움직이므로 이 변이가 안
     #   물었다 (실측: 변이만 rc 0 · 봉인과 무관). 둘을 함께 되돌린다.
+    # ★ 59차 M12 — **한 자리만 지우면 다른 자리가 가린다.** `_MODULE_EVALUATING`
+    #   만 비우면 `assert` 가 `_module_defs()` 의 마지막 `else` 로 떨어져
+    #   fail-closed 로 거부되고, 그 시험은 "거부도 정답" 이라 통과한다
+    #   (실측: 변이 rc 0). 58차 상태를 정확히 복원하려면 둘을 함께 되돌린다 —
+    #   evaluating 목록을 비우고 그 이름들을 nonbinding 으로 돌려놓는다.
+    ("module-assert-runs-at-import-g59", RP, [
+        ('_MODULE_EVALUATING = ("Raise", "Assert")',
+         "_MODULE_EVALUATING = ()"),
+        ('_MODULE_NONBINDING = ("Pass", "Global", "Nonlocal", "Break", "Continue",\n'
+         '                      "Return")',
+         '_MODULE_NONBINDING = ("Pass", "Raise", "Assert", "Global", "Nonlocal",\n'
+         '                      "Break", "Continue", "Return")'),
+     ], "the_import_time_slice_contains_everything_that_runs"),
     # ★ 59차 M15 — 위와 같은 이유로 두 자리가 탐침 본문으로 옮겨졌다.
     ("evidence-binds-the-environment", MR, [
         ('            \u0022packages\u0022: dict(sorted(pkgs.items())),\n'
@@ -1945,6 +1952,190 @@ def _last_line(text: str) -> str:
 #:   `witness` 는 **node → 실패 메시지 부분문자열** map 이다. 시각·임시 경로
 #:   처럼 실행마다 달라지는 부분은 손으로 잘라 안정한 접두만 남긴다.
 EXPECT: dict = {
+    # ── 59차 (게이트 58차 반증 조건) — 전부 `--emit-expect` 로 관측한 값 ──
+    "module-assert-runs-at-import-g59": {
+        "fail": [
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert True, str(sc.add_error_columns)\\n]",
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert sc.add_error_columns is not None\\n]",
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[if False:\\n    raise RuntimeError(str(sc.add_error_columns))\\n]",
+        ],
+        "witness": {
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert True, str(sc.add_error_columns)\\n]":
+                "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert sc.add_error_columns is not None\\n]":
+                "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[if False:\\n    raise RuntimeError(str(sc.add_error_columns))\\n]":
+                "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
+        }
+    },
+    "output-commit-requires-a-capability-g59": {
+        "fail": [
+            "tests/test_exec_class_capability_59.py::test_committing_an_output_without_a_capability_is_refused",
+        ],
+        "witness": {
+            "tests/test_exec_class_capability_59.py::test_committing_an_output_without_a_capability_is_refused":
+                "AttributeError: 'NoneType' object has no attribute 'nonce'",
+        }
+    },
+    "bundle-members-are-not-followed-g59": {
+        "fail": [
+            "tests/test_handle_carry_59.py::test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside",
+        ],
+        "witness": {
+            "tests/test_handle_carry_59.py::test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside":
+                "AssertionError: 저장소 밖을 가리키는 link 가 묶음 구성원으로 통과했다 — clone 에는 그 바이트가 없다 (M8)",
+        }
+    },
+    "capability-carries-the-judged-handle-g59": {
+        "fail": [
+            "tests/test_handle_carry_59.py::test_the_capability_is_bound_to_the_directory_the_gate_judged",
+        ],
+        "witness": {
+            "tests/test_handle_carry_59.py::test_the_capability_is_bound_to_the_directory_the_gate_judged":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "capability-target-must-be-provable-g59": {
+        "fail": [
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[conditional]",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[dict_value]",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[identity_call]",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[list_index]",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[or_chain]",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[tuple_index]",
+        ],
+        "witness": {
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[conditional]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[dict_value]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[identity_call]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[list_index]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[or_chain]":
+                "Failed: DID NOT RAISE SystemExit",
+            "tests/test_import_time_slice_59.py::test_wrapping_the_capability_target_does_not_escape[tuple_index]":
+                "Failed: DID NOT RAISE SystemExit",
+        }
+    },
+    "class-bases-are-substitution-g59": {
+        "fail": [
+            "tests/test_import_time_slice_59.py::test_a_metaclass_body_change_moves_the_identity",
+        ],
+        "witness": {
+            "tests/test_import_time_slice_59.py::test_a_metaclass_body_change_moves_the_identity":
+                "AssertionError: metaclass 구현을 바꿨는데 producer digest 가 같다 (59차 M12)",
+        }
+    },
+    "env-tag-covers-the-whole-receipt-g59": {
+        "fail": [
+            "tests/test_evidence_layer_59.py::test_the_environment_tag_covers_the_whole_receipt",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_59.py::test_the_environment_tag_covers_the_whole_receipt":
+                "AssertionError: 영수증의 `interpreter` 를 바꿨는데 증언 tag 가 그대로다 — 그 필드는 실행이 증언하지 않는다 (M15)",
+        }
+    },
+    "exec-class-record-is-read-back-g59": {
+        "fail": [
+            "tests/test_exec_class_capability_59.py::test_a_short_write_never_publishes_a_partial_record",
+        ],
+        "witness": {
+            "tests/test_exec_class_capability_59.py::test_a_short_write_never_publishes_a_partial_record":
+                "tools.preserve.PreserveError: [promote] 내용 765899c3321dafee… 의 등록 레코드를 게시 뒤 다시 읽을 수 없다 — class 를 정할 수 없으므로 거부한다",
+        }
+    },
+    "exec-class-retry-reseals-durability-g59": {
+        "fail": [
+            "tests/test_exec_class_capability_59.py::test_a_retry_after_a_failed_parent_fsync_redoes_the_durability_step",
+        ],
+        "witness": {
+            "tests/test_exec_class_capability_59.py::test_a_retry_after_a_failed_parent_fsync_redoes_the_durability_step":
+                "AssertionError: 같은 class 재시도가 등록부 이름을 다시 굳히지 않았다 — 첫 시도의 실패한 parent fsync 가 영원히 안 고쳐진다",
+        }
+    },
+    "finalize-requires-the-consumed-binding-g59": {
+        "fail": [
+            "tests/test_run_schema_binding_59.py::test_finalize_refuses_a_later_phase_with_no_recorded_predecessor",
+        ],
+        "witness": {
+            "tests/test_run_schema_binding_59.py::test_finalize_refuses_a_later_phase_with_no_recorded_predecessor":
+                "KeyError: 'grid'",
+        }
+    },
+    "finalize-snapshots-the-evidence-g59": {
+        "fail": [
+            "tests/test_handle_carry_59.py::test_finalize_seals_the_evidence_it_verified",
+        ],
+        "witness": {
+            "tests/test_handle_carry_59.py::test_finalize_seals_the_evidence_it_verified":
+                "AssertionError: 검증한 뒤 바뀐 값이 원장에 봉인됐다: {'seen': 'after'} — 검증한 것과 기록한 것이 다르면 검증은 아무것도 보장하지 않는다 (M9)",
+        }
+    },
+    "frozen-publication-needs-a-local-seal-g59": {
+        "fail": [
+            "tests/test_frozen_clean_clone_59.py::test_publication_is_refused_while_a_frozen_cohort_has_no_local_seal",
+        ],
+        "witness": {
+            "tests/test_frozen_clean_clone_59.py::test_publication_is_refused_while_a_frozen_cohort_has_no_local_seal":
+                "Failed: DID NOT RAISE SystemExit",
+        }
+    },
+    "future-flag-changes-the-model-g59": {
+        "fail": [
+            "tests/test_import_time_slice_59.py::test_the_future_annotations_flag_is_part_of_the_model",
+        ],
+        "witness": {
+            "tests/test_import_time_slice_59.py::test_the_future_annotations_flag_is_part_of_the_model":
+                "AssertionError: `from __future__ import annotations` 를 더했는데 producer digest 가 그대로다 — 모델이 annotation 평가 의미를 바꾸는 줄을 안 본다 (M12)",
+        }
+    },
+    "issuance-requires-a-durable-token-g59": {
+        "fail": [
+            "tests/test_issuance_surface_59.py::test_issuing_with_a_token_that_is_not_on_disk_is_refused",
+        ],
+        "witness": {
+            "tests/test_issuance_surface_59.py::test_issuing_with_a_token_that_is_not_on_disk_is_refused":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "phase-order-is-enforced-g59": {
+        "fail": [
+            "tests/test_run_schema_binding_59.py::test_a_later_phase_can_not_close_before_its_predecessor",
+        ],
+        "witness": {
+            "tests/test_run_schema_binding_59.py::test_a_later_phase_can_not_close_before_its_predecessor":
+                "KeyError: 'grid'",
+        }
+    },
+    "run-content-id-refuses-unknown-manifests-g59": {
+        "fail": [
+            "tests/test_run_schema_binding_59.py::test_an_undeclared_manifest_in_a_run_dir_is_refused",
+        ],
+        "witness": {
+            "tests/test_run_schema_binding_59.py::test_an_undeclared_manifest_in_a_run_dir_is_refused":
+                "Failed: DID NOT RAISE PreserveError",
+        }
+    },
+    "run-manifest-schema-is-production-wide-g59": {
+        "fail": [
+            "tests/test_run_schema_binding_59.py::test_the_start_manifest_takes_part_in_the_content_identity",
+        ],
+        "witness": {
+            "tests/test_run_schema_binding_59.py::test_the_start_manifest_takes_part_in_the_content_identity":
+                "에 schema 선언 밖의 manifest 가 있다: ['curves_manifest_start.yaml']",
+        }
+    },
+    "startup-binds-every-loaded-module-g59": {
+        "fail": [
+            "tests/test_evidence_layer_59.py::test_the_startup_probe_binds_what_sitecustomize_pulls_in",
+        ],
+        "witness": {
+            "tests/test_evidence_layer_59.py::test_the_startup_probe_binds_what_sitecustomize_pulls_in":
+                "AssertionError: `sitecustomize.py` 가 끌어오는 파일을 바꿨는데 시작 증언이 그대로다 — 그 바이트가 재생이 올리는 코드인데 증거 밖이다 (M14)",
+        }
+    },
     # ★ 아래 셋은 **지역 실행**으로 쟀다. 전체 재생은 이 셋을 못 잰다 —
     #   `check_coverage()` 가 모든 executable 변이의 EXPECT 를 요구하는데
     #   이 셋의 증인이 바로 그 함수를 부르는 시험이라 순환이 생긴다.

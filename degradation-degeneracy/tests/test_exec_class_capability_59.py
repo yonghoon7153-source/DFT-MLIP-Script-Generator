@@ -84,9 +84,17 @@ def test_committing_an_output_without_a_capability_is_refused(tmp_path):
     led = _ledger(tmp_path)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
+    # ★ 59차 마감 — 받아들이는 예외를 **`PreserveError` 하나로** 좁혔다.
+    #
+    #   처음에는 `(PreserveError, TypeError, AttributeError)` 였다. 그러면
+    #   guard 를 지워도 그 다음 줄이 `None.nonce` 로 터져 `AttributeError` 가
+    #   나고 시험이 그대로 통과한다 — 실제로 이 축의 변이가 안 물었다(실측:
+    #   `변이 rc 0`). **crash 는 거부가 아니다**: 어디까지 진행됐는지 말하지
+    #   않고, 부분 상태를 남길 수 있다. 거부는 그 자리에서 이유를 말하는
+    #   것이어야 한다.
     for forged in (None, "smoke", {"cls": "smoke"},
                    P.ExecutionClassCapability):
-        with pytest.raises((P.PreserveError, TypeError, AttributeError)):
+        with pytest.raises(P.PreserveError):
             P.commit_run_outputs(forged, [out])
     assert P.read_execution_class(P.run_content_id(out), ledger=led) is None
 
