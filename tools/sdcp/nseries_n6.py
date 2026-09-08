@@ -260,6 +260,18 @@ def analyze(d):
         #   (A 14.0 / B 21.3 / C 14.9) 이 n=6 에서 비어 나가는 결과였다.
         #   core 에는 고리 H 가 섞여 있으므로(7월은 H 제외) **두 값을 나눠** 찍는다.
         syms = g.get("symbols") or []
+        if not syms:
+            # ⚠ 옛 groups.json(2026-09-08 이전)에는 symbols 가 없다. 같은 폴더의 n6_doped.xyz 에서
+            #   읽는다 — ORCA Opt 가 좌표는 덮어쓰지만 **원자 순서는 보존**하므로 원소열은 그대로다.
+            #   (실측: 이 폴백이 없어 ring0·ring5 의 말단 α-H 를 못 걸러 '+고리H' 값이 나갔다.)
+            _xp = os.path.join(d, "n6_doped.xyz")
+            if os.path.isfile(_xp):
+                try:
+                    syms = _xyz_symbols(_xp)
+                    if len(syms) != g.get("n_atoms", len(syms)):
+                        syms = []          # 원자수가 다르면 믿지 않는다
+                except Exception:
+                    syms = []
         print("  고리별 (7월 정의 = 고리 원자만 · 참고 = +고리H):")
         any_row = False
         for k in sorted(rings):

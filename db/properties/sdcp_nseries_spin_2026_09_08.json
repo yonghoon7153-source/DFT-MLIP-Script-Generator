@@ -14,6 +14,12 @@
    "backbone_strict": "backbone_july + 고리 H (참고)",
    "backbone_extended": "backbone_strict + 에테르 O (참고)"
   },
+  "백분율_분해": {
+   "규칙": "SO₃ + 아릴 고리(backbone_july) + 에테르 O + 기타(고리 H·알킬 링커·말단 H) = 100.0 % — 네 칸이 전 원자를 덮는다. 두 칸(SO₃·백본)만 더하면 100 이 아닌 것이 정상이다.",
+   "n6_에테르_O": "extended 91.6 − strict 79.5 = +12.1",
+   "n6_기타": "고리 H −0.2 (strict 79.5 − july 79.7) + 알킬/말단 H +0.7 = +0.5",
+   "n1_n2_n3_한계": "7월 값은 SO₃·백본 두 칸만 있어 나머지를 에테르 O 와 H 로 **가르지 못한다** — 그림에서는 한 칸(unresolved remainder)으로 두고 빗금으로 표시한다. n=1 은 모노머라 에테르가 없어 나머지가 0 이다."
+  },
   "도구": "tools/sdcp/nseries_n6.py --analyze (LOEWDIN ATOMIC CHARGES AND SPIN POPULATIONS 마지막 블록)",
   "n6_실행": {
    "경로": "gabia:/data/work/runs/sdcp_n6b",
@@ -37,6 +43,8 @@
    "site": "-",
    "SO3_pct": 65.0,
    "backbone_pct": 35.0,
+   "remainder_pct": 0.0,
+   "remainder_resolved": true,
    "ring_split": "O 론페어 우세",
    "source": "kb/results/sdcp_master_summary_2026_07_16.md §3",
    "note": "~65/~35 (7월 표기)"
@@ -46,6 +54,8 @@
    "site": "A-ring",
    "SO3_pct": 62.3,
    "backbone_pct": 32.6,
+   "remainder_pct": 5.1,
+   "remainder_resolved": false,
    "ring_split": "A 17.4 / B 15.2",
    "source": "kb/results/sdcp_master_summary_2026_07_16.md §3"
   },
@@ -54,6 +64,8 @@
    "site": "end(A)",
    "SO3_pct": 54.6,
    "backbone_pct": 39.8,
+   "remainder_pct": 5.6,
+   "remainder_resolved": false,
    "ring_split": "B 15.3 > A 13.9 > C 10.6",
    "source": "kb/results/sdcp_master_summary_2026_07_16.md §3"
   },
@@ -62,6 +74,8 @@
    "site": "mid(B)",
    "SO3_pct": 42.3,
    "backbone_pct": 50.1,
+   "remainder_pct": 7.6,
+   "remainder_resolved": false,
    "ring_split": "A 14.0 / B 21.3 / C 14.9",
    "source": "kb/results/sdcp_master_summary_2026_07_16.md §3",
    "note": "크로스오버"
@@ -71,8 +85,21 @@
    "site": "(pilot 봉인 자리 — groups.json source_manifest 참조)",
    "SO3_pct": 7.7,
    "backbone_pct": 79.7,
-   "ring_split": "⏳ 미출력 — 도구 결함(rings 값이 dict 라 루프가 조용히 건너뜀) 2026-09-08 수정 · 재분석 필요 (재계산 없음)",
-   "source": "gabia:/data/work/runs/sdcp_n6b/analyze_n6.log",
+   "ether_O_pct": 12.1,
+   "other_pct": 0.5,
+   "other_pct_분해": "고리 H −0.2 (스핀 분극) + 알킬 링커·말단 H +0.7",
+   "remainder_resolved": true,
+   "ring_split": "ring0 3.8 / ring1 7.3 / ring2 9.4 / ring3 15.9 / ring4 23.3 / ring5 19.8 — 합 79.5 (= backbone_strict). ⚠ 말단 고리 ring0·ring5 에 α-H 1개씩 섞임(옛 groups.json 에 symbols 없음, 6원자로 집계). 7월 정의(고리 원자만) per-ring 은 symbols 폴백(2026-09-08) 반영 후 --analyze 재실행으로 채운다 (재계산 없음, 파싱만)",
+   "ring_profile_pct": {
+    "ring0": 3.8,
+    "ring1": 7.3,
+    "ring2": 9.4,
+    "ring3": 15.9,
+    "ring4": 23.3,
+    "ring5": 19.8
+   },
+   "ring_profile_정의": "고리 원자 + 말단 α-H (ring0·ring5) · 합 79.5 = backbone_strict — 7월 정의 아님 · 예비값",
+   "source": "gabia:/data/work/runs/sdcp_n6b/analyze_n6.log (고리별: 2026-09-08 재출력, 침묵 버그 정정판)",
    "backbone_strict_pct": 79.5,
    "backbone_extended_pct": 91.6,
    "note": "이번 (7월과 같은 분할: 고리 원자만)"
@@ -93,17 +120,26 @@
   "⛔ '전역 최소 스핀 상태' — fresh SCF 한 번. 어느 해로 갔는지 보증 없음 (7월과 같은 한계).",
   "⛔ backbone_strict(79.5)·extended(91.6) 를 7월 값 옆에 놓기 — 분할이 다르다.",
   "⛔ SP 계산값과 같은 표에 놓기 — 폴라론은 격자 완화와 얽혀 SP 는 국재화를 과소평가한다.",
-  "⛔ 폴라론이 '어느 고리에' 있는지 — 고리별 분해 재출력 전에는 말하지 않는다.",
-  "⛔ '백본 79.7 + SO₃ 7.7 이 100 이 아니니 계산이 이상하다' — 분할 정의의 결과. 에테르 O 12.1 % 를 백본에 넣으면 91.6 (extended) 이지만 7월과 자가 달라 표에는 안 올린다."
+  "⛔ '백본 79.7 + SO₃ 7.7 이 100 이 아니니 계산이 이상하다' — 분할 정의의 결과. 에테르 O 12.1 % 를 백본에 넣으면 91.6 (extended) 이지만 7월과 자가 달라 표에는 안 올린다.",
+  "⛔ 고리별 **수치**를 확정값으로 인용 — 2026-09-08 재출력값(ring0 3.8 … ring4 23.3 · ring5 19.8)은 말단 고리에 α-H 1개씩 섞인 예비값. 순서(ring4 > ring5 > ring3 …)는 −0.2 %p 오염으로 안 바뀌므로 말할 수 있다. 7월 정의 per-ring 은 --analyze 재실행 후."
  ],
  "다음_단계": [
-  "① gabia 에서 도구 갱신 후 `--analyze` 재실행 → 고리별 분해(7월 표 마지막 열) 채움 (재계산 없음, 파싱만)",
-  "② n=6 자리(도핑 위치)를 groups.json source_manifest 에서 확인해 site 필드 채움",
-  "③ 그림: 스핀 지분 vs n (house_style · Origin CSV 동시)"
+  "① gabia 에서 `git pull` 후 `python3 tools/sdcp/nseries_n6.py --analyze /data/work/runs/sdcp_n6b` 재실행 → 7월 정의(고리 원자만) per-ring 채움 (symbols 폴백 2026-09-08 · 재계산 없음, 파싱만)",
+  "② n=6 자리(도핑 위치)를 groups.json source_manifest / source_xyz 에서 확인해 site 필드 채움",
+  "✅ ③ 그림: tools/figures/fig_sdcp_nseries_spin.py → docs/figures/sdcp_nseries_spin/sdcp_nseries_spin_partition.png + db/properties/sdcp_nseries_spin_partition_fig.csv · sdcp_n6_ring_profile_fig.csv (2026-09-08)"
  ],
  "출처": [
   "kb/results/sdcp_master_summary_2026_07_16.md §3",
   "tools/sdcp/nseries_n6.py",
   "db/properties/sdcp_polaron_pilot_prereg_S0_2026_08_31.json (n=6 D• 정본 명칭)"
- ]
+ ],
+ "그림": {
+  "png": "docs/figures/sdcp_nseries_spin/sdcp_nseries_spin_partition.png",
+  "도구": "tools/figures/fig_sdcp_nseries_spin.py (--selftest 17/17 · 음성 4)",
+  "csv": [
+   "db/properties/sdcp_nseries_spin_partition_fig.csv",
+   "db/properties/sdcp_n6_ring_profile_fig.csv"
+  ],
+  "패널": "(a) n=6 네 칸 100 % 막대 · (b) n=1·2·3end·3mid·6 같은 분할(7월 나머지는 빗금 unresolved) · (c) n=6 고리별(예비 · +α-H)"
+ }
 }

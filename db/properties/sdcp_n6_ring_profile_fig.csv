@@ -1,0 +1,8 @@
+﻿# n=6 D. Loewdin spin per thiophene ring, %. Ring groups from groups.json (pilot); terminal rings ring0/ring5 still include one alpha-H each (old groups.json had no symbols) - sum equals backbone_strict 79.5, not the July-definition 79.7. Preliminary until --analyze re-run.
+ring_index,ring_label,spin_pct,definition
+0,ring0,3.8,ring atoms (+1 alpha-H on ring0/ring5)
+1,ring1,7.3,ring atoms (+1 alpha-H on ring0/ring5)
+2,ring2,9.4,ring atoms (+1 alpha-H on ring0/ring5)
+3,ring3,15.9,ring atoms (+1 alpha-H on ring0/ring5)
+4,ring4,23.3,ring atoms (+1 alpha-H on ring0/ring5)
+5,ring5,19.8,ring atoms (+1 alpha-H on ring0/ring5)
