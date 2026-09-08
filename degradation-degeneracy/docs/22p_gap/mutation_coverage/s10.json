@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-07T18:04:34Z",
+  "at": "2026-09-08T08:48:02Z",
   "binding": {
     "execution": {
       "env": {
@@ -229,17 +229,38 @@
             "442291ba22e04b8b"
           ]
         ],
+        "startup_modules": {
+          "_collections_abc": "ec646ef7e27aae26",
+          "_distutils_hack": "46849a60a7cc8518",
+          "_frozen_importlib": "2aa31b7369a9725c",
+          "_frozen_importlib_external": "7c9a59da1b351a22",
+          "_sitebuiltins": "b9388bc1d6d12ed6",
+          "abc": "e558702a95cdce3f",
+          "codecs": "f16a81d14e7f7393",
+          "encodings": "78c4744d407690f3",
+          "encodings.aliases": "6fdcc49ba23a0203",
+          "encodings.utf_8": "ba0cac0602695835",
+          "genericpath": "34497be8d2eb70df",
+          "io": "12636601d4f488b5",
+          "os": "8a5d4ac7b87c6c5b",
+          "os.path": "aa5c97446b9d11a3",
+          "posixpath": "aa5c97446b9d11a3",
+          "site": "5b9cd61ab13f3fbd",
+          "sitecustomize": "e3b0c44298fc1c14",
+          "stat": "052af0327eae6941",
+          "zipimport": "e84b98dd13d3a8ae"
+        },
         "version": "3.11.15"
       }
     },
-    "execution_digest": "143bdf5d8d75dcb81b732477eb23762fc26420ffdc41b642417282d6671e1ddb",
-    "expect_digest": "218923c466682cd047c2e1ac4e6431672a477cce380eaceecae6e041e0fca70c",
-    "head": "0916c8cf4df3124f12b8f6de6806e75a6fccbc98",
-    "registry_digest": "8c6ed316bfdf03165ea0cdcd3abfb2522f515d012c8aef224a1bd6fd5425368f",
+    "execution_digest": "60d9d66506d126f9fd66ed4bbbed1e37ed181bcc62396468bfbedeaf6965c3a7",
+    "expect_digest": "5f50733c78940ed2b51474bb31d6f93696ce50d3c1a358a16b611a48516daa99",
+    "head": "7e03cb19dd3a5edf37492125356c115f2f97795b",
+    "registry_digest": "b41096ad4a7295aa3cdfd17746c0f809dc17382420e34e5577720e5d6acfef24",
     "reports_dir": "s10",
-    "runner_digest": "150612ebafe133bf192a1600c16e434b17b142ad5618ce4d4452ae1da2050dc3",
-    "transcript_digest": "a55b2192502a0c032b1531c1f003d650f68b7b5d2b7090fc6848349aa9ce679e",
-    "tree_digest": "cd1f932343baaffc02db1b5f35ac50bad6a88e39b137b90b7c708d484599d650"
+    "runner_digest": "7717fc15e51af7f4631631b696164b22055445bd424a4a052db5729e0f337e8c",
+    "transcript_digest": "86706c4a121e78e4558652ecc863c034c556e14f0997d3341f4676be141882a6",
+    "tree_digest": "b9327582bee296c81b68fb303aba4fbab9ef02453c7a459c546e0eed2caf79c7"
   },
   "scenarios": {
     "both-pointers-checked": {
@@ -247,118 +268,135 @@
       "class": "executable",
       "kexpr": "pointer_moved_by_another",
       "ran": true,
-      "report_sha256": "06d82f24586f8ead925ff0f120cdd6d8673271fd4f60993a74ecde000ee1e5dc",
+      "report_sha256": "0462f3d39abad7d8dfaa99bd8eb85bae84b9d5393a4295d687bebfecdc4ef7fc",
       "sites": 1
     },
-    "claim-write-is-all-or-nothing": {
+    "claim-is-atomic": {
       "bit": true,
       "class": "executable",
-      "kexpr": "short_write_does_not_leave_a_truncated_claim",
+      "kexpr": "exactly_one_attempt_enters_compute",
       "ran": true,
-      "report_sha256": "1a366d86125981edc1a9098951fcddbe3dfaee76ac2fd8b3cd613bc6c13e9efb",
+      "report_sha256": "0e26f88df9c3798c16b5ce472b87a1189b8328c589f39bb909931c52951e2c23",
+      "sites": 3
+    },
+    "coverage-checker-derives-from-receipts": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "coverage_receipts_are_verified_independently",
+      "ran": true,
+      "report_sha256": "3b39cddb1da2af462bc6a2be15745268468d18b96d2c47c39fb6a28cc8b50982",
+      "sites": 3
+    },
+    "env-fingerprint-seals-the-smoothing-backend": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "effective_smoothing_backend_is_inside_the_approval",
+      "ran": true,
+      "report_sha256": "7557714567131e8097236cc25bbd16a217fb594aa32b6c36266efe6f24c3f07d",
       "sites": 1
     },
-    "crash-recovery-is-idempotent": {
+    "finalize-snapshots-the-evidence-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "finalize_is_idempotent_after_a_crash_before_cleanup",
+      "kexpr": "finalize_seals_the_evidence_it_verified",
       "ran": true,
-      "report_sha256": "38b477a603d13ba79dd820f90d423beaea7ea07fabed2d9c57e235c19f3e1eb8",
+      "report_sha256": "5c02f25a9501ecc6cf8e1f4d3d27eb5c3fc2296198e64543e005dcb98e948532",
       "sites": 1
     },
-    "execution-receipt-binds-the-startup-g58": {
+    "freeze-completes-a-half-written-transition": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_execution_receipt_binds",
+      "kexpr": "freeze_is_retryable_after_a_crash_between_its_two_writes",
       "ran": true,
-      "report_sha256": "8c511c4c3261d1f3b410fa786e9c3374018565d35b236caf8432d1b14dcc28ad",
+      "report_sha256": "40d2431723aa34dc619c515e01b07bea4595cfb582b4de8e6d92a24bc5b8630a",
       "sites": 1
     },
-    "freeze-authority-is-not-caller-selected": {
+    "generation-namespace-guard": {
       "bit": true,
       "class": "executable",
-      "kexpr": "freeze_cannot_be_pointed_at_an_empty_claims_directory",
+      "kexpr": "current_generation_cannot_be_used_as_its_own_staging",
       "ran": true,
-      "report_sha256": "9ef3b75f7f663f262db1d2498fab7fe001313d7c9a7e418d5fe041b517d94c95",
+      "report_sha256": "a1c1940cbee7f8718e9d5c65232dc09e844ff1dd33fb88a25bc4329540659ad8",
       "sites": 1
-    },
-    "frozen-target-carries-its-own-seal": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "frozen_directory_carries_its_own_seal",
-      "ran": true,
-      "report_sha256": "b7faa4f6a522e5c09f97d003c361708837cc8e145d8a2fdb417813089e6528d5",
-      "sites": 2
     },
     "ledger-hardlink-is-refused": {
       "bit": true,
       "class": "executable",
       "kexpr": "hardlinked_ledger_alias_cannot_fork_the_authority",
       "ran": true,
-      "report_sha256": "ed5569603b490a03beb8cde0137da333aeab7634065d4ba341fa2d645570810b",
+      "report_sha256": "fac622a1bfdc08336e0e947ae289c3d57c3410f8cfb418d7ffac55b258c5e042",
       "sites": 1
     },
-    "module-defs-enter-compound-statements": {
+    "module-assert-runs-at-import-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "producer_closure_sees_every_module_binding_form",
+      "kexpr": "the_import_time_slice_contains_everything_that_runs",
       "ran": true,
-      "report_sha256": "b14efa949b2430db066f276400c9c51bacaf588de9014a7f59e1f7fe800b1e3f",
-      "sites": 1
+      "report_sha256": "7576d7fb6307712d2cb558170525dd1a2851996a747e95d0d01092df5b9e1059",
+      "sites": 2
     },
-    "open-checks-the-live-claim-first": {
+    "namespace-check-rejects-symlinks": {
       "bit": true,
       "class": "executable",
-      "kexpr": "second_open_never_touches_the_live_owners_token",
+      "kexpr": "symlinked_path_is_not_inside_the_smoke_namespace or namespace_check_is_fail_closed_on_a_symlinked_component",
       "ran": true,
-      "report_sha256": "dedaae7b5cd58a9423b56c0aae8a6637339833af0197bf98f3956a06909584d0",
+      "report_sha256": "6374d56e3c1424aac73f9eab20e62ee3dee4d96dd59f10445d3bcc63caf4e69d",
       "sites": 1
     },
-    "plan-uncertainty-covers-the-whole-critical-section": {
+    "pin-is-publication-authority": {
       "bit": true,
       "class": "executable",
-      "kexpr": "failure_while_leaving_the_ledger_lock_preserves_the_authority or uncertain_ledger_write_never_discards_the_claim",
+      "kexpr": "producer_pin_is_part",
       "ran": true,
-      "report_sha256": "dc133bc790d918aa347e4bed053ebbefc10c20d339c6e242dd81d3a40c69e62b",
+      "report_sha256": "e73d26443582841d2c78d3aad0bc50960c7884a4b0a28e4ac61fd88267e771f8",
       "sites": 1
     },
-    "preservation-status-inside-the-contract": {
+    "prelock-digest-check": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_runtime_preservation_enum_is_inside_the_contract",
+      "kexpr": "wrong_bytes_are_never_locked",
       "ran": true,
-      "report_sha256": "5bb715033f37c37e4560e5bb845c95f40ed18d0145ae1d844cb1821598821528",
+      "report_sha256": "954e84285e74fec68037c936d6cfa5a23486cdf3c604288fc1329ad28d18e2a8",
       "sites": 1
     },
-    "proof-until-equals-lease": {
-      "bit": null,
-      "class": "declared",
-      "kexpr": null,
-      "ran": false,
-      "sites": 1
-    },
-    "replay-forces-the-declared-environment-g58": {
+    "producer-normalizes-the-node": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_replayed_run_itself_sees_only_a_declared_environment",
+      "kexpr": "producer_digest_sees_decorators",
       "ran": true,
-      "report_sha256": "5044048e70f29fdbf89be2d6c05385accdd7b8a0643615cecfa1ba7717e222d1",
-      "sites": 1
+      "report_sha256": "f9d48927ab49c3557a47fc85a124cb5f4567536650ff12623c40c99ab710efc2",
+      "sites": 3
     },
-    "smoke-gate-records-the-execution-class-g58": {
+    "release-moves-the-ledger-before-the-claim": {
       "bit": true,
       "class": "executable",
-      "kexpr": "production_smoke_gate_records_the_execution_class",
+      "kexpr": "crash_inside_release_leaves_a_recoverable_state",
       "ran": true,
-      "report_sha256": "cc3dc53107acea58106d76d0f880b3134bf7a8de02aedbcb4fd8ffa2261a969e",
+      "report_sha256": "917c4ff63881ac9814314630a9ba06b467ef94b3509c3054856f09bf0d680ad3",
       "sites": 1
     },
-    "token-unlink-is-generation-scoped": {
+    "seal-finite-floats": {
       "bit": true,
       "class": "executable",
-      "kexpr": "late_release_cleanup_cannot_delete_the_next_attempts_token",
+      "kexpr": "seal_domain_is_exact_not_isinstance",
       "ran": true,
-      "report_sha256": "df5aa7a49103d05e6829f0d63df57abbcec87f3d15b07ff7b20303e162e19489",
+      "report_sha256": "410544e710254eb7e1166649601595ff62a184aa04ba176108371a135b6b7c47",
+      "sites": 1
+    },
+    "thaw-transition-is-unrepresentable": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "frozen_cohort_cannot_be_thawed_and_published",
+      "ran": true,
+      "report_sha256": "7248142290f0d073ea5ecef8fb2f069fc3dd35b6ac1341c3fc5d75e30adee509",
+      "sites": 1
+    },
+    "warm-edges-are-declared": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "warm_consumers_go_through_the_accessors",
+      "ran": true,
+      "report_sha256": "7883ba6559aaeb136fe389c39d940571c3c2ff7236357c29f99710e9fab0c1c8",
       "sites": 1
     }
   },

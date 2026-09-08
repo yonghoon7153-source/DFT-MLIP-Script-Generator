@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-07T17:54:13Z",
+  "at": "2026-09-08T08:20:32Z",
   "binding": {
     "execution": {
       "env": {
@@ -229,17 +229,38 @@
             "442291ba22e04b8b"
           ]
         ],
+        "startup_modules": {
+          "_collections_abc": "ec646ef7e27aae26",
+          "_distutils_hack": "46849a60a7cc8518",
+          "_frozen_importlib": "2aa31b7369a9725c",
+          "_frozen_importlib_external": "7c9a59da1b351a22",
+          "_sitebuiltins": "b9388bc1d6d12ed6",
+          "abc": "e558702a95cdce3f",
+          "codecs": "f16a81d14e7f7393",
+          "encodings": "78c4744d407690f3",
+          "encodings.aliases": "6fdcc49ba23a0203",
+          "encodings.utf_8": "ba0cac0602695835",
+          "genericpath": "34497be8d2eb70df",
+          "io": "12636601d4f488b5",
+          "os": "8a5d4ac7b87c6c5b",
+          "os.path": "aa5c97446b9d11a3",
+          "posixpath": "aa5c97446b9d11a3",
+          "site": "5b9cd61ab13f3fbd",
+          "sitecustomize": "e3b0c44298fc1c14",
+          "stat": "052af0327eae6941",
+          "zipimport": "e84b98dd13d3a8ae"
+        },
         "version": "3.11.15"
       }
     },
-    "execution_digest": "143bdf5d8d75dcb81b732477eb23762fc26420ffdc41b642417282d6671e1ddb",
-    "expect_digest": "218923c466682cd047c2e1ac4e6431672a477cce380eaceecae6e041e0fca70c",
-    "head": "0916c8cf4df3124f12b8f6de6806e75a6fccbc98",
-    "registry_digest": "8c6ed316bfdf03165ea0cdcd3abfb2522f515d012c8aef224a1bd6fd5425368f",
+    "execution_digest": "60d9d66506d126f9fd66ed4bbbed1e37ed181bcc62396468bfbedeaf6965c3a7",
+    "expect_digest": "5f50733c78940ed2b51474bb31d6f93696ce50d3c1a358a16b611a48516daa99",
+    "head": "7e03cb19dd3a5edf37492125356c115f2f97795b",
+    "registry_digest": "b41096ad4a7295aa3cdfd17746c0f809dc17382420e34e5577720e5d6acfef24",
     "reports_dir": "s2",
-    "runner_digest": "150612ebafe133bf192a1600c16e434b17b142ad5618ce4d4452ae1da2050dc3",
-    "transcript_digest": "5bad913c0644670708067119cbfe0d4762d67bf21aab8c0d5d1cffa284d081e6",
-    "tree_digest": "cd1f932343baaffc02db1b5f35ac50bad6a88e39b137b90b7c708d484599d650"
+    "runner_digest": "7717fc15e51af7f4631631b696164b22055445bd424a4a052db5729e0f337e8c",
+    "transcript_digest": "adc2ddf9cbb370977840b3526e75fbd6aacdaeb81372fba04c172907dcbe0234",
+    "tree_digest": "b9327582bee296c81b68fb303aba4fbab9ef02453c7a459c546e0eed2caf79c7"
   },
   "scenarios": {
     "admission-rechecks-the-cohort-at-commit": {
@@ -247,55 +268,63 @@
       "class": "executable",
       "kexpr": "issuer_cannot_admit_a_run_into_a_cohort_that_froze_meanwhile",
       "ran": true,
-      "report_sha256": "1fb14847b5e4b3f683d3a2e3ac46756fbd70d958e0c8d315af723472c885fcb5",
+      "report_sha256": "b2decca5b22326fe8c070737d88ec61533c8596c28987f1d562c665e37e87576",
       "sites": 2
     },
-    "canon-keeps-docstrings": {
+    "canon-absorbs-the-pep701-empty-piece": {
       "bit": true,
       "class": "executable",
-      "kexpr": "docstring_the_computation_reads_is_inside_the_identity",
+      "kexpr": "canonical_form_agrees_on_every_supported_interpreter",
       "ran": true,
-      "report_sha256": "87df745b238f76091569eb6b7f59da7032a861957e92de65c2beb3d43c0c56a6",
+      "report_sha256": "eba9e65d375642e30a66b3351627bf67565fee90ff1517504ce878c40af4fe7d",
       "sites": 1
     },
-    "closure-refuses-source-reflection": {
+    "claims-root-comes-from-the-ledger": {
       "bit": true,
       "class": "executable",
-      "kexpr": "reading_the_producers_raw_source_is_fail_closed",
+      "kexpr": "issuer_cannot_choose_where_its_claim_lives",
       "ran": true,
-      "report_sha256": "3fb313e6ccffe2f43f18d824ab722c263f2b33a76fb17783171043804f7405ea",
+      "report_sha256": "d98d8b8f2bed4450af45680c7fea2be40706ba4eb1382db11376e0fa0f966295",
       "sites": 1
     },
-    "destination-is-compared-in-filesystem-coordinates": {
+    "crash-recovery-is-idempotent": {
       "bit": true,
       "class": "executable",
-      "kexpr": "bind_mounted_alias_of_a_frozen_child_is_not_writable",
+      "kexpr": "finalize_is_idempotent_after_a_crash_before_cleanup",
       "ran": true,
-      "report_sha256": "72097d872622b92a5bcdc9c0db229d7ee045e219c8d8afd43b34520e1b0431e8",
-      "sites": 3
-    },
-    "finalize-writes-the-whole-tuple": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "finalize_writes_a_complete_contract_status_tuple",
-      "ran": true,
-      "report_sha256": "59fd2b3a3626fbdd842883f84f1176bed52a84b56761add23f80bf7220b14027",
+      "report_sha256": "425ba6dc64aaefd438d956d7a25cefcaacbc6bc8ff7f5d91c11dced87102d55f",
       "sites": 1
     },
-    "freeze-holds-the-publish-lock": {
+    "exec-class-record-is-read-back-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "publication_cannot_land_after_the_cohort_was_frozen",
+      "kexpr": "a_short_write_never_publishes_a_partial_record",
       "ran": true,
-      "report_sha256": "658aeeb073ca45729e9950fa4ecf940c938f7d28d19b25004a26fadde4f71e2d",
+      "report_sha256": "59c5224c77886a7e52ebbbd21916ad8ab430211768d5f3a0bcec5314f170b77f",
       "sites": 1
     },
-    "grid-axis-seals-the-discharged-cache": {
+    "fit-axis-seals-the-input-content": {
       "bit": true,
       "class": "executable",
-      "kexpr": "grid_axis_binds_the_discharged_state_cache",
+      "kexpr": "fit_axis_seals_the_input_content_axes",
       "ran": true,
-      "report_sha256": "51f3db4f2da2d833555cdbef76610bcd88b7b3a5a79b225e42bd4382926bcec7",
+      "report_sha256": "56fed0daf06f2b8bae76aac015801a6bca611e44f88542f4204d4dbfec7cee6e",
+      "sites": 1
+    },
+    "freeze-refuses-a-live-execution": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "freeze_refuses_while_an_execution_holds_the_cohort",
+      "ran": true,
+      "report_sha256": "1eda68e71aed42fa6e4dfe2c697ebd7b16265d0917b15e69685d28727c9e8e39",
+      "sites": 1
+    },
+    "guard-before-commit": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "pathname_after_the_check or same_roster_ledger_change",
+      "ran": true,
+      "report_sha256": "b9552f4a4d8d632917148f903acc0439a43322a2013c9cbc40c68c1948255c26",
       "sites": 1
     },
     "ledger-status-enum": {
@@ -303,71 +332,70 @@
       "class": "executable",
       "kexpr": "status_is_an_exact_enum",
       "ran": true,
-      "report_sha256": "a4ffe50b304d6e5bde14ff9c20d40e19e05bceec0b83092e0f76e8973de8ac24",
+      "report_sha256": "dccac21631bbca875ca0660a32e7b50d5fa1608180d7c2bf6531fc3597bfe853",
       "sites": 1
     },
-    "module-defs-track-mutating-bindings": {
+    "module-defs-track-import-bindings": {
       "bit": true,
       "class": "executable",
       "kexpr": "producer_closure_tracks_mutating_and_import_bindings",
       "ran": true,
-      "report_sha256": "fca542ced5ec7aeeee4891fb9067b056df384f81acc7aeccc25a83539d31943e",
+      "report_sha256": "650b83dc53828ca03565fed83e30b01e3fdaed20ca837e767b610e3efe4571a2",
       "sites": 1
     },
-    "phase-input-binding-covers-the-package": {
+    "pending-closed-schema": {
       "bit": true,
       "class": "executable",
-      "kexpr": "grid_receipt_binds_every_curve_input_not_just_the_parquet",
+      "kexpr": "stale_bootstrap_pending",
       "ran": true,
-      "report_sha256": "9b6f48516378673550ec83aa1c4ab85f0aa56246d7ec4e978210e178fe9f9454",
+      "report_sha256": "f16315ed83caac27584f29ed0fe17c6cb4a8cec5abb7958b91555ed5f6f52e8e",
       "sites": 1
     },
-    "pointer-binds-the-ledger": {
+    "planned-binds-the-code-identity": {
       "bit": true,
       "class": "executable",
-      "kexpr": "expanding_a_roster_over_an_active_cohort_requires_a_new_cohort",
+      "kexpr": "plan_to_the_code_identity",
       "ran": true,
-      "report_sha256": "55970be3424d95baea106d2991bf09e0a0d8f1281913305977c0fc65d0003319",
+      "report_sha256": "9a96369ceec33870da839aa855fe36fc8bd0b6f25d5e4a9b2829da24b624f7b2",
       "sites": 1
     },
-    "producer-crossing-is-fail-closed": {
+    "producer-binds-container-mutations": {
       "bit": true,
       "class": "executable",
-      "kexpr": "breaking_the_crossing_into_src_scoring_is_fail_closed",
+      "kexpr": "module_scope_container_mutation_is_inside_producer_identity",
       "ran": true,
-      "report_sha256": "b828a14499c54c4c0d30913d01a35651b8a0cb420831e19986f73cfef59f8911",
+      "report_sha256": "dd39dcffbe08e7ed17b688b2bf40a3503007dfc281bd7d2fc39f3c8a0eca2e28",
       "sites": 1
     },
-    "receipt-carries-the-mutant-marker": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "genuine_report_from_another_mutant_is_refused",
-      "ran": true,
-      "report_sha256": "794e3d45894a249c5f2cd1e333b2f5592f2471400719b1e3b69a5752e93c1747",
+    "public-lifecycle-in-two-publisher-fixture": {
+      "bit": null,
+      "class": "declared",
+      "kexpr": null,
+      "ran": false,
       "sites": 1
     },
-    "roster-is-a-set": {
+    "report-attests-the-environment-g58": {
       "bit": true,
       "class": "executable",
-      "kexpr": "ledger_roster_is_a_set_not_a_multiset",
+      "kexpr": "execution_evidence_can_not_be_laundered_without_the_reports or a_report_that_attests_another_environment_is_refused",
       "ran": true,
-      "report_sha256": "b7e1ec97e7a3e5546b428c9b72d7287b67e6f7eb7d5bef04c64d597b691539c2",
+      "report_sha256": "fe822b11ae9bdb588d6dbe4f286f8e19b3adb68a6da018849f9fbe0c19d37120",
       "sites": 1
     },
-    "staging-regular-only": {
+    "smoke-containment-is-a-kernel-coordinate-g58": {
       "bit": true,
       "class": "executable",
-      "kexpr": "staging_aliases_never_become_an_immutable_generation",
+      "kexpr": "bind_mounted_outside_directory_is_not_inside_the_smoke_namespace or an_unplanned_leg_under_a_bind_alias_is_not_exempted",
       "ran": true,
-      "report_sha256": "84ec6ba2769d51a91f893986e92e78d97ae23b351c431584a65f814c462f21de",
-      "sites": 2
+      "report_sha256": "08760ac9d68140f8b42e4f28d5c31d0d0f3d58f25407653beafffdc664e81909",
+      "sites": 1
     },
-    "warm-consumer-uses-accessor": {
+    "token-path-alias-is-refused": {
       "bit": true,
       "class": "executable",
-      "kexpr": "warm_consumers_go_through_the_accessors",
+      "kexpr": "symlinked_token_path_cannot_split_the_attempt_lock",
       "ran": true,
-      "report_sha256": "f82df128b2e899b8b7f26817e106ef6f5ddf391103e1791eb09cdeddd3b69a3e",
+      "report_sha256": "4c2294652f66a59eee4fa3dde20b24220a08f96fdf26c40200d61cb3fdc8217f",
       "sites": 1
     }
   },

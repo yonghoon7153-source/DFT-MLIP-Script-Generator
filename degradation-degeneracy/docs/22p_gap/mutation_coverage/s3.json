@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-07T17:51:42Z",
+  "at": "2026-09-08T08:23:08Z",
   "binding": {
     "execution": {
       "env": {
@@ -229,17 +229,38 @@
             "442291ba22e04b8b"
           ]
         ],
+        "startup_modules": {
+          "_collections_abc": "ec646ef7e27aae26",
+          "_distutils_hack": "46849a60a7cc8518",
+          "_frozen_importlib": "2aa31b7369a9725c",
+          "_frozen_importlib_external": "7c9a59da1b351a22",
+          "_sitebuiltins": "b9388bc1d6d12ed6",
+          "abc": "e558702a95cdce3f",
+          "codecs": "f16a81d14e7f7393",
+          "encodings": "78c4744d407690f3",
+          "encodings.aliases": "6fdcc49ba23a0203",
+          "encodings.utf_8": "ba0cac0602695835",
+          "genericpath": "34497be8d2eb70df",
+          "io": "12636601d4f488b5",
+          "os": "8a5d4ac7b87c6c5b",
+          "os.path": "aa5c97446b9d11a3",
+          "posixpath": "aa5c97446b9d11a3",
+          "site": "5b9cd61ab13f3fbd",
+          "sitecustomize": "e3b0c44298fc1c14",
+          "stat": "052af0327eae6941",
+          "zipimport": "e84b98dd13d3a8ae"
+        },
         "version": "3.11.15"
       }
     },
-    "execution_digest": "143bdf5d8d75dcb81b732477eb23762fc26420ffdc41b642417282d6671e1ddb",
-    "expect_digest": "218923c466682cd047c2e1ac4e6431672a477cce380eaceecae6e041e0fca70c",
-    "head": "0916c8cf4df3124f12b8f6de6806e75a6fccbc98",
-    "registry_digest": "8c6ed316bfdf03165ea0cdcd3abfb2522f515d012c8aef224a1bd6fd5425368f",
+    "execution_digest": "60d9d66506d126f9fd66ed4bbbed1e37ed181bcc62396468bfbedeaf6965c3a7",
+    "expect_digest": "5f50733c78940ed2b51474bb31d6f93696ce50d3c1a358a16b611a48516daa99",
+    "head": "7e03cb19dd3a5edf37492125356c115f2f97795b",
+    "registry_digest": "b41096ad4a7295aa3cdfd17746c0f809dc17382420e34e5577720e5d6acfef24",
     "reports_dir": "s3",
-    "runner_digest": "150612ebafe133bf192a1600c16e434b17b142ad5618ce4d4452ae1da2050dc3",
-    "transcript_digest": "ac6834d51f9f6d477105ec49891fc5744779d25ce2a5d72f19978cc4b1c00a1f",
-    "tree_digest": "cd1f932343baaffc02db1b5f35ac50bad6a88e39b137b90b7c708d484599d650"
+    "runner_digest": "7717fc15e51af7f4631631b696164b22055445bd424a4a052db5729e0f337e8c",
+    "transcript_digest": "549f2e71429bcaa74454e9dc0151fd15c1772cdb3045b77cae3e31084c347102",
+    "tree_digest": "b9327582bee296c81b68fb303aba4fbab9ef02453c7a459c546e0eed2caf79c7"
   },
   "scenarios": {
     "anchor-repair-holds-the-lifecycle-lock": {
@@ -247,55 +268,62 @@
       "class": "executable",
       "kexpr": "stale_anchor_repair_cannot_rewind_the_head",
       "ran": true,
-      "report_sha256": "2849aaed0afd6590f634f30b78a6a5a4fcba96c8c162c068353f230a5e7cf19a",
+      "report_sha256": "8422de4966c191870cf0f5a16cd855018234d5eee28176440eece8078b0c9518",
       "sites": 1
     },
-    "capability-can-not-leave-the-call-site-g58": {
+    "canon-keeps-docstrings": {
       "bit": true,
       "class": "executable",
-      "kexpr": "a_capability_that_leaves_the_call_site_is_refused",
+      "kexpr": "docstring_the_computation_reads_is_inside_the_identity",
       "ran": true,
-      "report_sha256": "e592e39fe719e16b4716f23689df67e444fd8365092818818cd94fb6af29a54d",
+      "report_sha256": "3c94538b29680ebebdb30eb8572bb155c0ec4dc140da9d4c794e065dc0bc9ac6",
       "sites": 1
     },
-    "closure-unresolved-attr-is-fail-closed": {
+    "class-bases-are-substitution-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "unresolved_producer_module_reference_is_fail_closed",
+      "kexpr": "a_metaclass_body_change_moves_the_identity",
       "ran": true,
-      "report_sha256": "db1e1abd135f1ce90b0b741efcc2d8cf99c895db56d05d8c41d6c6bf8afac2b2",
+      "report_sha256": "337e6d8ca8b3564952a7c69117a204b63e5ea398596e79c7cd5e8b0963f4d8df",
       "sites": 1
     },
-    "diagnostic-hides-the-credential": {
+    "crash-recovery-needs-the-credential": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_diagnostic_reader_never_hands_out_the_credential",
+      "kexpr": "the_crash_recovery_needs_the_owner_credential",
       "ran": true,
-      "report_sha256": "df9ad5fb52256f99057ea765c9512bb38f40ab67d514fee617bc4517edb1709f",
+      "report_sha256": "eb8040858ef8c4ce8f71971bf8de739218301a1ad8beb6f525e81c08b59a71e4",
       "sites": 1
     },
-    "fit-axis-is-the-real-policy": {
+    "exec-class-retry-reseals-durability-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "fit_axis_seals_every_intent_that_changes_the_answer",
+      "kexpr": "a_retry_after_a_failed_parent_fsync_redoes_the_durability_step",
       "ran": true,
-      "report_sha256": "ca7b82467e7218c8113a458ed1e60d6e8b124d924a73466ad39b592aca1bd3f4",
+      "report_sha256": "44e279fe4ab7bab9f1adc92984ff4a96e936069e2564f0e5a2caef2554989d20",
       "sites": 1
     },
-    "freeze-ledger-write-is-atomic": {
+    "fit-axis-seals-the-objective-payload": {
       "bit": true,
       "class": "executable",
-      "kexpr": "partial_write_during_freeze_leaves_the_ledger_readable",
+      "kexpr": "objective_payload_is_inside_the_approval_digest",
       "ran": true,
-      "report_sha256": "ad0764863d9b08f293b004a1caeb4148840914aec6c16a62ce95ab1778bece42",
+      "report_sha256": "2345dfa4e2f424baf76d1e349f5f659cfd0bea9d96be2baec3b261189563a764",
       "sites": 1
     },
-    "guard-before-commit": {
+    "freeze-rereads-the-ledger-before-writing": {
       "bit": true,
       "class": "executable",
-      "kexpr": "pathname_after_the_check or same_roster_ledger_change",
+      "kexpr": "freeze_does_not_erase_a_record_written_while_it_ran",
       "ran": true,
-      "report_sha256": "b63ea5a82154eadf0411077eff0fdce447cc57da29b63187b6ddffb2d9edd928",
+      "report_sha256": "9e7022f8cf476e42d902f709bdf2fb146bd888340beffa8aebaa4899d9e1c803",
+      "sites": 1
+    },
+    "idempotent-shares-the-validator": {
+      "bit": null,
+      "class": "declared",
+      "kexpr": null,
+      "ran": false,
       "sites": 1
     },
     "lifecycle-chain-is-verified": {
@@ -303,70 +331,71 @@
       "class": "executable",
       "kexpr": "the_lifecycle_journal_is_a_hash_chain",
       "ran": true,
-      "report_sha256": "7c54956ba25fcb61021b05593832fa25202846b1b057fc325c42afcc0a155611",
+      "report_sha256": "d2b432c222ffd94771e8124644abb21d44f15f7edcf0554857ea7f3221ed9274",
       "sites": 1
     },
-    "module-effects-are-an-unconditional-root": {
+    "module-defs-track-mutating-bindings": {
       "bit": true,
       "class": "executable",
-      "kexpr": "module_effect_through_an_alias_still_moves_the_producer_digest",
+      "kexpr": "producer_closure_tracks_mutating_and_import_bindings",
       "ran": true,
-      "report_sha256": "26ff64beb90510f3e69ca77ab83e4c29422399b89005bd9deece11df35b58a68",
-      "sites": 2
-    },
-    "phase-input-binding-needs-a-receipt": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "fit_refuses_when_its_grid_phase_is_missing",
-      "ran": true,
-      "report_sha256": "373c2b4c3df8826a06626269280adad9ac57df08a14026605fc1d4401c26d537",
+      "report_sha256": "26100b349e3ea024d08e82592152d1a270c084a250609db226ae5dfdb8739780",
       "sites": 1
     },
-    "pointer-loss-is-terminal": {
+    "phase-input-binding": {
       "bit": true,
       "class": "executable",
-      "kexpr": "losing_the_pointer_of_a_cohort",
+      "kexpr": "fit_refuses_curves_that_its_grid_phase_did_not_produce",
       "ran": true,
-      "report_sha256": "cd1855934c9be9f455403bc0bbcee88db80459dbdc59a970de700b152fecc429",
+      "report_sha256": "180a2788b9e4db03cabf9b1eb80911d7fdc101352361eb14c987d818cb530e73",
       "sites": 1
     },
-    "producer-cut-is-declared": {
+    "planned-binds-the-execution-record": {
       "bit": true,
       "class": "executable",
-      "kexpr": "producer_semantic_digest_excludes_the_publication_path",
+      "kexpr": "planned_index_is_bound_to_the_real",
       "ran": true,
-      "report_sha256": "1eb769133f448774cb3a51c100bcfc4855f1040614b8baa030e0cb17140e87cc",
+      "report_sha256": "d01c0b125d8e7fe1f58f9cda00c779f993539fc208fe83dd6732fed3c5120b93",
       "sites": 1
     },
-    "receipt-is-bound-to-the-mutant": {
+    "producer-canon-drops-empty-fields": {
       "bit": true,
       "class": "executable",
-      "kexpr": "receipt_is_bound_to_the_exact_mutant",
+      "kexpr": "producer_digest_is_the_same_on_every_python_here",
       "ran": true,
-      "report_sha256": "ca6aa152f4f5abe648677385ddf3e4715fc7fc4d0265b24481b1268ddfc5ab33",
+      "report_sha256": "350034726c9ba3a92f70852a91df77cb14635f64fad5546ddeb5708c34383d3e",
       "sites": 1
     },
-    "row-selection-seals-its-content": {
+    "publisher-owns-the-merge-temp": {
       "bit": true,
       "class": "executable",
-      "kexpr": "fit_axis_seals_the_row_selection_content",
+      "kexpr": "caller_stage_is_untouched",
       "ran": true,
-      "report_sha256": "b815bae0677156b3bcc8c5a035b972b418d8acd8d149fedc1d2ff87de0564dc8",
+      "report_sha256": "38ae7298a5359b82b7e1f25da9adb7247ba20decc0ce19baa7a114eeee42c2fc",
       "sites": 1
     },
-    "thaw-is-refused-before-the-first-write": {
+    "resume-compares-the-verifier": {
       "bit": true,
       "class": "executable",
-      "kexpr": "publisher_refuses_a_thawed_cohort_before_the_first_write",
+      "kexpr": "phase_cannot_be_recorded_without_the_owner_token or crash_after_grid_resumes_and_finalizes or finalize_requires_the_owner_credential",
       "ran": true,
-      "report_sha256": "0a544e22c9d8c139ff2b9fd2c161369509539535220383803e73fd9856db5ae6",
-      "sites": 2
+      "report_sha256": "0710631e1eb2f879cb57f026a05f495e58a3139f83cf729fb013e7e351d41843",
+      "sites": 1
     },
-    "warm-consumer-wiring": {
-      "bit": null,
-      "class": "declared",
-      "kexpr": null,
-      "ran": false,
+    "smoke-gate-issues-the-execution-capability-g59": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "production_smoke_gate_records_the_execution_class",
+      "ran": true,
+      "report_sha256": "673f00b98792c33e773e836b119ce390ba2e99776c15f0357568229003869cdf",
+      "sites": 1
+    },
+    "token-read-checks-the-leg": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "an_attempt_file_from_another_leg_is_refused",
+      "ran": true,
+      "report_sha256": "3bad9f8e2989fff0f295cde158ab67bb5c270664d83b1dac914f5fb15ece1fab",
       "sites": 1
     }
   },

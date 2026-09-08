@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-07T17:57:34Z",
+  "at": "2026-09-08T08:31:21Z",
   "binding": {
     "execution": {
       "env": {
@@ -229,17 +229,38 @@
             "442291ba22e04b8b"
           ]
         ],
+        "startup_modules": {
+          "_collections_abc": "ec646ef7e27aae26",
+          "_distutils_hack": "46849a60a7cc8518",
+          "_frozen_importlib": "2aa31b7369a9725c",
+          "_frozen_importlib_external": "7c9a59da1b351a22",
+          "_sitebuiltins": "b9388bc1d6d12ed6",
+          "abc": "e558702a95cdce3f",
+          "codecs": "f16a81d14e7f7393",
+          "encodings": "78c4744d407690f3",
+          "encodings.aliases": "6fdcc49ba23a0203",
+          "encodings.utf_8": "ba0cac0602695835",
+          "genericpath": "34497be8d2eb70df",
+          "io": "12636601d4f488b5",
+          "os": "8a5d4ac7b87c6c5b",
+          "os.path": "aa5c97446b9d11a3",
+          "posixpath": "aa5c97446b9d11a3",
+          "site": "5b9cd61ab13f3fbd",
+          "sitecustomize": "e3b0c44298fc1c14",
+          "stat": "052af0327eae6941",
+          "zipimport": "e84b98dd13d3a8ae"
+        },
         "version": "3.11.15"
       }
     },
-    "execution_digest": "143bdf5d8d75dcb81b732477eb23762fc26420ffdc41b642417282d6671e1ddb",
-    "expect_digest": "218923c466682cd047c2e1ac4e6431672a477cce380eaceecae6e041e0fca70c",
-    "head": "0916c8cf4df3124f12b8f6de6806e75a6fccbc98",
-    "registry_digest": "8c6ed316bfdf03165ea0cdcd3abfb2522f515d012c8aef224a1bd6fd5425368f",
+    "execution_digest": "60d9d66506d126f9fd66ed4bbbed1e37ed181bcc62396468bfbedeaf6965c3a7",
+    "expect_digest": "5f50733c78940ed2b51474bb31d6f93696ce50d3c1a358a16b611a48516daa99",
+    "head": "7e03cb19dd3a5edf37492125356c115f2f97795b",
+    "registry_digest": "b41096ad4a7295aa3cdfd17746c0f809dc17382420e34e5577720e5d6acfef24",
     "reports_dir": "s5",
-    "runner_digest": "150612ebafe133bf192a1600c16e434b17b142ad5618ce4d4452ae1da2050dc3",
-    "transcript_digest": "c7c477ed050efb6146356a8c1ea6d9e12b3ca597c9b285e6cecf0f8980975d53",
-    "tree_digest": "cd1f932343baaffc02db1b5f35ac50bad6a88e39b137b90b7c708d484599d650"
+    "runner_digest": "7717fc15e51af7f4631631b696164b22055445bd424a4a052db5729e0f337e8c",
+    "transcript_digest": "9852557d8ce62c32852b2f7032f34e4feb995faa859007a5108b4e17f850a39b",
+    "tree_digest": "b9327582bee296c81b68fb303aba4fbab9ef02453c7a459c546e0eed2caf79c7"
   },
   "scenarios": {
     "approved-cache-bytes-are-authoritative": {
@@ -247,55 +268,63 @@
       "class": "executable",
       "kexpr": "approved_cache_bytes_are_authoritative",
       "ran": true,
-      "report_sha256": "96535ad587f677f4e41f1650ff92a4e154b3dad03e12626a664a826d8fa62a18",
+      "report_sha256": "a9ef2e9d9299847c8b9c1cb52dfcab1105774437654e495e79c39bd9e0ef551c",
       "sites": 2
     },
-    "claim-bytes-are-verified-on-disk": {
+    "capability-carries-the-judged-handle-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "lying_write_is_caught_by_reading_the_bytes_back",
+      "kexpr": "the_capability_is_bound_to_the_directory_the_gate_judged",
       "ran": true,
-      "report_sha256": "523c1f1ecc9a68a04b9786f02cb6852bc55abcc91817d0dded809bea8319cae0",
+      "report_sha256": "bc0363cdbe3942cac9b95e60c4503a597745d1d51e703ae6da9ad17e915ce031",
       "sites": 1
     },
-    "content-id-hashes-every-manifest-g58": {
+    "closure-refuses-dynamic-resolution": {
       "bit": true,
       "class": "executable",
-      "kexpr": "two_fits_sharing_curves_do_not_share_a_content_id",
+      "kexpr": "dynamic_name_resolution_inside_the_closure_is_fail_closed",
       "ran": true,
-      "report_sha256": "127e00f3af5a26866827cc310b01b0061f36bab9b97095b8ab9f89cb02ff94d5",
+      "report_sha256": "b3d2bc649a39e692a99040ba4a0d1f91731c9a6fe246144d82ec3ecdd168b0d1",
       "sites": 1
     },
-    "dunder-as-a-string-is-still-a-dunder": {
+    "decorators-are-import-time-effects-g58": {
       "bit": true,
       "class": "executable",
-      "kexpr": "dunder_named_by_a_string_literal_is_still_a_dunder",
+      "kexpr": "a_name_only_decorator_changes_the_identity_when_its_body_changes",
       "ran": true,
-      "report_sha256": "e17eabb28287a004e558eab04bdf118b3cf412ca3a5f18cc7d74de220545cc1e",
+      "report_sha256": "936369dfc003ef88be831f40afca2cbcc6831933eb5acf2bfff006390780f632",
       "sites": 1
     },
-    "fit-axis-seals-the-input-content": {
+    "execution-receipt-binds-the-startup-g58": {
       "bit": true,
       "class": "executable",
-      "kexpr": "fit_axis_seals_the_input_content_axes",
+      "kexpr": "the_execution_receipt_binds",
       "ran": true,
-      "report_sha256": "fbb7ce765ebd366af0def1a9812cb293601d5ea43789896606e351a7c701cb73",
+      "report_sha256": "ddca3e350b05b314c95bdf96d7154d9707cf6dfa4fa2737a9f0e45af93e378c9",
       "sites": 1
     },
-    "freeze-refuses-a-live-execution": {
+    "fit-stages-its-inputs-before-the-gate": {
       "bit": true,
       "class": "executable",
-      "kexpr": "freeze_refuses_while_an_execution_holds_the_cohort",
+      "kexpr": "run_fit_hands_the_body_the_staged_copies_not_the_originals",
       "ran": true,
-      "report_sha256": "ecd3ef19af62565210a4b2188a55d6aa9588af89dd73e16cdb930ec3f8cd99ae",
+      "report_sha256": "7d34c1e71d085420881228058d22950b49d03022262c690f6889c388785fad87",
       "sites": 1
     },
-    "inner-unbound-kernel": {
+    "frozen-destination-is-monotonic": {
       "bit": true,
       "class": "executable",
-      "kexpr": "blank_its_own_inner_check",
+      "kexpr": "later_active_record_cannot_thaw_a_frozen_destination",
       "ran": true,
-      "report_sha256": "4ea0030b9f27f107fddcf37da5bae38fc7f5fa7d7a403c2aa8385f84ae4bf19d",
+      "report_sha256": "d3287fe93ef2f9f27afd21eef81ba1c51aecbd3db64b1b5003c4492cb2f6a096",
+      "sites": 2
+    },
+    "inner-unbound-sentinel": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "blank_its_sentinel_check",
+      "ran": true,
+      "report_sha256": "b2b471f7d87011faec44390b86a48b6367a791a5c57c6e8cd7ebdec75bccd10b",
       "sites": 1
     },
     "lifecycle-head-anchors-the-tip": {
@@ -303,71 +332,70 @@
       "class": "executable",
       "kexpr": "the_lifecycle_journal_is_a_hash_chain",
       "ran": true,
-      "report_sha256": "38af2717032f3bbabed1b7c68aaab8d86aa27b4710319b242d0d707d66bf746e",
+      "report_sha256": "94fbff1235d8122eaa4a94784b94a63268b05cbd8e40a3e90a9d0ec4af0228d2",
       "sites": 1
     },
-    "module-gate-before-side-effects": {
+    "module-expr-binds-its-target": {
+      "bit": null,
+      "class": "declared",
+      "kexpr": null,
+      "ran": false,
+      "sites": 1
+    },
+    "phase-input-binding-needs-a-receipt": {
       "bit": true,
       "class": "executable",
-      "kexpr": "run_grid_calls_the_gate_before_its_first_side_effect",
+      "kexpr": "fit_refuses_when_its_grid_phase_is_missing",
       "ran": true,
-      "report_sha256": "cd262125fa7bb7f9cc2db7383e7800ab3de1ac2c984b4d12788104856075815c",
+      "report_sha256": "b32e8e49cd9ce9f8989923bfd5af9434a88c477e4ee4c6684de3ce56a5b2a554",
       "sites": 1
     },
-    "phase-write-checks-the-credential": {
+    "pointer-binds-the-ledger": {
       "bit": true,
       "class": "executable",
-      "kexpr": "forged_claim_object_cannot_write_a_phase",
+      "kexpr": "expanding_a_roster_over_an_active_cohort_requires_a_new_cohort",
       "ran": true,
-      "report_sha256": "0b3feb5048b0e3f6d710f384811a9063b2d2d22248c866636bb03f94fe418f68",
+      "report_sha256": "25715037512b9fd0aa989aaa1aec283a7ebca8bff182762ef59e71c7fd0c7ec4",
       "sites": 1
     },
-    "pre-write-authority": {
+    "producer-crossing-is-fail-closed": {
       "bit": true,
       "class": "executable",
-      "kexpr": "frozen_cohort_publish_writes_nothing_before_it_refuses",
+      "kexpr": "breaking_the_crossing_into_src_scoring_is_fail_closed",
       "ran": true,
-      "report_sha256": "b8106159d1c12f4a671e12823b59a0f187e3e9a2b341f81732eddfe364b6b38a",
+      "report_sha256": "074a43b6df38ec92b1669ae7183cbf000c62a9a095d58e2463d4f5985bf23c08",
       "sites": 1
     },
-    "producer-dunder-is-an-allowlist": {
+    "receipt-carries-the-mutant-marker": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "genuine_report_from_another_mutant_is_refused",
+      "ran": true,
+      "report_sha256": "156b4cb330ce8f39ff44e5d32cead982cb136e2eb0205f698991633d1d4beb57",
+      "sites": 1
+    },
+    "roster-is-a-set": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "ledger_roster_is_a_set_not_a_multiset",
+      "ran": true,
+      "report_sha256": "04030fc4cc293b326ba0f80756364195bdc7f162c2a6948dbb84d8c5873cad87",
+      "sites": 1
+    },
+    "source-reflection-covers-the-loader-protocol": {
       "bit": true,
       "class": "executable",
       "kexpr": "producer_cannot_reach_its_own_bytes_through_the_module_loader",
       "ran": true,
-      "report_sha256": "1347fc06e0dd4d3af123d70f97952df51c1bc7ae805cbe14d3f644ca6e0d06e5",
-      "sites": 1
-    },
-    "recheck-before-rename": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "rechecked_immediately_before_the_rename",
-      "ran": true,
-      "report_sha256": "071eef6c966e1b2760314d512e9210e70801b550dcf75ad61ea177e275c792f9",
-      "sites": 1
-    },
-    "seal-finite-floats": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "seal_domain_is_exact_not_isinstance",
-      "ran": true,
-      "report_sha256": "bdc281432572798d81fec392a30920b91df05fd9c5207abce41c1509f616cf92",
-      "sites": 1
-    },
-    "token-bytes-are-verified-on-disk": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "lying_write_is_caught_by_reading_the_bytes_back",
-      "ran": true,
-      "report_sha256": "9129cfbb7ea8926816527b7ecd23c5a0fe9d62f1013a1fd8f285f1d94b5ba35c",
+      "report_sha256": "d265cd3cb769fbf199e40a798942d998928c1787eeb71ca3dd49268a6187579d",
       "sites": 2
     },
-    "witness-must-be-in-the-meaning-line": {
+    "token-write-is-all-or-nothing": {
       "bit": true,
       "class": "executable",
-      "kexpr": "witness_found_only_in_the_traceback_body_is_not_a_witness",
+      "kexpr": "short_write_does_not_leave_a_truncated_claim",
       "ran": true,
-      "report_sha256": "49285d93b29bdb38b157b79fa6aecbbb2f3a7763cde2ec54f762b8494b30af10",
+      "report_sha256": "f372895fea27f88101c704dca0e391f295b951a03157127b69dbf02f23c3f25f",
       "sites": 1
     }
   },
