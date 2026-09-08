@@ -8,10 +8,15 @@
 {% macro plink(raw, label=None) %}{% set s = (raw|string).split(' ')[0] %}{% set extra = (raw|string)[s|length:]|trim %}{%
   if s in (lit_have or []) %}<a class="lit-chip" href="/literature?open={{ s }}" title="{{ s }}{{ ' ' ~ extra if extra }}" onclick="return openPaperM('{{ s }}',event)">📄 {{ label or s }}</a>{%
   else %}<span class="lit-chip off" title="litdb digest 없음">{{ label or s }}</span>{% endif %}{% endmacro %}
-{% macro gtable(t, cols, mo_col=None, modb={}) %}
+{# `not_map` = {열이름: claim_id} — 그 **열의 칸에만** 부인을 건다.
+   ⛔ Codex BI P0-2a/P0-3 (2026-09-08) — 종전에는 표 전체를 `data-claim-not` div 로
+   감쌌다. 실측 td 600 · 텍스트노드 605 · 3800자를 부인 하나가 덮었고, 그 안에
+   **진짜 철회 인용을 심어도 통과**했다(자유텍스트·숫자만 둘 다 재현). 부인은 담요가
+   아니라 셀 단위 선언이어야 한다. #}
+{% macro gtable(t, cols, mo_col=None, modb={}, not_map={}) %}
 <div class="tbl-scroll"><table class="data-table sortable"><thead><tr>
 {% for c in cols %}<th onclick="sortT(this,{{ loop.index0 }})" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">{{ c }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}">{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
 </tbody></table></div>{% endmacro %}
 
 {# ⛔ 2026-08-14 (Codex 리뷰 P0-4) — 47종/수작업 축이 archive 표시 없이 current 탭처럼
@@ -1260,10 +1265,14 @@
     {% endif %}
     {# 회신 BG ② — 이 표의 숫자는 캐스케이드 스크리닝 양(ml_score·window_gain V 등)이지
        MD 활성화에너지가 아니다. `window_gain 0.199` 이 b2o3 MD Ea 0.199 eV 와 **글자만**
-       같아 결속 검사에 걸린다. 결속하면 거짓 선언이므로 **부인**한다 (id 를 이름으로 댄다). #}
-    <div data-claim-not="MD_Ea_eV@b2o3">
-    {{ gtable({'data': casc.codoping_v2.data[:40]}, casc.codoping_v2.columns) }}
-    </div>
+       같아 결속 검사에 걸린다. 결속하면 거짓 선언이므로 **부인**한다 (id 를 이름으로 댄다).
+       ⛔ 2026-09-08 (Codex BI) — 부인을 표 전체 담요에서 **열 단위**로 좁혔다.
+       ⚠ 원자료 1081행에는 같은 글자가 13칸 더 있다(window_gain 5 · uncertainty 4 ·
+         ad_eps 1 · ml_score 1 …). 지금 `[:40]` 이라 안 보일 뿐이고, 표를 늘리거나
+         정렬을 바꾸면 하나씩 나온다 — 그때마다 열을 여기 등록해야 한다. #}
+    {{ gtable({'data': casc.codoping_v2.data[:40]}, casc.codoping_v2.columns,
+              not_map={'window_gain': 'MD_Ea_eV@b2o3', 'uncertainty': 'MD_Ea_eV@b2o3',
+                       'ad_eps': 'MD_Ea_eV@b2o3', 'ml_score': 'MD_Ea_eV@b2o3'}) }}
     <div class="muted" style="font-size:.74rem;margin-top:6px">상위 40쌍만 표시 (전체 {{ casc.codoping_v2.n }}쌍 → <a href="/api/csv/properties/codoping_ml_v2.csv">CSV 원본</a>) ·
       ml_score ± uncertainty = 모델 예측 ± 내부 LOOCV-잔차 전파 불확실도 · joint_window = pair 합동 ESW 창 · top_interaction = 기여 최대 교호작용 항.</div>
   </div>

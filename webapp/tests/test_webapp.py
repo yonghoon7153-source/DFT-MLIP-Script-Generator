@@ -2899,10 +2899,21 @@ _LEGACY_UNBOUND: dict = {}
 #: `data-claim-not` 부인 원장 — **우연 일치**를 선언으로 처리한 자리와 그 사유.
 #:   ⚠ 이건 면제가 아니라 주장이다: *"이 문자열은 그 주장이 아니다"*. 틀리면 거짓 선언이고,
 #:     그래서 여기 사유를 적어 감사 가능하게 남긴다 (빈 사유 금지 — DYNAMIC_EXEMPT 관례).
+#:   ⛔ 2026-09-08 (Codex BI P0-2a/P0-3) — 종전에는 **사유 문자열만** 요구했다. 그래서
+#:     `data-claim-not` 이 40행 표(td 600 · 3800자)를 통째로 덮어도 통과했고, 그 안에
+#:     진짜 철회 인용을 심어도(자유텍스트·숫자만 둘 다 재현) 시험이 초록이었다.
+#:     ⇒ 사유에 **건수(n)와 문맥(where)** 을 같이 선언한다. 건수가 달라지면 실패한다 —
+#:       "이 자리 하나가 우연 일치다" 는 검증 가능한 주장이고, "이 표는 봐주세요" 는 아니다.
 _DISCLAIMED = {
-    ("/cascade", "MD_Ea_eV@b2o3"):
-        "codoping_ml_v2 스크리닝 표의 `window_gain 0.199`(V)다. b2o3 MD Ea 0.199(eV)와 "
-        "글자만 같고 양·단위·출처가 전부 다르다 — 결속하면 거짓 선언이 된다.",
+    ("/cascade", "MD_Ea_eV@b2o3"): {
+        "why": "codoping_ml_v2 스크리닝 표의 `window_gain 0.199`(V)다. b2o3 MD Ea 0.199(eV)와 "
+               "글자만 같고 양·단위·출처가 전부 다르다 — 결속하면 거짓 선언이 된다.",
+        "n": 1,
+        "where": "codoping_ml_v2 상위 40행 · window_gain 열 (rank 25, pairA=B2O3/pairB=Gd2O3)",
+        "⚠": "원자료 1081행에는 같은 글자가 13칸 더 있다(window_gain 5 · uncertainty 4 · "
+             "ad_eps 1 · ml_score 1 …). 표를 늘리거나 정렬을 바꾸면 n 이 는다 — 그때 "
+             "n 을 올리기 전에 **그 칸들이 정말 다른 양인지** 확인해라.",
+    },
 }
 
 
@@ -2972,9 +2983,18 @@ def test_retracted_claims_are_id_bound_on_every_surface():
             grew.append((url, n, cap))
         if sc["dangling"]:
             dangling.append((url, sc["dangling"]))
-        # 부인은 **원장에 사유가 적혀 있어야** 한다 — 조용한 억제 금지
-        undeclared += [(url, cl["id"]) for cl, _x in sc["disclaimed"]
-                       if not (_DISCLAIMED.get((url, cl["id"])) or "").strip()]
+        # 부인은 **원장에 사유 + 건수**가 적혀 있어야 한다 — 조용한 억제도, 담요도 금지
+        seen_dis = {}
+        for cl, _x in sc["disclaimed"]:
+            dec = _DISCLAIMED.get((url, cl["id"]))
+            if not (dec or {}).get("why", "").strip():
+                undeclared.append((url, cl["id"], "사유 없음"))
+            seen_dis[cl["id"]] = seen_dis.get(cl["id"], 0) + 1
+        for cid, n_seen in seen_dis.items():
+            want = (_DISCLAIMED.get((url, cid)) or {}).get("n")
+            if want is not None and n_seen != want:
+                undeclared.append((url, cid, f"부인 건수가 선언과 다르다: {n_seen} ≠ {want} "
+                                             f"— 담요가 넓어졌거나 진짜 인용이 들어왔다"))
     assert not fresh, "결속 없는 철회·금지 주장이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
         "\n".join(f"  {u} · {i}\n      …{x[:140]}…" for u, i, x in fresh)
     assert not grew, "레거시 미결속 건수가 늘었다 (래칫은 줄어들기만 한다): " + str(grew)
@@ -3065,8 +3085,20 @@ def test_claim_binding_scanner_can_actually_fail():
     # ④ 다른 주장의 id 로는 결속되지 않는다
     r = C.scan_claim_bindings(f'<tr data-claim="MD_Ea_eV@modelc"><td>{t}</td></tr>', cl)
     assert len(r["unbound"]) == 1, "id 가 달라도 통과하면 결속이 아니다"
-    # ⑤ 숫자의 일부는 세지 않는다
-    assert not C.scan_claim_bindings(f"<p>{t}0 · 1{t}</p>", cl)["unbound"]
+    # ⑤ **다른 수**는 세지 않는다. 단, `0.1990` 은 같은 수다 — 2026-09-08 정정.
+    #    ⛔ 종전 문자열 매칭은 `nxt.isdigit()` 가드로 `0.1990` 을 빼고 있었고, 그건
+    #      *"자릿수 하나만 늘리면 결속을 벗어난다"* 는 회피면이었다(Codex BI 재현 중 발견:
+    #      `<td>0.199</td>` unbound 1 vs `<td>0.1990</td>` unbound 0). 이제 값으로 본다.
+    assert not C.scan_claim_bindings(f"<p>1{t} · {t}9</p>", cl)["unbound"], "다른 수를 세면 안 된다"
+    assert len(C.scan_claim_bindings(f"<p>{t}0</p>", cl)["unbound"]) == 1, (
+        "⛔ 회피면 회귀 — 0.1990 이 결속을 벗어나면 안 된다")
+    # ⑤-b 부호가 다르면 그 주장이 아니다 (남의 논문 흡착에너지 −0.199 eV 오탐 17건)
+    s5 = C.scan_claim_bindings(f"<p>H₂O 흡착에너지는 −{t} eV 였다.</p>", cl)
+    assert not s5["unbound"] and len(s5["suspect"]) == 1, s5
+    # ⑤-c 코드블록 안은 인용이 아니다 / 인라인 code 는 값 강조라 **결속 대상이다**
+    assert C.scan_claim_bindings(f"<pre><code>Ea={t}</code></pre>", cl)["skipped"]
+    assert C.scan_claim_bindings(f'<p><code class="mono">Ea {t}</code></p>', cl)["unbound"], (
+        "인라인 code 를 건너뛰면 대시보드가 통째로 눈이 먼다")
     # ⑥ 유령 id 는 잡는다
     assert C.scan_claim_bindings('<tr data-claim="NOPE@x">1</tr>', cl)["dangling"] == ["NOPE@x"]
     # ⑦ 파생 경로가 살아 있는가 — 하드코딩이면 레지스트리를 고쳐도 안 바뀐다
@@ -3422,3 +3454,134 @@ def test_retracted_cells_do_not_offer_one_click_citation():
     h = c.get("/explorer").get_data(as_text=True)
     assert h.count("citeVal(") > 20, "인용 버튼을 전부 없애 버렸다 — 그건 차단이 아니라 고장"
     assert 'class="cell-blocked"' in h, "차단 칸이 하나도 안 그려졌다"
+
+
+def test_matcher_conditions_cut_false_positives_without_going_blind():
+    """⛔음성: 매처 조건 셋(부호·단위·출처)이 **오탐만** 자르고 진성은 남긴다.
+
+    Codex BI 실측: litdb 219편 자동결속 18건 중 **17이 남의 논문**이었다
+    (deng2026 H₂O 흡착 −0.199 eV · spencer2022 exciton 50–90 meV · zhu2020 · ong2013).
+    오탐이 분모를 부풀리면 "미결속 0" 이 더 그럴듯하게 틀린 수가 된다.
+    ⚠ 반대 방향도 시험한다 — 조건이 너무 세면 **진성 인용까지 눈이 먼다**(fan2026 1건).
+    """
+    import json as _j
+    c, cl = A.app.test_client(), C.all_claims()
+    FALSE_POS = ["deng2026_polysulfate_layer_moisture_oxidation_lpsc",
+                 "spencer2022_review_tco_band_structure_oxides",
+                 "zhu2020_air_stable_se_design_principles",
+                 "ong2013_lgps_family_substitution"]
+    for pid in FALSE_POS:
+        r = c.get(f"/api/paper/{pid}")
+        assert r.status_code == 200, pid
+        s = C.scan_claim_bindings(_j.loads(r.get_data(as_text=True))["html"],
+                                  claims=cl, origin="external")
+        assert not s["bound"] and not s["unbound"], (
+            f"⛔ {pid}: 남의 논문 숫자를 우리 주장으로 셌다 — {s['bound'] or s['unbound']}")
+        assert s["suspect"], f"{pid}: suspect 로도 안 남으면 감사가 불가능하다(조용한 배제)"
+    # 진성 1건은 **살아 있어야** 한다 — 조건이 세지면 여기가 먼저 죽는다
+    r = c.get("/api/paper/fan2026_sulfide_assb_stability_review_ECERD2600097")
+    s = C.scan_claim_bindings(_j.loads(r.get_data(as_text=True))["html"],
+                              claims=cl, origin="external")
+    assert s["bound"] and not s["suspect"], (
+        f"⛔ 진성 인용(우리 캠페인 값 인용문)이 조건에 걸려 사라졌다: {s}")
+
+
+def test_unknown_word_after_number_is_not_a_unit():
+    """⛔음성: 값 뒤의 **모르는 낱말**을 단위로 읽지 않는다.
+
+    `Ea 0.199±0.034 vs 0.197±0.032` 에서 `vs` 를 단위로 읽어 진성 인용 한 건이
+    suspect 로 떨어졌다 — 모르는 낱말을 증거로 쓰면 안 된다.
+    """
+    cl = [x for x in C.all_claims() if x["id"] == "MD_Ea_eV@b2o3"]
+    ok = C.scan_claim_bindings("<p>b2o3 Ea 0.199±0.034 vs 0.197</p>", claims=cl,
+                               origin="external")
+    assert ok["unbound"] and not ok["suspect"], ok
+    # 진짜 다른 단위는 여전히 suspect
+    bad = C.scan_claim_bindings("<p>b2o3 window_gain 0.199 V</p>", claims=cl,
+                                origin="external")
+    assert bad["suspect"] and not bad["unbound"], bad
+
+
+def test_disclaim_cannot_hide_a_real_citation():
+    """⛔음성: **부인 안에 진짜 주장을 심으면 걸린다** (Codex BI P0-2a/P0-3 독약 주입).
+
+    이 시험이 없어서 종전 검사는 다음 둘을 모두 통과시켰다:
+      ① 부인 subtree 안에 자유텍스트로 철회값을 넣기 (disclaimed 1 → 2)
+      ② 부인 subtree 안에 숫자만 넣기 (1 → 4)
+    `_DISCLAIMED` 가 `(url, claim_id)` 쌍의 **사유 유무만** 보고 건수도 문맥도 안 봤다.
+    """
+    c, cl = A.app.test_client(), C.all_claims()
+    tgt = next(x for x in cl if x["id"] == "MD_Ea_eV@b2o3")
+    h = c.get("/cascade").get_data(as_text=True)
+    base = C.scan_claim_bindings(h, cl)
+    n0 = len(base["disclaimed"])
+    want = _DISCLAIMED[("/cascade", "MD_Ea_eV@b2o3")]["n"]
+    assert n0 == want, f"기준선이 선언과 다르다: {n0} ≠ {want}"
+    # ① 자유텍스트 주입 — 부인 영역 안에 진짜 인용을 심는다
+    poison = h.replace('data-claim-not="MD_Ea_eV@b2o3">',
+                       'data-claim-not="MD_Ea_eV@b2o3">'
+                       f'b2o3 의 MD Ea 는 {tgt["text"]} eV 다. ', 1)
+    assert len(C.scan_claim_bindings(poison, cl)["disclaimed"]) != want, (
+        "⛔ 부인 안에 진짜 인용을 심었는데 건수가 그대로다 — 검사가 죽었다")
+    # ② 숫자만 주입
+    poison2 = h.replace('data-claim-not="MD_Ea_eV@b2o3">',
+                        f'data-claim-not="MD_Ea_eV@b2o3">{tgt["text"]} ', 1)
+    assert len(C.scan_claim_bindings(poison2, cl)["disclaimed"]) != want, (
+        "⛔ 숫자만 심어도 안 걸린다 — 부인이 여전히 담요다")
+
+
+def test_disclaim_is_not_a_blanket_over_a_whole_table():
+    """⛔음성: **부인 하나가** 표·행을 덮으면 실패 (담요 금지).
+
+    실측(2026-09-08 이전): `/cascade` 의 `data-claim-not` div 하나가 td 600 · tr 41 ·
+    텍스트노드 605 · 3800자를 덮었다. 충돌 셀은 그중 1칸이었다.
+    ⚠ 재는 것은 **총합이 아니라 한 선언의 폭**이다. 셀마다 따로 선언하면 총합은 커져도
+      각 선언은 좁다 — 그게 좁힌 것이고, 총합으로 재면 그 개선이 벌점으로 보인다.
+    """
+    from html.parser import HTMLParser
+    h = A.app.test_client().get("/cascade").get_data(as_text=True)
+
+    class _Span(HTMLParser):
+        """`data-claim-not` 요소 **하나하나**의 폭 (글자수 · 안에 든 tr/table 수)."""
+
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack = []        # [(tag, is_not, chars, rows)]
+            self.spans = []        # [(chars, rows)]
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("br", "img", "hr", "input", "meta", "link"):
+                return
+            isn = bool(dict(attrs).get("data-claim-not"))
+            if self.stack and tag in ("tr", "table"):
+                for f in self.stack:
+                    if f[1]:
+                        f[3] += 1
+            self.stack.append([tag, isn, 0, 0])
+
+        def handle_endtag(self, tag):
+            for i in range(len(self.stack) - 1, -1, -1):
+                if self.stack[i][0] == tag:
+                    for f in self.stack[i:]:
+                        if f[1]:
+                            self.spans.append((f[2], f[3]))
+                    del self.stack[i:]
+                    return
+
+        def handle_data(self, data):
+            n = len(data.strip())
+            if n:
+                for f in self.stack:
+                    if f[1]:
+                        f[2] += n
+    p = _Span()
+    p.feed(h)
+    assert p.spans, "부인이 하나도 없다 — 이 시험의 전제가 깨졌다"
+    worst_c = max(c for c, _r in p.spans)
+    worst_r = max(r for _c, r in p.spans)
+    assert worst_r == 0, (
+        f"⛔ 부인 하나가 표/행을 통째로 덮는다 (tr·table {worst_r}개) — 부인은 "
+        f"**셀 단위 선언**이다. 담요는 그 안의 진짜 인용까지 조용히 억제한다")
+    assert worst_c < 120, (
+        f"⛔ 부인 하나가 너무 넓다 ({worst_c}자) — 담요다. 선언 {len(p.spans)}개, "
+        f"총 {sum(c for c, _ in p.spans)}자")

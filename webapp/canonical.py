@@ -427,9 +427,32 @@ def bound_claims(reg=None, root=None) -> list:
         out.append({"id": claim_id(e.get("metric"), e.get("system")),
                     "metric": e.get("metric"), "system": e.get("system"),
                     "state": state, "text": txt,
+                    # 매처 조건 (Codex BI ③) — 숫자는 값으로, 단위·계 이름은 문맥으로
+                    "kind": "number" if txt else None,
+                    "unit": e.get("unit"), "system_tokens": system_tokens(e.get("system")),
                     "why": r.get("why", "") or e.get("why_non_citable", ""),
                     "instead": r.get("usable_instead", "")})
     return out
+
+
+#: 계 이름의 표기 변이 — 남의 논문과 우리 값을 가르는 **문맥 조건**에 쓴다.
+#: ⚠ 손으로 늘리기보다 계 이름에서 파생시킨다. 여기 적는 것은 파생으로 안 나오는 별칭뿐.
+_SYS_ALIAS = {
+    "b2o3": ("b2o3", "b₂o₃", "b2o3-lpscl", "b₂o₃-lpscl", "b2o3-도핑"),
+    "modelc": ("modelc", "model c", "lpscl1.6", "lpscl 1.6"),
+    "comp1": ("comp1", "li6ps5cl"),
+    "lpsocl": ("lpsocl", "lpso cl", "o 도핑"),
+    "b2o3_vs_modelc": ("b2o3", "b₂o₃", "modelc", "lpscl1.6"),
+}
+
+
+def system_tokens(system) -> tuple:
+    """그 계를 가리키는 소문자 토큰들 — `origin="external"` 문맥 조건용."""
+    s = str(system or "").strip().lower()
+    if not s:
+        return ()
+    base = {s, s.replace("_", " "), s.replace("_", "-")}
+    return tuple(sorted(base | set(_SYS_ALIAS.get(s, ()))))
 
 
 _HZ_CACHE = {"key": None, "out": None}
@@ -495,7 +518,11 @@ def hazard_claims(root=None) -> list:
         for t in (ph or [None]):
             out.append({"id": hid, "metric": hid, "system": "hazard",
                         "state": "hazard_" + str(z.get("level", "")).lower(),
-                        "text": t, "why": z.get("why", ""),
+                        "text": t, "kind": "phrase", "unit": None,
+                        # 위험 행이 어느 계를 말하는지 — `claim` 이 있으면 거기서 딴다
+                        "system_tokens": system_tokens(
+                            str(z.get("claim") or "").split("@")[-1] or None),
+                        "why": z.get("why", ""),
                         "instead": z.get("fix", "")})
     return out
 
@@ -520,6 +547,135 @@ def all_claims(reg=None, root=None) -> list:
 _TAG_SPLIT = re.compile(r"(<[^>]*>)")
 _STATE_MARK = {"retracted": "⛔ 철회 — 인용 금지",
                "non_citable": "⛔ 비인용 — 정본으로 옮기지 않는다"}
+
+# ── 매처 (Codex BI ③ · 2026-09-08) ──────────────────────────────────────────
+#   실측 두 방향의 오차가 같이 있었다.
+#   · 오탐 — litdb 219편 자동결속 18건 중 **17이 남의 논문**이다
+#     (deng2026 H₂O 흡착 −0.199 eV 7 · spencer2022 exciton 50–90 meV 3 · …).
+#   · 미탐 — 문자열 그대로 찾으니 `0.1990` 한 자리로 결속을 **벗어난다**
+#     (`<td>0.199</td>` unbound 1 vs `<td>0.1990</td>` unbound 0, 스캐너 직접 투입).
+#   ⇒ 숫자는 **문자열이 아니라 값**으로 본다. 부호·단위·출처를 조건으로 건다.
+_NUM_TOKEN = re.compile(r"[-−–+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+#: 값 바로 뒤의 단위 토큰 (`±0.034 eV` 처럼 오차막대를 건너뛴다)
+_UNIT_AFTER = re.compile(r"\s*(?:[±+]/?-?\s*[\d.]+\s*)?([A-Za-zμµΩ%]+(?:/[A-Za-z³]+)?)")
+
+
+def _num_of(tok: str):
+    """`−0.199` · `+0.1990` → float. 못 읽으면 None."""
+    try:
+        return float(tok.replace("−", "-").replace("–", "-").lstrip("+"))
+    except ValueError:
+        return None
+
+
+#: 단위로 **인정하는** 낱말. ⚠ 여기 없는 낱말은 "다른 단위" 가 아니라 **단위가 아니다**.
+#:   실측 사고: `Ea 0.199±0.034 vs 0.197±0.032` 에서 `vs` 를 단위로 읽어 진성 인용
+#:   한 건을 suspect 로 떨어뜨렸다. 모르는 낱말을 증거로 쓰면 안 된다.
+UNIT_WORDS = frozenset((
+    "ev", "mev", "kev", "ry", "ha", "kj", "kcal", "j", "k", "c",
+    "a", "å", "nm", "pm", "cm", "m", "mm", "s", "ps", "fs", "ns", "ms",
+    "gpa", "mpa", "pa", "bar", "v", "mv", "e", "μb", "µb", "ub",
+    "s/cm", "ms/cm", "mscm", "cm2/s", "cm²/s", "g/cm3", "g/cm³", "%",
+    "mev/atom", "ev/atom", "ev/å", "mev/å", "ω", "ωcm",
+))
+
+
+def _unit_conflict(claim: dict, seg: str, end: int) -> bool:
+    """값 뒤의 단위가 정본 단위와 **다르면** True (같거나·단위가 아니면 False).
+
+    ⛔ 못 하는 것: 단위가 같은 다른 물리량은 못 가른다 — `E_ads = −0.199 eV` 와
+      `Ea = 0.199 eV` 는 단위까지 같다. 그건 부호·출처 조건이 맡는다.
+    """
+    u = (claim.get("unit") or "").strip()
+    if not u:
+        return False
+    m = _UNIT_AFTER.match(seg, end)
+    if not m:
+        return False
+    got = m.group(1)
+    if got.lower() not in UNIT_WORDS:        # 모르는 낱말 = 단위가 아니다 (증거 아님)
+        return False
+    return got != u and got.lower() != u.lower()
+
+
+def qualify_hit(claim: dict, seg: str, start: int, end: int, origin: str = "internal",
+                before: str = "") -> str:
+    """이 자리의 일치가 **얼마나 그 주장인가** → "match" | "suspect".
+
+    · `suspect` — 문자열은 같지만 그 주장이라고 보기 어렵다. 결속을 요구하지 않고
+      **목록으로만** 남긴다(침묵이 아니다). 판정 근거 셋:
+        ① 부호가 다르다 (`−0.199` 은 `0.199` 이 아니다)
+        ② 값 뒤 단위가 정본 단위와 다르다
+        ③ 출처가 외부 문서인데(`origin="external"`) 우리 계 이름이 근처에 없다
+    ⛔ 못 하는 것: 문장의 뜻은 안 본다. 세 조건 다 지나가면 `match` 다.
+    """
+    tok = seg[start:end]
+    if claim.get("kind") == "number":
+        if tok.lstrip("+").startswith(("-", "−", "–")):
+            return "suspect"                                   # ① 부호
+        if _unit_conflict(claim, seg, end):
+            return "suspect"                                   # ② 단위
+    if origin == "external":                                   # ③ 출처
+        # ⚠ 창은 **태그 경계를 넘어서** 잡는다. 렌더된 HTML 은 `**동등**` 같은 강조에서
+        #   텍스트 노드가 잘려서, 노드 안만 보면 바로 앞 문장의 계 이름을 못 본다
+        #   (실측: fan2026 의 진성 인용 1건이 그 때문에 suspect 로 떨어졌다).
+        win = (before[-CTX_BEFORE:] + seg[:start]).lower()[-CTX_BEFORE:] \
+            + seg[start:end + CTX_AFTER].lower()
+        toks = claim.get("system_tokens") or ()
+        if not any(t in win for t in toks):
+            return "suspect"
+    return "match"
+
+
+#: 출처 조건의 문맥 창 — 앞 240자 / 뒤 90자. 앞을 넓게 잡는 이유: 인용문은 계 이름을
+#: **먼저** 대고 값을 뒤에 쓴다("b2o3/modelc … Ea 0.199±0.034").
+CTX_BEFORE, CTX_AFTER = 240, 90
+
+
+def find_claim_hits(seg: str, claims, origin: str = "internal", before: str = ""):
+    """텍스트 한 토막에서 결속 대상 자리를 찾는다 → `[(start, end, claim, quality)]`.
+
+    `annotate_claims`(감싸기)와 `_ClaimScanner`(검사)가 **같은 함수**를 쓴다.
+    둘이 갈리면 화면과 검사가 다른 것을 보게 된다.
+
+    숫자 주장은 **값으로** 비교한다 — `0.199` 과 `0.1990` 은 같은 수다.
+    ⛔ 종전 문자열 매칭은 `0.1990` 을 놓쳤고, 그건 *"자릿수 하나로 결속을 벗어난다"* 는
+      뜻이었다 (Codex BI 재현 중 발견 — 리뷰가 못 짚은 회피면).
+    """
+    nums = [c for c in claims if c.get("kind") == "number"]
+    phrases = sorted([c for c in claims if c.get("kind") != "number"],
+                     key=lambda c: len(c.get("text") or ""), reverse=True)
+    hits = []
+    if nums:
+        want = {}
+        for c in nums:
+            v = _num_of(c["text"])
+            if v is not None:
+                want.setdefault(round(v, 12), []).append(c)
+        for m in _NUM_TOKEN.finditer(seg):
+            v = _num_of(m.group(0))
+            if v is None:
+                continue
+            for c in want.get(round(abs(v), 12), ()):
+                hits.append((m.start(), m.end(), c,
+                             qualify_hit(c, seg, m.start(), m.end(), origin, before)))
+    for c in phrases:
+        t = c.get("text")
+        if not t:
+            continue
+        i = seg.find(t)
+        while i != -1:
+            hits.append((i, i + len(t), c,
+                         qualify_hit(c, seg, i, i + len(t), origin, before)))
+            i = seg.find(t, i + len(t))
+    # 겹치는 자리는 **긴 쪽**만 남긴다 ("+90 meV" 가 "90 meV" 를 먹는다)
+    hits.sort(key=lambda h: (h[0], -(h[1] - h[0])))
+    out, cut = [], -1
+    for h in hits:
+        if h[0] >= cut:
+            out.append(h)
+            cut = h[1]
+    return out
 
 
 def instead_text(instead) -> str:
@@ -564,59 +720,56 @@ def _claim_mark_text(c: dict) -> str:
     return "⛔인용위험"
 
 
-def annotate_claims(fragment: str, claims=None, reg=None, root=None):
-    """마크다운으로 렌더된 **조각**에서 결속 대상 문자열을 찾아 그 자리에 이름을 붙인다.
+def annotate_claims(fragment: str, claims=None, reg=None, root=None, origin="internal"):
+    """마크다운으로 렌더된 **조각**에서 결속 대상 자리를 찾아 그 자리에 이름을 붙인다.
 
     → `(html, [결속한 claim id …])`
 
+    `origin="external"` 이면 남의 문서다(litdb digest 등) — 우리 계 이름이 근처에 없는
+    일치는 `suspect` 로 보고 **감싸지 않는다**. 실측: litdb 219편 자동결속 18건 중 17이
+    남의 논문이었다(deng2026 H₂O 흡착 −0.199 eV 7건 등). 오탐이 분모를 부풀리면
+    "미결속 0" 이 더 그럴듯하게 틀린 수가 된다.
+
     ⛔ 이 함수가 **못 하는 것**
-      · 문장을 읽지 않는다. 문자열이 일치하면 감싼다 — 그 문맥이 정당한 인용인지
-        (역사 기록·반례 인용) 는 **사람이** 판단할 몫이고, 표시는 그 판단을 돕는 것뿐이다.
+      · 문장을 읽지 않는다. 조건(값·부호·단위·계 이름)이 맞으면 감싼다 — 그 문맥이
+        정당한 인용인지(역사 기록·반례 인용)는 **사람이** 판단할 몫이다.
       · **완전한 HTML 문서에 쓰면 안 된다.** 태그 밖 텍스트만 건드리도록 태그 단위로
         쪼개는데, `<script>`·`<style>`·주석 안의 `>텍스트<` 는 구분하지 못한다.
-        마크다운 렌더 결과(raw HTML 이 꺼져 있다)에만 쓴다.
-      · 이미 붙은 결속을 지우거나 겹쳐 감싸지 않는다 — 같은 자리를 두 번 훑지 않는다.
+      · `<pre><code>` 안은 건드리지 않는다 — 코드·로그의 숫자는 인용이 아니다.
+      · 이미 붙은 결속을 지우거나 겹쳐 감싸지 않는다.
     """
     claims = claims if claims is not None else all_claims(reg=reg, root=root)
-    idx = {}
-    for c in claims:
-        t = c.get("text")
-        # HTML 특수문자가 든 문자열은 건드리지 않는다 (엔티티로 인코딩돼 있을 수 있다)
-        if t and not any(ch in t for ch in "<>&"):
-            idx.setdefault(t, c)
-    if not idx or not fragment:
+    usable = [c for c in claims
+              if c.get("text") and not any(ch in c["text"] for ch in "<>&")]
+    if not usable or not fragment:
         return fragment, []
-    order = sorted(idx, key=len, reverse=True)   # 긴 것 우선 ("+90 meV" > "90 meV")
-    found = []
-
-    def _first(seg, i):
-        """seg[i:] 에서 제일 앞선 일치 → (위치, 문자열) · 없으면 (None, None)"""
-        best = bt = None
-        for t in order:
-            j = seg.find(t, i)
-            while j != -1:                        # 숫자에 붙은 일치는 다른 수다 (10.199)
-                nx, pv = seg[j + len(t):j + len(t) + 1], (seg[j - 1:j] if j else " ")
-                if not (nx.isdigit() or pv.isdigit()):
-                    break
-                j = seg.find(t, j + 1)
-            if j != -1 and (best is None or j < best or (j == best and len(t) > len(bt))):
-                best, bt = j, t
-        return best, bt
-
+    found, ctx = [], ""                           # ctx = 태그 밖 텍스트의 러닝 버퍼
     parts = _TAG_SPLIT.split(fragment)
-    for k in range(0, len(parts), 2):             # 짝수 = 태그 밖 텍스트
-        seg, out, i = parts[k], [], 0
-        while seg:
-            j, t = _first(seg, i)
-            if j is None:
-                out.append(seg[i:])
-                break
-            out.append(seg[i:j])
-            out.append(_claim_flag(idx[t], t))
-            found.append(idx[t]["id"])
-            i = j + len(t)
-        if out:
-            parts[k] = "".join(out)
+    depth = 0                                     # <pre> 안에서는 감싸지 않는다
+    for k, part in enumerate(parts):
+        if k % 2:                                 # 홀수 = 태그
+            t = part[1:].strip().split()[0].lower().rstrip(">/") if len(part) > 2 else ""
+            if t == "pre":
+                depth += 1
+            elif t == "/pre":
+                depth = max(0, depth - 1)
+            continue
+        if not part.strip():
+            continue
+        prev, ctx = ctx, (ctx + part)[-CTX_BEFORE:]
+        if depth:
+            continue
+        hits = [h for h in find_claim_hits(part, usable, origin, prev) if h[3] == "match"]
+        if not hits:
+            continue
+        out, i = [], 0
+        for a, b, c, _q in hits:
+            out.append(part[i:a])
+            out.append(_claim_flag(c, part[a:b]))
+            found.append(c["id"])
+            i = b
+        out.append(part[i:])
+        parts[k] = "".join(out)
     return "".join(parts), sorted(set(found))
 
 
@@ -628,18 +781,30 @@ class _ClaimScanner(_HTMLParser):
                       "link", "meta", "param", "source", "track", "wbr"))
     SKIP = frozenset(("script", "style"))
 
-    def __init__(self, texts):
+    #: 결속을 요구하지 않는 곳 — **코드블록**(`<pre>`)의 숫자는 인용이 아니다.
+    #: ⚠ 인라인 `<code>` 는 **넣지 않는다.** 실측: 대시보드가 값을 강조하는 데
+    #:   `<code class="mono">Ea 0.199±0.034</code>` 로 쓴다 — 그건 코드가 아니라 값이다.
+    #:   여기 code 를 넣었더니 `/` 표면이 통째로 눈이 멀었다(bound 0).
+    CODE = frozenset(("pre",))
+
+    def __init__(self, claims, origin="internal"):
         super().__init__(convert_charrefs=True)
-        self._texts = texts            # {text: [claim, ...]}
+        self._claims = claims          # [claim, ...] — 매처가 값·부호·단위를 본다
+        self._origin = origin
         self._stack = []               # [(tag, claim_id|None, not_id|None)]
         self._skip = 0
-        self.hits = []                 # [(claim, "bound"|"disclaimed"|None, context)]
+        self._code = 0
+        self._ctx = ""                 # 태그 밖 텍스트의 러닝 버퍼 (출처 조건의 문맥 창)
+        self.hits = []                 # [(claim, 상태, context)] 상태: bound|disclaimed|
+                                       #   suspect|skipped|None(=unbound)
         self.declared = []             # 화면이 선언한 data-claim / data-claim-not 값 전부
 
     def handle_starttag(self, tag, attrs):
         if tag in self.SKIP:
             self._skip += 1
             return
+        if tag in self.CODE:
+            self._code += 1
         d = dict(attrs)
         cid, nid = d.get("data-claim"), d.get("data-claim-not")
         for x in (cid, nid):
@@ -658,6 +823,8 @@ class _ClaimScanner(_HTMLParser):
         if tag in self.SKIP:
             self._skip = max(0, self._skip - 1)
             return
+        if tag in self.CODE:
+            self._code = max(0, self._code - 1)
         for i in range(len(self._stack) - 1, -1, -1):
             if self._stack[i][0] == tag:
                 del self._stack[i:]
@@ -666,25 +833,28 @@ class _ClaimScanner(_HTMLParser):
     def handle_data(self, data):
         if self._skip or not data.strip():
             return
-        for txt, claims in self._texts.items():
-            i = 0
-            while (i := data.find(txt, i)) != -1:
-                nxt = data[i + len(txt): i + len(txt) + 1]
-                prv = data[i - 1: i] if i else " "
-                if not (nxt.isdigit() or prv.isdigit()):       # 0.1990 / 10.199 는 아니다
-                    yes = {x for _t, c, _n in self._stack if c for x in c.split()}
-                    no = {x for _t, _c, n in self._stack if n for x in n.split()}
-                    ctx = " ".join(data[max(0, i - 90): i + len(txt) + 90].split())
-                    for cl in claims:
-                        st = ("bound" if cl["id"] in yes
-                              else ("disclaimed" if cl["id"] in no else None))
-                        self.hits.append((cl, st, ctx))
-                i += len(txt)
+        yes = {x for _t, c, _n in self._stack if c for x in c.split()}
+        no = {x for _t, _c, n in self._stack if n for x in n.split()}
+        prev, self._ctx = self._ctx, (self._ctx + data)[-CTX_BEFORE:]
+        for a, b, cl, q in find_claim_hits(data, self._claims, self._origin, prev):
+            ctx = " ".join(data[max(0, a - 90): b + 90].split())
+            if self._code:                     # 코드블록 안 — 결속 요구 밖(목록만)
+                st = "skipped"
+            elif cl["id"] in yes:
+                st = "bound"
+            elif cl["id"] in no:
+                st = "disclaimed"
+            elif q == "suspect":
+                st = "suspect"
+            else:
+                st = None
+            self.hits.append((cl, st, ctx))
 
 
-def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
+def scan_claim_bindings(html: str, claims=None, reg=None, root=None,
+                        origin="internal") -> dict:
     """한 화면의 결속 상태.
-    → `{"bound", "unbound", "disclaimed", "declared", "dangling"}`
+    → `{"bound", "unbound", "disclaimed", "suspect", "skipped", "declared", "dangling"}`
 
     · `bound`     — 값이 **자기 claim id 를 단 요소 안에** 있다 (구조 결속).
     · `disclaimed`— `data-claim-not="<id>"` 안에 있다: *"이 문자열은 그 주장이 아니다"*.
@@ -692,15 +862,23 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
       b2o3 MD Ea 0.199(eV)와 **아무 관계가 없다**. 그걸 결속하면 거짓 선언이 된다.
       ⚠ 이건 **면제가 아니라 선언**이다. id 를 이름으로 대야 하고(`*` 없음), 화면 검사가
         따로 세어 목록으로 남긴다 — 감사 대상이지 침묵이 아니다.
-    · `unbound`   — 둘 다 아니다. 근접성은 보지 않는다 (호출자가 레거시 완화를 결정한다).
+    · `suspect`   — 매처가 **그 주장이 아니라고 본다**(부호·단위·출처 조건). 결속을
+      요구하지 않지만 **목록에 남는다** — 조용히 버리면 오탐 규칙 자체가 감사 불가가 된다.
+    · `skipped`   — `<pre>`/`<code>` 안. 코드·로그의 숫자는 인용이 아니다.
+    · `unbound`   — 위 어디에도 안 든다. **근접성은 보지 않는다** (⛔ 표지가 옆에 있어도
+      id 를 대지 않으면 미결속이다 — 그게 BG ② 의 요지다).
     · `dangling`  — 선언한 id 중 레지스트리·위험원장에 없는 것 (오타·유령 결속).
       `data-claim-not` 도 같이 검사한다 — 오타 난 부인은 **조용히 억제**로 이어지므로.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 태그 **속성** 안의 값은 못 본다 (`title="b2o3(0.199±0.034)"` 툴팁). 텍스트 노드만 훑는다.
+      · JS 가 나중에 그리는 것은 못 본다 (서버 응답 시점의 DOM 이 아니다).
+      · `unbound == 0` 은 **지표가 아니다**. `md_html` 이 일치 자리를 자동으로 감싸므로
+        그 경로를 지나는 화면의 0 은 "결속됐다" 가 아니라 "치환기가 돌았다" 이기도 하다.
+        의미 있는 수는 `bound` 중 **선언(`declared`)으로 결속된 것**의 비율이다.
     """
     claims = claims if claims is not None else all_claims(reg=reg, root=root)
-    texts = {}
-    for c in claims:
-        if c.get("text"):
-            texts.setdefault(c["text"], []).append(c)
+    usable = [c for c in claims if c.get("text")]
     # ⚠ 유령 결속 판정은 **레지스트리 전체**로 한다 (결속 대상 목록으로 하면 정상 항목을
     #   가리키는 결속까지 유령이 된다 — 실측: `MD_Ea_eV_singleseed@b2o3`).
     _r = reg if reg is not None else registry(root=root)
@@ -709,10 +887,11 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
     # ⚠ **결속 어휘**로 판정한다 (`hazard_claims` 가 아니라 `hazard_ids`). 해소·폐기된
     #   위험을 화면이 이력으로 이름 대는 것은 정당하다 — 그걸 유령으로 터뜨리면 안 된다.
     known |= hazard_ids(root=root)
-    sc = _ClaimScanner(texts)
+    sc = _ClaimScanner(usable, origin=origin)
     sc.feed(html)
     pick = lambda w: [(c, ctx) for c, s, ctx in sc.hits if s == w]     # noqa: E731
     return {"bound": pick("bound"), "disclaimed": pick("disclaimed"), "unbound": pick(None),
+            "suspect": pick("suspect"), "skipped": pick("skipped"),
             "declared": sc.declared,
             "dangling": sorted({x for d in sc.declared for x in d.split() if x not in known})}
 

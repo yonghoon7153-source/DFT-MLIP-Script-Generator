@@ -148,7 +148,7 @@ except Exception:
     _md = None
 
 
-def md_html(text: str, extensions=("tables", "fenced_code")) -> str:
+def md_html(text: str, extensions=("tables", "fenced_code"), origin="internal") -> str:
     """마크다운 → HTML. **raw HTML 통과는 끈다.**
 
     렌더 결과가 innerHTML(literature.html·log.html) 과 |safe(doc/concept) 로 들어가는데,
@@ -175,7 +175,7 @@ def md_html(text: str, extensions=("tables", "fenced_code")) -> str:
             md.inlinePatterns.deregister(name)
         except (KeyError, ValueError):
             pass
-    return _bind_claims(_sanitize_urls(md.convert(text or "")))
+    return _bind_claims(_sanitize_urls(md.convert(text or "")), origin=origin)
 
 
 # ── 개념 문서 서버 렌더 (Codex BI P0-2b · 2026-09-08) ────────────────────────
@@ -272,10 +272,10 @@ def doc_html(text: str) -> str:
 #   원장이 화면 형식에 오염되고, 다음에 원문을 고치면 결속이 조용히 사라진다.
 #   그래서 md_html 한 곳에서 자동으로 붙인다 — 새 문서가 들어와도 자동으로 결속된다.
 #   ⚠ 자동이라서 **눈에 보여야** 정직하다: `.claim-flag` 가 밑줄+⛔ 를 그리고 사유를 띄운다.
-def _bind_claims(html: str) -> str:
+def _bind_claims(html: str, origin: str = "internal") -> str:
     import canonical as _C
     try:
-        return _C.annotate_claims(html)[0]
+        return _C.annotate_claims(html, origin=origin)[0]
     except Exception:                                    # noqa: BLE001
         # 결속 실패가 화면을 죽이면 안 된다. 다만 **조용히 통과시키지도 않는다** —
         # 시험(`test_markdown_render_binds_claims_and_can_fail`)이 이 경로를 음성으로 잡는다.
@@ -1175,7 +1175,10 @@ def api_paper(pid):
         p = D.LITDB / "talks" / f"{pid}.md"
     if not p.exists():
         abort(404)
-    html = md_html(p.read_text(encoding="utf-8", errors="ignore"))
+    # ⚠ litdb 는 **남의 문서**다 (origin="external"). 우리 계 이름이 근처에 없는 일치는
+    #   `suspect` 로 두고 감싸지 않는다 — 실측 오탐 17/18 (deng2026 H₂O 흡착 −0.199 eV 등).
+    #   감싸면 원장이 남의 논문으로 부풀고 "미결속 0" 이 더 그럴듯하게 틀린 수가 된다.
+    html = md_html(p.read_text(encoding="utf-8", errors="ignore"), origin="external")
     # 크로핑된 논문 그림 — 본문의 "Fig. 5e" 를 브라우저에서 링크로 바꿔 여백에 띄운다.
     # ⚠ rel 을 같이 준다 — 여백 메모(docnote.js)가 이 경로에 붙는다. papers/ 인지
     #   talks/ 인지는 **서버만 안다**. 화면이 papers/ 로 찍으면 발표덱 메모가 조용히 실패한다.
@@ -1215,7 +1218,8 @@ def talk_page(slug):
     title = md.splitlines()[0].lstrip("# ").strip() if md.startswith("#") else slug
     return render_template(
         "doc.html", active="lit", title=f"🎤 {title}",
-        content=md_html(md, ("tables", "fenced_code", "toc")),
+        # ⚠ 발표자료도 남의 문서다 (litdb) — origin="external"
+        content=md_html(md, ("tables", "fenced_code", "toc"), origin="external"),
         parent={"url": "/literature", "label": "문헌 · 발표자료"},
         talk_manifest=man,
         subtitle=f"litdb/talks/{slug}.md · 인용 규율은 litdb/talks/README.md")
