@@ -1282,6 +1282,43 @@ MUTANTS = [
      "            if isinstance(sub.func, ast.Name) and sub.func.id in shadows_at(sub):",
      "            if False:",
      "a_caller_supplied_binding_is_not_a_proof_of_non_namespace"),
+    # ζ — producer identity 의 평가 표면 (P0-11·P0-12).
+    #   §1 초안이 "cohort pin 이 움직인 것이 증거다" 로 두려 했던 자리다.
+    #   그것은 증거가 아니라 부작용이다 — 방어를 심었으면 축을 심는다.
+    ("compound-heads-are-import-time-g60", RP,                       # P0-12
+     """                for h in (getattr(node, "test", None),
+                          getattr(node, "iter", None),
+                          getattr(node, "subject", None)):
+                    if h is not None:
+                        _bind(MODULE_EFFECTS, here)""",
+     "                pass",
+     "compound_heads_and_vararg_annotations_are_import_time"),
+    ("vararg-annotations-are-import-time-g60", RP,                   # P0-12
+     """                  + [x for x in (getattr(args, "vararg", None),
+                                 getattr(args, "kwarg", None)) if x]):""",
+     "                  ):",
+     "compound_heads_and_vararg_annotations_are_import_time"),
+    ("shadows-are-scoped-g60", RP,                                   # P0-11
+     "    scope_of = {id(sub): sh for sub, sh in _scoped_shadows(node)}",
+     "    _flat = _binding_shadows(node)\n"
+     "    scope_of = {id(sub): _flat for sub in ast.walk(node)}",
+     # ★ **declared** 로 내린다 (아래 DECLARED_MASKED). scope 를 좁힌 것은
+     #   옳은 의미이지만, 평평한 shadow 와 결과가 갈라지는 모든 형태를 더
+     #   바깥의 규칙(58차 L9-b "능력을 값으로 옮긴다" · P0-10 둘째 층)이
+     #   먼저 문다 — 두 형태를 지어 실측했고 둘 다 변이 rc 0 이었다.
+     None),
+    # θ — 실행이 실제로 올린 byte 의 closure (P1-3·P1-4).
+    #   ★ 선언이 자기 자신의 preimage 로 세어지지 않게 철자를 escape 한다
+    #     (이 파일이 자기 변이 대상이다 — `startup-binds-every-loaded-module`
+    #     와 같은 이유).
+    #   ★ 증인은 세 층이 **갈라지는** 자리를 겨눈다. 최상위 module 을 쓰는
+    #     시험은 `importable_roots` 도 덮으므로 이력 층의 증인이 못 된다.
+    ("startup-history-is-measured-g60", MR,                          # P1-3
+     '            \u0022startup_histor\u0079\u0022: history,\n', "",
+     "a_dropped_submodule_is_measured_by_the_history"),
+    ("importable-roots-are-measured-g60", MR,                        # P1-4
+     '            \u0022importable_root\u0073\u0022: reachable,\n', "",
+     "a_module_imported_after_startup_is_inside_the_receipt"),
 ]
 
 #: 여러 지점을 **함께** 되돌려야 관측되는 변이 (심층 방어라 하나만 지우면
@@ -1687,6 +1724,20 @@ MULTI = [
 #: **관측되지 않는다고 신고하는** 항목. 왜 안 보이는지와 그래도 왜 남기는지를
 #: 여기 적는다 — "masked but retained" 를 조용히 두지 않는다.
 DECLARED_MASKED = {
+    "shadows-are-scoped-g60":
+        "60차 P0-11 은 shadow 를 **scope 별**로 좁혔다 (59차는 `ast.walk` 로 "
+        "중첩 함수의 매개변수까지 한 set 에 합쳤다). 의미는 그것이 맞다. "
+        "그런데 평평한 shadow 와 결과가 **갈라지는** 형태를 두 벌 지어 "
+        "실측했더니 둘 다 변이 rc 0 이었다: ① 능력을 부르는 형태는 P0-10 의 "
+        "둘째 층(호출자가 준 이름을 부르는 것은 거부)이 평평한 shadow 아래서 "
+        "오히려 **더 넓게** 문다. ② 능력을 이름으로 들고 나오는 형태는 58차 "
+        "L9-b(`능력을 값으로 옮긴다`)가 shadow 와 무관하게 문다. 평평한 "
+        "shadow 는 좁힌 것보다 **더 허용적**인데, 더 허용된 자리를 전부 다른 "
+        "규칙이 이미 막고 있어 관측 가능한 차이가 비어 있다 — 48차 "
+        "`idempotent-shares-the-validator` 와 같은 형태다. 없는 자리를 "
+        "만들어 내는 대신 신고한다. 회귀"
+        "(`..._a_nested_scope_binding_does_not_exempt_the_outer_scope` 와 "
+        "`..._a_binding_still_shadows_inside_its_own_scope`)는 남긴다.",
     "idempotent-shares-the-validator":
         "48차 P0-7 이 generation 읽기를 helper 하나(`_generation_entries_by_id`)로 "
         "모았다. 그래서 idempotent 분기에 **고유한** 검증 자리가 더 이상 없고, "
@@ -3909,6 +3960,46 @@ EXPECT: dict = {
             ],
             "witness": {
                     "tests/test_lifecycle_roots_60.py::test_a_symlinked_claims_root_is_refused": "Failed: DID NOT RAISE PreserveError"
+            }
+    },
+    # θ (P1-3·P1-4) — `--emit-expect` 로 관측한 값.
+    "startup-history-is-measured-g60": {
+            "fail": [
+                    "tests/test_import_closure_60.py::test_a_dropped_submodule_is_measured_by_the_history"
+            ],
+            "witness": {
+                    "tests/test_import_closure_60.py::test_a_dropped_submodule_is_measured_by_the_history": "AssertionError: startup 이 올렸다 지운 **하위** module 의 바이트를 바꿨는데 영수증이 그대로다 — 최상위만 보는 층도 상태만 보는 층도 이것을 못 본다. 이력을 재는 층만이 잡는 자리다 (P1-3)"
+            }
+    },
+    "importable-roots-are-measured-g60": {
+            "fail": [
+                    "tests/test_import_closure_60.py::test_a_module_imported_after_startup_is_inside_the_receipt"
+            ],
+            "witness": {
+                    "tests/test_import_closure_60.py::test_a_module_imported_after_startup_is_inside_the_receipt": "AssertionError: PYTHONPATH 자리의 module 바이트를 바꿨는데 영수증이 그대로다 — 문자열만 담고 그것이 가리키는 바이트를 안 담았다 (P1-4)"
+            }
+    },
+    # ζ (P0-12) — `--emit-expect` 로 관측한 값.
+    "compound-heads-are-import-time-g60": {
+            "fail": [
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[for _x in [sc.add_error_columns]:\\n    pass\\n]",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[if sc.add_error_columns:\\n    pass\\n]",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[while sc.add_error_columns is None:\\n    break\\n]"
+            ],
+            "witness": {
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[for _x in [sc.add_error_columns]:\\n    pass\\n]": "AssertionError: import 때 평가되는 식을 더했는데 producer identity 가 그대로다 (P0-12)",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[if sc.add_error_columns:\\n    pass\\n]": "AssertionError: import 때 평가되는 식을 더했는데 producer identity 가 그대로다 (P0-12)",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[while sc.add_error_columns is None:\\n    break\\n]": "AssertionError: import 때 평가되는 식을 더했는데 producer identity 가 그대로다 (P0-12)"
+            }
+    },
+    "vararg-annotations-are-import-time-g60": {
+            "fail": [
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[def _Trigger(*args: sc.add_error_columns):\\n    pass\\n]",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[def _Trigger2(**kw: sc.add_error_columns):\\n    pass\\n]"
+            ],
+            "witness": {
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[def _Trigger(*args: sc.add_error_columns):\\n    pass\\n]": "AssertionError: import 때 평가되는 식을 더했는데 producer identity 가 그대로다 (P0-12)",
+                    "tests/test_producer_surface_60.py::test_compound_heads_and_vararg_annotations_are_import_time[def _Trigger2(**kw: sc.add_error_columns):\\n    pass\\n]": "AssertionError: import 때 평가되는 식을 더했는데 producer identity 가 그대로다 (P0-12)"
             }
     },
     "module-docstring-is-bound-g60": {

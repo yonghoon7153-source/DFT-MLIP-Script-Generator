@@ -116,6 +116,49 @@ def test_the_environment_tag_moves_with_that_history(sandbox):
     assert ta != tb, "영수증은 움직였는데 tag 가 그대로다 (P1-3)"
 
 
+def test_a_dropped_submodule_is_measured_by_the_history(tmp_path):
+    """★ P1-3 — **이력만이** 잡는 자리.
+
+    위 두 시험은 payload 를 `PYTHONPATH` 의 **최상위** module 로 두는데, 그
+    자리는 P1-4 의 `importable_roots` 도 본다. 그래서 이력 층을 통째로 지워도
+    두 시험은 안 빨개진다 — 층이 둘인 것은 좋지만, 그러면 이력 층은 **자기
+    증인이 없다.** 이 저장소는 그 상태를 이번 라운드에만 세 번 실측했다.
+
+    세 층이 갈라지는 자리를 겨눈다: package 의 **하위** module 을 startup 에서
+    올린 뒤 `sys.modules` 에서 지운다.
+
+      · `importable_roots` — `PYTHONPATH` 자리의 **최상위**만 해시한다
+        (`pkg/__init__.py` 는 담지만 `pkg/sub.py` 는 안 담는다) → 못 본다.
+      · `startup_modules` — 지워졌다 → 못 본다.
+      · `startup_history` — importtime 이 `pkg.sub` 를 찍고 `find_spec` 이
+        그 이름을 푼다 → **이것만 본다.**
+    """
+    root = tmp_path / "root"
+    root.mkdir()
+    site = tmp_path / "site"
+    pkg = site / "pkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (site / "sitecustomize.py").write_text(textwrap.dedent('''
+        import sys
+        import pkg.sub
+        import builtins
+        builtins._LEFT_BEHIND = pkg.sub.VALUE
+        del sys.modules["pkg.sub"]           # 흔적을 지운다
+    '''), encoding="utf-8")
+    env = {"PYTHONPATH": str(site)}
+
+    (pkg / "sub.py").write_text("VALUE = 'ALPHA'\n", encoding="utf-8")
+    a = _receipt_in(root, env)
+    (pkg / "sub.py").write_text("VALUE = 'OMEGA'\n", encoding="utf-8")
+    b = _receipt_in(root, env)
+
+    assert a != b, (
+        "startup 이 올렸다 지운 **하위** module 의 바이트를 바꿨는데 영수증이 "
+        "그대로다 — 최상위만 보는 층도 상태만 보는 층도 이것을 못 본다. "
+        "이력을 재는 층만이 잡는 자리다 (P1-3)")
+
+
 # ── P1-4 ──────────────────────────────────────────────────────────────────
 def test_a_module_imported_after_startup_is_inside_the_receipt(tmp_path):
     """★ P1-4 — startup **뒤에** import 되는 바이트도 담아야 한다.

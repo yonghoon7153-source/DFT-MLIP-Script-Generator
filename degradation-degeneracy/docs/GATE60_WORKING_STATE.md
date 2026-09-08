@@ -332,3 +332,44 @@ P1-3·P1-4 가 `startup_modules` 시험을 가렸다. 전수 재생 없이는 �
 보였다. **초록은 방어가 살아 있다는 뜻이 아니라 시험이 안 죽었다는 뜻이다.**
 
 12조각 전수 재생은 세 번째로 1조각부터 다시 돈다.
+
+### 마감 감사 — 60차 방어 중 **축이 없던 것 다섯**
+
+전수 재생이 세 번 잡아 준 형태를 보고, 이번 라운드가 심은 방어 전부에 축이
+있는지 셌다. 없었다 — θ 둘(P1-3·P1-4)과 ζ 셋(P0-11·P0-12 두 자리)이다.
+요청문 §1 초안은 그것을 "cohort pin 이 움직인 것이 증거다" 로 두려 했는데,
+그것은 증거가 아니라 **부작용**이다. 방어를 심었으면 축을 심는다.
+
+| 새 축 | 무엇을 지우나 | 증인 | 결과 |
+|---|---|---|---|
+| `startup-history-is-measured-g60` | `startup_history` 필드 | `..._a_dropped_submodule_is_measured_by_the_history` (새 시험) | **문다** |
+| `importable-roots-are-measured-g60` | `importable_roots` 필드 | `..._a_module_imported_after_startup_is_inside_the_receipt` | **문다** |
+| `compound-heads-are-import-time-g60` | `If.test`·`For.iter`·`While.test` 결속 | `..._compound_heads_and_vararg_annotations_are_import_time` 3경우 | **문다** |
+| `vararg-annotations-are-import-time-g60` | vararg·kwarg 주석 | 같은 시험 2경우 | **문다** |
+| `shadows-are-scoped-g60` | scope 별 shadow → 평평한 shadow | — | **신고** (아래) |
+
+**P1-3 의 증인도 처음엔 가려져 있었다.** 기존 두 시험은 payload 를
+`PYTHONPATH` 의 **최상위** module 로 두는데 그 자리는 P1-4 의
+`importable_roots` 도 본다. 그래서 이력 층을 통째로 지워도 안 빨개졌다.
+세 층이 갈라지는 자리(package 의 **하위** module 을 올렸다 지우기)를 겨누는
+시험을 새로 지었다. 같은 형태가 **네 번째**다.
+
+**`shadows-are-scoped-g60` 은 신고로 내렸다.** scope 를 좁힌 것은 옳은
+의미이지만, 평평한 shadow 와 결과가 갈라지는 형태를 두 벌 지어 실측했더니
+둘 다 변이 rc 0 이었다 — ① 능력을 **부르는** 형태는 P0-10 의 둘째 층이
+평평한 shadow 아래서 오히려 더 넓게 물고, ② 능력을 **이름으로 들고 나오는**
+형태는 58차 L9-b 가 shadow 와 무관하게 문다. 평평한 shadow 는 더 허용적인데
+더 허용된 자리를 전부 다른 규칙이 막고 있어 **관측 가능한 차이가 비어 있다**
+(48차 `idempotent-shares-the-validator` 와 같은 형태). 없는 자리를 지어내는
+대신 신고한다. 증인이 못 되는 시험 하나는 **도로 뺐다** — 이름이 주장하는
+것을 안 물면 그것은 증거가 아니라 장식이다.
+
+측정 (방금 실행):
+```
+pytest (producer_surface_60 · import_closure_60 · import_time_slice_59 ·
+        evidence_layer_59) -q                        → 38 passed
+mutation_replay.py -k <새 축 4개>                     → 전부 물었다 · ran 1
+mutation_replay.py -k shadows-are-scoped              → 신고 1건 · ran 0
+mutation_replay.py --check-preimages                  → 모든 변이 지점이 정확히 한 번
+등록부  MUTANTS 193 · MULTI 30 · EXPECT 214 · DECLARED_MASKED 10 · 60차 축 19
+```
