@@ -118,19 +118,34 @@ six repeat units.*
 | `spin isomers` | **용어 오류.** spin isomer 는 통상 ortho/para 수소류를 가리킨다. 우리가 뜻한 것은 스핀이 다른 자리에 국재된 다른 SCF 해다 | `alternative spin-localized solutions` |
 | `with the main text quoting the ring-atoms-only value throughout` | 원고 내부 사무처럼 읽힌다 | 정의를 먼저 말하고 값을 붙이는 순서로 재배열 |
 
-### Methods 에 넣을 것 (QE 문단 끝)
+### Methods — **분자 문단을 슬랩 앞에** (1저자 지적 2026-09-08)
 
-> Oligomer models of the SDCP chain were treated separately. Chains of two, three, and six repeat
-> units were built from the same sulfonate-functionalized EDOT unit and oxidized by removing one
-> hydrogen atom from a sulfonate group, giving charge-neutral open-shell species (multiplicity 2);
-> for three repeat units, oxidation at a terminal and at an internal ring was treated separately.
-> These molecules were optimized in the gas phase with ORCA 6.1.1 at the r²SCAN-3c level, using
-> default convergence thresholds and no solvent model or symmetry constraint, and the
+> 분자 계산이 결합제 **자체**를 다루고 슬랩은 그것이 **표면에 붙었을 때**를 다룬다. 논리 순서로도
+> 결과 제시 순서로도 분자가 먼저다. 순서를 바꾸면 슬랩 문단의 **자가도핑 정의 중복이 사라진다.**
+
+**문단 1 (분자 · 신규 · 8문장 10–22단어)**
+
+> **DFT calculations:** Molecular models of the SDCP binder were treated first. Oligomers of two,
+> three, and six repeat units were built from the sulfonate-functionalized EDOT unit (C₁₁H₁₆O₆S₂).
+> Each was oxidized by removing one hydrogen atom from a sulfonate group. This leaves a
+> charge-neutral open-shell species (multiplicity 2) in which the oxidized backbone is compensated by
+> the tethered sulfonate. For three repeat units, oxidation at a terminal and at an internal ring was
+> treated separately. The molecules were optimized in the gas phase with ORCA 6.1.1 at the r²SCAN-3c
+> level. Default convergence thresholds were used, with no solvent model or symmetry constraint. The
 > unpaired-electron distribution was analyzed by Löwdin spin populations (Supplementary Note 2).
 
-`the same sulfonate-functionalized EDOT unit` 으로 앞에서 정의한 C₁₁H₁₆O₆S₂ 를 받아 반복 정의를 피한다.
-⚠ 검산: 반복단위 6배 C₆₆H₉₆O₃₆S₁₂ 에서 결합 5개 형성으로 H 10개가 빠져 중성 n=6 = C₆₆H₈₆O₃₆S₁₂,
-도핑형은 H 하나 더 빠진 **C₆₆H₈₅O₃₆S₁₂ = 199원자** — 우리가 계산한 구조와 일치한다.
+**문단 2 (슬랩 · 기존) — 두 문장만 바뀐다. 나머지 다섯 문장과 모든 수치는 원문 그대로.**
+
+| | 원문 | 바꾼 뒤 | 왜 |
+|---|---|---|---|
+| 첫 문장 | `Spin-polarized DFT calculations were performed with Quantum ESPRESSO…` | `Adsorption at the cathode surface was **then** treated with **periodic**, spin-polarized DFT in Quantum ESPRESSO…` | 앞에 분자 문단이 생겨 "DFT 계산을 수행했다" 가 두 번 나온다. `then` 이 순서를, `periodic` 이 기체상 분자와의 대비를 만든다 |
+| 넷째 문장 | `SDCP was represented by its … repeat unit (C₁₁H₁₆O₆S₂; the self-doped form C₁₁H₁₅O₆S₂ was obtained by removing a hydrogen atom, leaving a charge-neutral unit with an oxidized backbone compensated by the tethered sulfonate group) and PTFE by …` | `Here SDCP was represented by **a single repeat unit** in its neutral (C₁₁H₁₆O₆S₂) and self-doped (C₁₁H₁₅O₆S₂) forms, and PTFE by …` | 괄호 안 자가도핑 설명이 문단 1 과 **중복**이다. `a single repeat unit` 은 올리고머(2·3·6)와 모델 크기가 다름을 밝힌다 |
+
+✅ 보존 확인: 60/480 Ry · 0.05 eV · 1×10⁻⁶ Ry · 1×4 4층 192원자 18.27×11.51 Å · >15 Å ·
+Γ-centered 2×3×1 · 7자리 48배향 · 1×10⁻³ Ry bohr⁻¹ · 20→24 Å · 식 (1)과 `where` 절 — 전부 무수정.
+
+⚠ `E_binder`("the isolated binder")가 ORCA 기체상 분자로 오해될 여지가 생기지만, 바로 앞 문장이
+*"Gas-phase references were relaxed at the Γ point in the same cell"* 로 QE 안에서 정의하므로 성립한다.
 
 ### Supplementary Note 2 (Methods 편입 후 남는 것)
 
