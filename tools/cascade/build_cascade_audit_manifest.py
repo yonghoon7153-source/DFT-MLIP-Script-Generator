@@ -33,6 +33,7 @@ artifact 별 provenance (Codex Round-3 P0-2)
   · G3 의 phase-set 정체성을 복구하지 못한다. 그건 재계산이 필요하다.
 """
 import argparse
+import datetime as _dt
 import hashlib
 import json
 import sys
@@ -319,6 +320,122 @@ def _pinned_source_hashes() -> dict:
     return out
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 실행 **전** 봉인 (회신 AL 해제조건 #7 · 2026-09-08)
+#
+#   왜 이 도구냐 — 이 파일이 cascade 원장의 **단독 소유자**다. 봉인을 딴 데 두면
+#   원장이 둘로 갈라진다(이 도구가 생긴 이유가 정확히 그 사고였다).
+#
+#   ⛔ **봉인은 실행보다 시간상 앞설 때만 의미가 있다.** 돌린 뒤에 해시를 뜨면 그건
+#     "지금 이 순간의 코드" 지문이고, 그 사이 코드가 바뀌었을 수도 — 더 나쁘게는
+#     결과가 이상해서 손댔을 수도 — 있다. 그래서 `--seal` 은 실행 **전에** 부른다.
+#
+#   ⛔ 이 봉인이 **못 하는 것**
+#     · 규칙이 옳은지 판정하지 않는다. repo 에 적힌 것을 그대로 옮길 뿐이다.
+#     · 없는 규칙을 만들어내지 않는다 — 안 정해진 것은 `"미정"` 으로 봉인한다.
+#       (없는 걸 있는 것처럼 적는 것이 봉인을 무의미하게 만드는 제일 빠른 길이다.)
+#     · 실행이 실제로 이 코드를 썼는지 보장하지 않는다. 대조는 회수 단계 몫이다.
+
+#: 봉인 대상 코드 — 구조 builder · 런처 · 원장 생성기 (AL #7)
+SEAL_SOURCES = (
+    "tools/doping/tier_cascade.sh",
+    "tools/doping/master_batch_273.sh",
+    "tools/doping/run_anneal.py",
+    "tools/doping/b2o3_enumerate.py",
+    "tools/doping/collect_dataset.py",
+    "tools/doping/axis_corr_csv.py",
+    "tools/doping/combine_rankings.py",
+    "tools/cascade/build_cascade_audit_manifest.py",
+    "tools/ionic/msd_diffusive_check.py",
+)
+
+#: 봉인 대상 **규칙** — AL #7 이 지목한 다섯. 값은 repo 실물에서 옮긴다.
+#:   ⚠ `상태` 가 "미정" 인 것은 **정말로 정해진 게 없는 것**이다. 채워 넣지 않는다.
+def _seal_rules() -> dict:
+    return {
+        "framework_retention": {
+            "상태": "정해짐",
+            "출처": "tools/ionic/msd_diffusive_check.py:307-311 · framework_check()",
+            "규칙": ("원소별 severity 의 최대로 판정한다. β ≥ 0.60 또는 ratio_to_Li ≥ 0.25 → "
+                     "framework_melting · β ≥ 0.30 또는 ratio ≥ 0.10 → framework_mobile · "
+                     "그 외 framework_rigid. 원자 8개 미만 원소는 판정에서 빼되 보고는 한다."),
+            "문턱": {"BETA_RIGID": 0.30, "BETA_MELT": 0.60, "MIN_N": 8,
+                     "WARN_RATIO": 0.10, "FAIL_RATIO": 0.25},
+            "⚠": "종별 MSD 가 없으면 **판정 불가**(None)다. traj.xyz 없는 런은 원리적으로 못 본다.",
+        },
+        "phase_melting": {
+            "상태": "정해짐(부분)",
+            "출처": "같은 함수의 framework_melting + 비준된 결정 "
+                    "D-2026-09-04-lpsocl-box331-400ps-uniform 의 enforcement",
+            "규칙": ("골격 판정이 framework_mobile/melting 이면 **그 온도를 아레니우스에서 "
+                     "제외한다**(값을 버리는 것이 아니라 그 점을 직선에 안 올린다). "
+                     "plateau 통과와 **별개 축**이다."),
+            "⚠_미정": "cascade 축에서 그 온도를 제외했을 때 **남은 점으로 무엇을 보고하나**가 "
+                       "안 정해졌다 (LPSOCl 은 3점→2점이면 no_value 로 못박았지만 cascade 는 없다).",
+        },
+        "beta_hop": {
+            "상태": "정해짐 — 단 **옛 규칙은 폐기**",
+            "출처": "kb/concepts/beta-gate.md §7-5(2026-08-26) · §7-8b(회신 F, 2026-08-27)",
+            "규칙": ("판정축은 ① D_inc plateau(4창 DINC_WINDOWS=((2,50),(10,50),(25,100),(50,100)) "
+                     "상대산포) ② 창 안정성 ③ 홉 수 다. **β 는 경보로만 쓴다.**"),
+            "⛔_폐기": ("`β ≥ 0.80` 고정문턱을 **판정으로 인용 금지**. 우리 운영점에서 "
+                        "거짓탈락률 50 % 다 (citation_hazards: HZ-beta-hard-gate)."),
+            "⚠_미정": "cascade 의 D_inc plateau **상대산포 문턱**이 안 정해졌다 "
+                       "(LPSOCl 은 ≤10 % 로 봉인했지만 cascade 는 없다).",
+        },
+        "mlip_applicability": {
+            "상태": "정해짐(금지 목록만)",
+            "출처": "kb/concepts/md.md:36-37 · CLAUDE.md 데이터 규율",
+            "규칙": "UMA-s-1p1(omat)은 LPSCl 계열 MD 의 검증된 표준. **Li₃N 에는 사용 금지** "
+                    "(2026-06 결정론적 편향 판정).",
+            "⚠_미정": ("**cascade 도판트 30종에 대한 적용 범위가 안 정해졌다.** "
+                        "금지 목록에 Li₃N 하나뿐이고, 나머지 화학에 UMA 를 써도 되는지에 대한 "
+                        "검증이 없다 — 카드 §6 의 구조적 공백과 같은 자리다."),
+        },
+        "invalid_run": {
+            "상태": "⛔ **미정**",
+            "출처": "(없음 — tools/doping·tools/cascade 에서 invalid-run 처리 규칙을 못 찾았다)",
+            "규칙": None,
+            "⚠": ("실패·미수렴 런을 **빼는지·표시하는지·재실행하는지**가 아무 데도 안 적혀 있다. "
+                   "이 상태로 재실행하면 실패 런 처리가 사람마다 달라진다. "
+                   "#3 전에 정해야 하는 항목이다."),
+        },
+    }
+
+
+def build_seal(label: str) -> dict:
+    """실행 전 봉인 — 코드 지문 + 규칙 문장. → dict"""
+    src = {}
+    for rel in SEAL_SOURCES:
+        p = ROOT / rel
+        if not p.is_file():
+            src[rel] = {"error": "파일 없음 — 봉인 대상 목록이 실물과 어긋났다"}
+            continue
+        b = p.read_bytes()
+        src[rel] = {"sha256": hashlib.sha256(b).hexdigest(), "bytes": len(b)}
+    rules = _seal_rules()
+    undecided = [k for k, v in rules.items() if "미정" in str(v.get("상태", ""))]
+    partial = [k for k, v in rules.items() if any("미정" in x for x in v)]
+    return {
+        "schema": "cascade_prerun_seal/v1",
+        "label": label,
+        "sealed_at": _dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "⛔_봉인의_뜻": ("이 시각 **이후**의 cascade 실행은 이 봉인에 귀속된다. 봉인 뒤에 "
+                         "아래 파일이나 규칙이 바뀌면 그 실행은 이 봉인으로 설명되지 않는다 — "
+                         "새로 봉인하고 다시 돌려야 한다."),
+        "provenance": _render_provenance(),
+        "sources": src,
+        "rules": rules,
+        "⚠_미정_규칙": undecided,
+        "⚠_부분미정_규칙": sorted(set(partial) - set(undecided)),
+        "⛔_이_봉인이_보장하지_않는_것": [
+            "규칙의 물리적 타당성 (repo 에 적힌 것을 옮겼을 뿐)",
+            "실행이 실제로 이 코드를 썼는지 (대조는 회수 단계 몫)",
+            "미정 규칙이 나중에 어떻게 정해질지",
+        ],
+    }
+
+
 def _recovered_artifact_status() -> dict:
     """회수 sidecar 의 현재 상태 — 행수·해시와 **무엇이 결측인지**."""
     out = {}
@@ -534,6 +651,35 @@ def check(man: dict) -> list:
     return bad
 
 
+def _selftest_seal(chk):
+    """실행 전 봉인 (AL #7). ⛔음성 포함 — 봉인이 **거짓말하지 않는지**가 요점이다."""
+    s = build_seal("_selftest")
+    chk("봉인: 대상 코드 전부 지문이 떠진다",
+        s["sources"] and all("sha256" in v for v in s["sources"].values()))
+    chk("봉인: 규칙 5개가 실린다 (AL #7 목록)", len(s["rules"]) == 5)
+    # ⛔음성 ①: **미정 규칙을 정해진 것처럼 적으면 안 된다.** invalid_run 은 repo 에 없다.
+    chk("⛔음성: 미정 규칙은 규칙 본문이 None 이고 미정 목록에 실린다",
+        s["rules"]["invalid_run"]["규칙"] is None
+        and "invalid_run" in s["⚠_미정_규칙"])
+    # ⛔음성 ②: 부분미정을 '정해짐' 으로 뭉개면 안 된다
+    chk("⛔음성: 부분미정 규칙이 따로 세어진다", len(s["⚠_부분미정_규칙"]) >= 1)
+    # ⛔음성 ③: 폐기된 문턱을 규칙으로 싣지 않는다 (β ≥ 0.80)
+    chk("⛔음성: 폐기된 β 하드게이트가 판정 규칙으로 실리지 않는다",
+        "폐기" in "".join(str(v) for v in s["rules"]["beta_hop"].values()))
+    # ⛔음성 ④: 봉인이 자기 한계를 적는다 (무엇을 보장하지 않는가)
+    chk("⛔음성: 봉인이 보장하지 않는 것을 명시한다",
+        len(s.get("⛔_이_봉인이_보장하지_않는_것", [])) >= 3)
+    # ⛔음성 ⑤: 없는 파일을 목록에 두면 error 로 드러나야 한다 (조용히 빠지면 안 된다)
+    _orig = globals()["SEAL_SOURCES"]
+    globals()["SEAL_SOURCES"] = _orig + ("tools/__없는파일__.py",)
+    try:
+        s2 = build_seal("_selftest2")
+        chk("⛔음성: 봉인 목록에 없는 파일이 있으면 error 로 드러난다",
+            "error" in s2["sources"].get("tools/__없는파일__.py", {}))
+    finally:
+        globals()["SEAL_SOURCES"] = _orig
+
+
 def selftest() -> int:
     ok = True
 
@@ -541,6 +687,8 @@ def selftest() -> int:
         nonlocal ok
         ok &= bool(cond)
         print(f"  {'✓' if cond else '✗'} {name}")
+
+    _selftest_seal(chk)
 
     # 양성
     audit = json.loads((PROP / "cascade_pool_audit_v2.json").read_text(encoding="utf-8"))
@@ -613,10 +761,29 @@ def selftest() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="쓰지 않고 기존 원장만 검증")
+    ap.add_argument("--seal", metavar="LABEL",
+                   help="실행 **전** 봉인을 쓴다 (AL 해제조건 #7). "
+                        "예: --seal v2_2026_09_08 → db/properties/cascade_seal_<LABEL>.json")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
+    if a.seal:
+        seal = build_seal(a.seal)
+        p = PROP / f"cascade_seal_{a.seal}.json"
+        if p.exists():
+            print(f"⛔ 이미 있다: {p}\n   봉인을 덮어쓰지 않는다 — 덮어쓰면 '언제 봉인했나' 가 "
+                  "사라지고 봉인이 무의미해진다. 새 LABEL 을 쓰거나 옛 봉인을 보존한 채 두어라.")
+            return 1
+        p.write_text(json.dumps(seal, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        miss = [k for k, v in seal["sources"].items() if "error" in v]
+        print(f"[봉인] {p}")
+        print(f"       코드 {len(seal['sources']) - len(miss)}개 지문"
+              + (f" · ⛔ 못 찾은 파일 {len(miss)}: {miss}" if miss else ""))
+        print(f"       규칙 {len(seal['rules'])}개 — "
+              f"⛔ 미정 {seal['⚠_미정_규칙']} · ⚠ 부분미정 {seal['⚠_부분미정_규칙']}")
+        print("       ⚠ 이 시각 **이후**의 실행만 이 봉인에 귀속된다.")
+        return 1 if miss else 0
     if a.check:
         if not OUT.is_file():
             print(f"⛔ 원장이 없다: {OUT}"); return 1
