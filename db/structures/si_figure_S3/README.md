@@ -7,7 +7,7 @@
 | `n2_doped.*` | n = 2 (dimer, D•) | 67 | A-ring | `db/structures/sdcp_v7c_dimer_doped.xyz` |
 | `n3end_doped.*` | n = 3, 말단 고리 산화 | 100 | end(A) | `db/structures/sdcp_v7c_trimer_doped_end.xyz` |
 | `n3mid_doped.*` | n = 3, 내부 고리 산화 | 100 | mid(B) | `db/structures/sdcp_v7c_trimer_doped_mid.xyz` |
-| `n6_doped.*` | n = 6 (D•) | 199 | **ring3** | ⏳ gabia `/data/work/runs/sdcp_n6b/n6_doped.xyz` |
+| `n6_doped.*` | n = 6 (D•) | 199 | **ring3** | `db/structures/sdcp_n6_doped_ring3.xyz` (sha256 `0863121a…` — db 기록과 일치) |
 
 n=6 도핑 자리는 라벨이 아니라 **구조에서 찾은 값**이다 — 탈양성자 sulfonate(S=72)에서 곁사슬을
 따라가 원자 43(C)이 ring3 에 속한다 (`nseries_n6.py --analyze`, 2026-09-08).
