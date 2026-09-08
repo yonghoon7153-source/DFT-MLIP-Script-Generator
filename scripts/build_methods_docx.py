@@ -38,6 +38,9 @@ STATUS_BODY = (
     "사유를 적어 두었습니다."
 )
 
+PTFE_ANCILLARY = (
+    "PTFE 규약에 대해서는 한 가지를 분명히 해 둡니다. 초안은 처음에 '안 그림' 을 주 규약으로 썼는데 이유가 편집 편의였고, 지적을 받고 '차단' 으로 뒤집었는데 이번에는 두 값을 본 뒤에 큰 쪽으로 옮긴 것이라 결과 독립이 아니었습니다. 그래서 지금은 centerline 을 보고용 공칭 규약으로만 쓰고, 그것이 교정됐다거나 참값에 가깝다는 주장은 하지 않으며, 규약을 바꿨을 때의 값 변화는 Table S3c 민감도로 내립니다. 사전등록된 검사는 그 규약을 '채택하지 않는다' 로 판정했고 그 판정은 그대로입니다 — 본문이 그 값을 쓰는 것은 편집 결정이지 판정 번복이 아닙니다. 더 근본적으로, centerline 규약은 PTFE 를 제대로 해상한 규약이 아닙니다 — 한 셀 폭 중심선을 찍고 그 셀을 정확히 0 으로 제거하는 방식이라, 얇은 코팅의 공간 범위는 과소 표현하면서 찍힌 셀에서는 차단을 과대 표현합니다. 직경을 인식하는 변형은 아직 구현돼 있지 않습니다.")
+
 RELEASE_CONDITIONS = [
     ("①", "두 PTFE 규약을 동등한 sensitivity 두 점으로 표기", "해소 (형식은 그 뒤 한 번 더 바뀜)",
      "굵은 글씨·reported·resolved 표기를 전부 제거했습니다. ⚠ 그 뒤 형식을 한 번 더 "
@@ -363,13 +366,8 @@ def build(out_path: Path) -> Path:
     _add_table(doc, [("#", "v6", "v7", "왜 바꾸는가")] + list(CHANGES),
                widths=[0.9, 4.2, 4.6, 7.0], small=True)
 
-    para("PTFE 규약에 대해서는 한 가지를 분명히 해 둡니다. 초안은 처음에 '안 그림' 을 주 규약으로 "
-         "썼는데 이유가 편집 편의였고, 지적을 받고 '차단' 으로 뒤집었는데 이번에는 두 값을 본 뒤에 "
-         "큰 쪽으로 옮긴 것이라 결과 독립이 아니었습니다. 그래서 지금은 어느 쪽도 주 규약으로 "
-         "지정하지 않고 동등한 두 sensitivity 점으로 적습니다. 더 근본적으로, centerline 규약은 "
-         "PTFE 를 제대로 해상한 규약이 아닙니다 — 한 셀 폭 중심선을 찍고 그 셀을 정확히 0 으로 "
-         "제거하는 방식이라, 얇은 코팅의 공간 범위는 과소 표현하면서 찍힌 셀에서는 차단을 과대 "
-         "표현합니다. 직경을 인식하는 변형은 아직 구현돼 있지 않습니다.", size=9.5)
+    # ⚠ 부속 산문은 PTFE_ANCILLARY 상수 (검사 8 이 본문과 대조한다)
+    para(PTFE_ANCILLARY, size=9.5)
 
     doc.add_page_break()
 
@@ -544,12 +542,30 @@ def selftest() -> int:
 
     #  6b. 렌더되는 문자열에 마크다운 강조가 남으면 Word 에 별표가 그대로 찍힌다
     #      (para() 는 마크다운을 파싱하지 않는다).  실제로 한 번 찍혔다.
-    _rendered = [STATUS_BODY, TABLE_S3_FOOT, TABLE_S3B_FOOT,
+    _rendered = [STATUS_BODY, TABLE_S3_FOOT, TABLE_S3B_FOOT, PTFE_ANCILLARY,
                  *[c for row in RELEASE_CONDITIONS for c in row],
                  *[c for _, c in OPEN_ITEMS],
                  *[str(c) for row in TABLE_S2 + TABLE_S3 + TABLE_S3B for c in row]]
     _md = [s[:60] for s in _rendered if "**" in s]
     chk("렌더 문자열에 마크다운 강조가 없다", not _md, _md[:2])
+
+    # 8. ★ 본문과 부속 산문이 **같은 규약**을 말하는가 (2026-09-08, Codex Methods 리뷰 Q1)
+    #    실사고: 본문 Values 절은 "centerline convention selected for reporting" 인데
+    #    부속 산문은 "어느 쪽도 주 규약으로 지정하지 않는다" 였다 — 같은 DOCX 안에서 상충.
+    #    검사 2·3 은 금지 숫자와 수치 일치만 보므로 **의미 상충을 원리적으로 못 잡는다**.
+    def _conv_check(body_txt, anc_txt):
+        nominal = "selected for reporting" in body_txt
+        denies = ("어느 쪽도 주 규약" in anc_txt) or ("동등한 두 sensitivity 점으로 적습니다" in anc_txt)
+        return not (nominal and denies)
+    _body = " ".join([b or "" for _, b in METHODS_FULL] + [b for _, b in METHODS_COMPACT])
+    chk("8: 본문(공칭 규약)과 부속 산문이 상충하지 않는다", _conv_check(_body, PTFE_ANCILLARY))
+    chk("8b: 상충을 실제로 잡는다 (반례)",
+        not _conv_check("the centerline convention selected for reporting",
+                        "지금은 어느 쪽도 주 규약으로 지정하지 않고"))
+    chk("8c: 본문이 공칭 지정을 안 하면 부속 산문은 자유다 (과잉차단 아님)",
+        _conv_check("both conventions are given", "어느 쪽도 주 규약으로 지정하지 않고"))
+    chk("8d: 검사가 공허하지 않다 — 본문이 실제로 공칭 규약을 지정한다",
+        "selected for reporting" in _body)
 
     # 7. release conditions must be exactly the eight
     chk("eight release conditions", len(RELEASE_CONDITIONS) == 8)

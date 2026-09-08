@@ -5,10 +5,16 @@
 > 공저자에게는 **쟁점을 결정하기 위한 provisional review package** 로만 보낸다.
 > 해제조건 8개: `docs/reviews/codex_r10_verdict_20260829.md`.
 >
-> ⚠ **정본 원장이 이미 HOLD 다** — `table_s3_data_20260827.md` 헤더가
-> `RAW_W4_VERIFIED_UNTRACKED · 원고 승격 HOLD` 라고 적는다 (W4 16팔 JSON·receipt 가
-> 리포에 없어 제3자가 σ_e 를 재검증할 수 없다).  **그런데 이 초안은 그 값을 reported 로
-> 승격했다** — 내가 쓴 헤더를 내가 어겼다.  원자료 커밋 전까지 이 표는 투고용이 아니다.
+> ✅ **정정 2026-09-08 (Codex Methods 리뷰 Q1) — 위 문단의 옛 판이 낡아 있었다.**
+> 옛 판은 *"정본 원장이 이미 HOLD 다 … W4 16팔 JSON·receipt 가 리포에 없어 제3자가 σ_e 를
+> 재검증할 수 없다"* 라고 적었는데 **둘 다 더는 사실이 아니다**:
+> `table_s3_data_20260827.md` 헤더는 **2026-08-29 부로 `W4_DECISION_AUDITABLE` · σ_e 축
+> HOLD 해제** 이고, `docs/data/w4_ptfe_centerline_20260827/` 에 **16 팔 + receipt 3 = 19 파일이
+> 커밋돼 추적 중**이다 (해제조건 ④ 해소).
+> ⇒ **σ_e 축의 재검증 불가 사유는 없다.**  이 배너가 남아 있는 이유는 해제조건 **⑤(σ_ion 행)
+> 와 ⑦(Figure 4b 재작도) 이 부분 해소** 이기 때문이고, 그 둘뿐이다.
+> ⚠ 이것이 CLAUDE.md 규율 ④ 의 사례다 — 해소된 HOLD 를 문서가 계속 주장했고, 그 문장을
+> 인용한 Codex 리뷰가 *"정본이 하나로 수렴하지 않는다"* 를 P1 으로 잡았다 (원장 CL-86).
 
 > 대상: `Manuscript v6` 의 *"DEM simulations:"* 문단 (Methods) + SI Table S2 · S3.
 > 감사 근거: `ms_si_v6_audit_20260829.md` · 수치 정본 `table_s3_data_20260827.md`.
