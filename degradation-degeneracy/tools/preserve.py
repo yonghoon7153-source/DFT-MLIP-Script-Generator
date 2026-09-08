@@ -4269,6 +4269,29 @@ _MANIFEST_NAME_RE = re.compile(r"^[a-z0-9_]*manifest[a-z0-9_]*\.yaml$")
 #:   v3 — `RUN_MANIFEST_SCHEMA` 전부 + 선언 밖 manifest 는 거부
 _CONTENT_ID_KIND = "run-content-id/v3"
 
+#: 굳히는 순간의 **시간 봉인**이 사는 이름 (60차 P0-1).
+#:
+#:   59차는 identity 가 담는 **이름 집합**을 schema 로 승격했다. 그런데 빠진
+#:   것은 집합이 아니라 **시간**이었다: 이름 집합 시험은 writer 들의 순서를
+#:   증명하지 않는다. production 의 정상 순서는
+#:   `grid/fit(=class 등록) → finalize → score → report(=analysis_manifest 추가)`
+#:   이고, report 가 쓰는 순간 "지금 있는 것 전부" 로 만든 identity 가 바뀐다.
+#:   새 키에는 class 가 없으므로 **정상 실행이 마지막 승격에서 거부됐다**
+#:   (리뷰어 실측 — 공격이 아니라 가용성 결함이다).
+#:
+#:   그래서 identity 는 "지금 무엇이 있는가" 가 아니라 **"굳히는 순간 무엇이
+#:   있었는가"** 다. 굳히는 자리(`commit_run_outputs()`)가 그때의 member 목록과
+#:   digest 를 이 파일에 봉인하고, 이후 독자는 전부 그것에서 유도한다.
+#:
+#:   봉인이 무결성을 버리지 않는 이유: 봉인은 **digest 를 담고 독자가 다시
+#:   계산한다.** 그러므로 (a) 뒤에 다른 manifest 가 더해져도 identity 는 그대로고,
+#:   (b) 봉인이 담은 member 의 바이트가 바뀌면 검증이 실패하며, (c) 봉인 파일만
+#:   훔쳐 가도 같은 바이트가 없으면 떨어진다.
+RUN_SEAL_NAME = ".run_identity.json"
+
+#: 봉인 자신의 형식 표시.
+_RUN_SEAL_KIND = "run-content-seal/v1"
+
 
 def exec_class_root_for_ledger(ledger=None) -> Path:
     """실행 class 등록부가 사는 곳 — claims·attempts 와 **같은 authority**.
@@ -4330,6 +4353,156 @@ def _read_member(d: Path, name: str, dir_fd) -> bytes | None:
         os.close(fd)
 
 
+def _sealed_manifest_parts(d: Path, dir_fd) -> list | None:
+    """봉인이 있으면 **그 목록을 지금 바이트로 검증해서** 돌려준다 (60차 P0-1).
+
+    봉인이 없으면 `None` — 아직 아무것도 굳지 않은 자리다.
+
+    검증은 봉인이 이름한 member 를 **다시 읽어 해시**하는 것이다. 그래서 이
+    함수가 성공했다는 것은 "그때 담긴 바이트가 지금도 그대로다" 라는 뜻이고,
+    실패는 identity 를 만들 수 없다는 뜻이다 (fail-closed).
+    """
+    body = _read_member(d, RUN_SEAL_NAME, dir_fd)
+    if body is None:
+        return None
+    try:
+        seal = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PreserveError(
+            "promote",
+            f"{d} 의 내용 봉인({RUN_SEAL_NAME})을 읽을 수 없다 ({exc}) — "
+            "봉인이 깨졌으면 identity 를 만들지 않는다 (60차 P0-1)") from exc
+    if not isinstance(seal, dict) or seal.get("kind") != _RUN_SEAL_KIND:
+        raise PreserveError(
+            "promote",
+            f"{d} 의 내용 봉인이 아는 형식이 아니다 — {_RUN_SEAL_KIND!r} 이어야 "
+            "한다 (60차 P0-1)")
+    parts = seal.get("manifests")
+    if (not isinstance(parts, list) or not parts
+            or not all(isinstance(x, list) and len(x) == 2
+                       and all(isinstance(y, str) for y in x) for x in parts)):
+        raise PreserveError(
+            "promote",
+            f"{d} 의 내용 봉인이 담은 목록이 형식에 안 맞는다 — "
+            "`[[이름, digest], …]` 여야 한다 (60차 P0-1)")
+    out = []
+    for name, digest in parts:
+        if name not in RUN_MANIFEST_SCHEMA:
+            raise PreserveError(
+                "promote",
+                f"{d} 의 봉인이 schema 밖의 이름 {name!r} 을 담았다 — 봉인은 "
+                "선언된 manifest 만 담는다 (60차 P0-1)")
+        got = _read_member(d, name, dir_fd)
+        if got is None:
+            raise PreserveError(
+                "promote",
+                f"{d} 의 봉인이 이름한 {name!r} 이 지금 없다 — 굳힌 뒤 사라졌으므로 "
+                "identity 를 만들지 않는다 (60차 P0-1)")
+        real = hashlib.sha256(got).hexdigest()
+        if not secrets.compare_digest(real, digest):
+            raise PreserveError(
+                "promote",
+                f"{d} 의 봉인이 담은 {name!r} 의 바이트가 달라졌다 "
+                f"(봉인 {digest[:16]} ≠ 지금 {real[:16]}) — 굳힌 내용을 뒤에 "
+                "고쳤다 (60차 P0-1)")
+        out.append([name, real])
+    return out
+
+
+def _present_manifest_parts(d: Path, dir_fd) -> list:
+    """지금 이 디렉터리에 있는 **선언된** manifest 의 `(이름, digest)`.
+
+    선언 밖의 manifest 를 만나면 멈춘다 (59차 M2). 봉인 전에도, 봉인이 없는
+    자리에서도 같은 규칙이다.
+    """
+    present = _dir_entries(d, dir_fd)
+    unknown = sorted(n for n in present
+                     if _MANIFEST_NAME_RE.match(n)
+                     and n not in RUN_MANIFEST_SCHEMA)
+    if unknown:
+        raise PreserveError(
+            "promote",
+            f"{d} 에 schema 선언 밖의 manifest 가 있다: {unknown} — 내용 "
+            "identity 가 그 파일을 안 담으므로 불완전하고, 불완전한 identity 로 "
+            "정한 class 는 다른 내용에도 적용된다. `RUN_MANIFEST_SCHEMA` 에 "
+            "선언하거나 그 파일을 run 디렉터리 밖에 두라 (59차 M2)")
+    parts = []
+    for name in RUN_MANIFEST_SCHEMA:
+        if name not in present:
+            continue
+        body = _read_member(d, name, dir_fd)
+        if body is not None:
+            parts.append((name, hashlib.sha256(body).hexdigest()))
+    return parts
+
+
+def seal_run_identity(run_dir, dir_fd=None) -> str:
+    """굳히는 순간의 manifest 집합을 **한 번** 봉인한다 (60차 P0-1).
+
+    이미 봉인이 있으면 검증만 하고 그대로 둔다 (멱등). 봉인은 이 함수 밖에서
+    만들어지지 않는다 — 그래야 "언제 굳었는가" 가 한 자리에서만 정해진다.
+
+    게시는 다른 durable 게시와 같은 계단이다: temp 에 write-all → fsync →
+    **바이트 read-back** → `os.link()` 무대체 CAS → 부모 fsync. 이름만 잡는
+    `O_EXCL` 로는 "이름은 생겼는데 내용이 없다" 를 못 막는다 (59차 M3).
+    """
+    d = Path(run_dir)
+    if _sealed_manifest_parts(d, dir_fd) is not None:
+        return run_content_id(d, dir_fd=dir_fd)
+
+    parts = [[n, h] for n, h in _present_manifest_parts(d, dir_fd)]
+    if not parts:
+        raise PreserveError(
+            "promote",
+            f"{d} {_MISSING_MANIFEST_MARK} — 봉인할 것이 없으므로 굳히지 않는다")
+    body = (json.dumps({"kind": _RUN_SEAL_KIND, "manifests": parts},
+                       sort_keys=True, ensure_ascii=False,
+                       separators=(",", ":")) + "\n").encode("utf-8")
+    tmp_name = f".{RUN_SEAL_NAME}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    try:
+        if dir_fd is not None:
+            fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                         0o644, dir_fd=dir_fd)
+        else:
+            fd = os.open(d / tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                         0o644)
+        try:
+            _write_all(fd, body, "run-identity-seal")
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        if _read_member(d, tmp_name, dir_fd) != body:
+            raise PreserveError(
+                "promote",
+                f"{d} 의 내용 봉인을 다시 읽었더니 쓴 바이트와 다르다 — "
+                "이름을 붙이지 않는다 (60차 P0-1)")
+        try:
+            if dir_fd is not None:
+                os.link(tmp_name, RUN_SEAL_NAME,
+                        src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+            else:
+                os.link(d / tmp_name, d / RUN_SEAL_NAME)
+        except FileExistsError:          # pragma: no cover - 동시 게시
+            pass
+    finally:
+        try:
+            if dir_fd is not None:
+                os.unlink(tmp_name, dir_fd=dir_fd)
+            else:
+                os.unlink(d / tmp_name)
+        except OSError:
+            pass
+    if dir_fd is not None:
+        os.fsync(dir_fd)
+    else:
+        _fsync_dir_strict(d, "run-identity-seal")
+    if _sealed_manifest_parts(d, dir_fd) is None:
+        raise PreserveError(
+            "promote",
+            f"{d} 에 내용 봉인을 남기지 못했다 — 굳히지 않는다 (60차 P0-1)")
+    return run_content_id(d, dir_fd=dir_fd)
+
+
 def run_content_id(run_dir, dir_fd=None) -> str:
     """이 산출의 **내용 identity**. 경로가 아니라 바이트가 정한다.
 
@@ -4368,24 +4541,21 @@ def run_content_id(run_dir, dir_fd=None) -> str:
     #   셋째 형태("닫힌 집합이라고 부른 것이 실제 schema 보다 작다")에 대한
     #   답이다 — 모르는 manifest 가 있는데 identity 를 만들면, 그 identity 는
     #   내용을 다 담지 않았으므로 **다른 내용에도 적용된다.**
-    present = _dir_entries(d, dir_fd)
-    unknown = sorted(n for n in present
-                     if _MANIFEST_NAME_RE.match(n)
-                     and n not in RUN_MANIFEST_SCHEMA)
-    if unknown:
-        raise PreserveError(
-            "promote",
-            f"{d} 에 schema 선언 밖의 manifest 가 있다: {unknown} — 내용 "
-            "identity 가 그 파일을 안 담으므로 불완전하고, 불완전한 identity 로 "
-            "정한 class 는 다른 내용에도 적용된다. `RUN_MANIFEST_SCHEMA` 에 "
-            "선언하거나 그 파일을 run 디렉터리 밖에 두라 (59차 M2)")
-    parts: list[tuple[str, str]] = []
-    for name in RUN_MANIFEST_SCHEMA:
-        if name not in present:
-            continue
-        body = _read_member(d, name, dir_fd)
-        if body is not None:
-            parts.append((name, hashlib.sha256(body).hexdigest()))
+    #
+    # ★ 60차 P0-1 — 그런데 "지금 있는 것 전부" 는 **시간에 열려 있었다.** 굳힌
+    #   뒤에 파생 산출(report 의 `analysis_manifest.yaml`)이 하나 더 생기면
+    #   같은 실행의 키가 갈아 치워지고, 새 키에는 class 가 없어 **정상 실행이
+    #   마지막 승격에서 거부됐다.** 그래서 굳히는 자리가 그 순간의 목록을
+    #   봉인하고(`seal_run_identity()`), 봉인이 있으면 그것이 정본이다.
+    #   봉인은 digest 를 담고 여기서 **다시 계산**하므로 무결성은 그대로다.
+    sealed = _sealed_manifest_parts(d, dir_fd)
+    if sealed is not None:
+        descriptor = json.dumps(
+            {"kind": _CONTENT_ID_KIND,
+             "manifests": [tuple(x) for x in sealed]},
+            sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        return hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
+    parts: list[tuple[str, str]] = _present_manifest_parts(d, dir_fd)
     if not parts:
         raise PreserveError(
             "promote",
@@ -4838,6 +5008,9 @@ def commit_run_outputs(capability, paths) -> list:
     try:
         for x in [Path(p) for p in paths if p]:
             _assert_still_the_judged_dir(capability, x)
+            # ★ 60차 P0-1 — **여기가 유일한 시간 봉인 지점이다.** 등록보다 먼저
+            #   봉인해야 등록의 키와 이후 독자의 키가 같다.
+            seal_run_identity(x, dir_fd=capability.dir_fd)
             record_execution_class(
                 x, capability.execution_class,
                 evidence=(f"산출 완료 시점 등록 · leg={capability.leg_id} "
