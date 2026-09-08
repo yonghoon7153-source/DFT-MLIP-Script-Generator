@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-08T08:57:37Z",
+  "at": "2026-09-08T21:20:10Z",
   "binding": {
     "execution": {
       "env": {
@@ -219,6 +219,7 @@
           "PYTHONHASHSEED": "0"
         },
         "executable_sha256": "f56a588548dd0139",
+        "importable_roots": {},
         "pth": [
           [
             "/usr/lib/python3/dist-packages/distutils-precedence.pth",
@@ -229,6 +230,13 @@
             "442291ba22e04b8b"
           ]
         ],
+        "startup_history": {
+          "_distutils_hack": "46849a60a7cc8518",
+          "encodings": "78c4744d407690f3",
+          "encodings.aliases": "6fdcc49ba23a0203",
+          "encodings.utf_8": "ba0cac0602695835",
+          "sitecustomize": "e3b0c44298fc1c14"
+        },
         "startup_modules": {
           "_collections_abc": "ec646ef7e27aae26",
           "_distutils_hack": "46849a60a7cc8518",
@@ -253,93 +261,102 @@
         "version": "3.11.15"
       }
     },
-    "execution_digest": "60d9d66506d126f9fd66ed4bbbed1e37ed181bcc62396468bfbedeaf6965c3a7",
-    "expect_digest": "5f50733c78940ed2b51474bb31d6f93696ce50d3c1a358a16b611a48516daa99",
-    "head": "7e03cb19dd3a5edf37492125356c115f2f97795b",
-    "registry_digest": "b41096ad4a7295aa3cdfd17746c0f809dc17382420e34e5577720e5d6acfef24",
+    "execution_digest": "57eac73abbff21eeeed3a766f2224cd973b56aaa2937a91d20633a75fdddfad3",
+    "expect_digest": "4a172024a4d930ab450d410dc46455f7211e4608a23d06b7ebaac7e118141df1",
+    "head": "b0215bf35aad86b3cdba7fbc06ef348618e225be",
+    "registry_digest": "b0c0b76e7c8d6dd93fbcb3f2f94616c95585d450254430730b625f24a229e8dc",
     "reports_dir": "s12",
-    "runner_digest": "7717fc15e51af7f4631631b696164b22055445bd424a4a052db5729e0f337e8c",
-    "transcript_digest": "433743bc8e9ae643e854e0c89ce321639307391ac03c97ee80e267082c564860",
-    "tree_digest": "b9327582bee296c81b68fb303aba4fbab9ef02453c7a459c546e0eed2caf79c7"
+    "runner_digest": "39681eb4e76f2fcc6a34f8bfde6498a4c8515ef05d5121142f88cb55b2680b39",
+    "transcript_digest": "336b96585deb82c42880b17684315deb5f9ec6d3ac310e2ef9d31af73d28d02b",
+    "tree_digest": "8e062f352408b4fcec93ed5ea911659066fc9df8c5d3458d36ea25d98c765452"
   },
   "scenarios": {
-    "bundle-uri-must-be-repo-relative-g58": {
+    "authority-registry": {
       "bit": true,
       "class": "executable",
-      "kexpr": "an_absolute_bundle_uri_is_refused or a_bundle_uri_that_escapes_the_repository_is_refused",
+      "kexpr": "raw_publisher_takes_no",
       "ran": true,
-      "report_sha256": "dd401bc6ca6ffdba090b122e6cb2668bd341c9128ad00167243e9b4823fdc853",
+      "report_sha256": "0a51cd824cf9dd649a953df4b8e903dd224fe8065ee54f8b78c4eba52c745262",
       "sites": 1
     },
-    "claim-stores-a-verifier-not-the-token": {
+    "claim-bytes-are-verified-on-disk": {
       "bit": true,
       "class": "executable",
-      "kexpr": "claim_file_never_stores_the_resume_credential",
+      "kexpr": "lying_write_is_caught_by_reading_the_bytes_back",
       "ran": true,
-      "report_sha256": "7fef8db9a4f9bb321484216f1fe1bb7cb1a0bce95949532eecb8d146ccfdf752",
+      "report_sha256": "46da5ac7768c2bcc9962c83608646396864d243184577f9236b58e6efaf720f6",
       "sites": 1
     },
-    "coverage-checks-the-recorded-head": {
-      "bit": null,
-      "class": "declared",
-      "kexpr": null,
-      "ran": false,
-      "sites": 1
-    },
-    "evidence-binds-the-environment": {
+    "closure-unresolved-attr-is-fail-closed": {
       "bit": true,
       "class": "executable",
-      "kexpr": "evidence_binds_the_execution_environment",
+      "kexpr": "unresolved_producer_module_reference_is_fail_closed",
       "ran": true,
-      "report_sha256": "50b127c48de1765eb668d5abe5d69bc9f17ed2f447dbcdb3f3b7a82189694b33",
+      "report_sha256": "ddf41cb72b4034959a850ec28cbb327a5e2b5ccf6eb7532131d96d74f723f041",
+      "sites": 1
+    },
+    "diagnostic-hides-the-credential": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "the_diagnostic_reader_never_hands_out_the_credential",
+      "ran": true,
+      "report_sha256": "2283fa25e0c43146948301732f2d898967d5095f8b8180a6a81a6f4b2463a724",
+      "sites": 1
+    },
+    "finalize-holds-the-claim-lock": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "canonical_lock_order_is_declared_and_finalize_holds_the_claim or finalize_recovery_branch_holds_the_claim_lock",
+      "ran": true,
+      "report_sha256": "8d5a0cc88a6b1e3bbe2f9f5583771f2a5ac83e2eaf22987923830317e3b75033",
+      "sites": 1
+    },
+    "flock-two-publisher": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "two_independent_publishers",
+      "ran": true,
+      "report_sha256": "4703ab532fc9779461a2efd11484bbdc6dcef9b65b864c3e4427bdd51cdbd6d3",
       "sites": 2
     },
-    "fit-axis-is-the-real-policy": {
+    "frozen-publication-needs-a-local-seal-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "fit_axis_seals_every_intent_that_changes_the_answer",
+      "kexpr": "publication_is_refused_while_a_frozen_cohort_has_no_local_seal",
       "ran": true,
-      "report_sha256": "32c07d51a0d2e31b2d92493630c2147eaaa3c99324fb762243242b410beb5c0d",
+      "report_sha256": "5a8020dae964329177e9bad63a47dd56977c07e544d04d9fdb6a17421268e4b9",
       "sites": 1
     },
-    "freeze-ledger-write-is-atomic": {
+    "inner-unbound-sentinel": {
       "bit": true,
       "class": "executable",
-      "kexpr": "partial_write_during_freeze_leaves_the_ledger_readable",
+      "kexpr": "blank_its_sentinel_check",
       "ran": true,
-      "report_sha256": "359eba0616d0a69332f876b21584d789c1e070bc4290e1072a876f915ea30575",
+      "report_sha256": "9949d5da536501c7e84c60195bf1182d948e908dedb81e29f13379bc7326b5de",
       "sites": 1
     },
-    "generation-root-nofollow": {
+    "lifecycle-completes-a-partial-append": {
       "bit": true,
       "class": "executable",
-      "kexpr": "generation_root_symlink_is_never_read_as_a_generation or symlinked_gen_ancestor_never_holds_a_generation",
+      "kexpr": "freeze_crash_between_journal_and_anchor_is_recoverable",
       "ran": true,
-      "report_sha256": "97a7876b241b8e820a42737ed641c2aef08deed4bc3bd3d59b039ec338f41af1",
+      "report_sha256": "551630e4ac4d3a7296a3f90f1f9590a558fe87ff3f4718678d958351175f8087",
       "sites": 1
     },
-    "ledger-seal-record": {
+    "module-defs-track-mutating-bindings": {
       "bit": true,
       "class": "executable",
-      "kexpr": "same_roster_ledger_change",
+      "kexpr": "producer_closure_tracks_mutating_and_import_bindings",
       "ran": true,
-      "report_sha256": "0959f4c7438b9fce83e10c57308700f28338c39aae7f68793c80e73bfcec1cbf",
-      "sites": 2
-    },
-    "module-defs-fail-closed-on-unknown": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "unmodelled_module_binding_form_is_fail_closed",
-      "ran": true,
-      "report_sha256": "e50e154c4e86ad964a22a51e1879ece3db66f4e3000d0691447e4cfb38bd8c7a",
+      "report_sha256": "c8c1bcb84add2f63fcda6974f400f6a5603ba62329dc9148ed3e9ed535cc9971",
       "sites": 1
     },
-    "output-commit-requires-a-capability-g59": {
+    "pending-base-generation": {
       "bit": true,
       "class": "executable",
-      "kexpr": "committing_an_output_without_a_capability_is_refused",
+      "kexpr": "stale_bootstrap_pending",
       "ran": true,
-      "report_sha256": "d30f5929d5a0227861eefba8eef7f766ed95e39b4ade25c83af25e20684006b5",
+      "report_sha256": "a8ab416db3f8939a2d5c479e96f70a357581b161820317184bbc801c25043785",
       "sites": 1
     },
     "plan-parser-dir-hygiene": {
@@ -347,7 +364,7 @@
       "class": "executable",
       "kexpr": "plan_parser_requires_a_canonical_relative_dir or plan_parser_refuses_a_cohort_dir_outside_the_repository",
       "ran": true,
-      "report_sha256": "ae1bd5c6d5d8f03e6dd33cb6a04090fea513f09ae19577e5ebca765ec1f8e137",
+      "report_sha256": "69a0bc66d9a1e5046f4d3f299e632a461947edc8b5c10ad35de6f24a53057f9a",
       "sites": 1
     },
     "prelock-version-id-is-a-string": {
@@ -355,7 +372,7 @@
       "class": "executable",
       "kexpr": "falsy_version_id",
       "ran": true,
-      "report_sha256": "566619701b8822909a7efafd9a3bcdba0813b3418f47f5f7292addfc1da20d3f",
+      "report_sha256": "49c17fe757e8a0f4a6737f66f84cf59109c057f907d03b23f98505c3eecd6c99",
       "sites": 1
     },
     "proof-handoff-to-verify": {
@@ -363,7 +380,7 @@
       "class": "executable",
       "kexpr": "repaired_proof_is_handed or pre_journal_finalize or journal_seals_the_content",
       "ran": true,
-      "report_sha256": "90781c4d0c68320b21a80e243a98520983d64e2ab9240096d98cadb44f373157",
+      "report_sha256": "7fd4755eb5c5235b911b7fa6f745d9d794c358bb2d0e4e7ebea728ab74afd126",
       "sites": 1
     },
     "repair-source-uses-the-snapshot": {
@@ -371,32 +388,32 @@
       "class": "executable",
       "kexpr": "repair_lookups_go_through_the_validated_version_snapshot or no_version_enumeration_bypasses_the_helper",
       "ran": true,
-      "report_sha256": "806f844cdf45453dcf3f4cbbaf722e18d3554eb8fcedc837cb1abdeb394a347f",
+      "report_sha256": "88134228ddbb947d7d505696c3229164f9ab493ea37891b711cba86b6a8187b3",
       "sites": 1
     },
-    "sink-subset-of-roster": {
+    "seal-typed-input": {
       "bit": true,
       "class": "executable",
-      "kexpr": "complete_undeclared_leg_never_reaches_pending",
+      "kexpr": "types_differ_is_not_folded",
       "ran": true,
-      "report_sha256": "b6060b3e790f9713c96a9372798f26fddc9be473a0ed90db8b26a7b276620a8c",
+      "report_sha256": "035b4df342b75a06be766709581d70633a20726ab4dae4bcec0796ed82740e8e",
       "sites": 1
     },
-    "token-cleanup-is-inside-the-claim-lock": {
+    "the-gate-creates-the-judged-place-g60": {
       "bit": true,
       "class": "executable",
-      "kexpr": "token_cleanup_happens_under_the_claim_lock",
+      "kexpr": "the_gate_creates_the_place_and_always_carries_a_handle",
       "ran": true,
-      "report_sha256": "821751b1021142e22e985822d30fab32c8722a775a0daf14f7a5dc13e4d141ac",
+      "report_sha256": "bd1ab6e227ebd2702c30e31f0adfaccc8113fdde349286343e24c9162ba838d7",
       "sites": 1
     },
-    "wrapped-dunder-names-are-refused": {
+    "warm-edges-are-declared": {
       "bit": true,
       "class": "executable",
-      "kexpr": "dunder_named_indirectly_is_still_refused",
+      "kexpr": "warm_consumers_go_through_the_accessors",
       "ran": true,
-      "report_sha256": "2e30590692058c8c81e929d46da23197b82c65604cfcfb3cb9cc559fc26b5983",
-      "sites": 2
+      "report_sha256": "cd0aaed1ef8481dd27089fdc08d1aac7369f94c0924977876e641dfea71239b3",
+      "sites": 1
     }
   },
   "schema": "mutation-coverage/v3",
