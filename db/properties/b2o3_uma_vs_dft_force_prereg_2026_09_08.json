@@ -3,7 +3,7 @@
  "record_kind": "prospective",
  "sealed_on": "2026-09-08",
  "results_seen": false,
- "status": "ratified",
+ "status": "proposed — 개정 재비준 대기",
  "제목": "b2o3 골격 creep — UMA 결함인가 실물리인가: 스냅샷 힘 비교 **보고량 카드** (계산 전 봉인)",
  "⛔_봉인_선언": "이 카드는 **첫 DFT 점을 던지기 전에** 작성·커밋한다. §2 보고량 · §4 집계 · §5 문턱 · §6 판정문구 는 결과를 본 뒤에 바꾸지 않는다. 1저자 ratify 전에는 던지지 않는다.",
  "1_무엇을_원하는가": "b2o3 의 UMA-MD 에서 관측된 폴리음이온 **골격 creep** (β_framework 0.47–0.79, modelc 는 7/7 rigid ≤0.27) 이 **UMA 포텐셜의 결함**인가, 아니면 그 조성의 **실제 물리**인가.",
@@ -38,17 +38,40 @@
   }
  },
  "4_설계_표본과_계산": {
-  "궤적_출처": "kgy ~/work/runs/highT_reseed_traj/{b2o3,modelc}/s{2,3,4}/d0.00_cfg0/T{800,1000}/traj.xyz (이미 있는 궤적 — MD 재계산 0)",
-  "표본_규칙_결정적": "각 계 × 각 온도(800·1000 K) × 시드 s2 에서, 생산 구간 **2–50 ps 창 안에서 등간격 5 프레임**(t = 10, 20, 30, 40, 50 ps)을 뽑는다. 계 2 × 온도 2 × 5 = **20 점**. 사람이 고르지 않는다.",
-  "확장_규칙": "20 점에서 비 R 의 시드 대표성이 의심되면(§5 회색) **s3 를 같은 규칙으로 추가**해 40 점. 그 이상은 새 결정.",
+  "궤적_출처": "kgy `~/work/runs/arrhenius_6pt_traj/{b2o3,modelc}/T700_s{2,3,4}/d0.00_cfg0/T700/traj.xyz` (각 2000 프레임 · save_fs 100 fs · 생산 200 ps · 이미 있는 궤적, MD 재계산 0)",
+  "표본_규칙_결정적": "각 계(b2o3·modelc) × **시드 s2·s3** × 700 K 에서, 생산 구간 **2–50 ps 창 안 등간격 5 프레임** (t = 10·20·30·40·50 ps → save_fs 100 fs 기준 프레임 index 100·200·300·400·500, 0-기준). 계 2 × 시드 2 × 5 = **20 점**. 사람이 고르지 않는다. ⚠ 종전 판의 '온도 2축' 을 **시드 2축**으로 바꾼 것이다 — 표본 수와 2축 구조는 그대로다.",
+  "확장_규칙": "20 점에서 비 R 의 시드 대표성이 의심되면(§5 회색) **s4 를 같은 규칙으로 추가**해 30점. 그 이상은 새 결정.",
   "DFT_참조": {
-   "코드": "QE 7.4.1 (gabia GPU · pw.x)",
-   "설정": "PBE · USPP/RRKJUS · ecutwfc 52 / ecutrho 520 Ry · Γ-only(§3 k 점 파일럿으로 확인) · occupations fixed · conv_thr 1e-8 · **scf 만** (완화 없음) · tprnfor=.true.",
-   "왜_이_설정": "우리 캠페인의 b2o3·modelc 정본 DFT 설정과 같다 (db/properties/electronic.json §method). 새 설정을 만들면 기존 DFT 축과 비교가 끊긴다.",
-   "⛔_동시실행": "gabia 에서 pw.x 와 UMA 를 동시에 돌리지 않는다 (CLAUDE.md · VRAM 47/48 GB 선례). UMA 힘은 이 DFT 가 끝난 뒤 CPU 로 재계산해도 된다."
+   "코드": "QE 7.4.1 — 실행은 kgy **CPU 빌드** `~/apps/qe-7.4.1-cpu/bin/pw.x` (16 코어). gabia GPU 빌드와 같은 버전이다.",
+   "왜_CPU_빌드인가": "kgy GPU 는 box331 400 ps(s3·s4)가, gabia GPU 는 b2o3 2×2×1 과 Nd 어닐이 며칠 물고 있다. CPU 빌드는 GPU 자원을 쓰지 않아 그 MD 들과 경합하지 않는다 — 집 선례: `tools/ionic/chain_gpu_release.sh` 가 CPU 빌드 QE 를 GPU 점유자 판정에서 명시적으로 제외한다.",
+   "설정": "PBE · ecutwfc 52 / ecutrho 520 Ry · Γ-only(§3 k 점 파일럿으로 확인) · occupations **fixed** · conv_thr 1e-8 · **scf 만**(완화 없음) · tprnfor=.true. · nosym=.true.",
+   "왜_이_설정": "`tools/doping/generate_dft_inputs.py` 의 52/520 레시피와 같다 (comp1_v3·elastic·adhesion 파이프라인 공통). ⚠ **정정 2026-09-08**: 종전 문안은 이 설정의 근거를 `db/properties/electronic.json §method` 라고 적었으나 **틀렸다** — 그쪽은 ONCV NC 계열 ecut 80/320 이고 유사포텐셜 종류가 다르다. 두 규약을 섞지 않는다.",
+   "유사포텐셜_두_계에_같은_것": {
+    "Li": "li_pbe_v1.4.uspp.F.UPF · 02cc4b3810e28a43b570277840d9631ca24f634d922928200c047b72c0a86bf5",
+    "P": "P.pbe-n-rrkjus_psl.1.0.0.UPF · 2d112dfec2e2d9b75a971574d9116aa92249988177791659bbcd2ba15f23c20c",
+    "S": "s_pbe_v1.4.uspp.F.UPF · 84ad731864187f416f714e961c3ad2f04dcbf811618e724d277885c18cb470df",
+    "Cl": "cl_pbe_v1.4.uspp.F.UPF · 5b1ebdea1e5ba743fba0100806206287e1f7f00460c7e6f19791446beaee0655",
+    "O": "O.pbe-n-kjpaw_psl.0.1.UPF · 7c4b6ed541f83d0afdf5c1d3a8c611340f073f3e2b11e95b7963bb2ee26929aa",
+    "B": "B.pbe-n-kjpaw_psl.1.0.0.UPF · ⏳ kgy 존재·해시 미확인 — **입력 생성기가 preflight 에서 확인하고 없으면 거부한다**",
+    "⚠": "Li·S·Cl·P 는 US 계열, B·O 는 PAW(kjpaw) 계열이다 — `generate_dft_inputs.py` PSEUDOS 의 짝 그대로다. B·O 는 b2o3 에만 나오므로 §3 의 '대조군이 흡수 못 하는 계통오차' 가 여기에 해당한다.",
+    "kgy_경로": "/home/kgy/work/pseudo"
+   },
+   "⛔_동시실행": "gabia 에서 pw.x 와 UMA 를 동시에 돌리지 않는다 (CLAUDE.md · VRAM 47/48 GB 선례). ⚠ 범위 설명(완화 아님): 이 조건은 **GPU 메모리 경합**을 막는 것이고, kgy CPU 빌드는 GPU 를 쓰지 않아 이 조건이 작동할 상황 자체가 아니다."
   },
-  "UMA_힘": "같은 스냅샷에 uma-s-1p1(omat) 단일점 — MD 를 다시 돌리지 않는다. 궤적에 저장된 힘이 있으면 그것을 쓰되, save 규약을 런 직후 확인한다(없으면 재계산).",
-  "비용_추정": "128원자 Γ-only scf ≈ 10–20 분/점 (gabia) → 20점 ≈ 4–7 시간. ⚠ 추정이지 약속이 아니다."
+  "UMA_힘": "같은 스냅샷에 uma-s-1p1(omat) 단일점을 **두 계 모두 새로 계산**한다. ⚠ 실측 2026-09-08: b2o3 궤적은 `Properties=species:pos:momenta` 로 **힘이 저장돼 있지 않다**(백업 modelc 궤적에는 forces 가 있다). 한쪽만 저장된 힘을 쓰면 두 계를 다른 방식으로 잰 것이 되므로, **양쪽 다 재계산**으로 고정한다. MD 는 다시 돌리지 않는다.",
+  "비용_추정": "128원자(b2o3) Γ-only scf ≈ 15–40 분/점, 62원자(modelc) ≈ 5–15 분/점 (kgy 16코어 CPU) → 20점 ≈ 5–10 시간. ⚠ 추정이지 약속이 아니다.",
+  "★_왜_700_K_인가_2026_09_08": {
+   "판정_근거": "md_protocol_generations.json `campaign_audit.arrhenius_6pt_traj__18run` — 이 캠페인이 **실제로 낸 판정**이 *'lpsocl 600·700·1000 전부 rigid(max β 0.17) · modelc 600–1000 rigid(max β 0.27) · **b2o3 만 700 K 부터 샌다**'* 다 (2026-08-26 3계 골격 대조).",
+   "⇒": "**700 K 는 타협이 아니라 대조가 실제로 성립하는 온도다.** b2o3 는 새고 modelc 는 굳어 있는 바로 그 지점이라, 힘 오차 비를 재기에 가장 적합하다.",
+   "⛔_종전_초안의_오독_철회": "이 카드의 첫 판은 표본을 800·1000 K 로 잡고 '700 K 는 creep 영역이 아니다' 라는 전제를 달았다. **틀렸다** — 원장에 b2o3 700 K creep 이 이미 기록돼 있었고, 그것을 읽지 않고 초안을 썼다.",
+   "부수적_이점": "두 계가 **같은 트리·같은 캠페인(gen1_traj_mto_200ps)** 이다 — G1(MTO)·G2(궤적 보존)·G4(골격) 통과. 표본 생성 조건이 계 사이에 갈리지 않는다.",
+   "⛔_왜_800·1000_이_아닌가": "modelc 의 800/1000 K 궤적이 **보존되지 않았다**(`run_highT_reseed.sh` 가 --save_traj 미전달 — BH 지적). 오프라인 백업의 `modelC_v3/aimd/T{800,1000}` 은 62원자·같은 셀(V=1216.38 Å³)이지만 **gen0 세대이고 모델 기록이 없다**(aimd_results.json 에 uma_model 필드 부재). 한쪽 계에만 다른 세대의 배치를 쓰면 그 편향은 비에서 상쇄되지 않는다 ⇒ 쓰지 않는다."
+  },
+  "preflight_입력_생성기가_한다": [
+   "유사포텐셜 6종 존재·sha256 기록 (없으면 거부)",
+   "프레임 좌표·격자 sha256 을 QE 입력과 UMA 입력 양쪽에 같은 값으로 기록 (무효 조건 ① 기계 검사)",
+   "궤적 프레임 수 확인 — index 500 이 존재하는지 (2–50 ps 창 밖이면 거부)"
+  ]
  },
  "5_문턱_결과_보기_전에": {
   "UMA_결함_지지": "R = dF_frame(b2o3)/dF_frame(modelc) **≥ 2.0** 이고, 상대화 지표 dF/|F_DFT| 도 같은 방향 (b2o3 가 더 큼). 즉 b2o3 에서 UMA 가 유독 더 틀린다.",
@@ -95,18 +118,24 @@
    "at": "2026-09-08",
    "state": "ratified",
    "note": "1저자 '비준' — 결과 보기 전 봉인(results_seen:false) 상태로 비준"
+  },
+  {
+   "at": "2026-09-08",
+   "state": "amended_pending_ratification",
+   "note": "§4 개정 3건 — ① 표본 온도 800·1000 K → **700 K**(원장의 gen1 G4 판정: b2o3 700 K 부터 creep · modelc rigid), 온도 2축을 시드 2축(s2·s3)으로 교체해 20점 유지 ② DFT 설정 출처 정정(electronic.json 80/320 은 ONCV NC 계열 — 오인용 철회) + 실행을 kgy CPU 빌드로 명시 + 유사포텐셜 해시 기록 ③ UMA 힘을 양쪽 다 재계산으로 고정(b2o3 궤적에 forces 부재 실측). §2 보고량·§5 문턱·§6 판정문구는 **손대지 않았다**.",
+   "이전_비준": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "at": "2026-09-08",
+    "by": "1저자",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-08T11:10:00Z",
+    "commit": "e21ffa31b69d64323c47ca9ba620d5ee5b851196",
+    "content_digest": "d9e6907ab00b3d4eab7373b425f5ba42fea39caabfd0db11a8f7fb6eecf21480",
+    "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다 — 비준을 받아 놓고 내용을 고치는 길을 막는다.",
+    "⚠_base_commit_이_아니다": "`commit` 은 기록일 뿐 앵커가 아니다. 앵커는 위 digest 다."
+   }
   }
  ],
- "ratification": {
-  "state": "ratified",
-  "role": "scientific_owner",
-  "at": "2026-09-08",
-  "by": "1저자",
-  "actor_id": "yonghoon7153@gmail.com",
-  "timestamp": "2026-09-08T11:10:00Z",
-  "commit": "e21ffa31b69d64323c47ca9ba620d5ee5b851196",
-  "content_digest": "d9e6907ab00b3d4eab7373b425f5ba42fea39caabfd0db11a8f7fb6eecf21480",
-  "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다 — 비준을 받아 놓고 내용을 고치는 길을 막는다.",
-  "⚠_base_commit_이_아니다": "`commit` 은 기록일 뿐 앵커가 아니다. 앵커는 위 digest 다."
- }
+ "_amended_digest_preview": "87299c8588fb52a86b5e912d50893e056039f2167989e1747ff9e36aa4960723"
 }
