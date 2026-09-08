@@ -1058,9 +1058,11 @@ MUTANTS = [
      "        if spelling in caps and is_load and id(sub) not in callees:",
      "        if False:",
      "a_capability_that_leaves_the_call_site_is_refused"),
+    # ★ 59차 M9 — 이 줄 **뒤에** deep snapshot 이 들어와 원상이 낡았다.
+    #   도메인 검사 한 줄만 지우는 것이 이 변이의 뜻이므로 그 줄만 원상으로 둔다.
     ("lifecycle-owned-evidence-is-refused-g58", PRESERVE,             # L10
-     "    _assert_evidence_domain(evidence)\n    import yaml",
-     "    import yaml",
+     "    _assert_evidence_domain(evidence)\n",
+     "",
      "normal_finalize_cannot_forge_the_migration_provenance or "
      "lifecycle_owned_evidence_keys_are_refused_from_callers"),
     ("execution-receipt-binds-the-startup-g58", MR,                   # L11

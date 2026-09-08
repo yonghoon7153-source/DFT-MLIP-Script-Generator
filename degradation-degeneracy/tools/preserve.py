@@ -4288,7 +4288,49 @@ def exec_class_root_for_ledger(ledger=None) -> Path:
     return canonical_ledger(ledger).parent / "_exec_class"
 
 
-def run_content_id(run_dir) -> str:
+def _dir_entries(d: Path, dir_fd) -> set:
+    """이 디렉터리가 담은 **일반 파일**의 이름 (59차 M5).
+
+    `dir_fd` 가 있으면 그 handle 로 본다 — 이름을 다시 해석하지 않으므로
+    판정 뒤에 이름 아래가 바뀌어도 우리가 보는 것은 판정한 대상이다.
+    """
+    if dir_fd is not None:
+        names = os.listdir(dir_fd)
+        return {n for n in names
+                if stat.S_ISREG(os.stat(n, dir_fd=dir_fd,
+                                        follow_symlinks=False).st_mode)}
+    if not d.is_dir():
+        return set()
+    return {p.name for p in d.iterdir() if p.is_file()}
+
+
+def _read_member(d: Path, name: str, dir_fd) -> bytes | None:
+    """`dir_fd` 가 있으면 handle 로, 없으면 이름으로 읽는다 (59차 M5)."""
+    if dir_fd is None:
+        f = d / name
+        return f.read_bytes() if f.is_file() else None
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError as exc:
+        raise PreserveError(
+            "promote",
+            f"{name} 을 handle 로 열 수 없다 ({exc}) — symlink 이거나 일반 "
+            "파일이 아니다 (59차 M5)") from exc
+    try:
+        chunks = []
+        while True:
+            b = os.read(fd, 1 << 20)
+            if not b:
+                break
+            chunks.append(b)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def run_content_id(run_dir, dir_fd=None) -> str:
     """이 산출의 **내용 identity**. 경로가 아니라 바이트가 정한다.
 
     manifest 파일 하나의 sha256 이다. 복사·이동해도 안 바뀌고, 내용이 바뀌면
@@ -4296,6 +4338,10 @@ def run_content_id(run_dir) -> str:
     같은 검사에 걸린다.
 
     manifest 가 없으면 identity 가 없다 → 호출자는 fail-closed 해야 한다.
+
+    ★ 59차 M5 — `dir_fd` 를 주면 **그 handle 로** 읽는다. gate 가 판정한 대상을
+      끝까지 들고 가는 경로다 (`ExecutionClassCapability.dir_fd`). 안 주면
+      이름으로 읽는다 — legacy 분류나 진단처럼 handle 이 없는 자리다.
     """
     d = Path(run_dir)
 
@@ -4322,7 +4368,7 @@ def run_content_id(run_dir) -> str:
     #   셋째 형태("닫힌 집합이라고 부른 것이 실제 schema 보다 작다")에 대한
     #   답이다 — 모르는 manifest 가 있는데 identity 를 만들면, 그 identity 는
     #   내용을 다 담지 않았으므로 **다른 내용에도 적용된다.**
-    present = {p.name for p in d.iterdir() if p.is_file()} if d.is_dir() else set()
+    present = _dir_entries(d, dir_fd)
     unknown = sorted(n for n in present
                      if _MANIFEST_NAME_RE.match(n)
                      and n not in RUN_MANIFEST_SCHEMA)
@@ -4335,9 +4381,11 @@ def run_content_id(run_dir) -> str:
             "선언하거나 그 파일을 run 디렉터리 밖에 두라 (59차 M2)")
     parts: list[tuple[str, str]] = []
     for name in RUN_MANIFEST_SCHEMA:
-        f = d / name
-        if f.is_file():
-            parts.append((name, hashlib.sha256(f.read_bytes()).hexdigest()))
+        if name not in present:
+            continue
+        body = _read_member(d, name, dir_fd)
+        if body is not None:
+            parts.append((name, hashlib.sha256(body).hexdigest()))
     if not parts:
         raise PreserveError(
             "promote",
@@ -4401,17 +4449,20 @@ def _exec_class_path(content_id: str, ledger=None) -> Path:
 
 
 def record_execution_class(run_dir, cls: str, evidence: str,
-                           ledger=None) -> Path:
+                           ledger=None, dir_fd=None) -> Path:
     """이 산출의 실행 class 를 **등록부에 굳힌다.**
 
     `evidence` 는 "무엇을 보고 그렇게 정했는가" 를 사람이 읽을 문장으로 남긴다.
     경로를 보고 정했다면 **그 사실이 여기 적힌다** — 그것이 이 설계의 요점이다:
     경로 판정을 없애는 것이 아니라 **한 번만, 기록을 남기고** 하게 만든다.
+
+    ★ 59차 M5 — `dir_fd` 는 gate 가 판정한 대상의 handle 이다. 주면 identity 를
+      **그 handle 로 읽은 바이트**에서 만든다 (`commit_run_outputs()` 가 준다).
     """
     if cls not in EXEC_CLASSES:
         raise PreserveError("promote",
                             f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
-    cid = run_content_id(run_dir)
+    cid = run_content_id(run_dir, dir_fd=dir_fd)
     name = _exec_class_path(cid, ledger).name
     path = _exec_class_root_for_class(cls, ledger) / name
     # ★ 59차 M13 — 등록부 **층 자체**도 durable 해야 한다. 레코드 이름만 굳히고
@@ -4652,12 +4703,30 @@ class ExecutionClassCapability:
     목록은 버릴 수 있다. 권한은 버릴 수 없다 — 산출을 굳히는 함수가 그것을
     **요구**하기 때문이다. class 는 gate 가 정해 권한이 나르므로, 호출자가
     raw `cls` 를 다시 줄 자리가 없다 (최소 조건이 명시한 우회로).
+
+    ★ 59차 M5 — 권한은 class 만이 아니라 **gate 가 판정한 대상**도 나른다.
+
+      58차까지 판정은 한 시점의 pathname 을 보고 끝났고, 실제 쓰기는 나중에
+      그 이름을 **다시 열었다.** 리뷰어는 그 사이에 bind 로 이름 아래를 바꿔
+      smoke 판정을 받은 실행이 namespace 밖에 쓰게 만들었다.
+
+      그래서 발행 시점에 그 디렉터리를 `O_DIRECTORY|O_NOFOLLOW` 로 열어
+      `dir_fd` 를 들고 간다. 굳히는 자리는 (a) 그 handle 로 manifest 를 읽어
+      identity 를 만들고 (b) 지금 그 이름이 가리키는 것이 **같은 커널 객체**
+      인지 확인한다. 이름이 바뀌었으면 그 사실이 보인다 — 이름은 시점의
+      성질이고 handle 은 대상의 성질이다.
     """
     leg_id: str
     phase: str
     execution_class: str
     ledger: str | None
     nonce: str
+    #: gate 가 판정한 디렉터리의 handle. 발행 시점에 그 자리가 아직 없으면
+    #: `None` 이다 — 그때는 굳히는 자리가 이름으로 연다 (들고 갈 것이 없다).
+    dir_fd: int | None = None
+    #: 그 handle 의 `(st_dev, st_ino)` — 굳힐 때 이름이 여전히 같은 대상을
+    #: 가리키는지 대조하는 값.
+    dir_ident: tuple | None = None
 
     def __post_init__(self):
         if self.execution_class not in EXEC_CLASSES:
@@ -4677,6 +4746,10 @@ def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
 
     이미 등록된 내용이면 그 class 와 어긋나는 발행을 여기서 막는다 (identity 를
     만들 수 있는 경우에 한해 — 못 만들면 그것은 정상이고 commit 때 본다).
+
+    ★ 59차 M5 — 판정한 **대상**의 handle 을 같이 발행한다. 자리가 아직 없으면
+      handle 은 `None` 이고, 그때는 굳히는 자리가 이름으로 연다 (들고 갈 것이
+      없으므로 있다고 말하지 않는다 — 없음을 없음으로 나른다).
     """
     if cls not in EXEC_CLASSES:
         raise PreserveError("promote",
@@ -4694,12 +4767,37 @@ def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
                 "promote",
                 f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 "
                 f"있다 — {cls!r} 권한을 발행할 수 없다 (내용 {cid[:16]}…)")
+    _fd, _ident = _open_judged_dir(run_dir)
     cap = ExecutionClassCapability(
         leg_id=leg_id, phase=phase, execution_class=cls,
         ledger=None if ledger is None else str(ledger),
-        nonce=uuid.uuid4().hex)
+        nonce=uuid.uuid4().hex, dir_fd=_fd, dir_ident=_ident)
     _ISSUED_EXEC_CAPS[cap.nonce] = cap
     return cap
+
+
+def _open_judged_dir(run_dir) -> tuple:
+    """gate 가 판정한 디렉터리를 열어 `(fd, (dev, ino))` 를 돌려준다 (59차 M5).
+
+    `O_NOFOLLOW` 는 **마지막 성분**이 symlink 면 거부한다 — 판정 대상이
+    alias 면 그 alias 가 나중에 다른 곳을 가리킬 수 있고, 그러면 우리가 든
+    handle 은 "판정한 대상" 이 아니다.
+
+    자리가 아직 없으면 `(None, None)` 이다. gate 는 산출을 만들기 **전에**
+    도는 것이 정상이므로 그것은 결함이 아니다. 다만 그 경우 굳히는 자리는
+    이름으로 열게 되고, 그 한계는 `commit_run_outputs()` 에 적혀 있다.
+    """
+    try:
+        fd = os.open(run_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return None, None
+    except OSError as exc:
+        raise PreserveError(
+            "promote",
+            f"판정한 자리를 handle 로 열 수 없다: {run_dir} ({exc}) — 이름이 "
+            "symlink 이거나 디렉터리가 아니다 (59차 M5)") from exc
+    st = os.fstat(fd)
+    return fd, (st.st_dev, st.st_ino)
 
 
 def commit_run_outputs(capability, paths) -> list:
@@ -4709,6 +4807,15 @@ def commit_run_outputs(capability, paths) -> list:
     받지 않는다 — 받으면 최소 조건이 지목한 우회로가 그대로 남는다.
 
     멱등이다: 같은 class 로 다시 부르면 조용히 성공한다. 다른 class 면 거부.
+
+    ★ 59차 M5 — 굳히기 전에 **판정한 대상과 지금 이름이 가리키는 대상이 같은지**
+      묻는다. gate 가 handle 을 들고 왔으면(`dir_fd`) 그것이 정본이고, 지금
+      이름이 다른 커널 객체를 가리키면 거부한다. 이름은 시점의 성질이므로
+      판정 뒤에 바뀔 수 있다 — bind swap 이든 rename 이든, 그 사실이 여기서
+      보여야 한다.
+
+      **한계**: gate 시점에 자리가 아직 없었으면 들고 온 handle 이 없고, 그때는
+      이름으로 연다. 그 창은 이 라운드에서 닫지 못했고 요청문에 적는다.
     """
     if not isinstance(capability, ExecutionClassCapability):
         raise PreserveError(
@@ -4723,15 +4830,52 @@ def commit_run_outputs(capability, paths) -> list:
             "다른 실행의 것이다 (59차 M1)")
     led = capability.ledger
     done = []
-    for x in [Path(p) for p in paths if p]:
-        record_execution_class(
-            x, capability.execution_class,
-            evidence=(f"산출 완료 시점 등록 · leg={capability.leg_id} "
-                      f"phase={capability.phase} "
-                      f"class={capability.execution_class}"),
-            ledger=led)
-        done.append(x)
+    try:
+        for x in [Path(p) for p in paths if p]:
+            _assert_still_the_judged_dir(capability, x)
+            record_execution_class(
+                x, capability.execution_class,
+                evidence=(f"산출 완료 시점 등록 · leg={capability.leg_id} "
+                          f"phase={capability.phase} "
+                          f"class={capability.execution_class}"),
+                ledger=led, dir_fd=capability.dir_fd)
+            done.append(x)
+    finally:
+        _close_capability_handle(capability)
     return done
+
+
+def _assert_still_the_judged_dir(capability, path: Path) -> None:
+    """지금 이 이름이 gate 가 판정한 **그 대상**인가 (59차 M5)."""
+    if capability.dir_fd is None:
+        return                  # 판정 시점에 자리가 없었다 — 들고 온 것이 없다
+    try:
+        here = os.stat(path, follow_symlinks=False)
+    except OSError as exc:
+        raise PreserveError(
+            "promote",
+            f"굳히려는 자리를 볼 수 없다: {path} ({exc}) — gate 가 판정한 "
+            "대상이 그대로 있는지 확인할 수 없으므로 거부한다 (59차 M5)") from exc
+    now = (here.st_dev, here.st_ino)
+    if now != capability.dir_ident:
+        raise PreserveError(
+            "promote",
+            f"gate 가 판정한 실물과 지금 이 이름이 가리키는 실물이 다르다 "
+            f"({path}: 판정 {capability.dir_ident} ≠ 지금 {now}) — 판정과 쓰기 "
+            "사이에 이름 아래가 바뀌었다 (bind·rename). 판정은 그 대상에 대한 "
+            "것이므로 이 산출에 적용할 수 없다 (59차 M5)")
+
+
+def _close_capability_handle(capability) -> None:
+    """권한이 든 handle 을 놓는다 — 소비는 한 번이고 fd 는 남기지 않는다."""
+    fd = getattr(capability, "dir_fd", None)
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:                                          # pragma: no cover
+        pass
+    object.__setattr__(capability, "dir_fd", None)
 
 
 #: legacy 분류를 허용하는 **명시적 roster** (59차 M1).
@@ -6530,10 +6674,43 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     d = _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")
     if not d.is_dir():
         return [f"묶음 경로가 없다: {evidence['bundle_uri']}"]
-    files = sorted(x for x in d.rglob("*") if x.is_file())
+    # ★ 59차 M8 — **구성원을 걸을 때 이름을 따라가지 않는다.**
+    #
+    #   58차는 `x.is_file()` 이었고 그것은 symlink 를 따라간다. 그래서 저장소
+    #   밖 파일을 가리키는 link 하나가 개수에도 바이트 합계에도 들어갔다 —
+    #   `full_bundle` 의 뜻은 "clone 한 사람이 이 결과를 검증할 수 있는 묶음이
+    #   실재한다"(계약 §8)인데, clone 에는 그 바이트가 없다.
+    #
+    #   58차 L7 이 `bundle_uri` **자신**에 대해 고친 것과 같은 흡수다. 그때
+    #   뿌리만 고치고 구성원은 안 고쳤다. 여기서는 `lstat` 으로 보고, 일반
+    #   파일이 아닌 구성원(symlink·socket·device…)은 **거부**한다 — 묶음은
+    #   바이트의 집합이지 이름의 집합이 아니다.
+    files, member_bad = [], []
+    for x in sorted(d.rglob("*")):
+        try:
+            st = os.stat(x, follow_symlinks=False)
+        except OSError as exc:                              # pragma: no cover
+            member_bad.append(f"묶음 구성원을 볼 수 없다: {x} ({exc})")
+            continue
+        if stat.S_ISDIR(st.st_mode):
+            continue
+        if stat.S_ISLNK(st.st_mode):
+            member_bad.append(
+                f"묶음 구성원이 symlink 다: {x.relative_to(d).as_posix()} → "
+                f"{os.readlink(x)!r} — 이름을 따라가면 clone 에 없는 바이트를 "
+                "묶음에 셀 수 있다 (59차 M8)")
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            member_bad.append(
+                f"묶음 구성원이 일반 파일이 아니다: "
+                f"{x.relative_to(d).as_posix()} (mode {st.st_mode:o})")
+            continue
+        files.append((x, st))
+    if member_bad:
+        return member_bad                # 개수·바이트를 세기 전에 멈춘다
     if len(files) != evidence["bundle_files"]:
         bad.append(f"묶음 파일 수 {len(files)} ≠ 선언 {evidence['bundle_files']}")
-    nbytes = sum(x.stat().st_size for x in files)
+    nbytes = sum(st.st_size for _x, st in files)
     if nbytes != evidence["payload_bytes"]:
         bad.append(f"묶음 바이트 {nbytes} ≠ 선언 {evidence['payload_bytes']}")
     idx = _repo_relative_or_refuse(root, evidence["payload_index"],
@@ -6735,6 +6912,21 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
       호출자 의견이 된다.
     """
     _assert_evidence_domain(evidence)
+    # ★ 59차 M9 — **검증하기 전에 값을 바이트로 굳힌다.**
+    #
+    #   58차까지 `evidence` 는 호출자의 살아 있는 객체였다. 진입에서 도메인·
+    #   묶음·JSON 을 검사하고, lock 을 잡고 원장을 읽은 **한참 뒤에**
+    #   `dict(evidence)` 로 봉인했다. 그 복사는 얕아서 중첩 값은 여전히
+    #   공유되고, 애초에 그 사이에 dict 자체가 바뀔 수 있다 (coordinator 가
+    #   여러 phase process 를 돌리는 이 저장소에서는 흔한 배치다).
+    #   그러면 **검증한 것과 봉인한 것이 다르고**, 검증은 아무것도 보장하지
+    #   않는다.
+    #
+    #   그래서 여기서 한 번 정규 바이트로 만들고 그것을 다시 읽어 쓴다 —
+    #   그 뒤로 호출자가 무엇을 하든 이 함수가 보는 값은 안 바뀐다. 깊이에
+    #   상관없이 끊어지므로 "어느 층까지 복사할까" 를 묻지 않아도 된다.
+    _assert_json_domain(evidence, "evidence")
+    evidence = json.loads(_canon_json(evidence))
     import yaml
 
     # ★ 57차 P0-1 — `token_file` 인자를 없앴다. 소유 증명의 **필수성**은 그대로

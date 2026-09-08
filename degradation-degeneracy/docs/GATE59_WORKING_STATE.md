@@ -39,11 +39,11 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
 | M2 | P0 | content id 가 production start manifest 를 누락 | `preserve.py:4238` | **GREEN** |
 | M3 | P0 | final `O_EXCL` 파일이 부분 바이트로 공개되고 성공 | `preserve.py:4417-4441` | **GREEN** |
 | M4 | P0 | shared/local class 충돌을 reader 가 canonical 로 숨김 | `preserve.py:4458-4473` | **GREEN** |
-| M5 | P0 | smoke 검사 직후 bind swap → 실제 쓰기가 밖으로 (TOCTOU) | `is_inside_namespace()` 소비자 전부 | 대기 |
-| M6 | P0 | clean clone 에서 marker+ledger 만으로 frozen 못 지킴 | `row_projection.py:4388-4474` | 대기 |
+| M5 | P0 | smoke 검사 직후 bind swap → 실제 쓰기가 밖으로 (TOCTOU) | `is_inside_namespace()` 소비자 전부 | **GREEN** |
+| M6 | P0 | clean clone 에서 marker+ledger 만으로 frozen 못 지킴 | `row_projection.py:4388-4474` | **GREEN** |
 | M7 | P0 | `fit → grid` 역순이면 consumed 결속 없이 executed | `preserve.py:5033-5114` · `6532-6546` | **GREEN** |
-| M8 | P0 | bundle member symlink/bind 로 repo 밖 바이트 | `preserve.py:6185-6211` · `_verify_declared_bundle` | 대기 |
-| M9 | P0 | 검증한 evidence 와 봉인한 evidence 가 다르다 (caller dict TOCTOU) | `preserve.py:6427-6624` | 대기 |
+| M8 | P0 | bundle member symlink/bind 로 repo 밖 바이트 | `preserve.py:6185-6211` · `_verify_declared_bundle` | **GREEN** |
+| M9 | P0 | 검증한 evidence 와 봉인한 evidence 가 다르다 (caller dict TOCTOU) | `preserve.py:6427-6624` | **GREEN** |
 | M10 | P0 | 공개 `claim_planned_leg(token=…)` 가 disk token 없는 running 생성 | `preserve.py:5466-5556` | 대기 |
 | M11 | P0 | capability 의 module target 을 식으로 감싸면 closure 밖 | `row_projection.py:1290-1305` · `1454-1461` | 대기 |
 | M12 | P0 | import-time 실행 모델이 `assert`·metaclass·future flag 를 버림 | `row_projection.py:627` · `_has_import_time_compute` | 대기 |
@@ -94,10 +94,10 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
 | 무엇 | 왜 지금 안 고치나 | 언제 |
 |---|---|---|
 | `test_docs_lint.py::test_full_bundle_claims_are_backed_by_a_real_bundle` — `paired_fixed5_v4` 영수증이 `920cfd31c22ebe06` 을 가리키는데 현행 core sha 는 계속 움직인다 (α 뒤 `47afc7e4`, γ 뒤 `a594d426`) | RUN_SCOPE(`tools/preserve.py`·`src/`)를 고칠 때마다 `source_digest` 가 바뀌는 것이 **정상**이다. β·δ·ε·ζ 가 같은 파일을 더 만지므로 지금 만들면 또 낡는다 | 마감 (§65: 조각·영수증·요청문은 코드가 다 끝난 뒤 한 번에) |
-| 변이 등록부에 **γ 의 새 축이 아직 없다** (M2 schema 거부 · M7 순서/`consumed` 필수) | EXPECT 측정에 재생이 필요하고, 그 사이 코드가 또 바뀌면 다시 측정해야 한다 | 마감 (등록부 새 축을 한 번에) |
+| 활성 cohort `g13` 의 pin 이 현행 트리에서 벗어났다 (`compute_sha256`·`row_projection_py_sha256`) — `test_exactly_one_cohort_is_active_…` · `test_projection_analyzer_digests_recompute_…` | β(M6)가 `row_projection.py` 를 고쳤고 **δ(M11·M12·M17)가 같은 파일을 더 고친다**. 지금 전환하면 또 벗어난다 | 마감 (g13 freeze → g14) |
+| 변이 등록부에 **γ·β 의 새 축이 아직 없다** (M2 schema 거부 · M7 순서/`consumed` 필수 · M5 handle 결속 · M6 봉인 없으면 거부 · M8 lstat walk · M9 deep snapshot) | EXPECT 측정에 재생이 필요하고, 그 사이 코드가 또 바뀌면 다시 측정해야 한다 | 마감 (등록부 새 축을 한 번에) |
 
-그 밖에는 **전부 초록이다** (γ 뒤 전체 회귀 실측: **1501 passed · 2 failed** →
-그 둘 중 하나는 위 영수증, 다른 하나는 아래 re-key 로 닫았다).
+그 밖에는 **전부 초록이다** (β 뒤 전체 회귀 실측: **1508 passed · 3 failed** — 위 표의 세 건).
 
 ## 진행 로그
 
@@ -185,3 +185,50 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
   **변이 축 하나가 또 죽어 있었다**: `content-id-hashes-every-manifest-g58` 의
   원상이 descriptor 리터럴이었는데 형식 표시가 이름으로 바뀌었다. 새 원상으로
   고쳐 다시 문다 (실측: `물었다 … node 1`).
+
+- 2026-09-08 — **β 닫힘** (M5·M6·M8·M9). 새 시험 8건
+  (`tests/test_handle_carry_59.py` 5 · `tests/test_frozen_clean_clone_59.py` 3),
+  M8 의 "정상 묶음은 통과한다" 하나를 빼고 전부 고치기 전에 빨갰다.
+
+  네 건은 같은 병이었다 — **판정은 이름/객체를 한 번 보고, 쓰기·봉인은 나중의
+  것을 다시 연다.** 그래서 넷을 한 벌로 고쳤다.
+
+  - **M5** — 권한이 class 만이 아니라 **gate 가 판정한 대상**도 나른다.
+    발행 시점에 그 디렉터리를 `O_DIRECTORY|O_NOFOLLOW` 로 열어 `dir_fd` 를 들고
+    가고, 굳히는 자리는 (a) 그 handle 로 manifest 를 읽어 identity 를 만들고
+    (b) 지금 그 이름이 **같은 커널 객체**인지 확인한다. 이름 아래가 바뀌었으면
+    (bind·rename) 거부한다. 한계 하나를 남긴다: gate 시점에 자리가 아직 없으면
+    들고 갈 handle 이 없고, 그때는 이름으로 연다 — 요청문에 적는다.
+  - **M6** — **이 발견은 실물로 확인됐다.** 이 기계의 frozen cohort **12개 중
+    11개에 좌표 봉인이 없었다** (`g12` 하나만 있었다 — 58차에 봉인 코드가
+    생긴 뒤 얼린 것이라서). 58차가 만든 첫 층이 실제로는 cohort 하나에만 살아
+    있었다는 뜻이고, 리뷰어 지적이 정확했다. 좌표는 기계의 사실이라 clone 에
+    담을 수 없으므로 답은 하나뿐이다 — **봉인 없는 frozen cohort 가 하나라도
+    있으면 게시하지 않는다.** 빠져나갈 길은
+    `row_projection.py --seal-frozen` 이고 선언된 것을 **전부** 덮는다
+    (하나씩 봉인하게 하면 빠뜨린 하나가 조용한 구멍이 된다).
+    이 기계는 그 명령으로 11건을 봉인했다.
+  - **M8** — 묶음 구성원 walk 를 `is_file()`(이름을 따라간다)에서 `lstat` 으로
+    바꾸고, symlink·비일반 파일 구성원을 **거부**한다. 58차 L7 이 `bundle_uri`
+    자신에 대해 고친 것과 같은 흡수인데 그때 뿌리만 고치고 구성원은 안 고쳤다.
+  - **M9** — `finalize_leg()` 이 진입에서 evidence 를 **정규 바이트로 굳히고**
+    그것을 다시 읽어 쓴다. 58차는 얕은 복사였고 그마저 lock 을 잡고 원장을
+    읽은 한참 뒤였다 — 중첩 값은 계속 공유됐다. 깊이에 상관없이 끊어지므로
+    "어느 층까지 복사할까" 를 안 물어도 된다.
+
+  **48차 회귀 하나의 일정이 불법이 됐다.** `test_two_phase_records_do_not_
+  overwrite_each_other` 는 grid·fit 을 아무 순서로나 동시에 닫았는데, M7 이
+  순서를 강제하면서 그 일정 자체가 불법이 됐다. 그대로 두면 순서 거부로 빨갈
+  뿐 원래 명제(경쟁 아래 lost update)를 한 번도 안 본다. **명제는 유지하고
+  일정만 합법으로** 바꿨다 — 두 스레드가 같은 claim record 를 동시에 두드리되
+  fit 은 grid 가 닫힐 때까지 재시도한다 (실제 coordinator 가 하는 일이다).
+  결속이 실제로 닫힌 grid 를 가리키는지도 같이 단언한다.
+
+  **변이 축 하나가 또 죽었다**: `lifecycle-owned-evidence-is-refused-g58` 의
+  원상이 `_assert_evidence_domain(evidence)\n    import yaml` 두 줄이었는데
+  그 사이에 M9 의 deep snapshot 이 들어왔다. 도메인 검사 한 줄만 원상으로
+  좁혀 다시 문다 (실측: `물었다 … node 6`).
+
+  **이번 라운드 네 번째 죽은 변이다** (α 2 · γ 1 · β 1). 방어를 옮기면 그것을
+  증명하던 변이가 조용히 무해해진다 — 매 묶음마다 `--check-preimages` 를
+  돌리는 것이 이 라운드의 규율이 됐다.

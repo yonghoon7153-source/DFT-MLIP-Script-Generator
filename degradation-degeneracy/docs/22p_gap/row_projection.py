@@ -4474,8 +4474,59 @@ def _names_for(dev: str, fs: Path, table) -> list:
     return out
 
 
+def unsealed_frozen_cohorts() -> list:
+    """원장이 frozen 이라 했지만 **이 기계에 좌표 봉인이 없는** cohort (59차 M6).
+
+    좌표 봉인(`_frozen_coords/`)은 기계의 사실이라 clone 에 담기지 않는다.
+    그래서 fresh clone 에서는 58차 L5 가 만든 **첫 층이 통째로 없고**, 남는
+    것은 그 반례가 이미 무력화한 이름 기반 층들이다. "이 기계에서만 살아 있는
+    방어" 는 방어라고 부를 수 없다.
+    """
+    from tools.preserve import frozen_coordinate_covering
+
+    out = []
+    for cid, d in sorted(_frozen_cohort_dirs().items()):
+        if not d.exists():
+            continue            # 이 clone 에 없는 tree 는 이 기계에서 못 덮는다
+        if frozen_coordinate_covering(d) != cid:
+            out.append(cid)
+    return out
+
+
+def seal_frozen_cohorts() -> list:
+    """원장이 frozen 이라 선언한 tree 를 **이 기계에서** 한 번 봉인한다 (59차 M6).
+
+    새로 봉인한 cohort_id 목록을 돌려준다 (이미 봉인돼 있으면 빈 목록 — 멱등).
+    하나씩 봉인하게 하면 빠뜨린 하나가 조용한 구멍이 되므로, 선언된 것을
+    **전부** 덮는다.
+    """
+    from tools.preserve import record_frozen_coordinate
+
+    done = []
+    for cid in unsealed_frozen_cohorts():
+        record_frozen_coordinate(_frozen_cohort_dirs()[cid], cid)
+        done.append(cid)
+    return done
+
+
 def _assert_writable(dest: Path) -> None:
-    """frozen cohort 로는 쓸 수 없다. **쓰기 지점**에서 막는다 (27차 P1-8)."""
+    """frozen cohort 로는 쓸 수 없다. **쓰기 지점**에서 막는다 (27차 P1-8).
+
+    ★ 59차 M6 — 첫 물음은 "이 목적지가 얼린 자리인가" 가 아니라 **"우리가 얼린
+      자리를 알기는 하는가"** 다. 봉인이 없는 frozen cohort 가 하나라도 있으면
+      막을 자리를 아는 층이 없는 것이므로, 그 동안은 **아무 데도 쓰지 않는다.**
+      "그 cohort 자리만 막는다" 로는 부족하다 — 그 자리를 아는 층이 바로 지금
+      없는 층이다.
+    """
+    _unsealed = unsealed_frozen_cohorts()
+    if _unsealed:
+        raise SystemExit(
+            f"✗ 얼린 cohort {_unsealed} 의 **좌표 봉인이 이 기계에 없다** — "
+            "좌표는 기계의 사실이라 clone 에 담기지 않으므로, fresh clone 에서는 "
+            "얼린 tree 를 지키는 첫 층이 통째로 없다 (59차 M6).\n"
+            "  없는 방어를 있는 척하지 않는다: 봉인하기 전에는 게시하지 않는다.\n"
+            "  이 기계에서 한 번 봉인하라: "
+            "`python3 docs/22p_gap/row_projection.py --seal-frozen`")
     # ★ 52차 P0-4 — **대상 자신에게 먼저 묻는다.** 이름 목록(원장·journal)은
     #   alias 로 늘릴 수 있지만 tree 안의 marker 는 그럴 수 없다.
     here = read_frozen_marker(dest)
@@ -4555,7 +4606,16 @@ def main() -> int:
         "투영을 쓸 디렉터리 (repo 상대). 기본은 warm_probe. "
         "★ 25차 발견 1 — analyzer 세대가 바뀌면 옛 cohort 를 덮지 않고 "
         "새 디렉터리에 쓴다. 봉인 summary/manifest 는 언제나 warm_probe 에서 읽는다."))
+    ap.add_argument("--seal-frozen", action="store_true", help=(
+        "원장이 frozen 이라 선언한 tree 의 파일시스템 좌표를 **이 기계에서** "
+        "봉인하고 끝낸다 (59차 M6). 좌표는 기계의 사실이라 clone 에 담기지 "
+        "않으므로, fresh clone 에서는 한 번 이것을 돌려야 얼린 tree 를 지키는 "
+        "첫 층이 생긴다. 봉인 전에는 게시가 거부된다."))
     a = ap.parse_args()
+    if a.seal_frozen:
+        done = seal_frozen_cohorts()
+        print(f"봉인했다: {done}" if done else "이미 전부 봉인돼 있다")
+        return 0
     if a.cohort and a.out:
         ap.error("--cohort 와 --out 을 함께 쓰지 마세요")
     if a.cohort:

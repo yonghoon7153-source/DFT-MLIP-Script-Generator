@@ -6553,8 +6553,20 @@ def test_two_phase_records_do_not_overwrite_each_other(tmp_path):
     `grid` 와 `fit` 을 동시에 닫으면 둘 다 `phases` 가 빈 record 를 읽고 각자
     자기 phase 하나만 담아 덮어쓴다. 하나가 사라지면 `finalize_leg()` 이
     "phase 가 남았다" 며 거부하고, 이미 끝난 계산을 다시 돌리게 된다.
+
+    ★ 59차 M7 — **일정(schedule)이 바뀌었다.** 뒤 phase 는 앞 phase 가 닫히기
+      전에는 못 닫는다 (역순이면 결속이 통째로 사라지므로). 그래서 48차의
+      "둘을 아무 순서로나 동시에" 는 이제 **불법 일정**이고, 그대로 두면 이
+      시험은 순서 거부로 빨개질 뿐 원래 명제(경쟁 아래 lost update)를 한 번도
+      안 본다.
+
+      명제는 유지하고 일정만 합법으로 바꾼다: 두 스레드가 **같은 claim record 를
+      동시에** 두드리되, fit 은 grid 가 닫힐 때까지 재시도한다 (실제 coordinator
+      가 하는 일이다). 쓰기는 여전히 겹치므로 lost update 가 있으면 phase 하나가
+      사라지거나 fit 이 영영 못 들어간다 — 둘 다 이 시험이 잡는다.
     """
     import threading
+    import time
     from tools import preserve as P
 
     led = _lifecycle_ledger(tmp_path)
@@ -6564,7 +6576,17 @@ def test_two_phase_records_do_not_overwrite_each_other(tmp_path):
 
     def _go(ph):
         barrier.wait(timeout=30)
-        claim.phase_done(ph, {"ok": ph})
+        if ph == "grid":
+            claim.phase_done(ph, {"ok": ph})
+            return
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            try:
+                claim.phase_done(ph, {"ok": ph})
+                return
+            except P.PreserveError as exc:
+                if "선행 phase" not in str(exc):
+                    raise
 
     ts = [threading.Thread(target=_go, args=(p,)) for p in ("grid", "fit")]
     for t in ts:
@@ -6573,6 +6595,13 @@ def test_two_phase_records_do_not_overwrite_each_other(tmp_path):
         t.join(timeout=60)
     assert set(claim.phases_done()) == {"grid", "fit"}, (
         f"동시에 닫은 phase 하나가 사라졌다: {claim.phases_done()}")
+    # 그리고 결속은 **실제로 닫힌 grid** 를 가리켜야 한다 (59차 M7)
+    import hashlib
+    phases = claim._read()["phases"]
+    want = hashlib.sha256(
+        P._canon_json(phases["grid"]["receipt"]).encode("utf-8")).hexdigest()
+    assert phases["fit"]["consumed"]["grid"] == want, (
+        "경쟁 아래에서 결속이 다른 receipt 를 가리킨다")
 
 
 def test_a_leg_id_cannot_escape_the_claims_root(tmp_path):
