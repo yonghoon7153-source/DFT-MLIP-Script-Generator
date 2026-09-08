@@ -44,7 +44,7 @@ of two, three, and six repeat units. The resulting doublets were optimized at th
 the material follows from the infrared spectra above. Löwdin spin populations show the unpaired spin
 migrating from the sulfonate onto the conjugated backbone as the chain grows. The backbone share
 rises from one-third in the dimer to 79.7% at six repeat units, while the sulfonate share falls to
-7.7% (Table Sx). At six units the spin is distributed over three adjacent rings (15.9%, 23.3%, and
+7.7% (Figure S4). At six units the spin is distributed over three adjacent rings (15.9%, 23.3%, and
 20.0%) rather than localized at the oxidation site.
 
 The carrier is therefore a backbone polaron delocalized over several repeat units, with the
@@ -74,13 +74,13 @@ inter-chain transfer. The measured electronic conductivity is given in Section X
 |---|---|
 | `The oxidized state is imposed by this construction` | DFT 로 **자발성**을 주장한다는 오독. H 를 손으로 뗀 계산이다 |
 | `follows from the infrared spectra above` | 자발성은 FT-IR 몫 — 역할 분담을 한 절로 |
-| `Counted over ring atoms only` → **Table Sx 각주로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
-| `rather than localized at the oxidation site` | ring4 23.3 을 "국재" 로 읽는 것. **도핑 자리는 미확인**이라 자리 언급은 없다 |
+| `Counted over ring atoms only` → **Figure S4 캡션으로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
+| `rather than localized at the oxidation site` | ring4 23.3 을 "국재" 로 읽는 것. **자리는 ring3 확정**(2026-09-08) — 최대(ring4)와 다른 고리라 이 구절이 데이터로 받쳐진다 |
 | `expected to be at least this delocalized` | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
 | `identify the carrier but not its mobility` | 전도도 주장 차단 |
 
-⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Table Sx 의 각주에 반드시 넣는다.**
-빠지면 7월 값과 다른 분할이 한 표에 섞일 수 있다.
+⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Figure S4 캡션에 반드시 넣는다.**
+빠지면 7월 값과 다른 분할(strict 79.5 · extended 91.6)이 같은 그림에 섞여 읽힌다.
 
 ## Supplementary Note 2 (초안)
 
@@ -105,16 +105,18 @@ inter-chain transfer. The measured electronic conductivity is given in Section X
 >
 > *Spin partition.* Löwdin populations were taken from the final SCF of each optimized structure.
 > For six repeat units the total spin population is 1.000, as expected for a doublet. Two groups are
-> quoted in the main text: the sulfonate (SO₃ atoms) and the backbone (ring atoms only). Table Sx
-> additionally reports two reference partitions, one including the ring hydrogens and one further
-> including the side-chain ether oxygens.
+> quoted in the main text: the sulfonate (SO₃ atoms) and the backbone (ring atoms only). Two
+> reference partitions are also available: including the ring hydrogens gives 79.5%, and further
+> including the side-chain ether oxygens gives 91.6%, at six repeat units. For six units the
+> hydrogen was removed from the sulfonate on ring 3, determined from the optimized structure rather
+> than from the run label.
 >
 > *Limits.* Each structure is a single self-consistent solution; no search over spin isomers or
 > side-chain conformers was performed. Spin density is reported as such and is not equated with the
 > hole charge density. The models are isolated and gas-phase, without solvent, counterions, or chain
 > packing.
 
-**Table Sx 각주 (필수)** — *Backbone denotes ring atoms only; ring hydrogens and side-chain ether
+**Figure S4 캡션 (필수)** — *Backbone denotes ring atoms only; ring hydrogens and side-chain ether
 oxygens are excluded. The same partition is used for every chain length.*
 ⚠ 본문에서 `Counted over ring atoms only` 를 뺐으므로 이 각주가 그 역할을 대신한다. 빠지면 7월
 값과 다른 분할(strict 79.5 · extended 91.6)이 한 표에 섞일 수 있다.
@@ -126,16 +128,19 @@ oxygens are excluded. The same partition is used for every chain length.*
   ⚠ `Strict Convergence = False` 이므로 "tight" 라고 쓰지 않는다.
 - ⏳ **반복단위의 화학 표기** — 지금은 "the repeat unit defined in Figure 1" 로 가리킨다.
   Figure 1 이 그 구조를 실제로 정의하지 않으면 여기서 한 번 풀어 써야 한다.
-- ⏳ **n=6 도핑 자리** — 확인 전에는 n=3 만 자리를 명시한다. 확인되면 한 문장 추가하고,
-  본문 [3]의 `rather than localized at the oxidation site` 가 더 강해진다 (자리와 스핀 최대가
-  다른 고리면 "자리에서 밀렸다" 가 된다).
+- ✅ **n=6 도핑 자리 = ring3** (2026-09-08). 라벨이 아니라 구조에서 찾았다 — 탈양성자
+  sulfonate(S=72)에서 곁사슬을 따라가 원자 43(C)이 ring3 에 속한다 (`nseries_n6.py doping_site`).
+  스핀 최대는 ring4(23.3)라 **자리에서 한 칸 밀려 있다** — 본문의 `rather than localized at the
+  oxidation site` 가 데이터로 받쳐진다.
 
 ## SI 연결
 
-- **Table Sx** = `db/properties/sdcp_nseries_spin_2026_09_08.csv` (Origin-ready · 열 이름 명시).
-  n=6 고리별은 `db/properties/sdcp_n6_ring_profile_fig.csv` (두 정의 열: 고리 원자만 / +고리 H).
-- **Figure Sx** = `docs/figures/sdcp_nseries_spin/sdcp_nseries_spin_partition.png` (3패널).
-  영문 캡션 `docs/figures/sdcp_nseries_spin/caption.md`.
+- **Figure S3** = 구조 (n=2 · n=3 end/mid · n=6) — `db/structures/si_figure_S3/` (xyz+vasp+vesta).
+- **Figure S4** = 스핀 분포 3패널 — `docs/figures/sdcp_nseries_spin/sdcp_nseries_spin_partition.png`,
+  영문 캡션 `docs/figures/sdcp_nseries_spin/caption.md`. **표는 쓰지 않는다** (1저자 결정 —
+  그림에 숫자가 다 찍혀 있다).
+- 수치 원본(Origin-ready) = `db/properties/sdcp_nseries_spin_2026_09_08.csv` ·
+  `db/properties/sdcp_n6_ring_profile_fig.csv`.
 - 정본 값·허용/금지 서술 = `db/properties/sdcp_nseries_spin_2026_09_08.json`.
 
 ## ⏳ 남은 것
@@ -144,4 +149,5 @@ oxygens are excluded. The same partition is used for every chain length.*
    계열 문헌값을 **소환값으로 명시**해 한 줄 넣는다. 이게 비면 [5]가 "우리는 전도도를 안 다룬다"
    로만 끝나 독자가 이 계산을 읽은 이유를 잃는다.
 2. **삽입 위치** — FT-IR 절 **뒤**여야 한다. [1]의 `above` 가 그 전제다 (앞이면 `below` 로).
-3. **n=6 도핑 자리** — `groups.json` source_manifest 확인 전에는 "자리 근방" 서술 금지.
+3. ✅ **n=6 도핑 자리 = ring3** (해결). 선택: 본문에 `(ring 3)` 을 넣어 검증 가능하게 만들지,
+   Figure S4 (c) 패널에 자리 표시를 넣을지 — 1저자 결정.
