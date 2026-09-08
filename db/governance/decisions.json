@@ -1312,6 +1312,72 @@
     "revision": "2판 (§4 개정)",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-08-lpsocl-box331-closure-conditions",
+   "schema_version": 2,
+   "kind": "closure",
+   "scope": "lpsocl.md.box331_400ps.arrhenius",
+   "slot": "campaign_closure_conditions",
+   "applies_to": {
+    "systems": [
+     "lpsocl"
+    ],
+    "tasks": [
+     "mlip_md_arrhenius"
+    ],
+    "methods": [
+     "uma-s-1p1-omat"
+    ],
+    "use_cases": [
+     "manuscript",
+     "internal"
+    ]
+   },
+   "title": "LPSOCl 3×3×1 400 ps 9런 — 닫힘 조건 확정 (아레니우스를 하나도 그리기 전에)",
+   "statement": "이 캠페인은 C1(궤적 무결성)·C2(4창 D_inc plateau ≤10 %)·C2b(독립 홉 ≥3.0/이온)·C3(공동 재표본 ΔEa 의 CI 가 ±δEa 안, **δEa = 0.050 eV**)·C4(시드 지배 없음)·C5(seed/bootstrap Ea 폭 ≤ 0.050 eV)·C6(온도별 골격 rigid, 아니면 그 온도를 직선에서 제외) 로 판정한다. 결과는 셋뿐이다 — `값` · `HOLD`(값은 있으나 정밀도 부족) · `no_value`(값이 정의되지 않음). **HOLD 가 나오면 HOLD 를 결과로 보고하고 닫는다(추가 계산 0).** 닫는 범위는 `Ea(3×3×1 cell-conditioned)` 하나이고, bulk Ea·계간 비교·절대 σ·절대 D 는 제외다.",
+   "rationale": "MD 축은 이름 붙은 것만 90런이 넘는데 canonical_registry 의 MD_Ea 8항목이 전부 citable 없음이다. 값이 애매할 때마다 '한 번만 더' 로 이어졌고 그것을 멈추는 문서가 이 축에는 없었다. estimand 카드는 *어떻게 재는가* 만 정했지 *언제 끝나는가* 를 안 정했다. CLAUDE.md 마감 규율: 데이터를 보고 닫혔다고 판단하지 않는다 — 조건을 먼저 정하고 그게 채워졌으므로 닫는다.",
+   "decision_state": "active",
+   "record_kind": "prospective",
+   "results_seen": false,
+   "record": "db/properties/lpsocl_box331_closure_conditions_2026_09_07.json",
+   "card": "db/properties/lpsocl_box331_estimand_2026_08_30.json",
+   "evidence": [
+    "db/properties/lpsocl_box331_estimand_2026_08_30.json",
+    "db/properties/lpsocl_box331_amendment_2026_09_01.json",
+    "db/properties/lpsocl_box331_two_point_2026_08_31.json",
+    "db/properties/b2o3_md_closed_retrospective_2026_08_25.json"
+   ],
+   "method_ref": "tools/ionic/msd_diffusive_check.py (4창 D_inc plateau · --framework 골격 게이트) → 공동 재표본 bootstrap ΔEa. 구조 lpsocl_relaxV0_3x3x1.xyz(558원자) · 시드 {2,3,4} · Langevin NVT dt 2 fs friction 0.02 · 평형 5 ps / 생산 400 ps.",
+   "supersedes": [],
+   "depends_on": [
+    "D-2026-09-04-lpsocl-box331-400ps-uniform"
+   ],
+   "reopen_criteria": "R1 심사자가 셀 크기 수렴을 명시적으로 요구할 때(→ 4×4×1 별도 캠페인) · R2 UMA checkpoint 가 바뀌어 이 계의 힘이 달라졌음이 확인될 때 · R3 판정 도구 결함으로 이 9런의 판정이 뒤집힐 때 · R4 C2 의 문턱·창 목록이 문헌 근거로 부적절함이 밝혀질 때. ⛔ 이 넷 밖의 사유로 열지 않는다 — '값이 마음에 안 든다' · '한 시드만 더' · '다른 계와 비교하고 싶다' · 'HOLD 를 값으로 바꾸고 싶다' 는 재개 사유가 아니다.",
+   "enforcement": "조건을 하나라도 **사후에** 완화하면 그 순간 이 마감은 무효다. 완화하려면 개정안을 따로 쓰고 비준을 받는다(선례 lpsocl_box331_amendment_2026_09_01.json). δEa·해상도 0.050 eV 는 결과 보기 전 봉인값이라 사후에 옮기지 않는다.",
+   "proposed_by": "claude-session-2026-09-08",
+   "status": "active",
+   "status_history": [
+    {
+     "at": "2026-09-08",
+     "state": "proposed",
+     "note": "§7 결정 3건(HOLD 처리 A · bulk 축 B · δEa 봉인)을 1저자에게 물은 직후. 400 ps 9런 중 3런 완주 · 아레니우스 적합 0회 시점."
+    },
+    {
+     "at": "2026-09-08",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    }
+   ],
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-08T10:02:28Z",
+    "commit": "158f341bde0b5f036634fb1178566773abc6d399",
+    "decision_digest": "sha256:75ca4eb49308e44572c15239bd8e649a8a337558a1aae156417261febb4b19c2",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
