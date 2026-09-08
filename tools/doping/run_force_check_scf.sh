@@ -39,6 +39,16 @@ DRY_RUN=${DRY_RUN:-0}
 
 ts() { date '+%m-%d %H:%M:%S'; }
 
+# ⛔ 완료 판정은 **한 곳에만** 둔다 — 재개(건너뛸까)와 성공(셌나)이 같은 기준이어야 한다.
+#   갈라져 있던 탓에 미수렴 점이 JOB DONE 만으로 "완료" 로 건너뛰어졌다 (2026-09-08 실측).
+#   ⚠ grep -a — 출력에 NUL 이 섞이면 grep 이 binary 로 보고 조용히 넘어간다.
+_fc_ok() {
+  [ -f "$1" ] || return 1
+  grep -aq "JOB DONE" "$1" \
+    && grep -aq "convergence has been achieved" "$1" \
+    && grep -aq "Forces acting on atoms" "$1"
+}
+
 # ── 중복 실행 가드 (CLAUDE.md 공통 관례 · pgrep 이 아니라 flock) ──────────────
 #   pgrep 로 세면 래퍼(sh -c … | tee)까지 세어 시작하자마자 죽는 사고가 있었다.
 LOCK=${LOCK:-/tmp/force_check_scf.lock}
@@ -143,16 +153,19 @@ touch "$ROOT/.fc_run_started"
 done_n=0; skip_n=0; fail_n=0; t0=$(date +%s)
 for i in "${INS[@]}"; do
   d=$(dirname "$i"); n=$(basename "$d")
-  # 재개: 이미 끝난 점은 다시 돌지 않는다 (JOB DONE 이 있어야 완료로 센다)
-  if grep -aq "JOB DONE" "$d/scf.out" 2>/dev/null; then
-    echo "[$(ts)] skip $n (JOB DONE)"; skip_n=$((skip_n+1)); continue
+  # 재개: 이미 끝난 점은 다시 돌지 않는다.
+  # ⛔ 2026-09-08 실측 — 여기가 `JOB DONE` **만** 봤다. 그런데 아래 성공 판정은
+  #   JOB DONE + 수렴 + 힘 셋을 본다. 그래서 SCF 가 100회에서 잘려 힘 블록이 없는 점이
+  #   JOB DONE 을 달고 남았고, 다시 돌리면 그 점을 **"완료" 로 건너뛰어 영영 안 고쳐진다.**
+  #   재개 조건과 성공 조건은 **같은 기준**이어야 한다.
+  if _fc_ok "$d/scf.out"; then
+    echo "[$(ts)] skip $n (완료: JOB DONE + 수렴 + 힘)"; skip_n=$((skip_n+1)); continue
   fi
   s=$(date +%s)
   ( cd "$d" && $MPI "$PWX" $PW_EXTRA -in scf.in > scf.out 2>&1 )
   e=$(date +%s)
   # ⚠ grep -a — 출력에 NUL 이 섞이면 grep 이 binary 로 보고 조용히 넘어간다
-  if grep -aq "JOB DONE" "$d/scf.out" && grep -aq "convergence has been achieved" "$d/scf.out" \
-     && grep -aq "Forces acting on atoms" "$d/scf.out"; then
+  if _fc_ok "$d/scf.out"; then
     echo "[$(ts)] ✓ $n  $(( (e-s)/60 ))분"; done_n=$((done_n+1))
   else
     echo "[$(ts)] ⛔ $n  실패 — $d/scf.out 마지막 줄:"
