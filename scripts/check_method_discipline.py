@@ -2147,6 +2147,19 @@ def _selftest():
             fail.append(name)
             print(f'  FAIL  {name}')
 
+    # ── 규칙 L 보강 (2026-09-08) — 킷 인자화가 SDCP 경로를 안 건드렸는가 ──────────────
+    #    Phase A 96 팔을 위해 `KITS` 를 열었다.  두 가지가 동시에 참이어야 한다:
+    #    ⓐ 기본값이면 기존 SDCP 경로 그대로 (봉인이 돈다)
+    #    ⓑ 다른 킷이면 SDCP 판정기로 봉인하지 **않는다** (엉뚱한 계약을 통과시키는 것이 더 나쁘다)
+    _RSRC8 = open(os.path.join(ROOT, L_RUNNER), encoding='utf-8').read()
+    chk('L-K1: 킷 목록이 인자화돼 있다', 'KITS="${KITS:-kit_SBE kit_DBE}"' in _RSRC8)
+    chk('L-K2: 루프가 그 변수를 쓴다 (하드코딩 잔재 없음)',
+        'for K in $KITS; do' in _RSRC8 and 'for K in kit_SBE kit_DBE' not in _RSRC8)
+    chk('L-K3: 비-SDCP 킷이면 SDCP 봉인을 건너뛴다',
+        '[ "$KITS" != "$_KITS_DEFAULT" ]' in _RSRC8)
+    chk('L-K4: 기본값이 SDCP 두 킷 그대로 (기존 경로 불변)',
+        '_KITS_DEFAULT="kit_SBE kit_DBE"' in _RSRC8)
+
     # ── 규칙 N — 리포가 통과하고, **되살리면 잡히는가** (사본에서만 훼손) ──────────────
     _ksrc = open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
     chk('N-1: 리포의 킷 생성기가 지금 통과한다',
