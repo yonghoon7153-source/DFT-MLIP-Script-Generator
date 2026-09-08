@@ -149,13 +149,19 @@ def test_two_fits_sharing_curves_do_not_share_a_content_id(tmp_path):
     `_EXEC_ID_MANIFESTS` 는 `curves → fits → manifest` 순이므로, 같은 곡선에서
     갈라진 두 fit 실행이 같은 identity 를 갖는다. 해시 충돌이 아니라 **투영이
     손실적**인 것이다. 그러면 한쪽의 class 가 다른 쪽에 적용된다.
+
+    ★ 59차 M2 — 이 시험은 fit manifest 로 `fits_manifest.yaml` 을 썼는데, 그
+      이름은 **저장소 어디에서도 쓰이지 않는다** (리뷰어가 지적했고 grep 으로
+      확인했다). 즉 이 시험은 production 에 없는 파일로 명제를 증명하고 있었다.
+      production 이 fit 완료에 쓰는 이름(`manifest.yaml`)으로 바꾼다 — 명제는
+      그대로이고, 이제 실물을 가리킨다.
     """
     same_curves = b"curves: shared\n"
     a, b = tmp_path / "fit-a", tmp_path / "fit-b"
     for d, fits in ((a, b"fit: A\n"), (b, b"fit: B\n")):
         d.mkdir()
         (d / "curves_manifest.yaml").write_bytes(same_curves)
-        (d / "fits_manifest.yaml").write_bytes(fits)
+        (d / "manifest.yaml").write_bytes(fits)
 
     assert P.run_content_id(a) != P.run_content_id(b), (
         "곡선이 같고 적합이 다른 두 실행이 같은 내용 identity 를 가졌다 — "

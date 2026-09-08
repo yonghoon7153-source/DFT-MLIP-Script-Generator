@@ -36,12 +36,12 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
 | ID | 등급 | 한 줄 | 자리 | 상태 |
 |---|---|---|---|---|
 | M1 | P0 | 완료 시 class 기록이 production 에 배선 안 됨 (`record_run_outputs` 실호출 0) | `preserve.py:6754` · `grid.py:407` · `fitting.py:888` | **GREEN** |
-| M2 | P0 | content id 가 production start manifest 를 누락 | `preserve.py:4238` | 대기 |
+| M2 | P0 | content id 가 production start manifest 를 누락 | `preserve.py:4238` | **GREEN** |
 | M3 | P0 | final `O_EXCL` 파일이 부분 바이트로 공개되고 성공 | `preserve.py:4417-4441` | **GREEN** |
 | M4 | P0 | shared/local class 충돌을 reader 가 canonical 로 숨김 | `preserve.py:4458-4473` | **GREEN** |
 | M5 | P0 | smoke 검사 직후 bind swap → 실제 쓰기가 밖으로 (TOCTOU) | `is_inside_namespace()` 소비자 전부 | 대기 |
 | M6 | P0 | clean clone 에서 marker+ledger 만으로 frozen 못 지킴 | `row_projection.py:4388-4474` | 대기 |
-| M7 | P0 | `fit → grid` 역순이면 consumed 결속 없이 executed | `preserve.py:5033-5114` · `6532-6546` | 대기 |
+| M7 | P0 | `fit → grid` 역순이면 consumed 결속 없이 executed | `preserve.py:5033-5114` · `6532-6546` | **GREEN** |
 | M8 | P0 | bundle member symlink/bind 로 repo 밖 바이트 | `preserve.py:6185-6211` · `_verify_declared_bundle` | 대기 |
 | M9 | P0 | 검증한 evidence 와 봉인한 evidence 가 다르다 (caller dict TOCTOU) | `preserve.py:6427-6624` | 대기 |
 | M10 | P0 | 공개 `claim_planned_leg(token=…)` 가 disk token 없는 running 생성 | `preserve.py:5466-5556` | 대기 |
@@ -93,10 +93,11 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
 
 | 무엇 | 왜 지금 안 고치나 | 언제 |
 |---|---|---|
-| `test_docs_lint.py::test_full_bundle_claims_are_backed_by_a_real_bundle` — `paired_fixed5_v4` 영수증이 `920cfd31c22ebe06` 을 가리키는데 현행 core sha 는 `47afc7e475effef7` | RUN_SCOPE(`tools/preserve.py`·`src/`)를 α 가 고쳤으니 `source_digest` 가 바뀐 것이 **정상**이다. β·γ·δ 가 같은 파일을 더 만지므로 지금 만들면 또 낡는다 | 마감 (§65: 조각·영수증·요청문은 코드가 다 끝난 뒤 한 번에) |
+| `test_docs_lint.py::test_full_bundle_claims_are_backed_by_a_real_bundle` — `paired_fixed5_v4` 영수증이 `920cfd31c22ebe06` 을 가리키는데 현행 core sha 는 계속 움직인다 (α 뒤 `47afc7e4`, γ 뒤 `a594d426`) | RUN_SCOPE(`tools/preserve.py`·`src/`)를 고칠 때마다 `source_digest` 가 바뀌는 것이 **정상**이다. β·δ·ε·ζ 가 같은 파일을 더 만지므로 지금 만들면 또 낡는다 | 마감 (§65: 조각·영수증·요청문은 코드가 다 끝난 뒤 한 번에) |
+| 변이 등록부에 **γ 의 새 축이 아직 없다** (M2 schema 거부 · M7 순서/`consumed` 필수) | EXPECT 측정에 재생이 필요하고, 그 사이 코드가 또 바뀌면 다시 측정해야 한다 | 마감 (등록부 새 축을 한 번에) |
 
-그 밖에는 **전부 초록이다** (α 뒤 실측: `tests/test_docs_lint.py` 355 passed·1 failed,
-위 한 건 · `tests/test_evidence_layer_58.py` 8 passed · 실행 class 관련 428 passed).
+그 밖에는 **전부 초록이다** (γ 뒤 전체 회귀 실측: **1501 passed · 2 failed** →
+그 둘 중 하나는 위 영수증, 다른 하나는 아래 re-key 로 닫았다).
 
 ## 진행 로그
 
@@ -142,3 +143,45 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
   `os.link()` 로 옮겨졌다. 둘 다 새 원상으로 고쳐 **다시 문다** (실측: 각각
   `물었다 … node 1`). 이것이 이 저장소가 반복해 배운 문장이다 — 방어를 옮기면
   그것을 증명하던 변이가 조용히 무해해진다.
+
+- 2026-09-08 — **γ 닫힘** (M2·M7). 새 시험 6건
+  (`tests/test_run_schema_binding_59.py`), 전부 고치기 전에 빨갰다.
+
+  - **M2** — `_EXEC_ID_MANIFESTS` 를 `RUN_MANIFEST_SCHEMA` 로 승격했다. 옛
+    목록은 production 과 **두 방향으로** 어긋나 있었다: 빠진 것
+    (`curves_manifest_start.yaml`·`manifest_start.yaml`·`analysis_manifest.yaml`·
+    `manifest_grid.yaml`)과 **없는 것**(`fits_manifest.yaml` — 쓰는 곳이 0곳).
+    이름을 더하는 대신 세 층으로 닫았다:
+      (a) 선언을 authority 로 두고,
+      (b) 구조 시험이 `src/`·`tools/` 의 manifest 이름 리터럴 집합과 **양방향**
+          동일함을 강제하며 (새 이름이 생기는 순간 빨개진다),
+      (c) 런타임에 선언 밖 manifest 를 만나면 **거부**한다 (불완전한 identity 로
+          정한 class 는 다른 내용에도 적용되므로).
+    descriptor 형식 표시를 상수 `_CONTENT_ID_KIND = "run-content-id/v3"` 로 뺐다.
+  - **M7** — 결속을 **선택 사항에서 필수로** 바꿨다. `phase_done()` 은 뒤 phase 를
+    선행 phase 가 전부 닫히기 **전에는 거부**하고, 닫을 때 `consumed` 에 **모든**
+    선행 phase 를 담는다. `finalize_leg()` 은 `if not _want: continue` 를 버리고
+    빠진 결속을 **오류**로 만든다. 58차판은 "있으면 검사, 없으면 통과" 였고,
+    리뷰어는 역순 실행으로 결속 없는 durable state 를 만들어 `executed` 를 받았다.
+
+  **등록부 re-key (v2 → v3)**. 내용 identity 형식이 바뀌어 기존 tracked 레코드
+  4건의 키가 안 맞는다. 58차의 v1→v2 와 **같은 규칙**으로 처리했다 — 경로를 다시
+  보고 정하지 않고 (그건 M1 이 없앤 세탁 경로다) v2 레코드의 class 를 승계하고
+  어느 키에서 왔는지를 `evidence` 에 적었다. 등록부는 tracked 4(v1) + 4(v2) +
+  4(v3) = 12건.
+
+  | 산출 | v2 키 | v3 키 |
+  |---|---|---|
+  | `results/grid_curves_v4` | `dbf46c587d…` | `d0d7eacedb…` |
+  | `results/grid_fit_v4` | `fc8a5c90a5…` | `465748dc8d…` |
+  | `results/halfcell_fit_v4` | `7fc65fbd51…` | `68829b5d3f…` |
+  | `results/paired_fixed5_v4` | `0656f29383…` | `f37e21c8a4…` |
+
+  **낡은 시험 하나가 없는 파일로 명제를 증명하고 있었다.** 58차 L2 회귀
+  (`test_two_fits_sharing_curves_do_not_share_a_content_id`)가 fit manifest 로
+  `fits_manifest.yaml` 을 썼는데 그 이름은 저장소 어디서도 쓰이지 않는다.
+  production 이 실제로 쓰는 `manifest.yaml` 로 바꿨다 — 명제는 그대로다.
+
+  **변이 축 하나가 또 죽어 있었다**: `content-id-hashes-every-manifest-g58` 의
+  원상이 descriptor 리터럴이었는데 형식 표시가 이름으로 바뀌었다. 새 원상으로
+  고쳐 다시 문다 (실측: `물었다 … node 1`).

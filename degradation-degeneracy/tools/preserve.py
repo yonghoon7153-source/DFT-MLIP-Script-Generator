@@ -4233,10 +4233,41 @@ EXEC_CLASS_SMOKE = "smoke"
 EXEC_CLASS_CANONICAL = "canonical"
 EXEC_CLASSES = (EXEC_CLASS_SMOKE, EXEC_CLASS_CANONICAL)
 
-#: run dir 의 **내용 identity** 로 삼는 manifest 후보. 앞의 것이 있으면 그것만
-#: 본다 (여러 개를 섞으면 하나가 빠졌을 때 identity 가 조용히 바뀐다).
-_EXEC_ID_MANIFESTS = ("curves_manifest.yaml", "fits_manifest.yaml",
-                      "manifest.yaml")
+#: 이 저장소의 run 디렉터리가 담는 manifest 의 **완전한 schema** (59차 M2).
+#:
+#: ★ 왜 목록을 다시 쓰나. 58차의 `_EXEC_ID_MANIFESTS` 는
+#:   `curves_manifest.yaml`·`fits_manifest.yaml`·`manifest.yaml` 이었는데
+#:   production 이 쓰는 이름과 **두 방향으로** 어긋나 있었다:
+#:
+#:     · 빠진 것 — `curves_manifest_start.yaml` (`src/grid.py`) ·
+#:                 `manifest_start.yaml` (`src/fitting.py`) ·
+#:                 `analysis_manifest.yaml` · `manifest_grid.yaml`
+#:     · 없는 것 — `fits_manifest.yaml` 은 **쓰는 곳이 저장소에 0곳**이다
+#:
+#:   그래서 시작 manifest 만 다른 두 실행이 같은 내용 identity 를 가졌다.
+#:
+#: **이름을 하나 더하는 수정은 하지 않는다** — 그러면 다음 manifest 가 또
+#: 빠진다. 대신 (a) 이 선언을 authority 로 두고, (b) production 의 실제 이름
+#: 집합과 **양방향으로 같은지**를 구조 시험이 강제하며
+#: (`tests/test_run_schema_binding_59.py`), (c) 런타임에 선언 밖의 manifest 를
+#: 만나면 **멈춘다** (identity 가 이미 불완전하기 때문이다).
+RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",
+                       "curves_manifest_start.yaml", "manifest.yaml",
+                       "manifest_grid.yaml", "manifest_start.yaml")
+
+#: run dir 안에서 "이것은 manifest 다" 를 뜻하는 이름 꼴. 선언 밖의 manifest 를
+#: **발견**하는 데 쓴다 (선언과 실물이 어긋나면 그 사실이 보여야 한다).
+_MANIFEST_NAME_RE = re.compile(r"^[a-z0-9_]*manifest[a-z0-9_]*\.yaml$")
+
+#: 내용 identity descriptor 의 형식 표시. 형식이 바뀌면 **모든 키가 바뀐다** —
+#: 그러면 기존 등록부는 re-key 가 필요하고, 그 사실이 여기 적혀 있어야
+#: "등록 없음" 과 "형식이 바뀜" 을 구별할 수 있다.
+#:
+#:   v1 — 첫 번째로 발견한 manifest 하나만 해시 (58차 L2 에서 폐기)
+#:   v2 — `_EXEC_ID_MANIFESTS` 중 존재하는 것 전부 (59차 M2 에서 폐기:
+#:        그 목록이 production schema 보다 작았다)
+#:   v3 — `RUN_MANIFEST_SCHEMA` 전부 + 선언 밖 manifest 는 거부
+_CONTENT_ID_KIND = "run-content-id/v3"
 
 
 def exec_class_root_for_ledger(ledger=None) -> Path:
@@ -4277,10 +4308,33 @@ def run_content_id(run_dir) -> str:
     #   후보 목록을 늘리는 수정은 하지 않는다 (그러면 다음 manifest 가 또
     #   빠진다). 대신 **이 산출에 적용되는 모든 manifest 를 이름과 함께**
     #   닫힌 descriptor 로 묶어 해시한다. 이름을 같이 넣는 이유: 바이트가
-    #   같아도 `curves_manifest.yaml` 인지 `fits_manifest.yaml` 인지가 다르면
+    #   같아도 `curves_manifest.yaml` 인지 `manifest.yaml` 인지가 다르면
     #   다른 실행이다.
+    #
+    # ★ 59차 M2 — 그런데 58차의 "전부" 는 **후보 목록 안에서의 전부**였고, 그
+    #   목록이 production 보다 작았다. `curves_manifest_start.yaml` 과
+    #   `manifest_start.yaml` 이 밖에 있어서 **시작 조건만 다른 두 실행**이 같은
+    #   키를 가졌다. 그래서 목록을 schema 선언(`RUN_MANIFEST_SCHEMA`)으로
+    #   승격하고, 그 선언이 production 의 실제 이름 집합과 같은지를 구조 시험이
+    #   양방향으로 강제한다.
+    #
+    #   그리고 **선언 밖의 manifest 를 만나면 멈춘다.** 그것이 이 라운드 판정의
+    #   셋째 형태("닫힌 집합이라고 부른 것이 실제 schema 보다 작다")에 대한
+    #   답이다 — 모르는 manifest 가 있는데 identity 를 만들면, 그 identity 는
+    #   내용을 다 담지 않았으므로 **다른 내용에도 적용된다.**
+    present = {p.name for p in d.iterdir() if p.is_file()} if d.is_dir() else set()
+    unknown = sorted(n for n in present
+                     if _MANIFEST_NAME_RE.match(n)
+                     and n not in RUN_MANIFEST_SCHEMA)
+    if unknown:
+        raise PreserveError(
+            "promote",
+            f"{d} 에 schema 선언 밖의 manifest 가 있다: {unknown} — 내용 "
+            "identity 가 그 파일을 안 담으므로 불완전하고, 불완전한 identity 로 "
+            "정한 class 는 다른 내용에도 적용된다. `RUN_MANIFEST_SCHEMA` 에 "
+            "선언하거나 그 파일을 run 디렉터리 밖에 두라 (59차 M2)")
     parts: list[tuple[str, str]] = []
-    for name in _EXEC_ID_MANIFESTS:
+    for name in RUN_MANIFEST_SCHEMA:
         f = d / name
         if f.is_file():
             parts.append((name, hashlib.sha256(f.read_bytes()).hexdigest()))
@@ -4288,9 +4342,9 @@ def run_content_id(run_dir) -> str:
         raise PreserveError(
             "promote",
             f"{d} {_MISSING_MANIFEST_MARK} "
-            f"(찾은 이름: {list(_EXEC_ID_MANIFESTS)}) — 정본 여부를 판정할 수 "
+            f"(찾은 이름: {list(RUN_MANIFEST_SCHEMA)}) — 정본 여부를 판정할 수 "
             "없으므로 승격을 거부한다")
-    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts},
+    descriptor = json.dumps({"kind": _CONTENT_ID_KIND, "manifests": parts},
                             sort_keys=True, ensure_ascii=False,
                             separators=(",", ":"))
     return hashlib.sha256(descriptor.encode("utf-8")).hexdigest()
@@ -5324,13 +5378,32 @@ class LegClaim:
             #
             #   그래서 fit 이 닫힐 때 그 순간의 grid receipt 정규형 해시를
             #   같이 남긴다. finalize 가 그것을 다시 계산해 대조한다.
-            if phase != CLAIM_PHASES[0]:
-                first = (rec.get("phases") or {}).get(CLAIM_PHASES[0])
-                if first is not None:
-                    entry["consumed"] = {
-                        CLAIM_PHASES[0]: hashlib.sha256(
-                            _canon_json(first.get("receipt")).encode("utf-8")
-                        ).hexdigest()}
+            #
+            # ★ 59차 M7 — 58차는 `if first is not None:` 이었다. 선행 phase 가
+            #   아직 없으면 결속을 **조용히 생략**했으므로, 순서를 뒤집는 것만으로
+            #   결속을 없앨 수 있었다 (`fit → grid` 역순이면 fit 은 아무것도
+            #   소비하지 않았다고 적힌다). 그것은 "생산자-소비자 결속" 이 아니라
+            #   생산자가 마침 먼저 왔을 때만 붙는 장식이다.
+            #
+            #   그래서 **순서 자체를 강제**한다: 뒤 phase 는 앞 phase 가 전부
+            #   닫힌 뒤에만 닫을 수 있고, 그때 `consumed` 는 **모든** 선행
+            #   phase 를 담는다 (하나라도 빠지면 그 짝은 결속되지 않았다).
+            _order = list(CLAIM_PHASES)
+            _before = _order[:_order.index(phase)]
+            if _before:
+                _have = rec.get("phases") or {}
+                _open = [p for p in _before if p not in _have]
+                if _open:
+                    raise PreserveError(
+                        "plan",
+                        f"{self.leg_id!r}: phase {phase!r} 를 닫으려는데 선행 "
+                        f"phase {_open} 가 아직 안 닫혔다 — 순서를 뒤집으면 "
+                        "소비자가 생산자를 결속할 대상이 없어 결속이 통째로 "
+                        "사라진다 (59차 M7). 선행 phase 를 먼저 닫으라")
+                entry["consumed"] = {
+                    p: hashlib.sha256(
+                        _canon_json(_have[p].get("receipt")).encode("utf-8")
+                    ).hexdigest() for p in _before}
             rec.setdefault("phases", {})[phase] = entry
             _atomic_write_json(self.path, rec)
 
@@ -6748,22 +6821,44 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
         # ★ 58차 L6 — **존재만 보지 않는다.** 소비자가 적어 둔 생산자 해시를
         #   지금 봉인하려는 생산자 receipt 와 대조한다. 어긋나면 그 짝은
         #   "이 fit 이 이 grid 를 보고 계산했다" 를 뜻하지 않으므로 닫을 수 없다.
+        #
+        # ★ 59차 M7 — 58차는 `if not _want: continue` 였다. 결속이 있으면
+        #   검사하고 **없으면 넘어간다** — 그러면 그것은 검사가 아니라 선택
+        #   사항이고, 결속 없는 durable state 는 아무 저항 없이 `executed` 가
+        #   된다. 리뷰어가 `fit → grid` 역순으로 정확히 그 상태를 만들었다.
+        #
+        #   그러므로 **없으면 오류**다. 뒤 phase 는 자기보다 앞선 **모든**
+        #   phase 를 결속해야 하고, 하나라도 빠지거나 어긋나면 닫지 않는다.
         _phases = snap.get("phases") or {}
-        _first = CLAIM_PHASES[0]
+        _order = list(CLAIM_PHASES)
         for _ph, _ent in _phases.items():
-            _want = (_ent.get("consumed") or {}).get(_first)
-            if not _want:
-                continue
-            _got = hashlib.sha256(
-                _canon_json((_phases.get(_first) or {}).get("receipt"))
-                .encode("utf-8")).hexdigest()
-            if not secrets.compare_digest(str(_want), _got):
+            if _ph not in _order:                          # pragma: no cover
+                continue                    # 도메인 검사는 `phase_done` 이 한다
+            _before = _order[:_order.index(_ph)]
+            if not _before:
+                continue                                   # 첫 phase 는 소비자가 아니다
+            _consumed = _ent.get("consumed") or {}
+            _missing = [p for p in _before if not _consumed.get(p)]
+            if _missing:
                 raise PreserveError(
                     "plan",
-                    f"{leg_id!r}: phase {_ph!r} 는 {_first!r} receipt "
-                    f"{str(_want)[:16]}… 를 보고 계산했는데 지금 봉인하려는 것은 "
-                    f"{_got[:16]}… 다 — 생산자-소비자 결속이 끊긴 채로 닫을 수 "
-                    "없다 (늦은 writer 가 덮었거나 durable state 가 어긋났다)")
+                    f"{leg_id!r}: phase {_ph!r} 가 선행 phase {_missing} 를 "
+                    "결속한 기록(`consumed`)이 없다 — 이 산출이 그 생산자를 보고 "
+                    "계산했다고 말할 근거가 없으므로 닫을 수 없다. 역순 실행이나 "
+                    "59차 이전 코드가 남긴 durable state 다 (59차 M7)")
+            for _p in _before:
+                _want = _consumed[_p]
+                _got = hashlib.sha256(
+                    _canon_json((_phases.get(_p) or {}).get("receipt"))
+                    .encode("utf-8")).hexdigest()
+                if not secrets.compare_digest(str(_want), _got):
+                    raise PreserveError(
+                        "plan",
+                        f"{leg_id!r}: phase {_ph!r} 는 {_p!r} receipt "
+                        f"{str(_want)[:16]}… 를 보고 계산했는데 지금 봉인하려는 "
+                        f"것은 {_got[:16]}… 다 — 생산자-소비자 결속이 끊긴 채로 "
+                        "닫을 수 없다 (늦은 writer 가 덮었거나 durable state 가 "
+                        "어긋났다)")
         # ★ 48차 P0-6 — 읽기·수정·쓰기 **전체**가 임계 구역 안이다. 밖에서 읽고
         #   안에서 쓰면 읽은 값이 이미 낡았을 수 있으므로 의미가 없다.
         with _ledger_lock(path):

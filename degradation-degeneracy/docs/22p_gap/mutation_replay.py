@@ -1013,9 +1013,11 @@ MUTANTS = [
      "            record_execution_class(\n"
      "                x, EXEC_CLASS_SMOKE,",
      "production_smoke_gate_records_the_execution_class"),
+    # ★ 59차 M2 — descriptor 의 형식 표시가 상수에서 이름으로 바뀌었다
+    #   (`_CONTENT_ID_KIND`). 원상을 안 고치면 이 축이 죽는다.
     ("content-id-hashes-every-manifest-g58", PRESERVE,                # L2
-     '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts},',
-     '    descriptor = json.dumps({"kind": "run-content-id/v2", "manifests": parts[:1]},',
+     '    descriptor = json.dumps({"kind": _CONTENT_ID_KIND, "manifests": parts},',
+     '    descriptor = json.dumps({"kind": _CONTENT_ID_KIND, "manifests": parts[:1]},',
      "two_fits_sharing_curves_do_not_share_a_content_id"),
     ("smoke-containment-is-a-kernel-coordinate-g58", PRESERVE,        # L4
      "    return p_fs == ns_fs or ns_fs in p_fs.parents",
