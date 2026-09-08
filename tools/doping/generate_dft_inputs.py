@@ -89,7 +89,8 @@ def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
                  calculation='relax', nosym=True, occupations='smearing',
                  conv_thr='1.0d-8', nspin=1, start_mag=None, hubbard=None,
                  tot_magnetization=None, mixing_mode='plain', mixing_beta=0.2,
-                 electron_maxstep=100) -> str:
+                 electron_maxstep=100, mixing_ndim=8, smearing='mv',
+                 degauss=0.01) -> str:
     """⚠ 2026-09-08 — `occupations`/gamma k-점을 열었다 (힘 대조 카드 §4).
     금속용 smearing 을 절연체 단일점에 그대로 쓰면 힘에 smearing 항이 섞인다.
     `kpoints='gamma'` 를 주면 `K_POINTS gamma` 를 쓴다 (automatic 1 1 1 과 다르다 —
@@ -127,8 +128,8 @@ def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
     lines.append(f"    ecutrho     = {ecutrho}")
     lines.append(f"    occupations = '{occupations}'")
     if occupations == 'smearing':
-        lines.append("    smearing    = 'mv'")
-        lines.append("    degauss     = 0.01")
+        lines.append(f"    smearing    = '{smearing}'")
+        lines.append(f"    degauss     = {degauss}")
     lines.append(f"    nosym       = .{str(bool(nosym)).lower()}.")
     # ── 스핀·U (2026-09-08 · Nd O-모티프 순위 재채점) ─────────────────────────
     #   ⚠ Nd³⁺ = 4f³ 이다. z≈14 PP(4f 원자가)를 쓰면서 nspin=1 로 두면 전자 3개가
@@ -150,12 +151,17 @@ def generate_pwin(atoms, prefix: str, ecutwfc=52, ecutrho=520,
     # ⛔ 2026-09-08 실측 — 힘 대조 첫 점(b2o3 128원자, 700 K 스냅샷)이 **100회 만에 잘렸다**.
     #   정확도가 줄다 멈춘 게 아니라 **진동**했다 (0.0274 → 0.0305 → 0.0487 → 0.0431 Ry) —
     #   큰 무질서 셀의 전형적인 charge sloshing 이다. plain Broyden 은 이 계에서 안 잡힌다.
-    #   `local-TF` 는 정확히 이 상황(크고 불균일한 셀)을 위한 믹싱이다.
+    #   ⛔⛔ 그런데 `local-TF` 로 바꿨더니 **더 나빠졌다** — 1회부터 48,000 Ry,
+    #     `negative rho 5.9E+02`(정상은 1e-4~1e-2). 시작 밀도가 4.4% 모자란 상태에서
+    #     국소 TF 스크리닝이 비물리적 밀도를 만들었다. **이 계에는 쓰지 않는다.**
+    #     진동의 처방은 `mixing_beta` 를 낮추고 `mixing_ndim`(Broyden 이력)을 늘리는 것,
+    #     그리고 여유 밴드가 없는 `occupations='fixed'` 를 smearing 으로 푸는 것이다.
     #   ⚠ 이 설정은 **비교하는 전 점이 같아야** 한다 — 점마다 다르면 계 간 비교가 아니라
     #     설정 간 비교가 된다. 그래서 값을 여기서 정하지 않고 호출부가 준 것을 찍는다.
     lines.append(f"    electron_maxstep = {int(electron_maxstep)}")
     lines.append(f"    mixing_mode  = '{mixing_mode}'")
     lines.append(f"    mixing_beta  = {mixing_beta}")
+    lines.append(f"    mixing_ndim  = {int(mixing_ndim)}")
     lines.append("    diagonalization = 'david'")
     lines.append("/")
     if calculation != 'scf':
@@ -270,7 +276,8 @@ def preflight_pseudos(species, pseudo_dir, pp_names=None):
 
 def snapshots_from_traj(traj, times_ps, save_fs, out_dir, label, seed,
                         pseudo_dir, ecutwfc=52, ecutrho=520, pp_names=None,
-                        mixing_mode='plain', mixing_beta=0.2, electron_maxstep=100):
+                        mixing_mode='plain', mixing_beta=0.2, electron_maxstep=100,
+                        mixing_ndim=8, occupations=None, smearing='mv', degauss=0.01):
     """궤적에서 카드 규칙대로 프레임을 뽑아 frame.xyz + scf.in + 대조 해시를 쓴다."""
     from ase.io import read as _read, write as _write
     out_dir = Path(out_dir)
@@ -292,9 +299,11 @@ def snapshots_from_traj(traj, times_ps, save_fs, out_dir, label, seed,
         _write(str(w / "frame.xyz"), a, format="extxyz")
         (w / "scf.in").write_text(generate_pwin(
             a, tag, ecutwfc, ecutrho, kpoints='gamma', pseudo_dir=pseudo_dir,
-            pp_names=pp, calculation='scf', nosym=True, occupations='fixed',
+            pp_names=pp, calculation='scf', nosym=True,
+            occupations=(occupations or 'fixed'),
             mixing_mode=mixing_mode, mixing_beta=mixing_beta,
-            electron_maxstep=electron_maxstep))
+            electron_maxstep=electron_maxstep, mixing_ndim=mixing_ndim,
+            smearing=smearing, degauss=degauss))
         recs.append({"tag": tag, "time_ps": float(t), "frame_index": i,
                      "n_atoms": len(a), "coord_sha256": coord_digest(a),
                      "cell": [[float(x) for x in r] for r in a.cell.array],
@@ -302,7 +311,8 @@ def snapshots_from_traj(traj, times_ps, save_fs, out_dir, label, seed,
     man = {"card": "db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json",
            "scf_settings": {"mixing_mode": mixing_mode, "mixing_beta": mixing_beta,
                             "electron_maxstep": electron_maxstep,
-                            "occupations": "fixed", "kpoints": "gamma",
+                            "occupations": (occupations or "fixed"), "mixing_ndim": mixing_ndim,
+                            "smearing": smearing, "degauss": degauss, "kpoints": "gamma",
                             "⚠": "전 점이 같아야 한다 — 다르면 계 간 비교가 아니라 설정 간 비교다"},
            "label": label, "seed": seed, "traj": str(traj),
            "n_frames_in_traj": n, "save_fs": float(save_fs),
@@ -722,6 +732,13 @@ def main():
                   help="큰 무질서 셀의 charge sloshing 에는 local-TF (2026-09-08 실측)")
     p.add_argument('--mixing_beta', type=float, default=0.2)
     p.add_argument('--electron_maxstep', type=int, default=100)
+    p.add_argument('--mixing_ndim', type=int, default=8,
+                  help='Broyden 이력. 진동하면 12~16 (2026-09-08 실측)')
+    p.add_argument('--occupations', default=None,
+                  choices=('fixed', 'smearing'),
+                  help="기본은 경로별 값. 뜨거운 MD 스냅샷은 fixed 로 수렴이 안 될 수 있다")
+    p.add_argument('--smearing', default='mv')
+    p.add_argument('--degauss', type=float, default=0.01)
     # ── 구조 파일 → scf 단일점 (Nd O-모티프 재채점) ─────────────────────────
     p.add_argument('--from_xyz', nargs='+',
                   help='완화된 구조 파일들 → <out>/<name>/scf.in (같은 러너로 순차 실행)')
@@ -784,7 +801,10 @@ def main():
                                   args.ecutwfc, args.ecutrho,
                                   mixing_mode=args.mixing_mode,
                                   mixing_beta=args.mixing_beta,
-                                  electron_maxstep=args.electron_maxstep)
+                                  electron_maxstep=args.electron_maxstep,
+                                  mixing_ndim=args.mixing_ndim,
+                                  occupations=args.occupations,
+                                  smearing=args.smearing, degauss=args.degauss)
         print(f"✓ {args.label}/{args.seed}: 스냅샷 {len(man['snapshots'])}개 → {args.out}")
         for r in man['snapshots']:
             print(f"    {r['tag']}  frame {r['frame_index']}  n={r['n_atoms']}  {r['coord_sha256'][:12]}")
