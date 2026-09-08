@@ -2020,6 +2020,43 @@ def smoke_negative_control(verbose=True):
     return [], []
 
 
+#: ★ 규칙 N (2026-09-08) — **킷 러너의 재하율 라벨은 하드코딩 금지.**
+#    실사고: `mpm_input_from_case.py` 의 else 분기가 `--platen-mach` 값과 무관하게
+#    *"기하 규칙 유지"* 를 인쇄해, **Mach 0.03 으로 도는 Phase A W4 런의 로그가
+#    기하 규칙이라고 거짓 보고**했다 (같은 스크립트의 W1 실측 metrics 는
+#    `platen_mach_VcP = 0.03`).  런을 보는 사람이 로그만 읽고 규약을 오판하거나
+#    멀쩡한 런을 폐기할 수 있다.  **도장 ≠ 실제** = 규칙 F 와 같은 부류다.
+#    ⇒ 라벨을 소스에서 지우고 `${{QS[*]}}` 실물을 찍게 한 뒤, 되살아나지 못하게 상주시킨다.
+_KIT_GEN = 'scripts/mpm_input_from_case.py'
+_KIT_RATE_BANNED = ('기하 규칙 유지',)
+
+
+def check_kit_rate_label(verbose=True, src=None):
+    """킷 러너 템플릿이 재하율을 **QS 배열 실물**로 보고하는가 (하드코딩 라벨 금지).
+
+    ⚠ **`echo` 줄만** 본다.  로그에 닿는 것은 그것뿐이고, 초판은 전체 파일을 훑어
+      **이 결함을 설명하는 주석까지** 오류로 잡았다 — 그런 검사는 문서화를 벌하고,
+      사람은 검사를 통과시키려 설명을 지운다 (CLAUDE.md 규칙 ④ 가 경계하는 방향).
+      아래 selftest `N-5` 가 *"주석은 통과한다"* 를 못 박아 이 좁힘이 되돌아가지 않게 한다.
+    """
+    errs, warns = [], []
+    s = src if src is not None else open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
+    for i, ln in enumerate(s.splitlines(), 1):
+        if ln.lstrip().startswith('#') or 'echo' not in ln:
+            continue
+        for bad in _KIT_RATE_BANNED:
+            if bad in ln:
+                errs.append(_KIT_GEN + ':' + str(i) + ': 킷 러너가 재하율을 하드코딩 라벨 "'
+                            + bad + '" 로 인쇄한다 — QS 배열 실물을 찍을 것 '
+                            '(2026-09-08 W4 로그 거짓 보고).')
+    if 'QS=({_platen})' in s and '${{QS[*]}}' not in s:
+        errs.append(_KIT_GEN + ': QS 를 조립하면서 그 값을 인쇄하지 않는다 '
+                    '— 라벨이 값과 갈릴 수 있다 (규칙 N).')
+    if verbose and not errs:
+        print('  ✓ 킷 러너가 재하율을 QS 실물로 보고한다 (하드코딩 라벨 없음)')
+    return errs, warns
+
+
 def run_all(verbose=True):
     errs, warns = [], []
     for title, fn in (('규칙 I — 본체 ↔ 폴백 사본 패리티', check_copy_parity),
@@ -2035,7 +2072,8 @@ def run_all(verbose=True):
                        check_cli_accounting),
                       ('규칙 J — 생산 엔트리포인트 스모크 (기본 경로가 정말 도는가)',
                        check_entrypoint_smoke),
-                      ('규칙 F — 지역 import 그림자 (조용한 기능 꺼짐)', check_local_import_shadows)):
+                      ('규칙 F — 지역 import 그림자 (조용한 기능 꺼짐)', check_local_import_shadows),
+                      ('규칙 N — 킷 러너의 재하율 라벨이 실물인가', check_kit_rate_label)):
         if verbose:
             print(f'\n{title}')
         e, w = fn(verbose=verbose)
@@ -2055,6 +2093,22 @@ def _selftest():
         else:
             fail.append(name)
             print(f'  FAIL  {name}')
+
+    # ── 규칙 N — 리포가 통과하고, **되살리면 잡히는가** (사본에서만 훼손) ──────────────
+    _ksrc = open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
+    chk('N-1: 리포의 킷 생성기가 지금 통과한다',
+        check_kit_rate_label(verbose=False)[0] == [])
+    chk('N-2: 하드코딩 라벨을 되살리면 잡는다 (반례)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc + '\n  echo "준정적: 기하 규칙 유지"\n')[0] != [])
+    chk('N-3: QS 를 조립하고도 안 찍으면 잡는다 (반례)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc.replace('${{QS[*]}}', 'HARDCODED'))[0] != [])
+    chk('N-4: 검사가 공허하지 않다 — 대상에 QS 조립부가 실재한다',
+        'QS=({_platen})' in _ksrc)
+    chk('N-5: 결함을 설명하는 **주석**은 통과한다 (검사가 문서화를 벌하지 않는다)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc + '\n  #   옛 판은 "기하 규칙 유지" 를 찍었다\n')[0] == [])
 
     from scipy import ndimage
     chk('A: 프로브가 6-face 를 거동으로 읽는다',
