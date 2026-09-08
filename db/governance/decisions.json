@@ -1404,7 +1404,7 @@
    "title": "cascade D_rel — 보고량·설계 대표·판정 규칙 (회신 AL 해제조건 #1·#2b·#5·#6)",
    "statement": "보고량은 `D_rel = D*(design)/D*(host)` 이고 **600 K · MSD 창 2–50 ps · cell-conditioned** 로 한정한다 (300 K σ·Deng 0.90 게이트·2온도 외삽은 삭제). 설계의 대표는 **점수 중앙값을 낸 실제 행 하나** 다 — 행마다 score=3m+b 를 먼저 계산하고(집계식 확정), 그 중앙값을 낸 행의 구조 ID·좌표해시·seed 를 박고 MD 도 그 구조로 돈다. 짝수 복제본이면 좌표 sha256 사전순 앞. 판정은 ρ̂ 단독이 아니라 **ρ̂ + Fisher 95% CI + 유효 표본수**로 하고, CI 가 걸치면 '판정 불가(정밀도 부족)' 다 — `|ρ|<0.2 ⇒ 근거 없음` 은 삭제한다.",
    "rationale": "AL P0-1: 39 target 이 축별 독립 중앙값이라 어느 실제 행에도 없는 합성 벡터였다(35/39). P0-2: median(3m+b) ≠ 3·median(m)+median(b) 로 227설계 중 169개가 갈렸다. 이 둘은 같은 결정의 앞뒤라 함께 닫아야 다시 갈라지지 않는다. P0-4: n=39 의 Fisher CI 가 ±0.31 이라 작은 ρ̂ 는 무효 입증이 아니라 판정 불가다. P0-5: tracer D 는 전도도 게이트가 아니고 0.90 은 코팅 pellet EIS 에서 온 임의 컷오프였다.",
-   "decision_state": "proposed",
+   "decision_state": "active",
    "record_kind": "prospective",
    "results_seen": false,
    "record": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
@@ -1420,14 +1420,33 @@
    "reopen_criteria": "AL 해제조건 #3(전 시드 재실행)·#4(v2 동결)·#7(봉인)·#8(sentinel) 이 남아 있다. 이 결정은 **무엇을 재는가** 만 정하며 캠페인을 승인하지 않는다. 정의를 바꾸려면 개정문을 따로 쓰고 재비준한다.",
    "enforcement": "무효 조건 5개(합성 벡터 재유입 · seed/해시 미기록 · 축 계산 설정 불균일 · MD 셀과 대표 구조 해시 불일치 · 문턱을 결과 본 뒤 결정) 중 하나라도 걸리면 판정에 쓰지 않는다.",
    "proposed_by": "claude-session-2026-09-08",
-   "status": "proposed",
+   "status": "active",
    "status_history": [
     {
      "at": "2026-09-08",
      "state": "proposed",
      "note": "1저자가 §4 안(대표 = 점수 중앙값을 낸 실제 행)에 동의한 직후. 계산 전."
+    },
+    {
+     "at": "2026-09-08",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    },
+    {
+     "at": "2026-09-08",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
     }
-   ]
+   ],
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-08T14:11:33Z",
+    "commit": "cc7096edab4dc48deb00709964c56533d1062e28",
+    "decision_digest": "sha256:edc4194b8cdb5789b8d60dfa1b8634bf8811852e5e636ec7371c3c3b755282b3",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
