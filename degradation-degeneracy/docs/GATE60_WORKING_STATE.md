@@ -192,7 +192,7 @@ replay 이고 이 라운드의 범위 밖이다 — 요청문에 적는다.
 |---|---|
 | 변이 등록부 60차 축 14개 | **완료** — MUTANTS 188 · EXPECT 210, 14축 전부 뭄 (`b37a7aae`) |
 | g14 freeze → g15 · 투영 재생성 · 영수증 | **완료** (`f79840bc`) |
-| 12조각 전수 재생 | 진행 중 |
+| 12조각 전수 재생 | 진행 중 — `30816e10` 에서 **1조각부터 다시** (아래 참조) |
 | 전체 회귀 + strict smoke | 대기 |
 | 요청문 | 초안 완료 (스크래치패드) — §2 증거만 남음 |
 | webapp · 원장 | 대기 |
@@ -222,3 +222,37 @@ validator  4fe8d27269ca9ca2 → d29650980daf6b9a
   sandbox 안에서도 원본을 import 했고, 게다가 `unshare` 가 안 되는 환경에서는
   통째로 **건너뛰어진다**. probe 가 지금 실행 중인 트리를 쓰게 고치고, 좌표 비교
   자체를 겨누는 시험을 하나 더 뒀다. **건너뛴 시험은 방어를 지키지 않는다.**
+
+### 전수 재생이 잡은 것 — 시험 하나가 자기 축을 안 보고 있었다
+
+`bundle-members-are-not-followed-g59` 조각(2/12)이 이렇게 멈췄다:
+
+```
+… 빨개졌지만 **선언한 이유**가 아니다 — 증인 '… 저장소 밖을 가리키는 link 가
+묶음 구성원으로 통과했다 …' 이 실패 메시지에 없다
+("… payload index 가 묶음 안에 없다: index.json … (60차 P0-8)")
+```
+
+`test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside` 의 fixture 가
+payload index 를 묶음 **밖**(`repo/index.json`)에 두고 있었다. 60차 P0-8 이
+"index 는 구성원이어야 한다" 를 넣은 뒤로 이 시험은 **변이를 심든 안 심든**
+같은 이유로 빨개진다 — 즉 symlink 방어를 아무것도 지키지 않는 상태였다.
+
+`test_a_bundle_of_plain_files_still_passes` 에는 P0-8 을 닫으며 같은 이동을
+이미 적용했는데, 이 쪽은 빠뜨렸다. **방어를 넓히면 그 방어가 다른 시험의
+축을 가릴 수 있다** — 이 저장소가 반복해서 겪는 형태다(58차·59차에도 있었다).
+고침: index 를 `bundle/index.json` 으로 옮기고 선언 수치를 맞췄다 (`30816e10`).
+
+측정: `pytest tests/test_handle_carry_59.py -q` → 5 passed ·
+`mutation_replay.py -k bundle-members-are-not-followed` → 물었다 · ran 1.
+
+전수 재생은 **트리를 고치면 처음부터** 다시 돌린다 — 조각마다 다른 코드에서
+난 coverage 는 합집합의 근거가 못 된다.
+
+### 판정 좌표 (실측)
+
+| 항목 | 값 |
+|---|---|
+| 판정 대상 코드 | `c4e710040c2631d4f8140ee31c2f3c5004d9bcbb` — RUN_SCOPE 를 마지막으로 건드린 커밋 |
+| `source_digest` | `d29650980daf6b9a` |
+| 대상 이후 RUN_SCOPE diff | 없음 (`git log --oneline c4e71004..HEAD -- src tools configs scripts run.sh requirements*.txt` 이 빈 출력) |
