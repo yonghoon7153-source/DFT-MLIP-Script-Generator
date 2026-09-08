@@ -14597,6 +14597,67 @@ def _walltime_block(man: Dict[str, Any], a) -> str:
                f"재개할 수 없어 통째로 다시 돌려야 합니다."))
 
 
+def _precheck_block(man: Dict[str, Any], a) -> str:
+    """시작 전 **확인·회신** 절 — 별도 문의문 대신 README·SUBMIT(·메일)에 싣는다 (1저자 결정 2026-09-08:
+    번들과 질문을 한 번에 보내고, 답을 받기 전에는 시작하지 말라는 조건을 문서 맨 앞에 둔다).
+
+    질문 다섯 개는 Codex v39/R4 가 문의문에 요구한 것과 같다: ① 노드 확보 ② 노드별 CPU 예약(물리코어/SMT)·
+    할당 메모리·cgroup 제한(단위까지) ③ 단계당 할당 가능 여부 ④ 이어가기 운영 방식 ⑤ 실행 환경(cgroup 마운트).
+    숫자는 전부 MANIFEST(memory_model · cost_frozen.stage_alloc_h · submission)에서 읽는다 — 손으로 적지 않는다.
+
+    ⛔ 못 하는 것: 인수처의 답을 대신하지 않는다. 답이 없으면 이 절은 '시작 금지' 로만 읽혀야 하고,
+      stage_alloc_h 나 memory_model 이 없는 옛 묶음에는 이 절을 **내지 않는다** (숫자 없는 질문은 안 보낸다).
+      `**단계당 N h**` 굵은 형식은 walltime 문장 하나에만 있어야 하므로 여기서는 그 형식을 쓰지 않는다.
+    """
+    _cf = man.get("cost_frozen") or {}
+    _sa = _cf.get("stage_alloc_h") or {}
+    _mm = man.get("memory_model") or {}
+    _rec = _mm.get("권고") or {}
+    _sub = man.get("submission") or {}
+    if not (_sa.get("NELM_시나리오") and _rec):
+        return ""
+    _cores = int(_sub.get("cores_per_job") or getattr(a, "cores", 0) or 0)
+    _conc = int(_sub.get("max_concurrency") or getattr(a, "concurrency", 0) or 0)
+    _npj = int(_rec.get("권고_노드_per_잡") or 0)
+    _tot = int(_rec.get("필요_총_노드") or (_npj * _conc))
+    _ppn = (_cores // _npj) if _npj else 0
+    _cap = float(_cf.get("queue_cap_h") or 0.0)
+    _req = int(_sa.get("요청_h") or 0)
+    _med, _nel = _sa.get("중앙_추정") or {}, _sa.get("NELM_시나리오") or {}
+    _mk = ((_cf.get("makespan_staged_d") or {}).get(str(_conc)))
+    _all = float(_mm.get("계획_랭크_잡_전체_GB") or 0.0)
+    _per = float(_rec.get("그때_노드당_GB") or 0.0)
+    _nmg = _rec.get("노드_메모리_GB")
+    _cap_txt = (f" (알려 주신 잡당 큐 상한 {_cap:.0f} h 로는 충족되지 않습니다.)" if (_cap and _req > _cap) else "")
+    return f"""
+## ⛔ 시작 전에 확인·회신해 주실 것 — 이 답을 저희가 받은 뒤에 시작해 주십시오
+
+이 묶음은 ZIP 을 함께 드리지만, **아래 다섯 가지 답을 저희가 받기 전에는 `run_staged.sh` 를 시작하지 말아 주십시오.**
+답에 따라 코어 수 · 동시 잡 수 · walltime 계획을 다시 계산해 드려야 할 수 있고, 그때는 지금 숫자
+(단계당 할당 {_req} h · 약 {_mk}일)를 그대로 옮기지 않고 새 번들을 드립니다.
+
+1. **노드 확보** — 잡 하나를 노드 **{_npj} 개**에 펼쳐 동시 **{_conc}잡**, 한 할당에서 총 **{_tot} 노드**를 동시에
+   잡을 수 있습니까? 안 되면 몇 노드까지 가능합니까?
+   (한 노드에 몰면 최악 잡이 노드당 {_all:.1f} GB 를 요구하는 것으로 저희 모형에서 나옵니다 — {_all:.0f}/{_per:.0f} GB 는
+   실측이 아니라 **모형값**이며, 예약 요구량이나 안전 보장이 아닙니다.)
+2. **노드별 자원 (단위까지)** — 잡당 {_cores} 랭크를 노드 {_npj} 개에 나눠 **노드당 {_ppn} 랭크**로 돌릴 계획입니다.
+   그에 맞는 노드별 **CPU 예약량(물리코어/SMT 구분)** · **실제 할당 메모리** · **작업에 적용되는 cgroup 메모리 제한**을
+   단위까지 알려 주십시오. 현재 메모리 계획은 노드당 {_nmg:g} GB 입니다. 노드별 제한 확인이 필요해서 실제 값이 필요합니다.
+3. **단계당 할당 시간** — 러너는 한 할당 안에서 그 단계의 잡 전부를 돌리므로 잡당이 아니라 **단계당** 할당이 필요합니다.
+   중앙 추정 1단계 {_med.get("1")} h · 2단계 {_med.get("2")} h, NELM={_cf.get("nelm")} 시나리오 {_nel.get("1")} h · {_nel.get("2")} h —
+   스텝당 시간 모형이 ±2배라 **보장된 상한이 아니고**, {_req} h 는 계획 요청값입니다.
+   **{_req} h 연속 할당**이 가능한 큐/파티션이 있습니까?{_cap_txt}
+4. **없다면 이어가기** — 완료된 잡 사이에서 다음 할당으로 단계를 이어갈 수 있는 운영 방식이 있습니까?
+   잡을 중간에 끊거나 쪼개는 방식은 안 됩니다 — static 단일점은 나눌 수 없고 재개도 없습니다.
+5. **실행 환경** — 러너는 첫 VASP 전에 실행 노드마다 cgroup 메모리 제한을 읽어 유한/무제한/미관측으로 가르고,
+   미관측이면 멈춥니다. Slurm 이 통상 경로(`/sys/fs/cgroup` 또는 `/sys/fs/cgroup/memory`)에 cgroup 을 마운트한
+   환경인지, 컨테이너·namespace 안에서 돌리는지 알려 주십시오.
+
+답을 받으면 그에 맞춘 최종 실행 조건(필요하면 새 번들)을 드립니다. 이 절의 숫자는 아래 walltime 문장과 같은
+출처(MANIFEST `cost_frozen` · `memory_model`)입니다.
+"""
+
+
 def _readme_sp(man: Dict[str, Any], a, zcut: float, n_jobs: int,
                n_st: int, n_dn: int, n_all: int = 0, by_ph: Optional[dict] = None) -> str:
     """단일점 Wave 1 전용 README — **실제 계획에서 숫자를 뽑는다** (Codex 6차 §8).
@@ -14844,13 +14905,14 @@ VASP_LAUNCHER_KIND=mpirun LAUNCHER_BIN=/abs/path/to/mpirun VASP_NPROC=%d VASP_EX
 (⚠ `LAUNCHER_BIN` 은 **필수**입니다 — PATH 에서 찾지 않습니다. 없으면 즉시 중단됩니다 · 회신 BF P1)""" % a.cores))
 
     _wall = _walltime_block(man, a)
+    _pre = _precheck_block(man, a)      # 2026-09-08 — 시작 전 확인·회신 절 (별도 문의문 대신)
     return f"""# VASP 계산 요청 — LiNiO₂(104) 위 분자 조각 단일점
 
 바쁘신 중에 부탁드려 죄송합니다. **VASP 실행 {n_all or (n_st + n_dn)}회**입니다
 ({ph_line}). 이 밖에 봉인 프로브(단계마다 1회)와 선택 attestation(1회)이 VASP 를 인자 없이
 잠깐 기동합니다 — 생산 계산이 아니라 버전 확인입니다.
 {intro_line}
-
+{_pre}
 ## 하실 일
 
 ```
@@ -15084,8 +15146,9 @@ n=$(wc -l < JOBS.txt)
                   "러너가 경로 사전순으로 빈 슬롯을 채우므로(긴 잡 우선 아님) 가장 긴 잡 하나보다 훨씬 깁니다"
                   + (": 동시 %d잡에서 1단계 %s h + 2단계 %s h ≈ %s일." % (_conc_s, _sa_s.get("1"), _sa_s.get("2"), _mk_c)
                      if (_mk_c is not None and _sa_s) else ".")))
+    _pre_s = _precheck_block(man, a) if _staged_sub else ""
     return f"""# 제출 계약 (SUBMIT_CONTRACT)
-
+{_pre_s}
 ## 상 의존성
 ```
 static  (같은 단계 안에서는 병렬 가능){_dense_dep_line}

@@ -61,6 +61,10 @@ mw = re.search(r"- (⚠ \*\*walltime.*?)(?=\n- \*\*POTCAR)", readme, re.S)
 assert mw, "README 에 walltime 문장 없음 ('⚠ **walltime' 로 시작하는 불릿이 있어야 한다)"
 wall = mw.group(1).strip()
 
+# ── 시작 전 확인·회신 절: README 맨 앞 '## ⛔ 시작 전에 확인·회신해 주실 것' (2026-09-08 · 별도 문의문 대신) ──
+mp = re.search(r"## ⛔ 시작 전에 확인·회신해 주실 것[^\n]*\n(.*?)(?=\n## )", readme, re.S)
+pre_body = mp.group(1).strip("\n") if mp else ""
+
 # ── 재개 조건: MANIFEST.kconv_pair (사전등록에서 복사된 것) ──
 kp = man.get("kconv_pair") or {}
 reopen = next((v for k, v in kp.items() if "재개_조건" in str(k)), {}) or {}
@@ -105,9 +109,10 @@ elif a.supersedes == "v36":
   동시 {conc}개 띄워 랭크가 실제로 어느 노드에 놓이는지 읽고, 잡 사이에 노드가 겹치면 멈춥니다.
   결과 `PLACEMENT_PROBE.json` 을 반송 목록에 넣었습니다. SLURM 밖에서 돌리시면 할당 호스트 목록을
   `VASP_HOSTFILE` 로 주십시오 (SLURM 안에서는 자동).
-- ⛔ **큐 상한 확인이 필요합니다.** 단계당 {_sreq} h 는 알려 주신 잡당 큐 상한 91 h 로는 충족되지
-  않습니다. 더 긴 할당이 가능한지, 아니면 완료된 잡 사이에서 단계를 이어갈 운영 방식이 있는지
-  **제출 전에** 알려 주십시오 — 이 답을 받기 전에는 시작하지 말아 주십시오.
+- ⛔ **시작 전 확인 질문 다섯 가지를 README 맨 앞과 이 메일 §0 에 넣었습니다** — 노드 확보 · 노드별
+  CPU 예약/할당 메모리/cgroup 제한(단위까지) · 단계당 {_sreq} h 할당 가능 여부 · 이어가기 운영 방식 · 실행 환경.
+  단계당 {_sreq} h 는 알려 주신 잡당 큐 상한 91 h 로는 충족되지 않습니다. **이 답을 받기 전에는 시작하지 말아
+  주십시오** — 답에 따라 코어·동시잡·walltime 을 다시 계산해 새 번들을 드릴 수 있습니다.
 - **반송 압축에서 POTCAR 를 빼 주십시오** (라이선스). `--exclude=POTCAR` 를 명령에 넣었습니다.
   증빙(`POTCAR_PROVENANCE.json` · `PLACEMENT_PROBE.json` 등)은 그대로 두시면 됩니다.
 - **노드 메모리 제한을 실행 노드마다 읽습니다.** 프로브가 각 노드의 cgroup 제한을 **유한 / 무제한(검증) /
@@ -115,7 +120,7 @@ elif a.supersedes == "v36":
   **못 읽으면 물리 RAM 으로 대체하지 않고 멈춥니다.** 멈추면 `PLACEMENT_PROBE.json` 의 노드별 상태·사유를
   보내 주십시오 — 저희가 그 환경에 맞춰 다시 드립니다.
 - 그 밖의 실행 절차·반송 목록·게이트는 **v36 과 동일**합니다.
-- (v37–v39 는 내부 리뷰에서 배치·시간 계약·메모리 판정 결함이 발견돼 **발송 전에 철회**했습니다 —
+- (v37–v40 은 내부 리뷰에서 배치·시간 계약·메모리 판정 결함이 발견돼 **발송 전에 철회**했습니다 —
   받으신 적이 없어야 정상입니다.)"""
 else:
     _changes = f"""- **선택 attestation 함정 제거**: `MAKE_POTCAR_ATTESTATION.sh` 가 VASP stdout 전문을 적고 봉인은
@@ -168,6 +173,7 @@ mail = f"""# C-12 {label.split('_')[-1]} 발송 메일 (그대로 복붙)
 SDCP·PTFE 바인더 계면 계산 번들을 보내드립니다. **VASP 단일점(static) {n_jobs}잡**이고,
 실행·검증·분석 스크립트가 번들 안에 전부 들어 있습니다.
 
+{("### 0. 먼저 회신해 주실 것 — **이 답을 받기 전에는 시작하지 말아 주십시오**" + chr(10) + chr(10) + pre_body + chr(10)) if pre_body else ""}
 ### 1. 무결성 확인 (먼저)
 
 ```
