@@ -151,10 +151,14 @@ MUTANTS = [
     ("module-gate-before-side-effects", GRID,
      # ★ 48차 P0-5 — gate 호출이 조건 집합·다리 이름을 넘기고 claim 을 돌려주도록
      #   바뀌었다. 호출 지점을 통째로 지우는 것이 이 변이의 뜻이다.
-     "    _claim = _assert_grid_authorized(cfg, out_dir, conditions=conditions,\n"
-     "                                     dry_run=dry_run, leg=leg,\n"
-     "                                     may_open=may_open)\n",
-     "    _claim = None\n",
+     # ★ 59차 M1 — gate 가 claim 과 **실행 class 권한**의 쌍을 돌려주게 되면서
+     #   원상이 한 번 더 바뀌었다. 원상을 안 고치면 이 변이는 preimage 0회로
+     #   죽고, 죽은 지점은 합집합을 못 세게 한다 (`check_coverage()` 가 거부).
+     "    _claim, _exec_cap = _assert_grid_authorized(cfg, out_dir,\n"
+     "                                                conditions=conditions,\n"
+     "                                                dry_run=dry_run, leg=leg,\n"
+     "                                                may_open=may_open)\n",
+     "    _claim, _exec_cap = None, None\n",
      "run_grid_calls_the_gate_before_its_first_side_effect"),
     # ── 46차 (게이트 45차 반증 조건) ──────────────────────────────────────
     ("caller-stage-safe-read", RP,
@@ -1377,8 +1381,13 @@ MULTI = [
          "        return _record_execution_class_locked(",
          "    if True:\n"
          "        return _record_execution_class_locked("),
-        ("        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)",
-         "        fd = os.open(path, os.O_WRONLY | os.O_CREAT, 0o644)"),
+        # ★ 59차 M3 — 배타 지점이 `O_EXCL` 에서 `os.link()` 로 옮겨졌다 (final
+        #   이름은 이제 완전한 temp inode 에 이름을 **붙여서** 생긴다). 그러므로
+        #   "create-if-absent 를 last-writer-wins 로 되돌린다" 는 이 변이의 뜻을
+        #   같은 자리에서 다시 쓴다: `link` 는 대상이 있으면 실패하고 `replace`
+        #   는 덮는다.
+        ("            os.link(_tmp, path)            # no-replace CAS",
+         "            os.replace(_tmp, path)         # no-replace CAS"),
      ], "only_one_writer_can_create_an_execution_class"),
     # ★ 58차 — L5 의 좌표 봉인이 `_assert_writable()` 의 **첫 층**이 되면서
     #   그 아래 층을 겨눈 옛 변이들이 안 물게 됐다 (실측: 변이만 rc 0 ·

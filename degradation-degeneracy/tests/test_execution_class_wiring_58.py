@@ -72,6 +72,15 @@ def test_production_smoke_gate_records_the_execution_class(
     production 에서 성립하지 않고, "등록 없음 = 모른다" 도 무너진다.
 
     이 시험은 **`_assert_grid_authorized()` 를 부른다** — 등록 함수가 아니라.
+
+    ★ 59차 M1 — 계약이 한 칸 옮겨졌다. 58차판은 **gate 가 직접 등록**하기를
+      요구했는데, gate 시점에는 manifest 가 아직 없어 내용 identity 가 없다
+      (실측: `note_smoke_exemption()` 이 "기록 못 한 자리" 목록을 돌려줬고
+      호출자가 그것을 버렸다). 그래서 지금은 gate 가 **권한을 발행**하고,
+      산출이 굳는 자리가 그 권한을 소비해 등록한다. 이 시험이 묻는 것은
+      그대로다 — **production 진입점이 authority 에 닿는가.** 다만 "닿는다" 의
+      뜻이 "gate 가 쓴다" 에서 "gate 가 발행한 권한 없이는 굳지 않는다" 로
+      바뀌었으므로, 여기서도 굳히는 자리까지 간다.
     """
     from src import grid as G
 
@@ -81,10 +90,15 @@ def test_production_smoke_gate_records_the_execution_class(
     out = _smoke_out(tmp_path, "smoke-leg")
 
     # production 계획 gate. smoke 라 계획을 요구하지 않고 통과해야 한다.
-    claim = G._assert_grid_authorized({"leg": "smoke-leg"}, out)
+    claim, cap = G._assert_grid_authorized({"leg": "smoke-leg"}, out)
     assert claim is None, "smoke 는 계획 gate 를 면제받는다 (계약 §13.3.3)"
+    assert cap is not None, "면제 분기가 권한을 발행하지 않았다 (M1)"
 
-    # 그 면제가 **기록으로 남아야** 한다.
+    # 굳기 전에는 등록이 **없다** — 권한만으로는 아무것도 정해지지 않는다.
+    assert P.read_execution_class(P.run_content_id(out), ledger=ledger) is None
+
+    # 그 면제가 산출이 굳는 순간 **기록으로 남아야** 한다.
+    P.commit_run_outputs(cap, [out])
     rec = P.read_execution_class(P.run_content_id(out), ledger=ledger)
     assert rec is not None, (
         "production smoke gate 를 지났는데 등록부에 아무것도 없다 — "
@@ -106,7 +120,8 @@ def test_a_smoke_artifact_moved_outside_is_not_migrated_into_canonical(
     monkeypatch.setattr(P, "SMOKE_NAMESPACE",
                         tmp_path / "results" / "_smoke")
     out = _smoke_out(tmp_path, "smoke-leg")
-    G._assert_grid_authorized({"leg": "smoke-leg"}, out)
+    _claim, cap = G._assert_grid_authorized({"leg": "smoke-leg"}, out)
+    P.commit_run_outputs(cap, [out])            # 59차 M1 — 굳는 자리가 등록한다
 
     moved = tmp_path / "canonical-looking"
     moved.mkdir()

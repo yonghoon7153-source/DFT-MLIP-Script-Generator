@@ -4360,7 +4360,11 @@ def record_execution_class(run_dir, cls: str, evidence: str,
     cid = run_content_id(run_dir)
     name = _exec_class_path(cid, ledger).name
     path = _exec_class_root_for_class(cls, ledger) / name
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # ★ 59차 M13 — 등록부 **층 자체**도 durable 해야 한다. 레코드 이름만 굳히고
+    #   그 이름을 담는 `_exec_class/`·`_exec_class/local/` 을 안 굳히면 crash 뒤
+    #   층째로 사라진다. 30차 P0-3 이 CAS·pin 에서 고친 것과 같은 형태라
+    #   그때 만든 helper 를 그대로 쓴다 (새로 만들어진 모든 층의 부모 edge).
+    _mkdir_durable(path.parent, "execution-class-register")
 
     # ★ 58차 L14 의 되돌아온 L3 — **자리를 나누자 CAS 가 깨졌다.**
     #   L3 은 `O_EXCL` 하나로 닫았는데, class 마다 파일이 달라지자 두 writer 가
@@ -4372,10 +4376,43 @@ def record_execution_class(run_dir, cls: str, evidence: str,
     #   하나당 lock 하나를 잡고, 그 안에서 양쪽을 읽고 쓴다. lock 은 국소
     #   자리에 둔다 (운용 상태이고 gitignore 된다).
     _lk = local_exec_class_root_for_ledger(ledger) / f"{cid}.classlock"
-    _lk.parent.mkdir(parents=True, exist_ok=True)
+    _mkdir_durable(_lk.parent, "execution-class-register")
     with _ledger_lock(_lk):
         return _record_execution_class_locked(cid, cls, evidence, name, path,
                                               ledger)
+
+
+def _seal_exec_class_record(rec_path: Path, cid: str, cls: str) -> Path:
+    """레코드를 **다시 읽어 확인하고 그 이름을 durable 하게** 만든다 (59차 M13).
+
+    등록이 성공을 보고하는 유일한 출구다 — 새로 만들었든, 같은 class 의 멱등
+    재시도든 **똑같이** 여기를 지난다.
+
+    ★ 왜 재시도도 지나야 하는가. `os.link()` 는 성공하고 그 뒤
+      `_fsync_dir_strict()` 가 실패하면 호출자는 오류를 받는다. 그런데 그 상태와
+      "이미 durable 한 상태" 는 filesystem 에서 **구별할 방법이 없다**. 58차판은
+      재시도가 파일을 발견하고 곧장 반환해서, 실패한 parent fsync 를 영원히 안
+      고쳤다 — 이름이 비내구적인 채로 성공이 보고되고, crash 뒤 등록이 사라지면
+      승격은 fail-closed 라 **정본 산출이 되살릴 수 없게 막힌다**.
+
+      32차 P0-3 이 `_mkdir_durable()` 에서 이미 내린 결론과 같다: 구별할 수
+      없으면 **항상 굳힌다**. fsync 는 멱등이고 비용은 재시도 때만 든다.
+    """
+    prev = _read_exec_class_at(rec_path, cid)
+    if prev is None:
+        # 파일은 있는데 못 읽는다 (또는 아예 없다) — 등록부가 authority 이므로
+        # fail-closed. 이름을 굳혀 "읽을 수 없는 레코드" 를 영속화하지 않는다.
+        raise PreserveError(
+            "promote",
+            f"내용 {cid[:16]}… 의 등록 레코드를 게시 뒤 다시 읽을 수 없다 — "
+            "class 를 정할 수 없으므로 거부한다")
+    if prev.get("execution_class") != cls:
+        raise PreserveError(
+            "promote",
+            f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 있다 — "
+            f"{cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
+    _fsync_dir_strict(rec_path.parent, "execution-class-register")
+    return rec_path
 
 
 def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
@@ -4393,7 +4430,8 @@ def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
                 "promote",
                 f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 "
                 f"있다 — {cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
-        return root / name              # 같은 class 의 멱등 재시도
+        # 같은 class 의 멱등 재시도 — **그래도 durability 를 다시 굳힌다** (M13)
+        return _seal_exec_class_record(root / name, cid, cls)
 
     # ★ 58차 L3 — **create-if-absent 로 만든다.** 57차는 read → 검사 →
     #   `os.replace` 였다. `os.replace` 는 torn write 를 막을 뿐 lost update 를
@@ -4414,31 +4452,51 @@ def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
     }
     body = (json.dumps(rec, sort_keys=True, ensure_ascii=False,
                        separators=(",", ":")) + "\n").encode("utf-8")
+    # ★ 59차 M3 — **완전한 inode 를 만든 뒤에 이름을 붙인다.**
+    #
+    #   58차는 final 이름을 `O_CREAT|O_EXCL` 로 먼저 만들고 그 fd 에 썼다.
+    #   `O_EXCL` 은 writer **사이의 이름 배타**를 줄 뿐 내용 완전성을 주지
+    #   않는다. 리뷰어가 첫 `os.write()` 를 한 바이트 short write 로 만들자
+    #   등록이 성공 경로로 반환하고 final 파일은 `{` 하나였다 — 읽으면 `None`,
+    #   같은 class 재시도는 "있는데 못 읽는 파일" 때문에 영구 거부. **final
+    #   key 가 poison 된다.**
+    #
+    #   그래서 순서를 뒤집는다: temp 에 write-all → file fsync → **바이트
+    #   read-back** → `os.link()` 로 final 이름에 no-replace 게시 → parent
+    #   fsync. `link()` 는 대상이 있으면 `FileExistsError` 이므로 `O_EXCL` 과
+    #   같은 배타를 주면서, 이름이 붙는 순간 내용은 이미 완전하다.
+    _tmp = path.parent / f".{name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError:                                # pragma: no cover
-        # lock 안에서 두 자리를 읽고 왔으므로 정상 경로에서는 안 온다.
-        # 그래도 삼키지 않는다 — 오면 그것 자체가 결함이다.
-        prev = read_execution_class(cid, ledger=ledger)
-        if prev is None:
-            # 파일은 있는데 못 읽는다 — 등록부가 authority 이므로 fail-closed.
+        _fd = os.open(_tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        try:
+            _write_all(_fd, body, "execution-class-register")
+            os.fsync(_fd)
+        finally:
+            os.close(_fd)
+        got = _tmp.read_bytes()
+        if got != body:
             raise PreserveError(
                 "promote",
-                f"내용 {cid[:16]}… 의 등록 레코드가 있는데 읽을 수 없다 — "
-                "class 를 정할 수 없으므로 거부한다")
-        if prev.get("execution_class") != cls:
-            raise PreserveError(
-                "promote",
-                f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 있다 — "
-                f"{cls!r} 로 바꿀 수 없다 (내용 {cid[:16]}…)")
-        return path                       # 같은 class 의 멱등 재시도
-    try:
-        os.write(fd, body)
-        os.fsync(fd)
+                f"등록 레코드를 다시 읽었더니 쓴 것과 다르다 ({len(got)} ≠ "
+                f"{len(body)} 바이트) — 이름을 붙이지 않는다 (내용 {cid[:16]}…)")
+        try:
+            os.link(_tmp, path)            # no-replace CAS
+        except FileExistsError:            # pragma: no cover
+            # lock 안에서 두 자리를 읽고 왔으므로 정상 경로에서는 안 온다.
+            # 그래도 삼키지 않는다 — 아래 seal 이 그 파일을 **읽어서** 같은
+            # class 인지 확인하고, 아니면 거기서 멈춘다.
+            pass
     finally:
-        os.close(fd)
-    _fsync_dir_strict(path.parent, "execution-class-register")
-    return path
+        # temp 는 어느 경로로 나가든 남기지 않는다 (link 성공 뒤에도 지운다 —
+        # 이름이 둘이면 하나가 지워질 때 다른 하나가 남는다는 사실에 기대는
+        # 것이지, 두 이름을 authority 로 두는 것이 아니다).
+        try:
+            _tmp.unlink()
+        except OSError:
+            pass
+    # ★ 59차 M13 — 성공의 출구는 하나다. temp 를 치운 **뒤에** 굳혀야 게시와
+    #   정리가 같은 directory entry 갱신 안에서 durable 해진다.
+    return _seal_exec_class_record(path, cid, cls)
 
 
 def _read_exec_class_at(p: Path, content_id: str) -> dict | None:
@@ -4456,22 +4514,40 @@ def _read_exec_class_at(p: Path, content_id: str) -> dict | None:
 
 
 def read_execution_class(content_id: str, ledger=None) -> dict | None:
-    """**두 자리를 다 본다** (58차 L14).
+    """**두 자리를 다 읽고, 어긋나면 멈춘다** (58차 L14 · 59차 M4).
 
     자리를 나눈 뒤에도 읽는 쪽은 하나여야 한다. 호출자가 "어느 등록부를
     볼까" 를 정하게 되면 그 선택 자체가 새 우회로가 된다 — 48~57차의 경로
     판정이 정확히 그 형태였다.
 
-    공유(정본)를 **먼저** 본다. 같은 내용이 양쪽에 있으면 그건 결함이고,
-    `record_execution_class()` 가 애초에 막는다 (아래 교차 검사).
+    ★ 59차 M4 — 58차판은 공유를 **먼저 찾으면 즉시 반환**했다. 주석은 "양쪽에
+      있으면 `record_execution_class()` 가 애초에 막는다" 였는데, 그 배타는
+      **내용당 lock 으로 이 clone 안에서만** 성립한다. 리뷰어 반례: clone A 가
+      local smoke 로, clone B 가 tracked canonical 로 각각 합법 등록한 뒤 B 의
+      tracked record 가 평범한 VCS 동기화로 A 에 들어온다. lock 은 Git 을
+      직렬화하지 못한다. 그러면 두 valid record 가 공존하고 reader 는 반대말을
+      **안 읽은 채** canonical 을 돌려줬다 (`conflict_was_reported: false`).
+
+      `[해석]` 우선순위는 충돌 **해결**이 아니라 충돌 **은폐**다. 어느 쪽이
+      옳은지 이 함수는 모른다 — 모르는 것을 아는 척하지 않고 멈춘다.
     """
     name = _exec_class_path(content_id, ledger).name
-    for root in (exec_class_root_for_ledger(ledger),
-                 local_exec_class_root_for_ledger(ledger)):
+    seen = {}
+    for label, root in (("shared", exec_class_root_for_ledger(ledger)),
+                        ("local", local_exec_class_root_for_ledger(ledger))):
         rec = _read_exec_class_at(root / name, content_id)
         if rec is not None:
-            return rec
-    return None
+            seen[label] = rec
+    classes = {label: r.get("execution_class") for label, r in seen.items()}
+    if len(set(classes.values())) > 1:
+        raise PreserveError(
+            "promote",
+            f"내용 {content_id[:16]}… 의 실행 class 가 두 등록부에서 충돌한다: "
+            + " · ".join(f"{k}={v!r}" for k, v in sorted(classes.items()))
+            + " — 어느 쪽이 옳은지 이 자리에서 정할 수 없다. 한쪽은 다른 clone "
+              "에서 왔을 수 있고 내용당 lock 은 Git 동기화를 직렬화하지 않는다. "
+              "사람이 보고 하나를 지워야 한다 (fail-closed)")
+    return seen.get("shared") or seen.get("local")
 
 
 def resolve_execution_class(run_dir, ledger=None) -> dict:
@@ -4498,6 +4574,129 @@ def resolve_execution_class(run_dir, ledger=None) -> dict:
     return rec
 
 
+#: gate 가 발행한 권한의 **일련번호 등록부** (프로세스 지역).
+#:
+#:   capability 를 dataclass 로만 두면 아무나 만들 수 있다. 발행 사실을 여기
+#:   적어 두고 소비할 때 대조하면, `issue_execution_class()` 를 지나지 않은
+#:   객체는 통과하지 못한다. 프로세스 밖으로 나가지 않는다 — 산출을 굳히는
+#:   것은 gate 를 지난 **그 실행**이고, 다른 프로세스가 대신 굳히는 경로는
+#:   애초에 없어야 한다.
+_ISSUED_EXEC_CAPS: dict = {}
+
+
+@dataclass(frozen=True)
+class ExecutionClassCapability:
+    """gate 가 발행하는 **봉인된 실행 class 권한** (59차 M1).
+
+    ★ 왜 목록이 아니라 권한인가.
+
+    58차는 `note_smoke_exemption()` 이 "기록 못 한 자리" 목록을 돌려주고
+    호출자가 그것을 무시해도 된다고 **docstring 에 적었다.** 그리고 산출이
+    굳는 순간 기록한다던 `record_run_outputs()` 는 저장소에 실호출이 0곳이었다
+    (리뷰어 실측). 두 문장은 동시에 참일 수 없었다.
+
+    목록은 버릴 수 있다. 권한은 버릴 수 없다 — 산출을 굳히는 함수가 그것을
+    **요구**하기 때문이다. class 는 gate 가 정해 권한이 나르므로, 호출자가
+    raw `cls` 를 다시 줄 자리가 없다 (최소 조건이 명시한 우회로).
+    """
+    leg_id: str
+    phase: str
+    execution_class: str
+    ledger: str | None
+    nonce: str
+
+    def __post_init__(self):
+        if self.execution_class not in EXEC_CLASSES:
+            raise PreserveError(
+                "promote",
+                f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: "
+                f"{self.execution_class!r}")
+
+
+def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
+                          ledger=None) -> ExecutionClassCapability:
+    """gate 가 이 실행의 class 를 정하고 **권한을 발행한다** (59차 M1).
+
+    실행 **직전**에는 manifest 가 없어 내용 identity 를 만들 수 없다. 그래서
+    이 자리에서 등록부에 굳힐 수는 없다 — 굳히는 것은 산출이 생긴 뒤
+    `commit_run_outputs()` 다. 그 사이를 잇는 것이 이 권한이다.
+
+    이미 등록된 내용이면 그 class 와 어긋나는 발행을 여기서 막는다 (identity 를
+    만들 수 있는 경우에 한해 — 못 만들면 그것은 정상이고 commit 때 본다).
+    """
+    if cls not in EXEC_CLASSES:
+        raise PreserveError("promote",
+                            f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
+    check_id(leg_id)
+    try:
+        cid = run_content_id(run_dir)
+    except PreserveError as exc:
+        if not _is_missing_manifest(exc):
+            raise
+    else:
+        prev = read_execution_class(cid, ledger=ledger)
+        if prev is not None and prev.get("execution_class") != cls:
+            raise PreserveError(
+                "promote",
+                f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 "
+                f"있다 — {cls!r} 권한을 발행할 수 없다 (내용 {cid[:16]}…)")
+    cap = ExecutionClassCapability(
+        leg_id=leg_id, phase=phase, execution_class=cls,
+        ledger=None if ledger is None else str(ledger),
+        nonce=uuid.uuid4().hex)
+    _ISSUED_EXEC_CAPS[cap.nonce] = cap
+    return cap
+
+
+def commit_run_outputs(capability, paths) -> list:
+    """산출이 **굳은 뒤** 그 실행 class 를 등록부에 적는다 (59차 M1).
+
+    권한 없이는 굳힐 수 없다. class 는 권한이 나르므로 이 함수는 `cls` 인자를
+    받지 않는다 — 받으면 최소 조건이 지목한 우회로가 그대로 남는다.
+
+    멱등이다: 같은 class 로 다시 부르면 조용히 성공한다. 다른 class 면 거부.
+    """
+    if not isinstance(capability, ExecutionClassCapability):
+        raise PreserveError(
+            "promote",
+            "산출을 굳히려면 gate 가 발행한 실행 class 권한이 필요하다 "
+            f"(받은 것: {type(capability).__name__}) — 권한 없이 굳히는 경로는 "
+            "없다 (59차 M1)")
+    if _ISSUED_EXEC_CAPS.get(capability.nonce) is not capability:
+        raise PreserveError(
+            "promote",
+            "이 권한은 이 프로세스의 gate 가 발행한 것이 아니다 — 위조했거나 "
+            "다른 실행의 것이다 (59차 M1)")
+    led = capability.ledger
+    done = []
+    for x in [Path(p) for p in paths if p]:
+        record_execution_class(
+            x, capability.execution_class,
+            evidence=(f"산출 완료 시점 등록 · leg={capability.leg_id} "
+                      f"phase={capability.phase} "
+                      f"class={capability.execution_class}"),
+            ledger=led)
+        done.append(x)
+    return done
+
+
+#: legacy 분류를 허용하는 **명시적 roster** (59차 M1).
+#:
+#:   최소 조건: "legacy migration 은 배선 전 산출의 명시적 roster 에만 허용해야
+#:   한다." 그렇지 않으면 새 산출을 등록 없이 만든 뒤 migration 으로 세탁하는
+#:   길이 계속 열려 있다 — 리뷰어가 정확히 그 순서를 재현했다.
+#:
+#:   목록은 저장소 상대 run 디렉터리 이름이고, **배선(59차 α) 이전에 만들어진
+#:   네 산출**이다. 여기 없는 것을 분류하려 하면 거부한다.
+#:
+#:   항목이 상대 경로라는 것 자체가 불변식이다 (`REPO_ROOT` 에 붙여 해석하므로
+#:   절대 경로를 넣으면 저장소 밖을 roster 에 올릴 수 있다). 그 불변식은
+#:   `tests/test_exec_class_capability_59.py` 가 구조로 못 박는다.
+LEGACY_EXEC_CLASS_ROSTER = ("results/grid_curves_v4", "results/grid_fit_v4",
+                            "results/halfcell_fit_v4",
+                            "results/paired_fixed5_v4")
+
+
 def classify_legacy_run(run_dir, ledger=None, namespace=None) -> dict:
     """등록 이전에 만들어진 산출을 **한 번** 분류한다 (58차 P0-8 migration).
 
@@ -4510,6 +4709,27 @@ def classify_legacy_run(run_dir, ledger=None, namespace=None) -> dict:
     prev = read_execution_class(cid, ledger=ledger)
     if prev is not None:
         return prev
+    # ★ 59차 M1 — **명시적 roster 밖은 분류하지 않는다.** 58차판은 아무 산출이나
+    #   지금 경로를 보고 분류했고, 리뷰어는 그것으로 미등록 산출을 canonical 로
+    #   세탁했다 (등록 없이 만들고 → 밖으로 옮기고 → 분류). 분류는 **배선 전에
+    #   만들어진 산출**을 한 번 정리하는 행위이지 새 산출의 입구가 아니다.
+    #
+    #   roster 항목은 **저장소 상대 경로**이고, 여기서 저장소 뿌리에 붙여
+    #   해석한 뒤 실제 대상과 비교한다 (문자열 비교가 아니다 — symlink·`..` 로
+    #   같은 자리를 다른 이름으로 부를 수 있다).
+    try:
+        here = d.resolve()
+        roster = {(REPO_ROOT / r).resolve() for r in LEGACY_EXEC_CLASS_ROSTER}
+    except OSError as exc:
+        raise PreserveError(
+            "promote", f"{d} 의 좌표를 해석할 수 없다: {exc}") from exc
+    if here not in roster:
+        raise PreserveError(
+            "promote",
+            f"{d} 는 legacy roster 에 없다 (roster: "
+            f"{list(LEGACY_EXEC_CLASS_ROSTER)}) — legacy 분류는 배선(59차 α) "
+            "이전에 만들어진 산출에만 허용된다. 새 산출은 gate 가 발행한 권한을 "
+            "`commit_run_outputs()` 로 소비해 등록해야 한다 (59차 M1)")
     ns = SMOKE_NAMESPACE if namespace is None else Path(namespace)
     inside = is_inside_namespace(d, ns)
     cls = EXEC_CLASS_SMOKE if inside else EXEC_CLASS_CANONICAL
@@ -6749,29 +6969,3 @@ def note_smoke_exemption(paths, leg_id: str, phase: str, ledger=None) -> list:
                 raise            # class 충돌은 사람이 봐야 하는 사건이다
             pending.append(x)
     return pending
-
-
-def record_run_outputs(paths, leg_id: str, phase: str, cls: str,
-                       ledger=None) -> list:
-    """산출이 **굳은 뒤** 그 실행 class 를 등록부에 적는다.
-
-    ★ 58차 L1 — 57차의 주석은 이 일을 `record_smoke_outputs()` 가 맡는다고
-      적었는데 **그 함수는 저장소에 없었다** (주석 한 줄이 유일한 언급이었다).
-      실행 직전에는 manifest 가 없어 identity 를 만들 수 없으므로, 산출이 굳는
-      이 시점이 등록이 실제로 가능한 유일한 자리다.
-
-    멱등이다 — 같은 class 로 다시 부르면 조용히 성공한다 (`record_execution_class()`
-    의 `O_EXCL` 뒤 same-class 재시도 경로). 다른 class 면 거부한다.
-    """
-    if cls not in EXEC_CLASSES:
-        raise PreserveError("promote",
-                            f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
-    done = []
-    for x in [Path(p) for p in paths if p]:
-        record_execution_class(
-            x, cls,
-            evidence=(f"산출 완료 시점 등록 · leg={leg_id} phase={phase} "
-                      f"class={cls}"),
-            ledger=ledger)
-        done.append(x)
-    return done

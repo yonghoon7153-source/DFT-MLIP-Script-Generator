@@ -6174,17 +6174,29 @@ def test_the_module_entrypoint_is_gated_not_just_the_wrapper(tmp_path, monkeypat
 
 def test_the_module_gate_is_exempt_only_inside_the_smoke_namespace(monkeypatch,
                                                                    tmp_path):
-    """면제는 정규 격리로 판정한 smoke namespace 하나뿐이다."""
+    """면제는 정규 격리로 판정한 smoke namespace 하나뿐이다.
+
+    ★ 59차 M1 — 다리 이름을 `__계획에없는다리__` 에서 `unplanned-leg` 로 바꿨다.
+      gate 의 면제 분기가 이제 실행 class **권한을 발행**하고, 발행은 다리
+      이름을 `check_id()` 로 검사한다. 옛 sentinel 은 id 형식이 아니라 두 절반이
+      **모두** 형식 오류로 죽었을 것이다 — 그러면 "면제는 namespace 안에서만"
+      이라는 이 시험의 명제는 한 번도 안 검사된다. 이름은 형식을 지키면서
+      계획에 없기만 하면 된다.
+    """
     import src.grid as G
     from tools.preserve import SMOKE_NAMESPACE
 
-    monkeypatch.setenv("LEG", "__계획에없는다리__")
+    monkeypatch.setenv("LEG", "unplanned-leg")
     SMOKE_NAMESPACE.mkdir(parents=True, exist_ok=True)
-    assert G._assert_grid_authorized({"x": 1}, SMOKE_NAMESPACE / "probe") is None
+    claim, cap = G._assert_grid_authorized({"x": 1}, SMOKE_NAMESPACE / "probe")
+    assert claim is None, "smoke 는 계획 gate 를 면제받는다"
+    assert cap is not None, "면제 분기가 권한을 발행하지 않았다 (59차 M1)"
 
     # 어휘적으로만 안인 경로는 면제되지 않는다
-    with pytest.raises(PreserveError):
+    with pytest.raises(PreserveError) as ei:
         G._assert_grid_authorized({"x": 1}, SMOKE_NAMESPACE / ".." / "escaped")
+    assert "계획" in str(ei.value), (
+        f"거부는 됐는데 계획 gate 가 아닌 이유로 죽었다: {ei.value}")
 
 
 def test_a_dry_run_still_needs_authorization(tmp_path, monkeypatch):

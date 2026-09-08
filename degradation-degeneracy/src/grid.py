@@ -328,7 +328,8 @@ def _result_to_frame(r: dict, protocol_name: str,
 CURVES_MANIFEST = "curves_manifest.yaml"
 
 
-def write_curves_manifest(out_dir, cfg: dict, conditions=None, extra=None) -> Path:
+def write_curves_manifest(out_dir, cfg: dict, conditions=None, extra=None,
+                          *, capability=None) -> Path:
     """★ F70 — 곡선을 만든 쪽의 provenance를 **별도 파일**로 남긴다.
 
     이 연구의 전제는 "정답을 아는 PyBaMM 합성 곡선"이다. 그런데 지금까지 fit
@@ -371,6 +372,12 @@ def write_curves_manifest(out_dir, cfg: dict, conditions=None, extra=None) -> Pa
     p = out_dir / CURVES_MANIFEST
     p.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
                  encoding="utf-8")
+    # ★ 59차 M1 — **여기가 산출이 굳는 자리다.** manifest 가 생긴 이 순간에야
+    #   내용 identity 가 존재하므로, 실행 class 는 여기서 등록된다. 권한 없이는
+    #   등록할 수 없고, 등록 없이 manifest 만 남기는 경로도 없다 (아래 호출이
+    #   실패하면 예외가 올라간다 — 삼키지 않는다).
+    from tools.preserve import commit_run_outputs
+    commit_run_outputs(capability, [out_dir])
     return p
 
 
@@ -394,18 +401,21 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
-                                note_smoke_exemption,
-                                SMOKE_NAMESPACE)
+                                issue_execution_class, EXEC_CLASS_SMOKE,
+                                EXEC_CLASS_CANONICAL, SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
     # smoke namespace 안이면 계획을 요구하지 않는다 (계약 §13.3.3). 그 판정은
     # `assert_run_is_authorized()` 와 **같은 함수**로 한다 — 두 규칙이 갈리면
     # 어느 쪽이 경계인지 정할 수 없다.
     if is_inside_namespace(out_dir, SMOKE_NAMESPACE):
-        # ★ 58차 L1 — 면제하고 **그 사실을 남긴다.** 57차는 그냥 return 했고,
-        #   등록을 하는 `assert_run_is_authorized()` 에는 닿지 않았다.
-        note_smoke_exemption([out_dir], leg, "grid", ledger=None)
-        return None
+        # ★ 59차 M1 — 면제하고 **권한을 발행한다.** 58차는 "기록 못 한 자리"
+        #   목록을 돌려줬고 이 자리가 그것을 버렸다 (`note_smoke_exemption()` 의
+        #   docstring 이 "무시해도 된다" 고 스스로 적었다). 목록은 버릴 수 있지만
+        #   권한은 버릴 수 없다 — 산출을 굳히는 `write_curves_manifest()` 가
+        #   그것을 요구한다.
+        return None, issue_execution_class(out_dir, leg, "grid",
+                                           EXEC_CLASS_SMOKE, ledger=None)
     # ★ 51차 — **계획 소속을 먼저 묻는다.** 살아 있는 축을 만드는 것
     #   (`live_grid_axis()`)이 `cfg["discharged_state"]` 를 읽으므로, 순서가
     #   반대면 계획에 없는 다리가 `KeyError` 로 죽는다 — 거부한 것이 계획
@@ -423,9 +433,12 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
     tok = attempt_path_for(leg, ledger=None) if leg else None
     token = read_token_file(tok, leg) if tok is not None and tok.is_file() \
         else None
-    return assert_run_is_authorized(leg, "grid", [out_dir], spec,
-                                    source_digest(), token=token,
-                                    may_open=may_open)
+    claim = assert_run_is_authorized(leg, "grid", [out_dir], spec,
+                                     source_digest(), token=token,
+                                     may_open=may_open)
+    # 정본 경로도 같은 권한을 받는다 — class 는 gate 가 정하고 권한이 나른다.
+    return claim, issue_execution_class(out_dir, leg, "grid",
+                                        EXEC_CLASS_CANONICAL, ledger=None)
 
 def _discharged_kw(cfg: dict, claim) -> dict:
     """승인 축이 정한 **완방상태 입력 대상** 을 `get_discharged_state()` 인자로.
@@ -555,9 +568,10 @@ def run_grid(cfg: dict, conditions: list[Condition], nproc: int,
     # ★ 47차 P0-2 (조건 11-c) — **첫 부작용 전에** 계획 gate 를 지난다.
     #   46차 gate 는 `run.sh` 안에만 있어서 `python -m src.grid` 직접 호출이
     #   계획을 전혀 보지 않았다. mkdir 도 부작용이므로 그보다 먼저 본다.
-    _claim = _assert_grid_authorized(cfg, out_dir, conditions=conditions,
-                                     dry_run=dry_run, leg=leg,
-                                     may_open=may_open)
+    _claim, _exec_cap = _assert_grid_authorized(cfg, out_dir,
+                                                conditions=conditions,
+                                                dry_run=dry_run, leg=leg,
+                                                may_open=may_open)
     out_dir.mkdir(parents=True, exist_ok=True)
     protocol_name = cfg.get(GRID_PROTOCOL_KEY, "charge_first")
 
@@ -739,7 +753,7 @@ def run_grid(cfg: dict, conditions: list[Condition], nproc: int,
     })
     # ★ F70/F74 — 곡선 producer 기록을 별도 파일로. fitting 이 이걸 봉인한다.
     from src.io import source_digest as _sd
-    write_curves_manifest(out_dir, cfg, conditions, extra={
+    write_curves_manifest(out_dir, cfg, conditions, capability=_exec_cap, extra={
         "solver": solver_name(make_solver(cfg)),
         "n_curves": n_done_total - n_failed_total,
         "elapsed_s": round(elapsed, 1),

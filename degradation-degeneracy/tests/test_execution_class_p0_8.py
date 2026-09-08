@@ -100,13 +100,22 @@ def test_content_id_follows_the_bytes_not_the_path(tmp_path):
 
 def test_classification_is_one_time_and_records_what_it_looked_at(
         tmp_path, ledger, monkeypatch):
-    """legacy 분류는 **한 번**이고, 경로를 봤다는 사실이 영수증에 남는다."""
+    """legacy 분류는 **한 번**이고, 경로를 봤다는 사실이 영수증에 남는다.
+
+    ★ 59차 M1 — 분류는 이제 **명시적 roster** 안에서만 일어난다 (roster 밖을
+      분류하면 "등록 없이 만들고 → 옮기고 → 분류" 로 세탁하는 길이 남는다).
+      그래서 이 시험은 대상 자리를 roster 에 올린 뒤 묻는다. roster 를 안 만지면
+      이 시험은 **분류가 아니라 roster 거부**를 확인하게 되고, 그러면 이름이
+      약속한 명제(재분류 없음·영수증)를 한 번도 안 본다 — 59차 M16 이 지적한
+      바로 그 형태다.
+    """
     import tools.preserve as P
     ns = tmp_path / "results" / "_smoke"
     monkeypatch.setattr(P, "SMOKE_NAMESPACE", ns)
     monkeypatch.setattr(P, "canonical_ledger", lambda _=None: ledger)
 
     old = _run_dir(ns, "legacy")
+    monkeypatch.setattr(P, "LEGACY_EXEC_CLASS_ROSTER", (str(old),))
     rec = P.classify_legacy_run(old, ledger=ledger)
     assert rec["execution_class"] == EXEC_CLASS_SMOKE
     assert "분류 시점 경로" in rec["evidence"], rec

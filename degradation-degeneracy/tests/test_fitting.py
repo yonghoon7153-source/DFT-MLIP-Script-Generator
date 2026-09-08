@@ -548,8 +548,15 @@ def sign_producer(out_dir, df, n_infeasible=0, failed_conds=None,
     for c in failed_conds:                   # 실제 기록 경로와 같은 형식
         append_failed(out_dir, c.cond_id, asdict(c),
                       f"infeasible: lli={c.lli} 는 [0, 0.9] 밖 (test)")
+    # ★ 59차 M1 — 산출을 굳히려면 **gate 가 발행한 권한**이 필요하다. 이
+    #   fixture 는 production 이 굳히는 것과 같은 자리를 쓰므로 같은 문을
+    #   지난다: 여기서 권한을 발행한다 (시험 전용 우회로를 만들지 않는다 —
+    #   그런 우회로가 있으면 그것이 실효 규칙이 된다).
+    from tools.preserve import issue_execution_class, EXEC_CLASS_SMOKE
+    _cap = issue_execution_class(out_dir, "L", "grid", EXEC_CLASS_SMOKE,
+                                 ledger=None)
     write_curves_manifest(out_dir, {"parameter_set": "test", "grid": {"noise_seed": 42}},
-                          conditions=cond_ids,
+                          conditions=cond_ids, capability=_cap,
                           extra={"solver": "test", "grid_run_spec": spec,
                                  "grid_run_sig": sig, "n_curves": len(cond_ids),
                                  "source_digest_changed_during_run": False,

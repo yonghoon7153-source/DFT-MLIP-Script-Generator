@@ -878,15 +878,17 @@ def _assert_fit_authorized(live_fit: dict, out_dir, leg: str | None = None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
-                                note_smoke_exemption,
-                                SMOKE_NAMESPACE)
+                                issue_execution_class, EXEC_CLASS_SMOKE,
+                                EXEC_CLASS_CANONICAL, SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
     if is_inside_namespace(out_dir, SMOKE_NAMESPACE):
         # ★ 58차 L1 — grid 와 **같은 문장**을 쓴다. 면제 판정이 두 진입점에
         #   있으면 기록도 두 진입점에 있어야 하고, 그러면 하나가 또 빠진다.
-        note_smoke_exemption([out_dir], leg, "fit", ledger=None)
-        return None, live_fit
+        # ★ 59차 M1 — grid 와 **같은 문장**을 쓴다: 목록이 아니라 권한.
+        return (None, live_fit,
+                issue_execution_class(out_dir, leg, "fit",
+                                      EXEC_CLASS_SMOKE, ledger=None))
     declared = declared_leg_run_spec(leg)
     # ★ 49차 P0-5 — `in_digest` 는 **계획만** 아는 축이다 (grid 절반과 같다).
     #   "이 다리의 grid 가 입력을 만든다(null)" 인지 "밖에서 온 입력이다(hex64)"
@@ -906,7 +908,9 @@ def _assert_fit_authorized(live_fit: dict, out_dir, leg: str | None = None,
     claim = assert_run_is_authorized(leg, "fit", [out_dir], spec,
                                      source_digest(), token=token,
                                      may_open=may_open)
-    return claim, fit_axis
+    return claim, fit_axis, issue_execution_class(out_dir, leg, "fit",
+                                                 EXEC_CLASS_CANONICAL,
+                                                 ledger=None)
 
 
 def run_fit(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: dict,
@@ -997,8 +1001,9 @@ def _run_fit_staged(_staged, in_dir, out_dir, obj_cfg, objectives, bounds,
                           halfcell_kw, in_dir, out_dir,
                           base_config=_staged["base_config"],
                           bytes_root=_staged["root"])
-    claim, _fit_axis = _assert_fit_authorized(_live, out_dir, leg=leg,
-                                              may_open=may_open)
+    claim, _fit_axis, _exec_cap = _assert_fit_authorized(_live, out_dir,
+                                                         leg=leg,
+                                                         may_open=may_open)
     _assert_fit_input_is_authorized(claim, _fit_axis, _staged["in_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
     acquire_run_lock(out_dir, ".fit.lock")
@@ -1009,7 +1014,8 @@ def _run_fit_staged(_staged, in_dir, out_dir, obj_cfg, objectives, bounds,
                                   limit, _staged["base_config"], reference,
                                   resume, subset,
                                   warm_start, adaptive, method, halfcell_method,
-                                  halfcell_kw, stage_root=_staged["root"])
+                                  halfcell_kw, stage_root=_staged["root"],
+                                  exec_capability=_exec_cap)
         # ★ 48차 P0-4 — 끝난 phase 를 **durable 하게 닫는다.** 47차는
         #   `phase_done()`·`finalize_leg()` 을 만들어 놓고 production 에서 한
         #   번도 부르지 않았다 — lifecycle 이 있는데 아무 것도 그 상태를
@@ -1028,8 +1034,15 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
                     warm_start: bool = True, adaptive: bool = True,
                     method: str = "Nelder-Mead",
                     halfcell_method: str = "ocp",
-                    halfcell_kw: dict | None = None, stage_root=None) -> dict:
+                    halfcell_kw: dict | None = None, stage_root=None,
+                    exec_capability=None) -> dict:
     """run_fit 본체. 호출자가 이미 .fit.lock 을 보유한 상태여야 한다.
+
+    ★ 59차 M1 — `exec_capability` 는 gate(`_assert_fit_authorized()`) 가 발행한
+      `ExecutionClassCapability` 다. 산출을 굳히는 자리(`commit_run_outputs()`)가
+      그것을 **요구**하므로, 이 인자를 안 넘기면 굳는 자리에서 거부된다
+      (fail-closed). 기본값 `None` 은 "안 넘겼다" 를 조용히 통과시키는 값이
+      아니라 **거부로 가는** 값이다.
 
     ★ 51차 P0-A3 — `in_dir`·`base_config` 는 **staging 사본**을 가리킨다.
       `stage_root` 는 그 사본의 뿌리이고, 봉인 map 의 키를 원래 저장소 상대
@@ -1570,6 +1583,10 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
         "fits_seal": {k: v for k, v in seal.items()
                       if k not in ("missing", "extra", "duplicated")},   # F68
     }))
+    # ★ 59차 M1 — fit 산출도 **여기서 굳는다.** manifest 가 생긴 이 순간에야
+    #   내용 identity 가 있고, 권한 없이는 등록할 수 없다 (grid 와 같은 문장).
+    from tools.preserve import commit_run_outputs
+    commit_run_outputs(exec_capability, [out_dir])
     log.info("fitting 완료: %d행, %.1fs → %s", len(fits), elapsed, path)
     return {"n_rows": len(fits), "n_conditions": len(tasks),
             "elapsed_s": elapsed, "out": str(path)}
