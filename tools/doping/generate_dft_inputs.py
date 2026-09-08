@@ -529,8 +529,120 @@ def _selftest():
     chk(f'starting_magnetization({sorted(set(_nd2.get_chemical_symbols())).index("Nd") + 1}) = 0.3'
         in _s2x, "\u26d4\uc74c\uc131: \uc6d0\uc18c \uad6c\uc131\uc774 \ub2ec\ub77c\ub3c4 Nd \uc758 \ubc88\ud638\ub97c \ub2e4\uc2dc \uc13c\ub2e4")
 
+    # \u2500\u2500 \uad6c\uc870\ud30c\uc77c \u2192 scf (--from_xyz) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    with tempfile.TemporaryDirectory() as _td:
+        _d = Path(_td)
+        (_d / "ps").mkdir()
+        for _f in ('li_pbe_v1.4.uspp.F.UPF', 'O.pbe-n-kjpaw_psl.0.1.UPF', 'ND.upf'):
+            (_d / "ps" / _f).write_text("x")
+        _a = _At('LiLiO', positions=[[0, 0, 0], [2, 0, 0], [0, 2, 0]], cell=[8, 8, 8], pbc=True)
+        _p1 = _d / "one_post_relax.xyz"; _a.write(str(_p1))
+        _m = scf_from_xyz([_p1], _d / "o", str(_d / "ps"), nspin=2,
+                          start_mag={'Li': 0.1}, tot_mag_per={'Li': 2})
+        chk((_d / "o" / "one" / "scf.in").is_file(), "--from_xyz: <out>/<name>/scf.in \ubc30\uce58")
+        chk(_m['cells'][0]['tot_magnetization'] == 4.0,
+            "tot_magnetization \uc744 **\uc140\ubcc4 \uc6d0\uc790 \uc218**\ub85c \uacc4\uc0b0\ud55c\ub2e4 (Li 2\uac1c \u00d7 2)")
+        chk((_d / "o" / "one" / "struct.xyz").is_file(), "\uc6d0\ubcf8 \uad6c\uc870\ub97c \uc606\uc5d0 \ub0a8\uae34\ub2e4 (\uc7ac\ud604)")
+        chk(bool(json.loads((_d / "o" / "MANIFEST.json").read_text()).get("gate")),
+            "MANIFEST \uc5d0 gate(\ube44\uad50 \ub2e8\uc704\u00b7\ubb34\ud6a8 \uc870\uac74)\uac00 \uc2e4\ub9b0\ub2e4")
+        # \u26d4\uc74c\uc131: \uc720\uc0ac\ud3ec\ud150\uc15c\uc774 \uc5c6\uc73c\uba74 **\uc785\ub825\uc744 \ub9cc\ub4e4\uc9c0 \uc54a\ub294\ub2e4** (\ub098\uc911\uc5d0 pw.x \uac00 \uc8fd\ub294\ub2e4)
+        try:
+            scf_from_xyz([_p1], _d / "o2", str(_d / "nope"))
+            chk(False, "\u26d4\uc74c\uc131: \uc5c6\ub294 pseudo_dir \ub85c\ub3c4 \uc785\ub825\uc744 \ub9cc\ub4e4\uba74 \uc548 \ub41c\ub2e4")
+        except Exception:
+            chk(True, "\u26d4\uc74c\uc131: pseudo \uc5c6\uc73c\uba74 \uc785\ub825 \uc0dd\uc131 \uac70\ubd80")
+
     print(f"  selftest: \u2b55 {ok} \u00b7 \u26d4 {fail}")
     return 0 if fail == 0 else 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 완화된 구조 파일 → scf 단일점 (2026-09-08 · Nd O-모티프 UMA 순위 DFT 재채점)
+#
+#   왜 여기냐 — `generate_pwin()` 의 52/520 레시피와 `pp_names` 머신별 덮어쓰기를
+#   그대로 쓴다. 산출 배치(`<out>/<name>/scf.in`)도 `--from_traj` 와 같게 두어
+#   **같은 러너**(run_force_check_scf.sh)가 순차 실행한다.
+#
+#   ⛔ 이 경로가 **못 하는 것**
+#     · 순위를 판정하지 않는다 — 총에너지를 낼 뿐이다. 비교 규칙은 아래 gate 가 적는다.
+#     · **다른 조성끼리 비교할 수 있는지 모른다.** n=4(54원자)와 n=5(66원자)는 조성이
+#       달라 총에너지도 원자당 에너지도 가로질러 비교하면 안 된다. manifest 에 적어만 둔다.
+#     · 스핀 상태가 **의도한 상태로 수렴했는지** 모른다. 그건 회수 단계가 본다.
+#     · PP 가 물리적으로 맞는지 모른다 (존재·해시만).
+#: 이 비교가 **무엇을 판정하고 무엇을 판정하지 않는가** — 산출물에 항상 실린다.
+SCF_COMPARE_GATE = {
+    "비교_단위": "같은 조성(같은 n) 안에서만. n=4(54원자)와 n=5(66원자)는 조성이 "
+         "달라 총에너지도 원자당 에너지도 가로질러 비교하지 않는다.",
+    "상태_선택_정책": ("네 셀 전부 같은 씨앗 자화·같은 U·같은 cutoff/k점. "
+               "값을 통일하는 것이 아니라 **정책**을 통일한다."),
+    "스핀_구속_선언": ("tot_magnetization 을 Nd 개수×3(4f³, FM 정렬)로 **고정**한다. "
+               "이건 자유 바닥상태가 아니라 **선언된 구속**이다 — 두 셀이 서로 "
+               "다른 f 점유로 수렴하는 것을 막으려는 것이고, 쌍의 조성이 같으므로 "
+               "같은 구속이 걸린다(SDCP wave1 의 '제약된 기준 − 자유로운 복합체' "
+               "사고를 피한다). ⚠ 따라서 이 에너지는 **절대값으로 인용 금지**이고 "
+               "같은 구속끼리의 차이로만 읽는다. AFM 이 진짜 바닥이어도 Nd 는 이 "
+               "비교에서 구경꾼이라 O 모티프 순위는 거의 안 움직인다는 가정 위에 "
+               "있다 — 그 가정을 확인하려면 AFM 대조를 따로 돌려야 한다."),
+    "무효_조건": ("쌍 안에서 수렴 총자화가 다르면 그 쌍의 ΔE 는 무효다 — "
+          "다른 f 점유끼리 뺀 값이 된다 (SDCP wave1 교훈)."),
+    "판정하는_것": "같은 n 안의 O 모티프 순위가 UMA 와 같은 부호인가.",
+    "판정하지_않는_것": "절대 에너지 · 조성 간 비교 · 형성에너지.",
+}
+
+
+def scf_from_xyz(paths, out_dir, pseudo_dir, ecutwfc=52, ecutrho=520,
+                 kpoints='2 2 1', pp_names=None, nspin=1, start_mag=None,
+                 hubbard=None, tot_mag_per=None, gate=None):
+    """구조 파일 여러 개 → `<out>/<name>/scf.in` + manifest.
+
+    `tot_mag_per` = {원소: 원자당 모멘트} — 셀마다 그 원소 개수 × 값으로 tot_magnetization
+    을 계산한다 (셀마다 원자 수가 다르므로 상수로 박으면 틀린다).
+    """
+    from ase.io import read as _read
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    # ⛔ gate 는 **함수가 항상 싣는다.** CLI 에만 두었더니 함수를 직접 부른 경로에서
+    #   조용히 사라졌다 (자체시험이 잡았다) — 선언이 빠진 산출물은 나중에 근거가 없다.
+    _g = dict(SCF_COMPARE_GATE); _g.update(gate or {})
+    man = {"provenance": get_provenance(), "created": _dt_now(),
+           "settings": {"ecutwfc": ecutwfc, "ecutrho": ecutrho, "kpoints": kpoints,
+                        "nspin": nspin, "starting_magnetization": start_mag or {},
+                        "hubbard": hubbard or [], "tot_mag_per_atom": tot_mag_per or {},
+                        "occupations": "smearing(mv,0.01)", "calculation": "scf"},
+           "gate": _g, "cells": []}
+    species_all = set()
+    for pth in paths:
+        a = _read(str(pth))
+        species_all |= set(a.get_chemical_symbols())
+    pp = preflight_pseudos(sorted(species_all), pseudo_dir, pp_names)
+    man["pseudos"] = pp
+    for pth in paths:
+        pth = Path(pth)
+        a = _read(str(pth))
+        name = pth.stem.replace("_post_relax", "")
+        d = out / name; d.mkdir(parents=True, exist_ok=True)
+        syms = a.get_chemical_symbols()
+        tm = None
+        if int(nspin) == 2 and tot_mag_per:
+            tm = sum(syms.count(el) * float(m) for el, m in tot_mag_per.items())
+        txt = generate_pwin(a, name, ecutwfc=ecutwfc, ecutrho=ecutrho,
+                            kpoints=kpoints, pseudo_dir=pseudo_dir,
+                            pp_names={el: v["file"] for el, v in pp.items()},
+                            calculation='scf', occupations='smearing',
+                            nspin=nspin, start_mag=start_mag, hubbard=hubbard,
+                            tot_magnetization=tm)
+        (d / "scf.in").write_text(txt)
+        (d / "struct.xyz").write_text(Path(pth).read_text())
+        man["cells"].append({"name": name, "source": str(pth), "n_atoms": len(a),
+                             "formula": a.get_chemical_formula(),
+                             "tot_magnetization": tm,
+                             "coord_sha256": coord_digest(a)})
+    (out / "MANIFEST.json").write_text(json.dumps(man, ensure_ascii=False, indent=1) + "\n")
+    return man
+
+
+def _dt_now():
+    import datetime as _d
+    return _d.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def main():
@@ -551,7 +663,28 @@ def main():
     p.add_argument('--ecutwfc', type=float, default=52)
     p.add_argument('--ecutrho', type=float, default=520)
     p.add_argument('--kpoints', default='2 2 1')
+    # ── 구조 파일 → scf 단일점 (Nd O-모티프 재채점) ─────────────────────────
+    p.add_argument('--from_xyz', nargs='+',
+                  help='완화된 구조 파일들 → <out>/<name>/scf.in (같은 러너로 순차 실행)')
+    p.add_argument('--nspin', type=int, default=1, choices=(1, 2))
+    p.add_argument('--start_mag', nargs='*', default=[],
+                  help='원소=씨앗자화 (예: Nd=0.3). ⚠ 비교하는 셀 전부 **같은 값**이어야 한다')
+    p.add_argument('--tot_mag_per', nargs='*', default=[],
+                  help='원소=원자당 모멘트 (예: Nd=3) → 셀별 개수×값으로 tot_magnetization')
+    p.add_argument('--hubbard', nargs='*', default=[],
+                  help='HUBBARD 항목 (예: "Nd-4f 6.0"). ⛔ 원자가에 없는 껍질에 걸지 말 것')
+    p.add_argument('--pp', nargs='*', default=[],
+                  help='유사포텐셜 파일명 덮어쓰기 (예: Nd=Nd.paw.z_14.atompaw...upf)')
     args = p.parse_args()
+
+    def _kv(items):
+        d = {}
+        for s in items:
+            if '=' not in s:
+                p.error(f'--- 형식은 원소=값 이다: {s!r}')
+            k, v = s.split('=', 1)
+            d[k] = v
+        return d
 
     if args.selftest:
         sys.exit(_selftest())
@@ -561,6 +694,26 @@ def main():
         r = collect_results(args.out, args.label, args.seed)
         print(f"✓ {args.label}/{args.seed}: {r['n_ok']}/{r['n_expected']}점 회수 "
               f"· 좌표 최대편차 {max(x['coord_max_dev_A'] for x in r['points']):.2e} Å")
+        return
+    if args.from_xyz:
+        if not args.out:
+            p.error('--from_xyz 는 --out 이 필요하다')
+        _sm = {k: float(v) for k, v in _kv(args.start_mag).items()}
+        _tm = {k: float(v) for k, v in _kv(args.tot_mag_per).items()}
+        if args.nspin == 2 and not _sm:
+            p.error('--nspin 2 인데 --start_mag 이 없다 — 씨앗을 안 주면 셀마다 다른 '
+                    '상태로 수렴할 수 있고 그러면 총에너지 차가 무의미해진다')
+        man = scf_from_xyz(args.from_xyz, args.out, args.pseudo_dir,
+                           args.ecutwfc, args.ecutrho, args.kpoints,
+                           pp_names=_kv(args.pp), nspin=args.nspin,
+                           start_mag=_sm, hubbard=args.hubbard,
+                           tot_mag_per=_tm)
+        print(f"✓ {len(man['cells'])}셀 → {args.out}  (nspin={args.nspin}"
+              f"{' · U=' + ','.join(args.hubbard) if args.hubbard else ''})")
+        for c in man['cells']:
+            print(f"    {c['name']:36s} {c['formula']:26s} n={c['n_atoms']:3d} "
+                  f"tot_mag={c['tot_magnetization']}  {c['coord_sha256'][:12]}")
+        print("  ⚠ 비교는 같은 n 안에서만. MANIFEST.json 의 gate 를 읽어라.")
         return
     if args.from_traj:
         if not args.out:
