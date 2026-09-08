@@ -54,7 +54,9 @@
         <span class="nat muted">{{ c.at }}</span>
       </div>
       {% if c.anchor %}<div class="nquote">{{ c.anchor }}</div>{% endif %}
-      <div class="ntext">{{ c.text }}</div>
+      {# 2026-09-08 — 여백 메모가 마크다운으로 쓰이는데 그대로 찍고 있었다
+         (`**굵게**`·`==하이라이트==` 가 화면에 기호로 노출 · 1저자 신고). #}
+      <div class="ntext">{{ c.text|mdlite }}</div>
     </a>
     {% endfor %}
   </div>

@@ -88,6 +88,8 @@ def _sec_headers(resp):
 _MDL_MAXB = 300
 _MDL_BOLD = re.compile(r"\*\*(?![\s)\]}>,.;:!?])(.{1,%d}?)(?<![\s([{<])\*\*" % _MDL_MAXB, re.S)
 _MDL_CODE = re.compile(r"`([^`]+)`")
+#: Obsidian 식 하이라이트 — 1저자 메모가 실제로 쓴다 (2026-09-08). 표준 md 는 아니다.
+_MDL_MARK = re.compile(r"==(?!\s)(.{1,%d}?)(?<!\s)==" % _MDL_MAXB, re.S)
 
 
 def _mdlite(text: str) -> Markup:
@@ -100,11 +102,40 @@ def _mdlite(text: str) -> Markup:
 
     s = _MDL_CODE.sub(_stash, s)
     s = _MDL_BOLD.sub(r"<strong>\1</strong>", s)
+    s = _MDL_MARK.sub(r"<mark>\1</mark>", s)
     s = re.sub(r"\x00(\d+)\x00",
                lambda m: '<code class="mono">%s</code>' % spans[int(m.group(1))], s)
-    # ② 줄바꿈 (2026-08-20) — 대시보드 카드가 여러 문장이면 한 덩어리로 뭉개져 안 읽힌다.
-    #   escape 를 이미 지났으므로 주입 위험 없음. 기존 한 줄짜리 카드에는 영향이 없다.
-    s = s.replace("\n", "<br>")
+    # ② 표 (2026-09-08) — 카드 본문이 `| a | b |` 를 쓰는데 mdlite 가 표를 몰라서
+    #   **화면에 파이프가 그대로 노출됐다** (1저자 신고). 카드마다 글을 고치는 대신
+    #   여기서 그린다 — 한 곳을 고치면 기존 카드도 같이 낫고, 저건 진짜 표 데이터다.
+    #   ⛔ 못 하는 것: 정렬행(`|---|`)·헤더 구분·셀 병합·중첩 표. **연속한 파이프 줄을
+    #     한 표로 묶을 뿐**이고, 첫 줄을 머리행으로 쓴다. 그 이상이 필요하면 md_html 을 쓸 것.
+    out, buf = [], []
+
+    def _flush():
+        if not buf:
+            return
+        rows = [[c.strip() for c in ln.strip().strip("|").split("|")] for ln in buf]
+        w = max(len(r) for r in rows)
+        h = "".join(f"<th>{c}</th>" for c in rows[0] + [""] * (w - len(rows[0])))
+        body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r + [""] * (w - len(r)))
+                       + "</tr>" for r in rows[1:])
+        out.append(f'<table class="mdl-tbl"><thead><tr>{h}</tr></thead><tbody>{body}</tbody></table>')
+        buf.clear()
+
+    for ln in s.split("\n"):
+        t = ln.strip()
+        # 파이프로 시작하고 끝나는 줄만 표로 본다. `|ρ|<0.2` 같은 본문은 걸리지 않는다.
+        if len(t) > 2 and t.startswith("|") and t.endswith("|"):
+            if not re.fullmatch(r"\|[\s:\-|]+\|", t):      # 정렬행은 버린다
+                buf.append(t)
+            continue
+        _flush()
+        out.append(ln)
+    _flush()
+    # ③ 줄바꿈 (2026-08-20) — 카드가 여러 문장이면 한 덩어리로 뭉개져 안 읽힌다.
+    #   escape 를 이미 지났으므로 주입 위험 없음.
+    s = "\n".join(out).replace("\n", "<br>").replace("<br><table", "<table").replace("</table><br>", "</table>")
     return Markup(s)
 
 

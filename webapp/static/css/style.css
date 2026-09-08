@@ -724,8 +724,12 @@ kbd{font-family:var(--mono);font-size:.72em;background:var(--bg);border:1px soli
 /* 대시보드 핵심 발견 카드 */
 .find-card{border-left:3px solid var(--accent)}
 .find-card .fc-t{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
-.find-card .fc-v{font-size:1.12rem;font-weight:800;color:var(--navy);margin:5px 0;line-height:1.35}
-.find-card .fc-n{font-size:.8rem;color:var(--dim);line-height:1.55}
+.find-card .fc-v{font-size:1.12rem;font-weight:800;color:var(--navy);margin:5px 0;line-height:1.35;
+  overflow-wrap:anywhere}
+.find-card .fc-n{font-size:.8rem;color:var(--dim);line-height:1.55;
+  /* ⛔ 2026-09-08 — 긴 파일 경로(db/structures/…/anneal_results.json)가 안 접혀
+     카드 밖으로 튀어나왔다(1저자 신고). 카드 본문은 출처 경로를 자주 싣는다. */
+  overflow-wrap:anywhere;word-break:break-word}
 
 /* 🎯 cascade 테마 탭 — 테마 카드 그리드 + 조합 UI */
 .theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:16px}
@@ -1281,7 +1285,10 @@ mark.dn-hl{background:#fef3c7;color:inherit;border-bottom:2px solid #f59e0b;
 .nat{margin-left:auto;font-variant-numeric:tabular-nums}
 .nquote{font-size:.72rem;color:var(--muted);border-left:2px solid var(--border2);
   padding-left:8px;margin-bottom:6px}
-.ntext{font-size:.84rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+/* ⚠ mdlite 가 개행을 <br> 로 바꾸므로 pre-wrap 이면 줄이 두 배가 된다 (2026-09-08) */
+.ntext{font-size:.84rem;line-height:1.6;white-space:normal;word-break:break-word;
+  overflow-wrap:anywhere}
+.ntext mark{background:#fef9c3;color:inherit;padding:0 2px;border-radius:2px}
 .nk.active{outline:2px solid currentColor}
 /* 메모 고치기 (2026-08-17) */
 .dn-edit{border:none;background:none;color:var(--muted);cursor:pointer;
@@ -1335,3 +1342,9 @@ body.rail .rail-peek:hover ~ .sidebar,body.rail .sidebar:hover{transform:transla
   background:color-mix(in srgb,var(--red) 7%,transparent);border-radius:2px;padding:0 1px}
 .claim-flag::after{content:"⛔";font-size:.72em;vertical-align:super;margin-left:1px;opacity:.85}
 @media print{.claim-flag{border-bottom:1.5px dotted #be123c}}
+
+/* 카드 본문 안의 간이 표 (mdlite · 2026-09-08) — 카드가 좁으므로 작고 촘촘하게 */
+.mdl-tbl{border-collapse:collapse;margin:6px 0;font-size:.95em;width:100%}
+.mdl-tbl th,.mdl-tbl td{border-bottom:1px solid var(--line,#e5e7eb);padding:2px 6px 2px 0;
+  text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.mdl-tbl th{font-weight:700;color:var(--ink,#1f2937);white-space:nowrap}

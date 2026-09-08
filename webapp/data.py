@@ -4708,9 +4708,12 @@ def _nd_anneal_card() -> list:
     lines = []
     for cell, v in ranked.items():
         lo = v[0][0]
-        lines.append(f"| {cell} | " + " < ".join(
+        # ⛔ 2026-09-08 — 여기 마크다운 **표 문법**을 썼는데 이 카드는 `mdlite` 로 그린다.
+        #   mdlite 는 escape 후 **굵게**·`코드`만 승격하므로 표를 모른다 → 화면에 `|` 가
+        #   그대로 노출됐다(1저자 신고). 카드 본문은 표가 아니라 **한 줄씩** 쓴다.
+        lines.append(f"· **{cell}** " + " < ".join(
             f"{mot}{'' if i == 0 else f' (+{1000 * (e - lo):.0f})'}"
-            for i, (e, mot) in enumerate(v)) + " |")
+            for i, (e, mot) in enumerate(v)))
     orders = {tuple(m for _, m in v) for v in ranked.values()}
     head = " < ".join(next(iter(orders))) if len(orders) == 1 else "셀마다 순서가 다르다"
     prov = (ann or {}).get("provenance") or {}
@@ -4727,7 +4730,7 @@ def _nd_anneal_card() -> list:
              f"{prov.get('uma_model_name', 'UMA')}({prov.get('uma_task_name', '?')})로 "
              f"{_g(ann.get('temperature_K'))} K × {_g(ann.get('time_ps'))} ps 어닐 후 이완했다 "
              f"({n_conv}/{len(rows)} 수렴).\n"
-             "| 셀 | 이완 후 원자당 에너지 순 (괄호 = 최저 대비 meV/atom) |\n"
+             "이완 후 **원자당 에너지** 순 (괄호 = 최저 대비 meV/atom):\n"
              + "\n".join(lines) + "\n"
              + ("**두 셀이 같은 순서**라 순위가 셀 하나의 우연은 아니다.\n"
                 if len(orders) == 1 and len(ranked) > 1 else
