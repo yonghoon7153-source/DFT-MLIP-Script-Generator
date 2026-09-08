@@ -687,6 +687,64 @@ def test_dashboard_ea_card_is_protocol_honest():
     assert "최저" not in v or "순위 보류" in v, f"단독으로 남은 값을 '최저' 라고 쓴다: {v}"
 
 
+def test_dashboard_closure_cards_read_db_not_hardcode(tmp_path, monkeypatch):
+    """양성+⛔음성: 마감 계약·보고량·어닐 카드가 **db 파일에서** 만들어진다 (2026-09-08).
+
+    양성 — 봉인값과 모티프 순위가 파일에 적힌 것과 같다.
+    ⛔음성 — db 뿌리를 빈 디렉터리로 바꾸면 카드가 **사라져야** 한다. 안 사라지면 그
+      숫자·순서는 파일이 아니라 화면에 박혀 있는 것이다 (하드코딩 금지 규율).
+    """
+    import json as _j
+    cards = {h.get("key"): h for h in D.dashboard_highlights()}
+    # ① LPSOCl 마감 계약 — 봉인값이 파일에서 온다
+    clo = _j.loads((ROOT / "db/properties/lpsocl_box331_closure_conditions_2026_09_07.json")
+                   .read_text(encoding="utf-8"))
+    if clo.get("status") == "ratified":
+        card = cards.get("lpsocl_box331_closure")
+        assert card, "비준된 마감 계약인데 대시보드 카드가 없다"
+        seals = [v for sec in (clo.get("2_닫힘_조건") or {}).values() if isinstance(sec, dict)
+                 for k, v in sec.items() if k.startswith("봉인_") and isinstance(v, (int, float))]
+        assert seals, "전제: 봉인 숫자가 파일에 있다"
+        for v in seals:
+            assert f"{v:g}" in card["v"], f"봉인값 {v} 가 카드에 없다 — 파일을 안 읽는다"
+    # ② Nd 어닐 — 모티프 순위가 파일의 에너지에서 계산된다
+    ann = _j.loads((ROOT / "db/structures/ndo_lpscl16_rietveld_2026_09_07"
+                    / "anneal_2026_09_07/anneal_results.json").read_text(encoding="utf-8"))
+    order = [n.split("_O-")[1] for _e, n in sorted(
+        (r["E_post_relax"] / r["n_atoms"], r["name"]) for r in ann["results"]
+        if "_n4fu_O-" in r["name"])]
+    card = cards.get("ndo_lpscl16_anneal")
+    assert card, "어닐 결과가 있는데 카드가 없다"
+    assert " < ".join(order) in card["v"] + card["n"], \
+        f"카드 순위가 파일에서 계산한 순서({order})와 다르다"
+    assert "순위로만" in card["n"], "UMA 값인데 순위 한정 문구가 없다 (CLAUDE.md MLIP 규율)"
+    # ⛔음성: db 가 없으면 카드도 없다
+    monkeypatch.setattr(D, "DB", tmp_path)
+    assert D._closure_and_prereg_cards() == [], "db 없이도 마감 카드가 나온다 (하드코딩)"
+    assert D._nd_anneal_card() == [], "db 없이도 어닐 카드가 나온다 (하드코딩)"
+
+
+def test_compute_runner_does_not_guess_gpu_runtime():
+    """⛔음성: QE-GPU 붙여넣기 러너가 `mpirun -np 1 pw.x` 로 되돌아가면 안 된다 (2026-09-08).
+
+    같은 자리에서 **세 번** 죽었다 — ① conda mpirun 이 잡혀 MPI_Init NULL communicator
+    ② 런처를 뺐더니 `libgomp: TODO` ③ hpcx 로 추측했는데 kgy 의 pw.x 는 실제로
+    `~/apps/openmpi-4.1.6` 로 빌드돼 있었다. 규칙이 아니라 **링크가 근거**여야 한다
+    (CLAUDE.md 계산 자원 절 · tools/doping/run_force_check_scf.sh 가 정본).
+    """
+    assert "kgy" in D.COMPUTE_SETTINGS["comp1"]["server"], "전제: comp1 은 비-Slurm GPU 박스다"
+    r = D.compute_preview("comp1", "scf")["runner"]
+    assert "ldd" in r and "OPAL_PREFIX" in r, "런타임을 ldd 에서 유도하지 않는다 (추측하고 있다)"
+    assert "OMP_NUM_THREADS=1" in r, "libnvomp+libgomp 동시 링크 방어가 빠졌다"
+    assert not re.search(r"^\s*mpirun\s", r, re.M), \
+        "PATH 의 mpirun 을 그냥 부른다 — 그게 세 번 죽은 경로다"
+    # 두 갈래가 실제로 다른지 (Slurm 쪽은 srun 이라 이 규칙이 안 걸린다)
+    kisti = [c for c, s in D.COMPUTE_SETTINGS.items() if "KISTI" in s["server"]]
+    assert kisti, "전제: Slurm 서버 설정이 남아 있다"
+    rk = D.compute_preview(kisti[0], "scf")["runner"]
+    assert "srun" in rk and "ldd" not in rk, "Slurm 러너까지 ldd 유도를 붙이면 안 된다"
+
+
 def test_gap_card_excludes_legacy_group():
     """갭 순위가 legacy DOS-문턱 값(comp2)을 같은 축에 올리면 안 된다."""
     gm = D.canonical_comparable("gap_eV", "gap-fixedocc-eigenvalue-v1")
@@ -2339,6 +2397,70 @@ def test_governance_digest_binding_shown():
     before = C.decision_digest(d)
     d["title"] = (d.get("title") or "") + " (변조)"
     assert C.decision_digest(d) != before, "본문을 고쳤는데 digest 가 그대로면 결속이 무의미하다"
+
+
+def test_governance_decision_ledger_renders_every_decision():
+    """양성: **결정 원장 전건**이 /governance 에 나온다 (2026-09-08 신설).
+
+    종전 판례 표는 네 칸(id·decision_state·digest·title)뿐이라, 원장에 든 `kind` 와
+    `results_seen` 이 화면 밖에 있었다 — 결정 22건 중 *"결과를 보기 전에 정했나"* 를
+    화면에서 확인할 방법이 없었다. 그 칸들이 실제로 그려지는지 본다.
+    """
+    import canonical as C
+    A.app.config["TESTING"] = True
+    h = A.app.test_client().get("/governance").get_data(as_text=True)
+    dec = C.decisions()
+    assert dec, "전제: 결정 원장이 비어 있지 않다"
+    missing = [k for k in dec if k not in h]
+    assert not missing, f"결정 원장에 있는데 화면에 없는 항목: {missing}"
+    # 종류(kind)·근거 문서 경로가 화면에 실린다
+    kinds = {d.get("kind") for d in dec.values() if d.get("kind")}
+    assert kinds, "전제: kind 가 원장에 있다"
+    for k in kinds:
+        assert f"원장 kind: {k}" in h, f"kind={k!r} 이 화면에 안 실린다"
+    recs = {d["record"] for d in dec.values() if d.get("record")}
+    assert recs, "전제: 근거 문서(record) 경로가 원장에 있다"
+    assert all(r in h for r in recs), "결정에서 근거 문서로 가는 길이 화면에 없다"
+
+
+def test_governance_missing_results_seen_is_unstated_not_prereg():
+    """⛔음성: `results_seen` 이 **없는** 결정을 '결과 보기 전' 으로 그리면 안 된다.
+
+    이 repo 의 반복 사고가 *없는 것을 0/거짓으로 읽는 것*이다. 원장에 안 적힌 것은
+    **미기재**이지 사전등록이 아니다 — 그걸 뒤집으면 화면이 사전등록 건수를 부풀린다.
+    (같은 이유로 '미기재' 를 사전등록으로 세지도 않는다.)
+    """
+    import canonical as C
+    A.app.config["TESTING"] = True
+    dec = list(C.decisions().values())
+    before = [d["id"] for d in dec if d.get("results_seen") is False]
+    unstated = [d["id"] for d in dec if "results_seen" not in d]
+    assert before and unstated, "전제: 사전등록·미기재 두 부류가 모두 원장에 있다"
+    h = A.app.test_client().get("/governance").get_data(as_text=True)
+    assert h.count("🔒 결과 보기 전") == len(before), (
+        f"사전등록 표시 수가 원장과 다르다 (원장 {len(before)}건)")
+    assert h.count("– 미기재") == len(unstated), (
+        f"미기재 표시 수가 원장과 다르다 (원장 {len(unstated)}건) — "
+        "없는 필드를 기본값으로 메우고 있지 않은지 봐라")
+
+
+def test_governance_state_reads_status_alias():
+    """⛔음성: `status` 만 든 결정이 상태 칸에 `None` 으로 찍히면 안 된다.
+
+    실측(2026-09-08): D-2026-08-31-sdcp-polaron-Fbb 는 `decision_state` 없이
+    `status: proposed` 만 갖는다. 검사(_dstate)는 별칭을 읽는데 화면만 안 읽어서
+    상태 칸에 문자열 `None` 이 그려지고 있었다 — 같은 원장을 두 규칙으로 읽은 것이다.
+    """
+    import canonical as C
+    A.app.config["TESTING"] = True
+    alias = [d for d in C.decisions().values()
+             if "decision_state" not in d and d.get("status")]
+    assert alias, "전제: status 별칭만 든 결정이 원장에 있다 (없어졌으면 이 검사를 옮겨라)"
+    for d in alias:
+        assert C.decision_state(d) == d["status"], "공개 접근자가 별칭을 안 읽는다"
+    h = A.app.test_client().get("/governance").get_data(as_text=True)
+    assert ">None<" not in h, "상태 칸에 None 이 그려진다 — 별칭을 안 읽고 있다"
+    assert "상태 미기재" not in h, "별칭이 있는데 '상태 미기재' 로 그린다"
 
 
 def test_comp1_supercell_md_reassessed_not_banned():

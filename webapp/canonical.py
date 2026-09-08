@@ -807,6 +807,20 @@ def _dstate(d: dict):
     return d.get("decision_state", d.get("status"))
 
 
+def decision_state(d: dict):
+    """판례 하나의 상태 문자열 — 화면·검사가 **같은 함수**를 쓰게 하려고 공개한다.
+
+    ⛔ 왜 필요했나 (2026-09-08): /governance 판례 표가 `d.decision_state` 만 읽어서
+      `status` 만 든 기록(D-2026-08-31-sdcp-polaron-Fbb)이 상태 칸에 **`None` 이라고
+      찍혀 있었다.** 검사(_dstate)는 별칭을 읽는데 화면만 안 읽던 것 — 같은 원장을
+      두 규칙으로 읽으면 화면이 조용히 틀린다.
+
+    ⛔ 이 함수가 **못 하는 것**: 상태가 옳은지·허용 어휘인지 판정하지 않는다.
+      그건 validate_governance 가 한다 (여기서 또 검사하면 사본이 둘이 된다).
+    """
+    return _dstate(d)
+
+
 def validate_governance(reg: dict = None, root=None) -> list:
     """판례·판정 원장의 무결성. 위반 문자열 리스트 (빈 리스트 = 통과).
 

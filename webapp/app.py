@@ -527,7 +527,14 @@ def governance_page():
 
     ⛔ 이 페이지는 상태를 저장하지 않는다. release_status 와 같은 파생 판정은
        질의 시각에 계산한다 (D-2026-08-20-source-authority: canonical DB 가 원본).
-    ⚠ 이 페이지가 **못 하는 것**: 값이 맞는지 판정하지 않는다. 판정의 근거·소재만 보인다.
+
+    ⛔ 이 페이지가 **못 하는 것**
+      · 값·판정이 맞는지 판정하지 않는다. 판정의 근거·소재만 보인다.
+      · 결정 본문을 다 보여주지 않는다 — statement 까지다. rationale·enforcement·
+        applies_to 는 원장 파일이 원본이고 화면은 그리로 보내는 길만 낸다.
+      · 근거 문서 링크는 `/api/file` 허용 뿌리(docs·db·litdb/figures) 안만 연다.
+        `kb/…` 카드와 조각 참조(`…json#절`)는 **경로 문자열만** 나온다 (ledger_page 와 같은 관례).
+      · 사전등록 여부를 추론하지 않는다 — `results_seen` 이 원장에 없으면 "미기재" 다.
     """
     import canonical as _C
     # ⚠ 이 세 accessor 는 **id 로 키를 잡은 dict** 를 준다 (리스트가 아니다).
@@ -546,10 +553,41 @@ def governance_page():
     single = [a for a in art if a.get("copies") == 1 and a.get("status") != "lost"]
     lost = [a for a in art if a.get("status") == "lost"]
 
-    # 승인 후 본문이 바뀐 판례는 승인이 무효다 — 화면에서 즉시 드러나게 한다.
+    # ── 결정 원장 파생 (2026-09-08) ───────────────────────────────────────
+    #   종전 판례 표는 네 칸(id·decision_state·digest·title)뿐이라 원장에 실제로 든 것을
+    #   화면이 못 보여줬다. 세 가지가 특히 빠져 있었다:
+    #     ① `kind` — 정책/보고량/마감/게이트/지표가 한 표에 섞여 구분이 안 됐다
+    #     ② `record_kind` · `results_seen` — **결과를 보기 전에 정했나**가 이 repo 의
+    #        핵심 규율인데 화면 어디에도 없었다 (사전등록의 증거가 원장에만 있었다)
+    #     ③ 근거 문서(`record`·`card`) 경로 — 결정을 읽고 원본으로 못 갔다
+    #   ⚠ 없는 필드를 기본값으로 채우지 않는다. `results_seen` 이 없는 18건은
+    #     "결과 보기 전" 도 "결과 본 뒤" 도 아니라 **미기재**다 (원장 부재 관례).
     for d in dec:
-        want = d.get("ratification", {}).get("decision_digest")
-        d["_digest_ok"] = (want is None) or (want == _C.decision_digest(d))
+        want = (d.get("ratification") or {}).get("decision_digest")
+        rat_state = (d.get("ratification") or {}).get("state")
+        # 승인 후 본문이 바뀐 판례는 승인이 무효다 — 화면에서 즉시 드러나게 한다.
+        #   ⚠ 종전 판은 `want is None` 을 "일치" 로 세어, 승인이 **아예 없는** 결정에도
+        #     🔒 를 붙였다. 세 상태를 가른다: 없음 / 일치 / 불일치.
+        d["_digest"] = ("none" if not want
+                        else "ok" if want == _C.decision_digest(d) else "bad")
+        d["_state"] = _C.decision_state(d)          # decision_state 정본 · status 별칭
+        d["_ratified"] = rat_state
+        rs = d.get("results_seen")
+        d["_prereg"] = ("before" if rs is False else "after" if rs is True else "unstated")
+        # 근거 문서 — 링크로 열 수 있는 것만 링크한다 (safe_repo_path 밖이면 경로만).
+        seen, docs = set(), []
+        for role, ref in (("기록", d.get("record")), ("카드", d.get("card"))):
+            if ref and ref not in seen:
+                seen.add(ref)
+                docs.append({"role": role, "path": ref,
+                             "linkable": D.safe_repo_path(ref) is not None})
+        d["_docs"] = docs
+    # 최신 결정이 위 — id 가 `D-YYYY-MM-DD-slug` 라 문자열 역순이 곧 날짜 역순이다.
+    dec.sort(key=lambda d: str(d.get("id", "")), reverse=True)
+    # 요약은 **있는 것만** 센다 (없는 종류를 0 으로 찍으면 원장에 그 칸이 있는 것처럼 보인다).
+    from collections import Counter
+    dec_kinds = Counter(d.get("kind") or "미기재" for d in dec).most_common()
+    dec_states = Counter(d.get("_state") or "미기재" for d in dec).most_common()
 
     # 네 번째 원장 (2026-09-01): 인용 위험. 25건이 화면 밖에 있었다 —
     #   "무엇을 알아냈나" 만 보이고 "무엇을 인용하면 안 되나" 가 안 보이는 화면은
@@ -562,6 +600,7 @@ def governance_page():
 
     return render_template("governance.html", active="governance",
                            decisions=dec, assessments=ass, artifacts=art,
+                           dec_kinds=dec_kinds, dec_states=dec_states,
                            single=single, lost=lost,
                            hazards=hazards, hazards_updated=haz.get("updated"),
                            problems=_C.validate_governance() + _C.validate_artifacts())

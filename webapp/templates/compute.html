@@ -96,7 +96,17 @@
   pseudo <code>/scratch/x3430a02/kgy/manuscript_support/pseudo</code> ·
   <b>kgy</b> RTX3090 (QE-GPU + uma) · <b>gabia</b> A6000 단일 GPU (동시 실행 주의).
   실행 스크립트에는 <b>중복실행 가드(pgrep)</b>를 붙이고, 출력 grep 은 <code>grep -a</code>
-  (NUL 오염 대비).</div>
+  (NUL 오염 대비).
+  {# ⛔ 2026-09-08 — 같은 자리에서 세 번 틀렸다(conda mpirun · 런처 제거 후 libgomp ·
+     hpcx 오탐). 위 러너 블록이 ldd 유도를 이미 담고 있지만, **왜 그렇게 생겼는지**가
+     화면에 없으면 다음 사람이 한 줄짜리 mpirun 으로 되돌린다. #}
+  <br>⛔ <b>QE-GPU 런타임은 추측하지 않는다 — <code>ldd</code> 로 바이너리에게 묻는다.</b>
+  머신마다 링크가 다르다(kgy 의 pw.x 는 hpcx 가 아니라 <code>~/apps/openmpi-4.1.6</code>).
+  링크된 <code>libmpi</code> 에서 <code>OPAL_PREFIX</code>·<code>LD_LIBRARY_PATH</code> 를 유도하고,
+  <code>libnvomp</code> 와 <code>libgomp</code> 가 <b>둘 다</b> 링크돼 있으면
+  <code>OMP_NUM_THREADS=1</code> 이 필수다(아니면 <code>libgomp: TODO</code> 로 즉사).
+  못 읽으면 <b>시작하지 않는다</b> — 정본 러너
+  <code>tools/doping/run_force_check_scf.sh</code> 가 이 전부를 강제한다.</div>
 </div>
 
 <script>

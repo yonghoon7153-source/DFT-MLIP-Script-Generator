@@ -3539,13 +3539,33 @@ srun pw.x -in {prefix}.in
 grep -a "JOB DONE" {prefix}.out && echo "완료"
 """
     # kgy / gabia = 비-Slurm 인터랙티브 GPU 박스 (ssh, QE-GPU)
+    # ⛔⛔ 2026-09-08 — 종전 블록은 `mpirun -np 1 pw.x` 한 줄이었다. 그게 **같은 자리에서
+    #   세 번 죽은** 경로다: ① conda mpirun 이 잡혀 MPI_Init NULL communicator
+    #   ② 런처를 뺐더니 `libgomp: TODO` ③ hpcx 로 추측했는데 kgy 의 pw.x 는
+    #   `~/apps/openmpi-4.1.6` 로 빌드돼 있었다. **머신마다 다르므로 규칙이 아니라
+    #   링크가 근거다 — ldd 로 바이너리에게 묻는다** (CLAUDE.md 계산 자원 절).
+    #   ⚠ 여기 붙는 것은 붙여넣기용 최소판이다. 정본 러너는 이 전부를 ldd 에서 유도하고
+    #     못 읽으면 시작하지 않는다: tools/doping/run_force_check_scf.sh
     return f"""#!/bin/bash
-# {cid} · {prefix} — {server} (ssh, non-Slurm)
+# {cid} · {prefix} — {server} (ssh, non-Slurm · QE-GPU)
 set -e
 {guard}
 nvidia-smi | grep -qE "python|md_" && {{ echo "UMA/MD 실행중 — VRAM 충돌 회피, 대기"; exit 1; }}   # ⚠ pw.x·UMA 동시 실행 금지 (_runner_uma 가드의 대칭형)
-export OMP_NUM_THREADS=1
-mpirun -np 1 pw.x -in {prefix}.in | tee {prefix}.out    # GPU 빌드는 보통 1 rank
+
+# ── 런타임은 추측하지 않는다. ldd 로 바이너리에게 묻는다 (2026-09-08, 3연속 오진 종결)
+PWX=${{PWX:-$(command -v pw.x)}}
+[ -x "$PWX" ] || {{ echo "⛔ pw.x 를 못 찾는다 — PWX=/경로/pw.x 로 지정"; exit 2; }}
+ldd "$PWX" | grep -E "libmpi|libnvomp|libgomp"          # ← 언제나 여기서 시작
+M=$(ldd "$PWX" | awk '/libmpi\\.so/{{print $3; exit}}')
+[ -f "$M" ] || {{ echo "⛔ 링크된 MPI 를 못 읽었다 — 시작하지 않는다"; exit 2; }}
+export OPAL_PREFIX=$(dirname $(dirname "$M")) PATH=$(dirname $(dirname "$M"))/bin:$PATH
+export LD_LIBRARY_PATH=$(dirname "$M"):$(ldd "$PWX" | awk '$3 ~ /^\\// {{print $3}}' \\
+      | xargs -r -n1 dirname | sort -u | tr '\\n' ':' | sed 's/:$//')${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}
+      # ⚠ 끝의 `:` 를 지운다 — 빈 항목은 '현재 디렉터리' 를 뜻해서 엉뚱한 .so 를 잡는다
+export OMP_NUM_THREADS=1   # libnvomp + libgomp 동시 링크 시 필수 (아니면 `libgomp: TODO` 즉사)
+[ -x "$OPAL_PREFIX/bin/mpirun" ] || {{ echo "⛔ $OPAL_PREFIX/bin/mpirun 이 없다"; exit 2; }}
+
+"$OPAL_PREFIX/bin/mpirun" --oversubscribe -np 1 "$PWX" -nk 1 -in {prefix}.in | tee {prefix}.out
 grep -a "JOB DONE" {prefix}.out && echo "완료"
 """
 
@@ -4567,12 +4587,154 @@ def dashboard_highlights() -> list:
              "같은 런의 Cl(16)=−0.04 · S(41)=0.20 은 rigid). **800 K 이상만 확실히 무효** — "
              "어제 내가 쓴 것보다 좁다."})
 
+    hi += _closure_and_prereg_cards()
+    hi += _nd_anneal_card()
+
     # ── 최신순 정렬 (1저자 요청 2026-08-20) ────────────────────────────────
     #   대시보드는 훑는 화면이라 **새로 안 것이 위**에 있어야 한다. 날짜가 없는 카드는
     #   맨 뒤로 보내되 서로의 상대 순서는 유지한다(안정 정렬) — 임의로 섞이면
     #   "왜 이 순서지" 를 매번 다시 물어야 한다.
     hi.sort(key=lambda c: c.get("d") or "", reverse=True)
     return hi
+
+
+def _bold_heads(items) -> str:
+    """`["**머리** — 설명", …]` 에서 **머리**만 모아 ' · ' 로 잇는다.
+
+    db JSON 의 목록은 `**핵심** — 부연` 꼴이 관례라 대시보드 한 줄에 넣을 때 머리만 쓴다.
+    ⛔ 못 하는 것: 강조가 없는 항목은 **버리지 않고** 앞 40자를 그대로 쓴다
+      (조용히 빠지면 화면이 목록을 짧게 보이게 만든다).
+    """
+    out = []
+    for s in items or []:
+        m = re.search(r"\*\*(.+?)\*\*", str(s))
+        out.append(m.group(1) if m else str(s)[:40].strip())
+    return " · ".join(out)
+
+
+def _closure_and_prereg_cards() -> list:
+    """비준된 **마감 계약 · 보고량 카드**를 대시보드 카드로 (2026-09-08).
+
+    왜 대시보드인가: 이 repo 의 반복 사고는 *"값이 애매하니 한 번만 더"* 였고, 그걸 막는
+    유일한 장치가 **결과를 보기 전에 비준된 계약**이다. 원장에만 있고 훑는 화면에 없으면
+    다음 세션이 같은 자리에서 다시 논쟁한다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 조건이 실제로 충족됐는지 판정하지 않는다 — 계약 문구를 옮길 뿐이다.
+      · 숫자를 만들지 않는다. 봉인값·결정문은 db 파일에서 읽고, **파일이 없거나
+        비준 전이면 카드를 만들지 않는다** (빈 카드로 "없음" 을 흉내내지 않는다).
+    """
+    out = []
+    # ① LPSOCl 3×3×1 400 ps — 닫힘 조건 (아레니우스 적합 0회 시점의 비준)
+    clo = _load_json(DB / "properties" / "lpsocl_box331_closure_conditions_2026_09_07.json")
+    if clo and clo.get("status") == "ratified":
+        seal = {k: v for sec in (clo.get("2_닫힘_조건") or {}).values() if isinstance(sec, dict)
+                for k, v in sec.items() if k.startswith("봉인_") and isinstance(v, (int, float))}
+        dec7 = [v["결정"] for v in (clo.get("7_미결_1저자_결정") or {}).values()
+                if isinstance(v, dict) and v.get("결정")]
+        reopen = (clo.get("6_재개_조건_이것들만") or {}).get("확정") or []
+        excl = (clo.get("1_닫는_범위") or {}).get("제외") or []
+        ban = clo.get("5_금지_서술") or []
+        rat = clo.get("ratification") or {}
+        # ⚠ 정렬하지 않는다 — 파일에 적힌 순서(C3 허용차 → C5 해상도)가 곧 읽는 순서다.
+        _seal_txt = " · ".join(
+            f"{k.replace('봉인_', '').removesuffix('_eV').replace('_', ' ')} {v:g} eV"
+            for k, v in seal.items())
+        out.append({
+            "key": "lpsocl_box331_closure",
+            "d": rat.get("at") or clo.get("date"),
+            "t": "⭐ LPSOCl 3×3×1 닫힘 조건 **비준** — 아레니우스를 하나도 그리기 전에",
+            "v": _seal_txt or "봉인값이 파일에 없다",
+            "n": "마감 규율을 순서대로 밟았다 — **조건을 먼저 정하고, 그게 채워졌으므로 닫는다**. "
+                 "비준 시점에 400 ps 9런 중 3런만 완주였고 아레니우스 적합은 0회였다 "
+                 "(git log 가 그 순서의 증거).\n"
+                 + ("**1저자 결정 %d건**\n" % len(dec7) if dec7 else "")
+                 + "".join(f"· {s}\n" for s in dec7)
+                 + (f"⛔ **닫는 범위 밖 {len(excl)}건**: {_bold_heads(excl)}\n" if excl else "")
+                 + (f"⛔ **금지 서술 {len(ban)}건** — 특히 판정을 '아직 계산 중' 으로 바꿔 말하는 것.\n"
+                    if ban else "")
+                 + (f"↻ **재개는 사전 확정 {len(reopen)}건({_bold_heads(reopen)})만** — "
+                    "'한 시드만 더' 는 재개 사유가 아니다.\n" if reopen else "")
+                 + "출처: db/properties/lpsocl_box331_closure_conditions_2026_09_07.json · "
+                   "결정 원장 D-2026-09-08-lpsocl-box331-closure-conditions"})
+
+    # ② cascade D_rel — 보고량 카드 (계산 전 비준). ⛔ 캠페인 승인이 아니다.
+    cde = _load_json(DB / "properties" / "cascade_d_rel_estimand_2026_09_08.json")
+    if cde and cde.get("status") == "ratified":
+        est = (cde.get("1_보고량_정의_해제조건6") or {}).get("보고량")
+        rep = (cde.get("2_설계의_대표_해제조건1_2b") or {}).get("규칙")
+        left = (cde.get("6_아직_안_닫은_것") or {}).get("해제조건_잔여")
+        gap = (cde.get("6_아직_안_닫은_것") or {}).get("★_구조적_공백")
+        ban = cde.get("5_금지_서술") or []
+        rat = cde.get("ratification") or {}
+        out.append({
+            "key": "cascade_d_rel_estimand",
+            "d": rat.get("at") or cde.get("date"),
+            "t": "⭐ cascade D_rel **보고량 카드 비준** — 무엇을 재는가만 정했다",
+            "v": est or "보고량 정의가 파일에 없다",
+            "n": (f"{rep}\n" if rep else "")
+                 + "⛔ **이 비준은 캠페인 승인이 아니다** — "
+                 + (f"남은 해제조건: {left}\n" if left else "해제조건이 남아 있다.\n")
+                 + (f"🕳 구조적 공백: {gap}\n" if gap else "")
+                 + (f"⛔ 금지 서술 {len(ban)}건: {' · '.join(str(x) for x in ban[:3])}\n" if ban else "")
+                 + "출처: db/properties/cascade_d_rel_estimand_2026_09_08.json · "
+                   "결정 원장 D-2026-09-08-cascade-d-rel-estimand"})
+    return out
+
+
+def _nd_anneal_card() -> list:
+    """Nd₂O₃-LPSCl1.6 어닐 6셀 회수 — **O 모티프 순위** (2026-09-08).
+
+    ⛔ 이 함수가 **못 하는 것**
+      · UMA 에너지를 물리적 안정성으로 번역하지 않는다. DFT 재채점 전에는 **순위**뿐이고
+        Δ 의 절대값은 인용 대상이 아니다 (CLAUDE.md MLIP 규율).
+      · 셀 크기(n4fu·n5fu) 사이를 비교하지 않는다 — 원자 수가 달라 원자당 에너지의
+        절대 비교가 성립하지 않는다. **같은 셀 안에서만** 순서를 매긴다.
+      · 파일이 없거나 이름 규약(`…_<cell>_O-<motif>`)이 깨지면 카드를 만들지 않는다.
+    """
+    ann = _load_json(DB / "structures" / "ndo_lpscl16_rietveld_2026_09_07"
+                     / "anneal_2026_09_07" / "anneal_results.json")
+    rows = (ann or {}).get("results") or []
+    grp = {}
+    for r in rows:
+        m = re.search(r"_(n\d+fu)_O-(.+)$", str(r.get("name", "")))
+        e, na = r.get("E_post_relax"), r.get("n_atoms")
+        if not m or e is None or not na:
+            continue
+        grp.setdefault(m.group(1), []).append((e / na, m.group(2)))
+    if not grp:
+        return []
+    ranked = {c: sorted(v) for c, v in sorted(grp.items())}
+    lines = []
+    for cell, v in ranked.items():
+        lo = v[0][0]
+        lines.append(f"| {cell} | " + " < ".join(
+            f"{mot}{'' if i == 0 else f' (+{1000 * (e - lo):.0f})'}"
+            for i, (e, mot) in enumerate(v)) + " |")
+    orders = {tuple(m for _, m in v) for v in ranked.values()}
+    head = " < ".join(next(iter(orders))) if len(orders) == 1 else "셀마다 순서가 다르다"
+    prov = (ann or {}).get("provenance") or {}
+    n_conv = sum(1 for r in rows if r.get("converged"))
+
+    def _g(x):     # 500.0 → "500" · 없으면 "?" (없는 값을 0 으로 찍지 않는다)
+        return f"{x:g}" if isinstance(x, (int, float)) else "?"
+    return [{
+        "key": "ndo_lpscl16_anneal",
+        "d": str(prov.get("timestamp_iso") or "")[:10] or None,
+        "t": "Nd₂O₃-LPSCl1.6 어닐 **6셀 회수** — O 모티프 순위 (UMA)",
+        "v": head + ("  ·  같은 방향" if len(orders) == 1 and len(ranked) > 1 else ""),
+        "n": f"Rietveld 유래 셀에 O 모티프 {len(next(iter(ranked.values())))}종을 넣고 "
+             f"{prov.get('uma_model_name', 'UMA')}({prov.get('uma_task_name', '?')})로 "
+             f"{_g(ann.get('temperature_K'))} K × {_g(ann.get('time_ps'))} ps 어닐 후 이완했다 "
+             f"({n_conv}/{len(rows)} 수렴).\n"
+             "| 셀 | 이완 후 원자당 에너지 순 (괄호 = 최저 대비 meV/atom) |\n"
+             + "\n".join(lines) + "\n"
+             + ("**두 셀이 같은 순서**라 순위가 셀 하나의 우연은 아니다.\n"
+                if len(orders) == 1 and len(ranked) > 1 else
+                "⚠ 셀마다 순서가 달라 순위를 주장하지 않는다.\n")
+             + "⛔ **UMA 값이라 DFT 재채점 전에는 순위로만** 쓴다 — 괄호 안 Δ 의 절대값은 인용하지 않는다.\n"
+               "⛔ n4fu ↔ n5fu 는 원자 수가 달라 **셀 사이 비교가 아니다**.\n"
+               "출처: db/structures/ndo_lpscl16_rietveld_2026_09_07/anneal_2026_09_07/anneal_results.json"}]
 
 # ─────────────────────────────────────────────────────────────
 # 개념 문서 첨부 (2026-08-05) — 그림·데이터를 웹에서 직접 열고 내려받기
