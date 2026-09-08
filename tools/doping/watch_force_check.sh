@@ -93,7 +93,10 @@ fi
 
 [ -d "$W" ] || { echo "⛔ 디렉터리가 없다: $W"; exit 2; }
 MARK="$W/.fc_run_started"
-echo "═══ 힘 대조 DFT 20점 · $(date '+%m-%d %H:%M') · $W"
+# ⚠ 점 수를 하드코딩하지 않는다 — 같은 러너를 Nd 4셀에도 쓰는데 "20점" 이 찍히면
+#   화면이 거짓말을 한다 (2026-09-08: 같은 도구를 두 캠페인이 쓰기 시작).
+_N=$(find "$W" -mindepth 1 -maxdepth 1 -type d | wc -l)
+echo "═══ ${LABEL:-DFT 단일점} ${_N}점 · $(date '+%m-%d %H:%M') · $W"
 [ -f "$MARK" ] && echo "    이번 실행 시작 $(date -r "$MARK" '+%m-%d %H:%M')"
 printf "%-20s %-16s %s\n" "점" "상태" "비고"
 tot=0; don=0; run=0; dead=0; wait_n=0

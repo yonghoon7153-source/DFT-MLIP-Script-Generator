@@ -24,6 +24,7 @@ Usage:
 """
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -545,6 +546,21 @@ def _selftest():
         chk((_d / "o" / "one" / "struct.xyz").is_file(), "\uc6d0\ubcf8 \uad6c\uc870\ub97c \uc606\uc5d0 \ub0a8\uae34\ub2e4 (\uc7ac\ud604)")
         chk(bool(json.loads((_d / "o" / "MANIFEST.json").read_text()).get("gate")),
             "MANIFEST \uc5d0 gate(\ube44\uad50 \ub2e8\uc704\u00b7\ubb34\ud6a8 \uc870\uac74)\uac00 \uc2e4\ub9b0\ub2e4")
+        # \u26d4\uc74c\uc131: frozen-4f PP \uc5d0 U \ub97c \uac78\uba74 **\uac70\ubd80**\ud55c\ub2e4 (\uc6d0\uc790\uac00\uc5d0 \uc5c6\ub294 \uaecd\uc9c8\uc5d0 U)
+        (_d / "ps" / "Nd.frozen.UPF").write_text('z_valence="11.0"\n')
+        _an = _At('NdO', positions=[[0, 0, 0], [2, 0, 0]], cell=[8, 8, 8], pbc=True)
+        _p2 = _d / "nd_post_relax.xyz"; _an.write(str(_p2))
+        try:
+            scf_from_xyz([_p2], _d / "o3", str(_d / "ps"), nspin=2,
+                         start_mag={'Nd': 0.3}, hubbard=['Nd-4f 6.0'],
+                         pp_names={'Nd': 'Nd.frozen.UPF'})
+            chk(False, "\u26d4\uc74c\uc131: frozen-4f \uc5d0 U \ub97c \uac78\uba74 \uac70\ubd80\ud574\uc57c \ud55c\ub2e4")
+        except ValueError as _e:
+            chk('frozen-4f' in str(_e), "\u26d4\uc74c\uc131: frozen-4f + U \uac70\ubd80 (z_valence \ub85c \ud310\ubcc4)")
+        # \u2b55\uc591\uc131 \uacbd\uacc4: \uac19\uc740 PP \ub77c\ub3c4 U \ub97c \uc548 \uac78\uba74 \ud1b5\uacfc\ud574\uc57c \ud55c\ub2e4 (\uac00\ub4dc\uac00 \uacfc\uc789\uc774\uba74 \uc548 \ub41c\ub2e4)
+        _m3 = scf_from_xyz([_p2], _d / "o4", str(_d / "ps"),
+                           pp_names={'Nd': 'Nd.frozen.UPF'})
+        chk(len(_m3['cells']) == 1, "\u2b55\uc591\uc131: frozen-4f \ub77c\ub3c4 U \uc5c6\uc774\ub294 \ud1b5\uacfc")
         # \u26d4\uc74c\uc131: \uc720\uc0ac\ud3ec\ud150\uc15c\uc774 \uc5c6\uc73c\uba74 **\uc785\ub825\uc744 \ub9cc\ub4e4\uc9c0 \uc54a\ub294\ub2e4** (\ub098\uc911\uc5d0 pw.x \uac00 \uc8fd\ub294\ub2e4)
         try:
             scf_from_xyz([_p1], _d / "o2", str(_d / "nope"))
@@ -614,6 +630,28 @@ def scf_from_xyz(paths, out_dir, pseudo_dir, ecutwfc=52, ecutrho=520,
         a = _read(str(pth))
         species_all |= set(a.get_chemical_symbols())
     pp = preflight_pseudos(sorted(species_all), pseudo_dir, pp_names)
+    # ⛔⛔ **원자가에 없는 껍질에 U 를 걸지 못하게 막는다.** tools/sei/build_dft_inputs.py
+    #   가 2026-08-29 에 실측으로 잡은 사고를 이 경로에도 건다: frozen-4f PP(z≈11, 4f 가
+    #   core)에 `HUBBARD U Nd-4f` 를 찍으면 QE 가 죽거나 **조용히 무시**한다.
+    #   판별 기준도 그쪽과 같다 — z ≈ 14 = 4f 원자가 · z ≈ 11 = frozen.
+    for man_s in (hubbard or []):
+        el = str(man_s).split('-')[0].strip()
+        f = Path(pseudo_dir) / pp.get(el, {}).get("file", "")
+        if not f.is_file():
+            continue
+        head = f.read_text(errors="ignore")[:8000]
+        m = re.search(r'z_valence\s*=\s*"?\s*([\d.eEdD+-]+)', head, re.I) or \
+            re.search(r"([\d.eEdD+-]+)\s+Z valence", head, re.I)
+        if not m:
+            continue
+        z = float(m.group(1).replace("D", "E").replace("d", "e"))
+        if "-4f" in str(man_s) and z < 12.0:
+            raise ValueError(
+                f"⛔ {el} PP 가 frozen-4f 다 (z_valence {z:.1f} < 12, {pp[el]['file']}) — "
+                f"4f 가 core 에 있어 `HUBBARD U {man_s}` 는 걸 대상이 없다.\n"
+                "   frozen-4f 로 갈 거면 --hubbard 와 --nspin 2 를 빼라. 4f 를 원자가에 둘 거면 "
+                "z≈14 PP(예: Nd.paw.z_14.atompaw…)를 pseudo_dir 에 넣어라.\n"
+                "   ⚠ 어느 쪽이든 **비교 대상과 같은 선택**이어야 한다.")
     man["pseudos"] = pp
     for pth in paths:
         pth = Path(pth)
