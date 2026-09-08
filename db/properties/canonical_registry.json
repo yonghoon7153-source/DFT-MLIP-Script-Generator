@@ -398,9 +398,17 @@
     "date": "2026-08-23 (레지스트리 반영 2026-08-25)",
     "what": "0.199 ± 0.034 은 600–1000 K **전구간 단일 직선** 적합이다.",
     "why": "아레니우스가 800 K 위에서 굽는다 — 구간 Ea 600→800 0.222 eV / 800→1000 0.077 eV, 145 meV 차. 단일 직선으로 기술할 수 없다. 인공물 가설 3개(β 게이트 · MSD 창 포화 · 1000 K 구조 붕괴)를 각각 실측으로 반증했다.",
-    "usable_instead": "저온 구간만: Ea = 0.2241 ± 0.0606 eV (600→800 K, 3시드 **각각** 적합). 평균 D 를 먼저 내고 적합하면 오차막대가 사라진다 — 그게 0.199 가 정밀해 보였던 이유다.",
+    "usable_instead": {
+     "none": true,
+     "decision": "D-2026-09-07-b2o3-md-closure-retrospective",
+     "why": "D-2026-09-07-b2o3-md-closure-retrospective (1저자 비준 2026-09-07) — b2o3 UMA-MD 전도도 축은 D·Ea·σ·구간 Ea **전부** 인용 불가이고 인용 가능한 수는 0개다. 마감 카드 금지_서술[0] 이 '0.222 eV 포함' 이라고 못박았다."
+    },
     "source": "db/properties/b2o3_md_arrhenius.json · segment_extrapolation_2026_08_24",
-    "card": "kb/results/b2o3_arrhenius_curvature_2026_08_23.md"
+    "card": "kb/results/b2o3_arrhenius_curvature_2026_08_23.md",
+    "⛔_대체값_철회_2026_09_08": "종전 usable_instead 는 **마감 결정이 금지한 값을 권하고 있었다** — 아래 superseded_usable_instead 참조. 원인은 거짓말이 아니라 스키마에 '대체값 없음' 을 적을 자리가 없었던 것이다(validate 가 빈 값을 거부했다). Codex BI P0-1 (2026-09-08).",
+    "superseded_usable_instead": "저온 구간만: Ea = 0.2241 ± 0.0606 eV (600→800 K, 3시드 **각각** 적합). 평균 D 를 먼저 내고 적합하면 오차막대가 사라진다 — 그게 0.199 가 정밀해 보였던 이유다.",
+    "superseded_on": "2026-09-08",
+    "instead_kind": "sentinel_none"
    },
    "uncertainty_kind": "between_seed_sd — 평균의 CI 가 아니라 **run-to-run 산포**다. n=3–4 라 이 SD 자체의 상대오차가 41–50 % 다.",
    "finite_duration": {
@@ -410,7 +418,10 @@
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
    },
    "protocol_generation": "gen0_pre_gate",
-   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json.",
+   "governed_by": [
+    "D-2026-09-07-b2o3-md-closure-retrospective"
+   ]
   },
   {
    "system": "lpsocl",
@@ -500,7 +511,7 @@
     "single_trajectory_CI",
     "long_time_convergence"
    ],
-   "updated": "2026-08-20",
+   "updated": "2026-09-08",
    "blocking_gate": "framework_beta_800_1000K",
    "gate_detail": {
     "rule": "framework beta = dlog MSD/dlogt of the NON-Li elements (n>=8 atoms only), window 2-50 ps. pass < 0.30 (vibration). 0.30-0.60 mobile, >=0.60 diffusive.",
@@ -547,7 +558,12 @@
     "why": "교차리뷰 H Q12 (2026-08-27). block 하한 (T−t₂max)/b 로 200 ps·lag 50 은 유효 block 1.5–3.0 개라 발행 기준 8–10 에 못 미친다 ⇒ 단일궤적 CI 불가. ⚠ 다만 8–10 은 **발행 기준**이지 점추정치를 무효화하는 정리가 아니다 — 값은 **조건부 유지**다."
    },
    "protocol_generation": "gen0_pre_gate",
-   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json."
+   "protocol_generation_why": "G1(MTO)·G2(원궤적) 없이 200 ps 로 생산됐다 ⇒ G3(4창 D_inc plateau)·G4(골격 게이트)는 **평가불가**(통과가 아니다). 세대 정의·소급 가능성은 db/properties/md_protocol_generations.json.",
+   "citable": false,
+   "why_non_citable": "D-2026-09-07-b2o3-md-closure-retrospective 집행 (2026-09-08). 마감 범위는 'b2o3 의 UMA-MD 전도도 축 전체 — D · Ea · σ · 구간 Ea' 이고 이 값은 그 축의 단일시드 Ea 다. 종전 status=provisional 은 마감(2026-08-25)보다 **먼저**(2026-08-20) 적힌 것이라 마감을 반영하지 못했다. ⚠ 형제 항목 MD_Ea_eV_singleseed@modelc 와 comparison_group `md-ea-singleseed-anchor-v1` 의 처리는 **1저자 미결** — 이 결정의 applies_to.systems 는 ['b2o3'] 뿐이라 기계가 대신 정할 수 없다.",
+   "governed_by": [
+    "D-2026-09-07-b2o3-md-closure-retrospective"
+   ]
   },
   {
    "system": "comp1",

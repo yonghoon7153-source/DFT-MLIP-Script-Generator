@@ -18,13 +18,15 @@
 </div>
 
 <div class="concept-wrap">
-  <article class="doc concept" id="concept-body">{{ fallback_html|safe }}</article>
+  {#- 본문은 **서버 렌더 하나뿐**이다 (app.doc_html — 콜아웃·수식보호·결속 포함).
+      브라우저 재렌더는 2026-09-08 에 폐지했다: Codex BI P0-2b. -#}
+  <article class="doc concept" id="concept-body">{{ body_html|safe }}</article>
 </div>
 
 {# 여백 메모 (1저자 요청 2026-08-17: "glossary 더보기에도 그 기능을") — 본문에서
    오른쪽 클릭하면 오른쪽 여백에 메모가 붙는다. 저장은 kb/concepts/<cid>.md 에.
-   ⚠ 이 스크립트는 아래 재렌더 IIFE **밖**에 둔다: marked 가 없어 서버 fallback
-     HTML 이 그대로 남는 경우에도 메모가 살아야 한다 (그 경로가 실제로 쓰인다). #}
+   ⚠ 이 스크립트는 아래 IIFE **밖**에 둔다: KaTeX·mermaid CDN 이 안 떠도 메모는 살아야
+     한다 (본문 자체는 서버가 이미 그려서 보냈다). #}
 <script src="/static/js/comments.js?v={{ asset_version }}"></script>
 <script src="/static/js/docnote.js?v={{ asset_version }}"></script>
 
@@ -161,92 +163,21 @@
 </div>
 {% endif %}
 
-<script type="application/json" id="md-src">{{ raw_md|tojson }}</script>
-<script src="{{ vsrc('marked.min.js','https://cdn.jsdelivr.net/npm/marked@12/marked.min.js') }}"></script>
-<script src="/static/js/mdfix.js?v={{ asset_version }}"></script>
+{#- ⛔ Codex BI P0-2b (2026-09-08) — 여기 있던 **브라우저 재렌더**를 없앴다.
+    `#md-src` 의 raw 마크다운을 `marked.parse` 로 다시 그려 `box.innerHTML` 에 넣었는데,
+    그 한 줄이 서버가 붙인 `.claim-flag` 를 통째로 덮었다(실측 14건: bvse 10 ·
+    msd_reading 2 · md 1 · beta-gate 1). 서버 스캔은 초록인데 **사람이 보는 화면에는
+    결속이 없었다.** 파서가 둘이면 판정도 둘이 된다 ⇒ 콜아웃·수식 보호를 서버
+    `app.doc_html()` 로 옮기고 브라우저는 **부착만** 한다(KaTeX·mermaid·목차).
+    ⚠ `marked` 를 여기로 되살리지 마라 — `test_no_client_side_markdown_parser` 가 막는다. -#}
 <script src="{{ vsrc('katex.min.js','https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js') }}"></script>
 <script src="{{ vsrc('katex-autorender.min.js','https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js') }}"></script>
 <script src="{{ vsrc('mermaid.min.js','https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js') }}"></script>
 <script>
 (function(){
   var box = document.getElementById('concept-body');
-  var raw=null;
-  try { raw = JSON.parse(document.getElementById('md-src').textContent); } catch(e){}
-  // marked 로드+raw 있으면 풀 파이프라인 재렌더; 아니면 서버 fallback HTML 유지(raw dump 없음)
-  if (typeof marked !== 'undefined' && raw){
 
-  var L = '', R = '';           // private-use sentinel (marked이 건드리지 않음)
-  var maths = [], calls = [];
-
-  // 0) 한국어 볼드/취소선 보정 — CommonMark right-flanking 규칙 때문에
-  //    `**…(괄호)**조사` 가 안 닫히던 것(kb 610건). 코드·수식은 mdfix 가 보호한다.
-  //    ⚠ 콜아웃 파싱보다 **앞**이어야 콜아웃 안의 볼드도 살아난다.
-  if (typeof mdFixEmphasis === 'function') raw = mdFixEmphasis(raw);
-
-  // 1) 수식 보호 — display($$) 먼저, 그다음 inline($)
-  raw = raw.replace(/\$\$([\s\S]+?)\$\$/g, function(m){ maths.push(m); return L+'M'+(maths.length-1)+R; });
-  raw = raw.replace(/\$([^\$\n]+?)\$/g,     function(m){ maths.push(m); return L+'M'+(maths.length-1)+R; });
-
-  // 2) Obsidian 콜아웃 ( > [!note] title ) → 스타일 div (본문은 marked로 파싱)
-  var lines = raw.split('\n'), out = [], i = 0;
-  while (i < lines.length){
-    var m = lines[i].match(/^>\s*\[!(\w+)\]\s*(.*)$/);
-    if (m){
-      var type = m[1].toLowerCase(), title = m[2] || '', body = [];
-      i++;
-      while (i < lines.length && /^>/.test(lines[i])){ body.push(lines[i].replace(/^>\s?/, '')); i++; }
-      var inner = marked.parse(body.join('\n'));
-      var head = title ? '<div class="cal-t">'+title+'</div>' : '';
-      calls.push('<div class="callout cal-'+type+'">'+head+'<div class="cal-b">'+inner+'</div></div>');
-      out.push(''); out.push(L+'C'+(calls.length-1)+R); out.push('');
-    } else { out.push(lines[i]); i++; }
-  }
-  raw = out.join('\n');
-
-  // ── 삽입 전 정화 (서버 _sanitize_urls 와 같은 규칙) ─────────────────────
-  function sanitizeHTML(h){
-    var d = document.createElement('div');
-    d.innerHTML = h;
-    // ① 스크립트·이벤트 핸들러·위험 요소 제거
-    d.querySelectorAll('script,iframe,object,embed,form,link,meta,base,style').forEach(function(e){e.remove();});
-    d.querySelectorAll('*').forEach(function(e){
-      Array.prototype.slice.call(e.attributes).forEach(function(a){
-        if (/^on/i.test(a.name)) e.removeAttribute(a.name);
-      });
-    });
-    // ② href/src 는 허용 scheme 만 (상대경로·앵커·한글 파일명은 통과)
-    var OK = /^\s*(?:https?:|mailto:|\/|#|\.\/|\.\.\/|[^:]*$)/i;
-    d.querySelectorAll('[href],[src]').forEach(function(e){
-      ['href','src'].forEach(function(k){
-        var v = e.getAttribute(k);
-        if (v !== null && !OK.test(v.replace(/[\t\n\r]/g,''))){
-          e.setAttribute(k, '#blocked-url'); e.setAttribute('data-blocked-url','1');
-        }
-      });
-    });
-    return d.innerHTML;
-  }
-
-  // 3) 마크다운 → HTML
-  marked.setOptions({ gfm:true, breaks:false, headerIds:true, mangle:false });
-  var html = marked.parse(raw);
-
-  // 4) 콜아웃 복원 (marked이 <p>로 감쌌을 수 있음)
-  html = html.replace(new RegExp('<p>'+L+'C(\\d+)'+R+'</p>','g'), function(_,n){ return calls[n]; });
-  html = html.replace(new RegExp(L+'C(\\d+)'+R,'g'),             function(_,n){ return calls[n]; });
-  // 5) 수식 복원 — innerHTML 삽입 전 <,>,& 이스케이프
-  //    (부등호가 든 수식 $\sum_{i<j}$ 등이 태그로 먹히는 것 방지; KaTeX는 textContent를 읽어 정상 렌더)
-  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-  html = html.replace(new RegExp(L+'M(\\d+)'+R,'g'),             function(_,n){ return esc(maths[n]); });
-
-  // ★ 삽입 전에 정화한다 (2026-08-07 리뷰 P2). 서버 md_html 은 raw HTML 을 끄고
-  //   href/src scheme 을 검사하는데, **이 경로는 브라우저 marked 라 그 방어를 안 거친다.**
-  //   개념 문서는 에이전트가 외부 PDF 를 요약해 쓰기도 하므로 같은 규칙을 여기도 건다.
-  //   DOMPurify 를 vendor 에 넣기 전까지의 최소 방어 — DOM 을 만들어 놓고 훑는다.
-  box.innerHTML = sanitizeHTML(html);
-  }
-
-  // mermaid 코드블록 → .mermaid div (marked·서버 fallback 공통)
+  // mermaid 코드블록 → .mermaid div (서버 렌더 결과 위에서)
   box.querySelectorAll('code.language-mermaid').forEach(function(c){
     var d = document.createElement('div'); d.className = 'mermaid'; d.textContent = c.textContent;
     (c.closest('pre') || c).replaceWith(d);

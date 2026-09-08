@@ -52,11 +52,15 @@
   },
   {
    "file": "db/properties/b2o3_md_arrhenius.json",
-   "level": "CONDITIONAL",
-   "what": "Ea — 헤드라인이 3회 교체됨 (0.207 → 0.2234 단일시드 → 0.199±0.034)",
-   "why": "중간판이 아직 파일에 남아 있다",
-   "fix": "FINAL_for_paper.Ea_eV_PAPER 만 인용",
-   "claim": "MD_Ea_eV@b2o3"
+   "level": "BLOCKED",
+   "what": "Ea — 축 전체 마감 (D · Ea · σ · 구간 Ea 전부 인용 불가)",
+   "why": "D-2026-09-07-b2o3-md-closure-retrospective (1저자 비준). 골격 게이트 실측으로 b2o3 UMA-MD 전도도 축이 통째로 닫혔다 — 인용 가능한 수 0개. 종전 사유('중간판이 아직 파일에 남아 있다')는 헤드라인 교체 얘기였고 마감을 반영하지 못했다.",
+   "fix": "**대체값 없음.** 이 축의 어떤 수도 인용하지 않는다 (0.222 eV 구간 Ea 포함). 말할 수 있는 것은 마감 카드의 허용_서술 4문장뿐 — db/properties/b2o3_md_closed_retrospective_2026_08_25.json 허용_서술_이대로만.",
+   "claim": "MD_Ea_eV@b2o3",
+   "id": "HZ-b2o3-md-ea",
+   "⛔_정정_2026_09_08": "종전 fix 는 `FINAL_for_paper.Ea_eV_PAPER 만 인용` 이었는데 그 키는 db/properties/b2o3_md_arrhenius.json 에 **존재하지 않는다**(실재 키는 Ea_eV_PAPER_SUPERSEDED_600K_only · Ea_eV_PAPER_RETRACTED_2026_08_23). 죽은 키를 3주 동안 '이것만 인용하라' 고 가리켰다 — Codex BI P0-1 (2026-09-08). level 도 CONDITIONAL 이라 화면이 파란 배지로 그렸다.",
+   "decision": "D-2026-09-07-b2o3-md-closure-retrospective",
+   "updated": "2026-09-08"
   },
   {
    "file": "db/properties/vgcf_hbn_neb.json",
@@ -219,7 +223,7 @@
    "note": "전수 조사 — 인용 게이트 자체의 오류 2건 정정(phaseB dE_extract 를 '인용하라'고 적고 있었다 · figure2e 의 v13/14잡 표기), 미등재 위험 3건 추가"
   }
  ],
- "updated": "2026-08-31",
+ "updated": "2026-09-08",
  "_schema_note": {
   "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②).",
   "id": "안정 hazard 식별자. 화면·handoff 가 `data-claim=\"<id>\"` 로 이 위험을 선언한다 (회신 BG ②).",

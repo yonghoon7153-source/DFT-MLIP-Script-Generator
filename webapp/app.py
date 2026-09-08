@@ -178,6 +178,95 @@ def md_html(text: str, extensions=("tables", "fenced_code")) -> str:
     return _bind_claims(_sanitize_urls(md.convert(text or "")))
 
 
+# ── 개념 문서 서버 렌더 (Codex BI P0-2b · 2026-09-08) ────────────────────────
+#   종전에는 `concept.html` 이 브라우저 `marked` 로 **다시 그렸고**, 그 순간
+#   `box.innerHTML = …` 이 서버가 붙인 `.claim-flag` 를 통째로 덮었다. 서버 스캔은
+#   초록인데 사람이 보는 화면에는 결속이 없는 상태 — 실측 14건(bvse 10 · msd_reading 2
+#   · md 1 · beta-gate 1). 파서가 둘이면 판정도 둘이 된다.
+#   ⇒ **판정은 서버 한 곳**. 콜아웃·수식 보호를 서버로 옮기고 브라우저 재렌더를 없앤다.
+_CALLOUT_HEAD = re.compile(r"^>\s*\[!(\w+)\]\s*(.*)$")
+_MATH_TOK = "xxMATHxx%dxx"
+_CALL_TOK = "xxCALLOUTxx%dxx"
+_MATH_PAT = re.compile(r"\$\$[\s\S]+?\$\$|\$[^$\n]+?\$")
+
+
+def _protect_math(text: str):
+    """`$…$` · `$$…$$` 를 자리표시자로 빼둔다 → (text, store).
+
+    ⚠ 빼두지 않으면 Python-Markdown 이 수식 안의 `_`·`*` 를 강조로 먹는다
+      (`$\\sum_{i<j}$` → `<em>` 삽입). KaTeX 는 textContent 를 읽으므로 그 순간 깨진다.
+    """
+    store = []
+
+    def _put(m):
+        store.append(m.group(0))
+        return _MATH_TOK % (len(store) - 1)
+    return _MATH_PAT.sub(_put, text or ""), store
+
+
+def _split_callouts(text: str, render):
+    """Obsidian 콜아웃(`> [!note] 제목`)을 빼서 렌더해 두고 자리표시자를 남긴다.
+
+    본문은 같은 서버 렌더러(`render`)를 다시 타므로 **결속·URL 정화가 콜아웃 안에도**
+    걸린다. 브라우저 판(concept.html 옛 :225)은 marked 를 직접 불러 그 둘을 건너뛰었다.
+    """
+    lines, out, blocks, i = (text or "").split("\n"), [], [], 0
+    while i < len(lines):
+        m = _CALLOUT_HEAD.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        kind, title, body = m.group(1).lower(), (m.group(2) or "").strip(), []
+        i += 1
+        while i < len(lines) and lines[i].startswith(">"):
+            body.append(re.sub(r"^>\s?", "", lines[i]))
+            i += 1
+        head = f'<div class="cal-t">{escape(title)}</div>' if title else ""
+        blocks.append(f'<div class="callout cal-{escape(kind)}">{head}'
+                      f'<div class="cal-b">{render(chr(10).join(body))}</div></div>')
+        out += ["", _CALL_TOK % (len(blocks) - 1), ""]
+    return "\n".join(out), blocks
+
+
+def doc_html(text: str) -> str:
+    """개념·문서용 마크다운 렌더 — 콜아웃 + 수식 보호 + **결속**까지 서버에서.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 수식 안의 문자열은 결속하지 않는다 (자리표시자로 빠져 있다가 결속 뒤에 돌아온다).
+        수식에 철회값을 적으면 표식이 안 붙는다 — 알려진 한계다.
+      · mermaid·KaTeX 는 여전히 브라우저가 그린다. 그 둘은 **텍스트 노드를 바꾸지만
+        `.claim-flag` span 을 지우지는 않는다**(코드블록 교체 · 수식 자리 교체뿐).
+      · 결속 실패를 조용히 넘기지 않는다 — `_bind_claims` 가 원문을 돌려주고 시험이 잡는다.
+    """
+    def _inner(t):
+        if _md is None:
+            return "<pre>" + escape(t or "") + "</pre>"
+        m = _md.Markdown(extensions=["tables", "fenced_code"])
+        for name in ("html_block",):
+            try:
+                m.preprocessors.deregister(name)
+            except (KeyError, ValueError):
+                pass
+        for name in ("html", "raw_html"):
+            try:
+                m.inlinePatterns.deregister(name)
+            except (KeyError, ValueError):
+                pass
+        return _sanitize_urls(m.convert(t or ""))
+
+    body, math = _protect_math(text or "")
+    body, calls = _split_callouts(body, _inner)
+    html = _inner(body)
+    for n, blk in enumerate(calls):                       # <p>토큰</p> 과 맨토큰 둘 다
+        tok = _CALL_TOK % n
+        html = html.replace(f"<p>{tok}</p>", blk).replace(tok, blk)
+    html = _bind_claims(html)                             # ★ 결속은 여기 한 번뿐이다
+    for n, raw in enumerate(math):                        # 수식은 결속 **뒤에** 돌려놓는다
+        html = html.replace(_MATH_TOK % n, escape(raw))
+    return html
+
+
 # ── 회신 BG ② — kb 산문의 결속은 **렌더할 때** 붙인다 ─────────────────────────
 #   `/todo`·`/requests`·저널·litdb 는 원문이 마크다운이다. 손으로 data-claim 을 심으면
 #   원장이 화면 형식에 오염되고, 다음에 원문을 고치면 결속이 조용히 사라진다.
@@ -302,6 +391,8 @@ def composition(cid):
         cascade_rows=D.cascade_rows_for(dop) if dop else None,
         canonical=D.canonical_values(cid),
         canonical_status=D.canonical_status_for(cid), MM=D.metric_meta(),
+        # 값 타일의 결속 이름 (원장 파생) — Codex BI P0 · 2026-09-08
+        canonical_claim=D.canonical_claim_for(cid),
         # 잣대 세대 — 어느 시절 규칙으로 만들어진 값인가 (2026-09-07)
         canonical_gen=D.canonical_generation_for(cid),
         canonical_prov={k: v for (k, c), v in D.canonical_provenance_flags().items() if c == cid},
@@ -419,7 +510,8 @@ def explorer():
                            canonical_provisional=D.CANONICAL_PROVISIONAL,
                            canonical_status=D.canonical_status_all(), MM=D.metric_meta(),
                            canonical_prov=D.canonical_provenance_flags(),
-                           comp_elements=D.COMP_ELEMENTS,
+                           # 인용을 **막아야 하는** 칸 (Codex BI · 2026-09-08)
+                           claims=D.claim_map(), comp_elements=D.COMP_ELEMENTS,
                            categories=D.CATEGORIES,
                            extra=extra, extra_meta=D.EXTRA_META,
                            amatrix=D.analysis_matrix(), awhy=D.ANALYSIS_WHY)
@@ -1210,10 +1302,11 @@ def concept(cid):
         have = D.concept_ids()
         siblings = [g for g in G.GLOSSARY
                     if g["cat"] == term["cat"] and g["id"] != cid and g["id"] in have]
-    # 서버 렌더 fallback — marked.js CDN 미로드시에도 raw dump 대신 서식 유지
-    fallback = md_html(md)
+    # ★ 본문은 **서버가 한 번만** 그린다 (Codex BI P0-2b · 2026-09-08). 종전에는
+    #   이걸 "fallback" 이라 부르고 브라우저 marked 가 다시 그렸는데, 그 재렌더가
+    #   서버 결속을 덮었다. 이제 이게 유일한 렌더다 — 콜아웃·수식보호·결속 포함.
     return render_template("concept.html", active="glossary", cid=cid,
-                           term=term, raw_md=md, siblings=siblings, fallback_html=fallback,
+                           term=term, siblings=siblings, body_html=doc_html(md),
                            papers=D.glossary_papers(cid),
                            attachments=(_att := D.concept_attachments(cid)),
                            att_days=D.gallery_days(_att), ccounts=D.comment_counts())
@@ -1224,7 +1317,11 @@ def api_concept(cid):
     md = D.read_concept(cid)
     if md is None:
         abort(404)
-    return jsonify({"id": cid, "markdown": md})
+    # ⚠ `markdown` 은 **결속이 없는 원문**이다. 화면에 그대로 그리면 결속이 사라진다
+    #   (2026-09-08 까지 concept.html 이 정확히 그렇게 했다 — Codex BI P0-2b).
+    #   그래서 서버가 그린 `html` 을 같이 보낸다. 새 소비자는 `html` 을 써라.
+    return jsonify({"id": cid, "markdown": md, "html": doc_html(md),
+                    "⚠_markdown": "결속 없는 원문이다. 화면에 그리려면 html 을 쓴다."})
 
 
 # ── 작업 로그 (기록·저장) ─────────────────────────────

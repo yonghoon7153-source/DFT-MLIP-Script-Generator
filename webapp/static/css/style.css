@@ -532,6 +532,11 @@ kbd{font-family:var(--mono);font-size:.72em;background:var(--bg);border:1px soli
 .cell-cite{font-family:var(--mono);font-weight:600;font-size:.9rem;color:var(--navy);background:none;border:none;
   cursor:pointer;padding:2px 5px;border-radius:5px;transition:.1s}
 .cell-cite:hover{background:var(--accent-soft);color:var(--accent)}
+/* 철회·비인용 칸 — **버튼이 아니다.** 값은 보이되 원클릭 인용 경로를 주지 않는다
+   (Codex BI · 2026-09-08: 0.199 가 여기서 한 번 클릭으로 복사되고 있었다). */
+.cell-blocked{font-family:var(--mono);font-weight:600;font-size:.9rem;color:var(--red);
+  cursor:help;padding:2px 5px;border-radius:5px;text-decoration:line-through;
+  text-decoration-color:color-mix(in srgb,var(--red) 60%,transparent)}
 .cell-todo{color:var(--todo-fg);font-size:.72rem;font-weight:600}
 .prov-legend{margin-top:26px}
 .prov-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;box-shadow:var(--shadow)}
@@ -1340,8 +1345,14 @@ body.rail .rail-peek:hover ~ .sidebar,body.rail .sidebar:hover{transform:transla
    호버하면 title 에 사유와 대체값이 뜬다. */
 .claim-flag{border-bottom:1.5px dotted var(--red);cursor:help;
   background:color-mix(in srgb,var(--red) 7%,transparent);border-radius:2px;padding:0 1px}
-.claim-flag::after{content:"⛔";font-size:.72em;vertical-align:super;margin-left:1px;opacity:.85}
-@media print{.claim-flag{border-bottom:1.5px dotted #be123c}}
+/* ⛔ Codex BI Q3 (2026-09-08) — 표식을 `content:` 로만 그리면 **화면 밖으로 못 나간다.**
+   복사·인쇄·텍스트추출·보조기기에는 철회값만 따라가고 경고가 사라진다. 그래서 표식은
+   실제 텍스트 노드(`.claim-mark`)로 렌더하고, CSS 는 **모양만** 담당한다.
+   ⚠ 여기에 `content:` 를 되살리지 마라 — 되살리면 같은 구멍이 다시 열린다. */
+.claim-mark{font-size:.72em;vertical-align:super;margin-left:1px;opacity:.85;
+  white-space:nowrap;color:var(--red)}
+@media print{.claim-flag{border-bottom:1.5px dotted #be123c}
+  .claim-mark{color:#be123c;opacity:1}}
 
 /* 카드 본문 안의 간이 표 (mdlite · 2026-09-08) — 카드가 좁으므로 작고 촘촘하게 */
 .mdl-tbl{border-collapse:collapse;margin:6px 0;font-size:.95em;width:100%}

@@ -802,16 +802,28 @@ DYNAMIC_FIXTURES = {
     "/api/structure/<path:fn>":   ["sei_li3nd_mp-976264.vasp"],
     "/composition/<cid>":         ["comp1", "modelc"],
     "/concept/<cid>":             ["ordered_vs_disordered", "beta-gate"],
+    # ⛔ 2026-09-08 (Codex BI 회신) — EXEMPT 사유가 **또 사실오류였다**: "kb/seminars 파일명과
+    #   1:1 이 아니다" 라고 적혀 있었지만 app.py:1108 은 `litdb/talks/<slug>.md` 를 연다.
+    #   stem 과 1:1 이고 8개 전부 200 이다. handoff 에서 같은 종류의 거짓 사유를 한 번
+    #   고치고 talk 에서 놓쳤다 — **사람 눈은 사유의 참·거짓을 못 지킨다**(아래 시험 참조).
+    "/talk/<slug>":               ["do2026_bml_alzib_preconditioning",
+                                   "yang2026_ncm_radial_microstructure_ml"],
 }
 
 #: 스모크로 못 미는 동적 라우트 — **사유를 반드시 적는다**(빈 사유 금지).
 #: ⚠ 여기 넣는 것은 "검사 안 함" 이라는 선언이다. 늘어나면 그만큼 눈이 먼다.
-DYNAMIC_EXEMPT = {
-    "/api/note-image/<name>":
-        "사용자가 노트에 붙인 이미지. 저장소에 커밋되지 않는다(업로드 산물).",
-    "/talk/<slug>":
-        "발표 슬러그가 kb/seminars 파일명과 1:1 이 아니다 — 대응 규칙을 확인하기 전에는 "
-        "임의 슬러그를 넣어 404 를 통과로 세게 된다. ⏳ 규칙 확인 후 fixture 로 옮긴다.",
+#: 커밋된 실물 인자가 **없는** 동적 라우트 — 대신 **합성 인자로 실제 GET 하는 시험**을 댄다.
+#: ⛔ 2026-09-08 (Codex BI) — 종전 `DYNAMIC_EXEMPT` 는 "사유만 적으면 통과" 였고, 두 번
+#:   연속으로 그 사유가 **사실오류**였다(handoff: kb/results 에 94개 커밋돼 있었다 ·
+#:   talk: litdb/talks 에 8개 커밋돼 있었다). 사람 눈은 사유의 참·거짓을 못 지킨다.
+#:   ⇒ 면제를 없애고 **반증 가능한 의무**로 바꾼다: 시험 이름을 대고, 그 시험이 실재하고,
+#:   그 시험이 그 라우트를 정말 GET 하는지 아래 시험이 확인한다.
+DYNAMIC_SYNTHETIC = {
+    "/api/note-image/<name>": {
+        "why": "사용자가 붙여넣은 캡처. 파일명이 **내용의 sha256** 이라 저장소에 커밋되지 "
+               "않는다(webapp/data.py save_note_image). 실물 인자가 원리적으로 없다.",
+        "test": "test_note_image_route_is_exercised_synthetically",
+    },
 }
 
 #: 기본 요청에서 **일부러 403** 인 라우트 — fail-closed 가 목적이라 200 이면 오히려 버그다.
@@ -830,15 +842,30 @@ def test_dynamic_routes_are_covered_not_skipped():
       ② fixture 가 있는 것은 **실제로 렌더까지** 간다 (404/500 이 아니다)
     """
     dyn = _dynamic_routes()
-    known = set(DYNAMIC_FIXTURES) | set(DYNAMIC_EXEMPT)
+    known = set(DYNAMIC_FIXTURES) | set(DYNAMIC_SYNTHETIC)
     unknown = [r for r in dyn if r not in known]
     assert not unknown, (
-        f"fixture 도 EXEMPT 도 없는 동적 라우트가 있다 — 검사 밖이다: {unknown}\n"
-        f"DYNAMIC_FIXTURES 에 대표 인자를 넣거나, DYNAMIC_EXEMPT 에 **사유와 함께** 적어라.")
+        f"fixture 도 합성시험도 없는 동적 라우트가 있다 — 검사 밖이다: {unknown}\n"
+        f"DYNAMIC_FIXTURES 에 대표 인자를 넣거나, DYNAMIC_SYNTHETIC 에 "
+        f"**사유 + 그 라우트를 실제로 GET 하는 시험 이름**을 적어라.")
     stale = [r for r in known if r not in dyn]
-    assert not stale, f"없어진 라우트의 fixture/EXEMPT 가 남아 있다: {stale}"
-    empty = [r for r, why in DYNAMIC_EXEMPT.items() if not (why or "").strip()]
-    assert not empty, f"⛔ EXEMPT 에 사유 없는 항목: {empty} — 빈 사유는 검사를 끄는 뒷문이다"
+    assert not stale, f"없어진 라우트의 fixture/합성시험 선언이 남아 있다: {stale}"
+    # ⛔음성 — 합성시험 선언이 **말뿐이 아닌지**. 사유·시험이름이 있어야 하고, 그 시험이
+    #   이 모듈에 실재해야 하고, 그 시험 소스가 실제로 그 라우트 앞머리를 GET 해야 한다.
+    #   (사유만 요구하던 종전 EXEMPT 가 두 번 연속 사실오류로 통과했다.)
+    import inspect as _insp
+    mod = sys.modules[__name__]
+    for rule, dec in DYNAMIC_SYNTHETIC.items():
+        assert (dec.get("why") or "").strip(), f"⛔ {rule}: 사유가 비었다"
+        tn = dec.get("test") or ""
+        fn = getattr(mod, tn, None)
+        assert callable(fn), (
+            f"⛔ {rule}: 합성시험 {tn!r} 이 이 모듈에 없다 — 선언만 있고 검사가 없다")
+        src = _insp.getsource(fn)
+        head = rule.split("<")[0]
+        assert f'"{head}' in src or f"'{head}" in src or f"{head}" in src, (
+            f"⛔ {rule}: {tn} 이 그 라우트를 GET 하지 않는다 (소스에 {head!r} 이 없다) — "
+            f"이름만 빌려온 의무는 의무가 아니다")
 
 
 def test_dynamic_routes_actually_render():
@@ -861,6 +888,27 @@ def test_dynamic_routes_actually_render():
                 bad.append(f"{u} → {type(ex).__name__}: {ex}")
     assert checked >= 10, f"밟은 동적 라우트가 너무 적다 ({checked}) — fixture 가 비었나"
     assert not bad, "동적 라우트가 렌더 안 된다: " + " · ".join(bad)
+
+
+def test_note_image_route_is_exercised_synthetically():
+    """양성+⛔음성: `/api/note-image/<name>` — 실물 인자가 없는 라우트를 **합성으로** 민다.
+
+    이 라우트의 인자는 붙여넣은 캡처의 sha256 이라 저장소에 없다. 그래서 fixture 를 못
+    만드는데, 그렇다고 **검사 밖에 두면** 경로 탈출 가드가 죽어도 아무도 모른다.
+      · 양성 — 규격에 맞는 이름은 라우트를 타고 **404**(파일이 없으니 정상)
+      · ⛔음성 — 규격 밖 이름 넷(경로탈출·확장자·길이·대문자)이 전부 404 로 **막힌다**
+        ⚠ 404 만 보면 둘이 구분이 안 된다. 그래서 `D.note_image_path` 가 규격 밖 이름에
+          **None** 을 내는지를 같이 단언한다 — 여기가 실제 가드다.
+    """
+    c = A.app.test_client()
+    ok_name = "0" * 32 + ".png"
+    assert c.get("/api/note-image/" + ok_name).status_code == 404      # 파일만 없다
+    assert D.note_image_path(ok_name) is None                          # (없는 파일)
+    for bad_name in ("../../etc/passwd", "0" * 32 + ".svg",
+                     "0" * 31 + ".png", "A" * 32 + ".png"):
+        assert D.note_image_path(bad_name) is None, (
+            f"⛔ 규격 밖 이름이 통과했다: {bad_name!r} — 경로 탈출 가드가 죽었다")
+        assert c.get("/api/note-image/" + bad_name).status_code in (404, 308), bad_name
 
 
 def test_all_get_routes_200():
@@ -3143,3 +3191,234 @@ def test_categorize_does_not_over_claim_ionic():
     for stem, expect in (("adhesion", "interface"), ("elastic_cij", "mechanical"),
                          ("comp1_bonds", "bonding"), ("sdcp_neutral_closed_2026_08_28", "other")):
         assert D.categorize(stem) == expect, f"{stem} -> {D.categorize(stem)} (기대 {expect})"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Codex BI NO-GO 대응 (2026-09-08) — 결속이 **화면 밖으로도 나가는지**,
+#  그리고 브라우저가 서버 판정을 덮지 않는지.
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: 결속 표식은 **텍스트 노드**여야 한다. `content:` 로 그린 것은 복사·인쇄·텍스트추출·
+#: 보조기기에 안 나간다 — Codex BI Q3. 이 목록에 든 CSS 클래스는 의미를 나르는
+#: `content:` 를 가질 수 없다.
+_MEANING_CLASSES = (".claim-flag", ".claim-mark")
+
+
+def _text_only(html: str) -> str:
+    """태그와 **속성**을 다 버리고 텍스트 노드만 이어붙인다 (복사·스크린리더 근사)."""
+    from html.parser import HTMLParser
+
+    class _T(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.out, self._skip = [], 0
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"):
+                self._skip += 1
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style"):
+                self._skip = max(0, self._skip - 1)
+
+        def handle_data(self, d):
+            if not self._skip:
+                self.out.append(d)
+    p = _T()
+    p.feed(html)
+    return "".join(p.out)
+
+
+def _strip_comments(src: str) -> str:
+    """Jinja·HTML·JS 주석을 **줄 수를 유지한 채** 지운다 (정적 린트용).
+
+    ⚠ 주석을 안 지우면 *"여기에 marked 를 되살리지 마라"* 라고 적은 경고문 자체가
+      린트에 걸린다. 반대로 너무 넓게 지우면(문자열 안의 `//`) 진짜 코드를 놓친다 —
+      그래서 URL 흔한 형태(`://`)는 남긴다.
+    """
+    def _blank(m):
+        return "\n" * m.group(0).count("\n")
+    src = re.sub(r"\{#[\s\S]*?#\}", _blank, src)          # Jinja
+    src = re.sub(r"<!--[\s\S]*?-->", _blank, src)          # HTML
+    src = re.sub(r"/\*[\s\S]*?\*/", _blank, src)           # JS 블록
+    src = re.sub(r"(?<!:)//[^\n]*", "", src)               # JS 줄 (`://` 는 남긴다)
+    return src
+
+
+def test_claim_mark_survives_text_extraction():
+    """⛔음성: 표식이 **CSS 없이도** 남는다 — 그리고 title-only 마크업은 실패한다.
+
+    Codex BI Q3 실측: `_claim_flag` 가 ⛔ 를 CSS `::after` 로만 넣고 사유를 `title` 에만
+    실었다. 텍스트 노드만 뽑으면 *'b2o3 의 MD Ea 는 0.199 eV 다.'* — 경고가 사라진 채
+    철회값만 남는다. 복사·인쇄·텍스트추출·보조기기가 전부 그 경로다.
+    """
+    cl = C.all_claims()
+    tgt = next(x for x in cl if x["state"] == "retracted" and x["text"])
+    html, _ = C.annotate_claims(f"<p>b2o3 의 MD Ea 는 {tgt['text']} eV 다.</p>", cl)
+    txt = _text_only(html)
+    assert tgt["text"] in txt, "값 자체가 사라지면 안 된다(표식만 붙인다)"
+    assert "⛔" in txt, (
+        f"⛔음성 실패: 표식이 텍스트로 안 나온다 — 복사하면 철회값만 따라간다.\n{txt!r}")
+    # ⛔음성 대조 — 종전(title-only) 마크업을 같은 검사기에 넣으면 **반드시 실패**해야 한다.
+    legacy = (f'<p>b2o3 의 MD Ea 는 <span class="claim-flag" data-claim="{tgt["id"]}"'
+              f' title="⛔ 철회 — 인용 금지">{tgt["text"]}</span> eV 다.</p>')
+    assert "⛔" not in _text_only(legacy), (
+        "검사기가 죽었다 — 종전 title-only 마크업이 이 검사를 통과하면 안 된다")
+
+
+def test_claim_css_does_not_carry_meaning_in_content():
+    """⛔음성: `.claim*` 규칙이 의미를 `content:` 로 나르면 실패.
+
+    되살리기 쉬운 자리다 (한 줄이면 된다). 그래서 시험으로 못을 박는다.
+    """
+    css = (Path(A.__file__).parent / "static/css/style.css").read_text(encoding="utf-8")
+    bad = []
+    for cls in _MEANING_CLASSES:
+        for m in re.finditer(re.escape(cls) + r"[^{]*\{([^}]*)\}", css):
+            body = m.group(1)
+            if re.search(r"content\s*:\s*[\"'][^\"']", body):     # 빈 문자열은 허용
+                bad.append(f"{cls} {{{body.strip()[:70]}}}")
+    assert not bad, ("⛔ 표식을 CSS content 로 그리고 있다 — 화면 밖으로 안 나간다: "
+                     + " · ".join(bad))
+    # 양성 대조 — 가짜 CSS 를 같은 검사기에 넣으면 걸려야 한다(검사기가 죽지 않았다).
+    fake = '.claim-mark::after{content:"⛔"}'
+    assert re.search(r"content\s*:\s*[\"'][^\"']", fake)
+
+
+def test_no_client_side_markdown_parser():
+    """⛔음성: 브라우저가 마크다운을 **다시 파싱**하지 않는다 (Codex BI P0-2b).
+
+    파서가 둘이면 판정도 둘이 된다. `marked.parse` 한 줄이 `box.innerHTML` 로
+    서버 결속을 통째로 덮었고, 서버 스캔은 그동안 초록이었다.
+    ⚠ 이 시험은 **정적 린트**다 — "JS 가 값을 그리지 마라" 까지는 못 지킨다(그건 DOM 층).
+    """
+    root = Path(A.__file__).parent
+    hits = []
+    for f in sorted(list((root / "templates").rglob("*.html"))
+                    + list((root / "static/js").rglob("*.js"))):
+        src = _strip_comments(f.read_text(encoding="utf-8", errors="ignore"))
+        for pat in (r"\bmarked\s*\.\s*parse\b", r"\bnew\s+showdown\b", r"\bmarkdownit\s*\("):
+            for m in re.finditer(pat, src):
+                hits.append(f"{f.relative_to(root)}:{src[:m.start()].count(chr(10)) + 1}")
+    assert not hits, (
+        "⛔ 브라우저 마크다운 파서가 살아 있다 — 서버 결속을 덮는다: " + " · ".join(hits)
+        + "\n  마크다운은 app.doc_html()/md_html() 로 **서버에서** 그린다.")
+    # 검사기 자기점검 — 패턴이 실제로 잡히는지 (양성 대조)
+    assert re.search(r"\bmarked\s*\.\s*parse\b", "var h = marked.parse(raw);")
+
+
+def test_concept_body_is_server_rendered_and_bound():
+    """양성+⛔음성: 개념 문서가 **서버에서** 결속된 채 오고, raw 마크다운을 안 흘린다."""
+    c = A.app.test_client()
+    for cid in ("bvse", "beta-gate", "msd_reading"):
+        r = c.get(f"/concept/{cid}")
+        assert r.status_code == 200, cid
+        h = r.get_data(as_text=True)
+        assert 'id="md-src"' not in h, (
+            f"⛔ /concept/{cid} 가 raw 마크다운을 다시 보낸다 — 재렌더 경로가 살아 있다")
+        s = C.scan_claim_bindings(h)
+        assert not s["unbound"], (
+            f"/concept/{cid} 미결속: {[(x[0]['id'], x[0].get('text')) for x in s['unbound']]}")
+    # ⛔음성 — 결속을 지운 채 같은 검사를 돌리면 잡혀야 한다
+    h0 = c.get("/concept/bvse").get_data(as_text=True)
+    stripped = re.sub(r"""\s+data-claim(?:-not)?=(?:"[^"]*"|'[^']*')""", "", h0)
+    assert C.scan_claim_bindings(stripped)["unbound"], (
+        "⛔ 검사기가 죽었다 — data-claim 을 다 지웠는데도 미결속이 0 이다")
+
+
+def test_hazard_level_vocabulary_and_inactive_split():
+    """⛔음성: hazard `level` 어휘·활성 판정이 갈라져 있다 (Codex BI 과소보고 (e))."""
+    assert C.validate_hazards() == [], C.validate_hazards()
+    ids = C.hazard_ids()
+    active = {x["id"] for x in C.hazard_claims()}
+    # SUPERSEDED 는 **결속 어휘에는 있고 결속 요구에는 없다** — 폐기된 게이트가 살아있는
+    # 결속을 요구하던 것이 이번 회신의 실측 3건이다.
+    rows = {z["id"]: z for z in C._hazard_rows() if z.get("id")}
+    for hid, z in rows.items():
+        assert hid in ids, f"{hid} 이 결속 어휘에서 빠졌다 — 이력 언급이 유령이 된다"
+        if z.get("level") in C.HAZARD_INACTIVE:
+            assert hid not in active, (
+                f"⛔ {hid} 은 level={z['level']} 인데 살아있는 결속을 요구한다")
+    # ⛔음성 — 어휘 밖 level 은 위반이어야 한다 (fail-closed)
+    assert "MAYBE" not in C.HAZARD_LEVELS
+    assert "SUPERSEDED" in C.HAZARD_LEVELS and "SUPERSEDED" in C.HAZARD_INACTIVE
+
+
+def test_retraction_can_say_there_is_no_alternative():
+    """⛔음성: 스키마가 **"대체값 없음"** 을 표현할 수 있고, 아무 문장이나는 못 넣는다.
+
+    Codex BI P0-1 의 근본 원인 — `validate()` 가 빈 `usable_instead` 를 거부해서
+    "인용 가능한 수 0개" 를 적을 자리가 없었고, 그래서 원장이 **자기가 금지한 값**을
+    대체값으로 권했다.
+    """
+    ok = {"why": "x", "instead_kind": "sentinel_none",
+          "usable_instead": {"none": True, "why": "축이 닫혔다",
+                             "decision": "D-2026-09-07-b2o3-md-closure-retrospective"}}
+    assert C._check_usable_instead(ok) == []
+    bad_cases = [
+        ({"why": "x", "usable_instead": "아무 말"}, "instead_kind"),           # 이름 안 댐
+        ({"why": "x", "instead_kind": "무엇", "usable_instead": "z"}, "어휘 밖"),
+        ({"why": "x", "instead_kind": "sentinel_none",
+          "usable_instead": {"none": True, "why": "w"}}, "decision"),          # 결정 없음
+        ({"why": "x", "instead_kind": "sentinel_none",
+          "usable_instead": {"none": True, "why": "w", "decision": "D-없는것"}}, "원장에 없는"),
+        ({"why": "x", "instead_kind": "claim_ref", "usable_instead": "MD_Ea_eV@b2o3"},
+         "인용 불가"),                                                          # 철회값으로 대체
+        ({"why": "x", "instead_kind": "prose", "usable_instead": "저온 구간만"},
+         "사람 검토"),                                                          # 서명 없음
+    ]
+    for rec, want in bad_cases:
+        got = C._check_usable_instead(rec)
+        assert got and want in got[0], f"{rec} → {got} (기대 문구: {want})"
+
+
+def test_b2o3_md_axis_closure_is_enforced_in_every_ledger():
+    """⛔음성: 비준된 마감이 **세 원장 전부에** 반영돼 있다 (Codex BI P0-1).
+
+    ⛔ 사고 요약: 결정은 "인용 가능한 수 0개" 인데 ① registry 는 구간 Ea 0.2241 을
+      대체값으로 권했고 ② hazard 는 level=CONDITIONAL 에 **존재하지 않는 키**를
+      "이것만 인용" 이라 지목했고 ③ 형제 값 0.2234 는 provisional 로 남아 있었다.
+      `validate()` 도 `validate_governance()` 도 셋 다 통과시켰다 — 원장끼리 안 봤다.
+    """
+    reg, D_ID = C.registry(), "D-2026-09-07-b2o3-md-closure-retrospective"
+    ent = {(e.get("metric"), e.get("system")): e for e in reg["entries"]}
+    e = ent[("MD_Ea_eV", "b2o3")]
+    ui = (e.get("retracted") or {}).get("usable_instead")
+    assert isinstance(ui, dict) and ui.get("none") is True, (
+        "⛔ 마감된 축에 대체값 문자열이 돌아왔다 — 결정은 '인용 가능한 수 0개' 다")
+    assert ui.get("decision") == D_ID
+    assert "0.2241" not in json.dumps(ui, ensure_ascii=False), (
+        "⛔ 금지된 구간 Ea 가 대체값 자리에 있다")
+    # 형제 단일시드 값도 같은 축이다
+    e2 = ent[("MD_Ea_eV_singleseed", "b2o3")]
+    assert e2.get("citable") is False, (
+        "⛔ 0.2234 (단일시드 Ea) 가 인용 가능한 채로 남아 있다 — 같은 UMA-MD 축이다")
+    # hazard 쪽
+    rows = {z.get("claim"): z for z in C._hazard_rows() if z.get("claim")}
+    hz = rows.get("MD_Ea_eV@b2o3")
+    assert hz and hz.get("level") == "BLOCKED", f"hazard level: {hz and hz.get('level')}"
+    assert hz.get("id"), "hazard 행에 id 가 없으면 결속 기계에 안 보인다"
+    assert "Ea_eV_PAPER 만 인용" not in (hz.get("fix") or ""), (
+        "⛔ 죽은 키 지시가 fix 에 돌아왔다 (이력 필드에 남기는 것은 정상이다)")
+    assert C.validate_hazards() == [], C.validate_hazards()
+
+
+def test_retracted_cells_do_not_offer_one_click_citation():
+    """⛔음성: 철회·비인용 값 칸이 **인용 복사 버튼을 주지 않는다** (Codex BI).
+
+    결속(`data-claim`)은 *"이게 그 주장이다"* 라고 말할 뿐 **복사를 막지 않는다.**
+    `/explorer` 는 마감된 축의 0.199 를 한 번 클릭으로 복사시키고 있었다 — 그게 원고로
+    값이 들어가는 실제 경로다. 결속이 초록인 채로 뚫려 있던 자리라 회귀 시험이 필요하다.
+    """
+    c, cl = A.app.test_client(), C.all_claims()
+    texts = {x["text"] for x in cl if x.get("text")}
+    for url in ("/explorer", "/compare", "/composition/b2o3"):
+        h = c.get(url).get_data(as_text=True)
+        for m in re.finditer(r"citeVal\((.*?)\)", h):
+            arg = m.group(1)
+            hit = [t for t in texts if t in arg]
+            assert not hit, f"⛔ {url}: 철회값 {hit} 에 원클릭 인용 버튼이 있다 — {arg[:110]}"
+    # 양성 대조 — 정상 값에는 버튼이 **남아 있어야** 한다(과잉 차단이면 이게 0 이 된다)
+    h = c.get("/explorer").get_data(as_text=True)
+    assert h.count("citeVal(") > 20, "인용 버튼을 전부 없애 버렸다 — 그건 차단이 아니라 고장"
+    assert 'class="cell-blocked"' in h, "차단 칸이 하나도 안 그려졌다"

@@ -25,7 +25,11 @@
 {% for key, val in canonical.items() %}
   {% set prov = canonical_provisional.get(key) %}
   {% if val is not none %}
-  <div class="metric" title="{{ canonical_meta[key] }}{% if prov %}&#10;⚠ {{ prov }}{% endif %}">
+  {#- ⛔ Codex BI P0 (2026-09-08) — 값 타일에 `data-claim` 이 없어서 /composition/b2o3 이
+      철회값 0.199 를 **이름 없이** 찍고 있었다. 배지는 결속이 아니다(스캐너는 조상
+      data-claim 만 본다). 원장 파생이므로 status 를 되돌리면 결속도 같이 풀린다. -#}
+  {%- set _cl = canonical_claim.get(key) %}
+  <div class="metric"{% if _cl %} data-claim="{{ _cl }}"{% endif %} title="{{ canonical_meta[key] }}{% if prov %}&#10;⚠ {{ prov }}{% endif %}">
     <div class="mv">{{ val }}<span style="font-size:.55em;color:var(--dim)"> {{ units[key] }}</span></div>
     {%- set st = canonical_status.get(key) %}
     {#- ★ 상태 배지는 **하나만** (2026-08-07 Codex 4라운드). 레지스트리 status 와 옛

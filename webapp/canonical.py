@@ -434,6 +434,43 @@ def bound_claims(reg=None, root=None) -> list:
 
 _HZ_CACHE = {"key": None, "out": None}
 
+#: 인용위험 원장의 `level` 어휘 — 전수(2026-09-08 실측 25행: CONDITIONAL 12 · BLOCKED 5 ·
+#: RESOLVED 2 · HOLD 2 · STALE 2 · SUPERSEDED 1 · PREVIEW 1). 여기 없는 값은 UNKNOWN 이다.
+HAZARD_LEVELS = ("BLOCKED", "CONDITIONAL", "HOLD", "PREVIEW", "STALE",
+                 "SUPERSEDED", "RESOLVED")
+#: **그 위험이 더는 적용되지 않는다** 는 뜻의 level — 살아있는 결속을 요구하지 않는다.
+#: ⚠ `STALE`(문서가 낡음)·`PREVIEW`(미완이니 인용 금지)·`HOLD` 는 여기 넣지 않는다 —
+#:   셋 다 **지금도 유효한 금지**다. 실측 사고: `HZ-beta-hard-gate` 가 SUPERSEDED 인데
+#:   `RESOLVED` 만 걸러서 폐기된 게이트가 결속 3건을 요구하고 있었다 (BI 회신 과소보고 (e)).
+HAZARD_INACTIVE = frozenset(("RESOLVED", "SUPERSEDED"))
+
+
+def _hazard_rows(root=None) -> list:
+    """citation_hazards.json 의 hazards 배열 (mtime 캐시). 못 읽으면 빈 목록."""
+    base = Path(root) if root else Path(__file__).resolve().parent.parent
+    f = base / "db/properties/citation_hazards.json"
+    if not f.exists():
+        return []
+    k = (str(f), f.stat().st_mtime_ns)
+    if _HZ_CACHE["key"] == k:
+        return _HZ_CACHE["out"]
+    try:
+        hz = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:                                   # noqa: BLE001
+        return []
+    out = list(hz.get("hazards") or [])
+    _HZ_CACHE.update(key=k, out=out)
+    return out
+
+
+def hazard_ids(root=None) -> set:
+    """**결속 어휘** — 원장에 있는 hazard id 전부 (level 무관).
+
+    `hazard_claims()`(=결속 *요구*)와 갈라 둔다. 해소·폐기된 위험도 화면이 이력으로
+    이름을 댈 수 있어야 하고, 그때 유령 결속(dangling)으로 터지면 안 된다.
+    """
+    return {z.get("id") for z in _hazard_rows(root=root) if z.get("id")}
+
 
 def hazard_claims(root=None) -> list:
     """인용 위험 원장에서 **비수치 주장**의 결속 대상을 만든다 (회신 BG ② · 2026-09-08).
@@ -445,23 +482,13 @@ def hazard_claims(root=None) -> list:
     반환: `[{"id","metric","system","state","text","why","instead"}]` (bound_claims 와 같은 모양).
     ⛔ 못 하는 것: 문구가 **그 위험을 뜻하는지**는 못 본다. 문자열이 있으면 결속을 요구할 뿐이다.
       그래서 `forbidden_phrases` 는 **구체적**이어야 한다 — 흔한 낱말을 넣으면 오탐이 된다.
+    ⛔ 또 못 하는 것: level 어휘가 `HAZARD_LEVELS` 밖이면 **살아있는 것으로 친다**(fail-closed).
+      조용히 건너뛰면 오타 하나로 금지가 사라진다.
     """
-    base = Path(root) if root else Path(__file__).resolve().parent.parent
-    f = base / "db/properties/citation_hazards.json"
-    if not f.exists():
-        return []
-    # mtime 캐시 — md_html 이 문서마다 부른다 (litdb 한 화면에 수십 번). registry() 와 같은 관례.
-    k = (str(f), f.stat().st_mtime_ns)
-    if _HZ_CACHE["key"] == k:
-        return _HZ_CACHE["out"]
-    try:
-        hz = json.loads(f.read_text(encoding="utf-8"))
-    except Exception:                                   # noqa: BLE001
-        return []
     out = []
-    for z in (hz.get("hazards") or []):
+    for z in _hazard_rows(root=root):
         hid, ph = z.get("id"), (z.get("forbidden_phrases") or [])
-        if not hid or z.get("level") == "RESOLVED":
+        if not hid or z.get("level") in HAZARD_INACTIVE:
             continue
         # ⚠ 금지 문구가 없어도 **id 는 낸다** (`text=None`). 그래야 화면이 그 위험을
         #   선언했을 때 유령 결속(dangling)으로 잡히지 않는다 — bound_claims 의 짧은 수와 같은 처리.
@@ -470,7 +497,6 @@ def hazard_claims(root=None) -> list:
                         "state": "hazard_" + str(z.get("level", "")).lower(),
                         "text": t, "why": z.get("why", ""),
                         "instead": z.get("fix", "")})
-    _HZ_CACHE.update(key=k, out=out)
     return out
 
 
@@ -496,14 +522,46 @@ _STATE_MARK = {"retracted": "⛔ 철회 — 인용 금지",
                "non_citable": "⛔ 비인용 — 정본으로 옮기지 않는다"}
 
 
+def instead_text(instead) -> str:
+    """대체값 선언을 **화면 문장**으로. sentinel 이면 "대체값 없음" 이라고 말한다.
+
+    ⛔ 종전에는 자유 문자열만 상정해서 `.strip()` 을 바로 불렀다. sentinel(dict)이 오면
+      터지고, 무엇보다 *"대체값이 없다"* 를 화면이 **말할 방법이 없었다** — 그래서
+      원장이 금지된 값을 대체값 자리에 넣고 있었다 (Codex BI P0-1 · 2026-09-08).
+    """
+    if isinstance(instead, dict):
+        if instead.get("none") is True:
+            d = instead.get("decision") or "미상"
+            return f"대체값 없음 — 이 축에서 인용 가능한 수는 0개다 ({d})"
+        return ""
+    return (instead or "").strip()
+
+
 def _claim_flag(c: dict, text: str) -> str:
     from html import escape as _e
+    _ins = instead_text(c.get("instead"))
     tip = " · ".join(x for x in (_STATE_MARK.get(c.get("state"), "⛔ 인용 위험"),
                                  (c.get("why") or "").strip(),
-                                 ("대신: " + c["instead"].strip()) if (c.get("instead") or "").strip() else "")
+                                 ("대신: " + _ins) if _ins else "")
                      if x)
+    # ⚠ 표식은 **텍스트로도** 남아야 한다 — Codex BI Q3. ⛔ 를 CSS `::after` 로만 그리면
+    #   복사·인쇄·텍스트추출·보조기기에서 경고가 사라지고 철회값만 따라간다.
     return (f'<span class="claim-flag" data-claim="{_e(str(c["id"]), True)}"'
-            f' title="{_e(tip[:300], True)}">{text}</span>')
+            f' title="{_e(tip[:300], True)}">{text}'
+            f'<span class="claim-mark">[{_e(_claim_mark_text(c))}]</span></span>')
+
+
+#: 표식의 **본문** — CSS 가 없어도, 텍스트만 뽑아도 남는 말. 짧아야 문장이 안 깨진다.
+_MARK_TEXT = {"retracted": "⛔철회·인용금지", "non_citable": "⛔비인용"}
+
+
+def _claim_mark_text(c: dict) -> str:
+    st = str(c.get("state") or "")
+    if st in _MARK_TEXT:
+        return _MARK_TEXT[st]
+    if st.startswith("hazard_"):
+        return "⛔인용위험"
+    return "⛔인용위험"
 
 
 def annotate_claims(fragment: str, claims=None, reg=None, root=None):
@@ -648,7 +706,9 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
     _r = reg if reg is not None else registry(root=root)
     known = {claim_id(e.get("metric"), e.get("system")) for e in _r.get("entries", [])}
     known |= {c["id"] for c in claims}
-    known |= {c["id"] for c in hazard_claims(root=root)}   # 위험 id 도 유효한 선언이다
+    # ⚠ **결속 어휘**로 판정한다 (`hazard_claims` 가 아니라 `hazard_ids`). 해소·폐기된
+    #   위험을 화면이 이력으로 이름 대는 것은 정당하다 — 그걸 유령으로 터뜨리면 안 된다.
+    known |= hazard_ids(root=root)
     sc = _ClaimScanner(texts)
     sc.feed(html)
     pick = lambda w: [(c, ctx) for c, s, ctx in sc.hits if s == w]     # noqa: E731
@@ -1002,6 +1062,146 @@ def validate_governance(reg: dict = None, root=None) -> list:
     return bad
 
 
+#: `retracted.usable_instead` 가 취할 수 있는 **꼴**. 스키마가 이걸 못 표현하면
+#: "대체값이 없다" 를 적을 자리가 없어져 사람이 **아무 문장이나** 채워 넣는다.
+#: ⛔ 실측 사고 (Codex BI P0-1 · 2026-09-08): b2o3 MD_Ea 의 `usable_instead` 가
+#:   "저온 구간만 0.2241±0.0606" 이었는데, 그건 D-2026-09-07-b2o3-md-closure-retrospective
+#:   가 **인용 금지로 못박은 구간 Ea** 다. 즉 원장이 자기가 금지한 값을 대체값으로 권했다.
+#:   원인은 거짓말이 아니라 **자리가 없었던 것** — 종전 validate 가 빈 값을 거부했다.
+INSTEAD_KINDS = ("sentinel_none", "claim_ref", "prose")
+
+
+def _check_usable_instead(r: dict, root=None) -> list:
+    """`retracted` 절의 대체값 선언을 검사한다 → 문제 문자열 목록 (빈 목록 = 통과).
+
+    받는 꼴 셋 — 어느 것이든 `instead_kind` 로 **무엇인지 이름을 대야** 한다.
+      · `sentinel_none` — `usable_instead = {"none": true, "decision": "D-…", "why": "…"}`
+        *"인용 가능한 대체값이 0개"*. 그 판정을 내린 결정 id 를 반드시 든다.
+      · `claim_ref`     — `"<metric>@<system>"`. 레지스트리에 있고 **인용 가능**해야 한다.
+      · `prose`         — 자유 문장. 검사기가 정당성을 못 본다는 뜻이므로 사람 검토
+        (`instead_reviewed_by` + `instead_reviewed_at`)를 요구한다.
+
+    ⛔ 이 검사가 **못 하는 것**: prose 의 내용이 참인지, 그 문장이 다른 원장의 금지를
+      어기는지는 못 본다. 그걸 보는 것은 결정↔값 배선(`enforcement.binds`)이고 아직 없다.
+      그래서 prose 는 통과가 아니라 **사람 서명**으로만 지나간다.
+    """
+    ui, kind = r.get("usable_instead"), r.get("instead_kind")
+    if kind is None:
+        return [("retracted.instead_kind 가 없다 — 대체값이 무엇인지(없음/다른 정본값/산문) "
+                 f"이름을 대야 한다 (허용: {list(INSTEAD_KINDS)})")]
+    if kind not in INSTEAD_KINDS:
+        return [f"retracted.instead_kind 가 어휘 밖이다: {kind!r} (허용: {list(INSTEAD_KINDS)})"]
+    if kind == "sentinel_none":
+        if not isinstance(ui, dict) or ui.get("none") is not True:
+            return ["instead_kind=sentinel_none 인데 usable_instead 가 "
+                    "{\"none\": true, …} 꼴이 아니다"]
+        did = ui.get("decision")
+        if not did:
+            return ["대체값 없음(sentinel_none)인데 그 판정을 내린 decision id 가 없다 — "
+                    "'없다' 도 판정이라 누가 언제 정했는지가 원장에 있어야 한다"]
+        ds = decisions(root=root)
+        if did not in ds:
+            return [f"usable_instead.decision 이 원장에 없는 결정을 가리킨다: {did!r}"]
+        if (ds[did].get("ratification") or {}).get("state") != "ratified":
+            return [f"usable_instead.decision {did!r} 이 아직 비준되지 않았다 — "
+                    f"미비준 결정으로 대체값을 없앨 수 없다"]
+        if not (ui.get("why") or "").strip():
+            return ["대체값 없음(sentinel_none)인데 why 가 비었다"]
+        return []
+    if kind == "claim_ref":
+        if not isinstance(ui, str) or "@" not in ui:
+            return ["instead_kind=claim_ref 인데 usable_instead 가 '<metric>@<system>' 이 아니다"]
+        _r = registry(root=root)
+        hit = [e for e in _r.get("entries", [])
+               if claim_id(e.get("metric"), e.get("system")) == ui]
+        if not hit:
+            return [f"usable_instead 가 레지스트리에 없는 항목을 가리킨다: {ui!r}"]
+        e2 = hit[0]
+        if e2.get("status") == "retracted" or e2.get("citable") is False:
+            return [f"대체값 {ui!r} 자신이 인용 불가다 (status={e2.get('status')!r}, "
+                    f"citable={e2.get('citable')!r}) — 철회값을 철회값으로 대체할 수 없다"]
+        return []
+    # prose
+    if not (ui or "").strip() if isinstance(ui, str) else not ui:
+        return ["instead_kind=prose 인데 usable_instead 가 비었다"]
+    miss = [k for k in ("instead_reviewed_by", "instead_reviewed_at") if not r.get(k)]
+    if miss:
+        return [f"instead_kind=prose 는 사람 검토가 필요하다 — 없는 필드: {miss}. "
+                f"검사기는 산문이 다른 원장의 금지를 어기는지 못 본다"]
+    return []
+
+
+def validate_hazards(root=None, reg=None) -> list:
+    """인용위험 원장 자체의 무결성 → 문제 문자열 목록.
+
+    ⛔ 종전에는 **아무도 이 파일을 검사하지 않았다.** `validate()` 는 레지스트리↔원자료만,
+      `validate_governance()` 는 결정↔판정만 본다. 그래서 hazard 의 `fix` 가 **존재하지 않는
+      키**(`FINAL_for_paper.Ea_eV_PAPER`)를 "이것만 인용하라" 고 3주 동안 가리키고 있었다.
+
+    검사 넷 (전부 사실검사 — 사람 판단 0):
+      H1  `level` 이 `HAZARD_LEVELS` 어휘 안인가
+      H2  `claim` 이 레지스트리에 실재하는 (metric, system) 인가
+      H3  `fix`/`what` 이 지목하는 **점표기 키**가 그 원자료 파일에 실재하는가
+      H4  `id` 가 중복되지 않는가
+
+    ⛔ 못 하는 것: 금지가 **옳은지**, 화면이 그 금지를 지키는지는 못 본다 (그건 결속 검사다).
+    """
+    import re as _re
+    bad, seen = [], {}
+    _r = reg if reg is not None else registry(root=root)
+    known = {claim_id(e.get("metric"), e.get("system")) for e in _r.get("entries", [])}
+    src = {e.get("source_path") for e in _r.get("entries", []) if e.get("source_path")}
+    base = Path(root) if root else Path(__file__).resolve().parent.parent
+    for i, z in enumerate(_hazard_rows(root=root)):
+        tag = f"hazard[{i}] {z.get('id') or z.get('doc') or z.get('what', '')[:34]!r}"
+        lv = z.get("level")
+        if lv not in HAZARD_LEVELS:                                          # H1
+            bad.append(f"{tag}: level 이 어휘 밖이다 — {lv!r} (허용: {list(HAZARD_LEVELS)}). "
+                       f"어휘 밖은 살아있는 금지로 친다(fail-closed)")
+        hid = z.get("id")
+        if hid:                                                              # H4
+            if hid in seen:
+                bad.append(f"{tag}: id 가 중복이다 — hazard[{seen[hid]}] 와 같다. "
+                           f"id 는 재사용 금지 영구 식별자다")
+            seen[hid] = i
+        cl = z.get("claim")
+        if cl and cl not in known:                                           # H2
+            bad.append(f"{tag}: claim {cl!r} 이 레지스트리에 없다")
+        for fld in ("fix", "what", "why"):                                   # H3
+            for m in _re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b",
+                                  str(z.get(fld) or "")):
+                dotted = m.group(1)
+                if dotted.endswith((".json", ".py", ".sh", ".md", ".csv", ".xyz")):
+                    continue
+                head = dotted.split(".")[0]
+                # 그 점표기가 가리키는 원자료 후보 — hazard 가 든 파일, 없으면 레지스트리 전체
+                cands = [z.get("source_path")] if z.get("source_path") else sorted(src)
+                for sp in cands:
+                    if not sp or not str(sp).endswith(".json"):
+                        continue
+                    p = base / sp
+                    if not p.exists():
+                        continue
+                    try:
+                        doc = json.loads(p.read_text(encoding="utf-8"))
+                    except Exception:                                        # noqa: BLE001
+                        continue
+                    if not isinstance(doc, dict) or head not in doc:
+                        continue
+                    cur, ok = doc, True
+                    for part in dotted.split("."):
+                        if isinstance(cur, dict) and part in cur:
+                            cur = cur[part]
+                        else:
+                            ok = False
+                            break
+                    if not ok:
+                        bad.append(f"{tag}: {fld} 가 {sp} 에 **없는 키**를 지목한다 — "
+                                   f"{dotted!r}. 화면·원고가 그 지시를 따를 수 없다")
+                    break
+    return bad
+
+
 def validate(reg: dict, root=None) -> list:
     """(entry, 문제) 목록. 빈 목록 = 레지스트리가 원자료와 일치한다."""
     bad = []
@@ -1042,11 +1242,10 @@ def validate(reg: dict, root=None) -> list:
                 bad.append((e, "status=retracted 인데 retracted 절이 없다 — "
                                "철회는 사유가 원장 안에 있어야 한다(파일명·기억은 판정이 아니다)"))
                 continue
-            for k in ("why", "usable_instead"):
-                if not r.get(k):
-                    bad.append((e, f"retracted.{k} 가 없다 — "
-                                   f"{'왜 철회했는지' if k == 'why' else '대신 무엇을 쓰는지'}를 "
-                                   f"적지 않으면 다음 사람이 같은 값을 다시 인용한다"))
+            if not r.get("why"):
+                bad.append((e, "retracted.why 가 없다 — 왜 철회했는지를 적지 않으면 "
+                               "다음 사람이 같은 값을 다시 인용한다"))
+            bad += [(e, m) for m in _check_usable_instead(r, root=root)]
             continue
         # ⚠ live 로드가 이미 원자료를 채택하고 어긋남을 value_drift 에 적어 뒀다면,
         #   아래 수치 대조는 (값을 덮어썼으므로) 통과해 버린다 — 여기서 먼저 잡는다.

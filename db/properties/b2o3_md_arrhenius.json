@@ -19,7 +19,7 @@
   "sigma_273K_mS_cm_RETRACTED_2026_08_24": "8.65  [⛔ 철회 — 철회된 전구간 단일적합(Ea 0.199/0.2234)에서 나온 값이다. 굽은 곡선을 평균낸 Ea 로 300 K 를 외삽하면 저온을 실제보다 쉽게 본다.]",
   "Ea_eV_PAPER_SUPERSEDED_600K_only": "0.206 (+0.038/-0.030)  [3-seed 600K error bar; single-seed 0.2234 is ONE draw inside it -> quote this]",
   "Ea_eV_PAPER_RETRACTED_2026_08_23": "0.199 +/- 0.034  [⛔ 2026-08-23 철회 — 600–1000 K 를 하나의 Ea 로 기술할 수 없다 (굽음 145 meV). 원래 라벨: fully symmetric 3-seed x 3-T reseed, 2026-07-07 (b2o3_vs_lpscl16_conductivity.csv). Supersedes the 0.206 (+0.038/-0.030) 600K-only-error-bar figure and the single-seed 0.2234 -> 인용 금지]",
-  "Ea_eV_USABLE_segment_600_800": "0.222 eV [600→800 K 구간만. 800→1000 은 0.077 eV 로 갈린다 — 단일 직선 금지. 근거: ⛔_RETRACTED_2026_08_23 · kb/results/b2o3_arrhenius_curvature_2026_08_23.md]",
+  "Ea_eV_segment_600_800_NON_CITABLE_2026_09_07": "0.222 eV [⛔ **인용 금지**. 2026-08-25 축 마감 · 2026-09-07 비준 — 마감 카드 금지_서술[0] 이 '0.222 eV 포함' 이라고 명시한다. 종전 키 이름은 `Ea_eV_USABLE_segment_600_800` 이었고 그 'USABLE' 은 마감 전 표기다. 600→800 K 구간만이고 800→1000 은 0.077 eV 로 갈린다 — 단일 직선 금지. 근거: ⛔_RETRACTED_2026_08_23 · kb/results/b2o3_arrhenius_curvature_2026_08_23.md]",
   "vs_modelc_SUPERSEDED": "Ea identical (modelc 0.2235); sigma 1.33x higher, D0-driven (1.24x). See b2o3_vs_modelc_md.json.",
   "vs_modelc": "Ea EQUAL (b2o3 0.199+/-0.034 vs LPSCl1.6 0.197+/-0.032; dEa +0.002+/-0.047). sigma EQUIVALENT (per-T ratio 1.08+/-0.18 / 0.82+/-0.15 / 1.15+/-0.12). The earlier 'sigma 1.33x higher, D0-driven 1.24x' was single-seed noise, RETRACTED 2026-07-09. See b2o3_vs_lpscl16_conductivity.csv (FINAL).",
   "method_note_2026_08_11": "코드 실측: 캠페인 전 지점이 자유 절편 OLS 기울기다(disorder_ensemble_diffusion.py:168 포함 7곳). 옛 문구 'MSD = 6 D t' 는 원점 통과 강제로 오독될 수 있어 정정 — 값은 불변.",
