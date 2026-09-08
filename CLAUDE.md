@@ -31,6 +31,12 @@
 - **KISTI** neuron(x3430a02): Slurm, QOS 제출 제한 — scancel 직후 재제출 금지(카운터 지연). pseudo는
   /scratch/x3430a02/kgy/manuscript_support/pseudo.
 - **kgy** (RTX3090, QE-GPU + uma env): ssh kgy@59.12.161.91.
+  ⛔ **kgy QE-GPU 는 mpirun 으로 띄우지 않는다 — `NP=1` 로 바이너리를 직접 실행한다.**
+  빌드가 NVHPC 번들 Open MPI(hpcx)라 PATH 의 conda mpirun 이 잡히면
+  `MPI_Init_thread ... NULL communicator` 로 **초기화에서 죽고 pw.x 는 한 줄도 안 찍는다**.
+  GPU 하나당 랭크 하나라 NP=1 이 원래 정상 구성이다. (3회 반복 사고 — 2026-09-08 명문화.
+  마지막 건은 죽은 잡을 watch 가 '진행' 으로 3시간 보고했다.)
+  · pw.x 를 던지기 전 `nvidia-smi` 로 **python3(UMA)가 GPU 를 쓰고 있는지** 본다 — kgy 도 공유다.
 - **gabia** (A6000 단일 GPU, QE-GPU + fairchem/UMA): root@121.78.116.27. **pw.x와 UMA 동시 실행 금지**
   (VRAM 47/48 GB 점유 사례) — nvidia-smi로 확인 후 실행.
 - **desktop WSL**: ORCA r2SCAN-3c (SDCP 분자 계열).

@@ -50,11 +50,19 @@ fi
 # ── 사전점검: 있어야 하는 것이 다 있나 (없으면 **시작하지 않는다**) ──────────
 [ -x "$PWX" ] || { echo "⛔ pw.x 를 못 찾는다: $PWX  (PWX=... 로 지정)"; exit 2; }
 MPI=""
-# Open MPI 면 --oversubscribe 를 붙인다 (슬롯 계산이 빡빡한 빌드에서 즉사 방지 · gabia 관례).
-_OS=""
-if command -v mpirun >/dev/null 2>&1; then
-  mpirun --version 2>&1 | grep -qi "open mpi" && _OS="--oversubscribe"
+# ⛔ 2026-09-08 실측 — **NP=1 이면 mpirun 을 쓰지 않는다.**
+#   kgy 의 QE-GPU 는 NVHPC 번들 Open MPI(hpcx)로 빌드됐는데, PATH 에 있는 다른 mpirun
+#   (conda 쪽)이 잡히자 `MPI_Init_thread ... NULL communicator` 로 **초기화에서 죽었다**.
+#   pw.x 는 한 줄도 못 찍었고, 첫 점이 3시간 시체로 남았다.
+#   GPU 빌드는 어차피 GPU 하나당 랭크 하나라 NP=1 이 정상 구성이다 → 런처를 아예 뺀다.
+if [ "$NP" = 1 ]; then
+  echo "[$(ts)] NP=1 — mpirun 없이 직접 실행한다 (GPU 빌드 정상 구성 · 런처 불일치 회피)"
+elif command -v mpirun >/dev/null 2>&1; then
+  # Open MPI 면 --oversubscribe 를 붙인다 (슬롯 계산이 빡빡한 빌드에서 즉사 방지 · gabia 관례).
+  _OS=""; mpirun --version 2>&1 | grep -qi "open mpi" && _OS="--oversubscribe"
   MPI="mpirun $_OS -np $NP"
+  echo "[$(ts)] ⚠ mpirun 경로: $(command -v mpirun)"
+  echo "[$(ts)]   빌드와 다른 MPI 면 초기화에서 죽는다 — 실패하면 NP=1 로 다시 던져라."
 elif command -v mpiexec >/dev/null 2>&1; then MPI="mpiexec -n $NP"
 else echo "[$(ts)] ⚠ mpirun/mpiexec 없음 — 직렬로 돈다 (느리다)"; NP=1; fi
 echo "[$(ts)] 코어: 물리 $(_phys_cores) · 논리 $(getconf _NPROCESSORS_ONLN 2>/dev/null) → 랭크 $NP"
