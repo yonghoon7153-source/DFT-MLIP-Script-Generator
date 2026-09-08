@@ -7,6 +7,15 @@
    "DFT 먹인 논문/33. Sup) Boosting Solid-State Diffusivity and Conductivity in Lithium Superionic Argyrodites by Halide Substitution.pdf"
   ]
  },
+ "ahn2026_cej_agno3_pvp_li3n_anodefree": {
+  "figures": 24,
+  "generated": "2026-09-07",
+  "pdfs": [
+   "/root/.claude/uploads/82ea256b-12bc-5a75-994e-7718d79c71ba/95146a32-Manuscript_CEJ.docx",
+   "/root/.claude/uploads/82ea256b-12bc-5a75-994e-7718d79c71ba/4ab7c149-Supplementary_Material_CEJ.docx",
+   "/root/.claude/uploads/82ea256b-12bc-5a75-994e-7718d79c71ba/3f3c5dbd-Graphical_Abstract_CEJ.docx"
+  ]
+ },
  "alabdali2023_cgmd_wet_manufacturing_ssb_cathode": {
   "figures": 11,
   "generated": "2026-08-19",
@@ -868,6 +877,14 @@
    "c90694f1-63._Sup_PETMAD_as_a_lightweight_universal_interatomic_potential_for_advanced_materials_modeling.pdf"
   ]
  },
+ "qian2025_lipo2f2_coating_stable_cei": {
+  "figures": 15,
+  "generated": "2026-09-08",
+  "pdfs": [
+   "99737a54-73._engineering_Stable_Decomposition_Products_on_Cathode_Surfaces_to_Enable_High_Voltage.pdf",
+   "08022c09-73._Sup_engineering_Stable_Decomposition_Products_on_Cathode_Surfaces_to_Enable_High_Voltage.pdf"
+  ]
+ },
  "qian2026_decanoate_coating_lpscl_moisture_interface": {
   "figures": 26,
   "generated": "2026-08-05",
@@ -1179,6 +1196,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/10. Ultraviolet photoelectron spectroscopy Practical aspects and best practices.pdf"
+  ]
+ },
+ "wu2026_dilute_electrolyte_zn_calendar_aging": {
+  "figures": 36,
+  "generated": "2026-09-08",
+  "pdfs": [
+   "93a04a0e-74._Nat._Comm.__2026__Wu__Dilute_electrolytes_for_suppressing_metal_anode_corrosion_during_calendar_aging_and_cycling_in_aqueous_zinc_batteries.pdf",
+   "d42adcb4-74._Sup1_Nat._Comm.__2026__Wu__Dilute_electrolytes_for_suppressing_metal_anode_corrosion_during_calendar_aging_and_cycling_in_aqueous_zinc_batteries.pdf"
   ]
  },
  "wu2026_ta_argyrodite_selfpassivating": {
