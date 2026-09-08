@@ -2057,6 +2057,58 @@ def check_kit_rate_label(verbose=True, src=None):
     return errs, warns
 
 
+#: ★ 규칙 O (2026-09-08) — **원고 산문은 미국식 철자.**  CLAUDE.md 상시 규약("영국식 철자 금지")인데
+#    `docs/manuscript/methods_simulation_v7_draft.md` 와 `build_methods_docx.py` 의 Methods 문자열이
+#    영국식(fibre · voxelisation · idealised …)으로 쓰여 있었고, 그것을 인용해 공저자에게 두 번 건넸다.
+#    정본이 밖으로 강제되지 않으면 새어나간다(규칙 ④) — 산문만 본다: 백틱 코드 스팬·펜스 블록·
+#    코드 식별자(`fibre_stamp`, `--fibre-buckle`)는 제외.  US 로도 유효한 낱말(analyses · organism ·
+#    characteristic · emphasis · realistic)은 접미사 그룹으로 걸러 오탐하지 않는다.
+_UK_STEMS = ('fibre', 'voxel', 'ideal', 'optim', 'polar', 'parameter', 'parametr', 'minim', 'maxim',
+             'normal', 'discret', 'raster', 'character', 'summar', 'recogn', 'real', 'util', 'stabil',
+             'visual', 'quant', 'linear', 'homogen', 'ionis', 'crystall', 'local', 'general', 'organ',
+             'standard', 'synthes', 'emphas', 'analy', 'model', 'centr', 'label', 'cancel', 'travel')
+_UK_RE = re.compile(
+    r'\b(?:fibres?|voxelis(?:e|ed|es|ing|ation)|(?:ideal|optim|polar|parameter|parametr|minim|maxim|normal|'
+    r'discret|raster|character|summar|recogn|real|util|stabil|visual|quant|linear|homogen|crystall|local|'
+    r'general|organ|standard|synthes|emphas)is(?:e|ed|es|ing|ation|ations)|analys(?:e|ed|ing)|'
+    r'modell(?:ed|ing)|centre|centred|centreline|behaviours?|colours?|favours?|vapours?|neighbours?|'
+    r'labelled|labelling|cancelled|travelled|whilst|sulphides?|aluminium|micrometres?|litres?)\b', re.I)
+_MANUSCRIPT_PROSE = ('docs/manuscript/methods_simulation_v7_draft.md',)
+
+
+def _strip_code(text):
+    return re.sub(r'```.*?```|`[^`\n]*`', ' ', text, flags=re.S)
+
+
+def check_us_spelling(verbose=True, text=None):
+    """원고 산문과 빌더 Methods 문자열에 영국식 철자가 없는가."""
+    errs, warns = [], []
+    blobs = []
+    if text is not None:
+        blobs.append(('<text>', text))
+    else:
+        for rel in _MANUSCRIPT_PROSE:
+            p = os.path.join(ROOT, rel)
+            if os.path.exists(p):
+                blobs.append((rel, open(p, encoding='utf-8').read()))
+        try:
+            import importlib.util as _iu
+            _sp = _iu.spec_from_file_location('_bmd', os.path.join(ROOT, 'scripts', 'build_methods_docx.py'))
+            _m = _iu.module_from_spec(_sp); _sp.loader.exec_module(_m)
+            strs = [b or '' for _, b in _m.METHODS_FULL] + [b for _, b in _m.METHODS_COMPACT] + \
+                   [str(c) for row in (_m.TABLE_S2 + _m.TABLE_S3 + _m.TABLE_S3B) for c in row]
+            blobs.append(('scripts/build_methods_docx.py (Methods/Table strings)', '\n'.join(strs)))
+        except Exception as e:                                  # 빌더가 못 열리면 그것도 오류다
+            errs.append('규칙 O: build_methods_docx 를 열 수 없다 — ' + repr(e))
+    for name, blob in blobs:
+        hits = sorted({m.group(0) for m in _UK_RE.finditer(_strip_code(blob))})
+        if hits:
+            errs.append(f'{name}: 영국식 철자 {len(hits)}종 — {hits[:8]}  (미국식으로; 코드 식별자는 백틱 안에)')
+    if verbose and not errs:
+        print('  ✓ 원고 산문·빌더 Methods 문자열에 영국식 철자 없음')
+    return errs, warns
+
+
 def run_all(verbose=True):
     errs, warns = [], []
     for title, fn in (('규칙 I — 본체 ↔ 폴백 사본 패리티', check_copy_parity),
@@ -2073,7 +2125,8 @@ def run_all(verbose=True):
                       ('규칙 J — 생산 엔트리포인트 스모크 (기본 경로가 정말 도는가)',
                        check_entrypoint_smoke),
                       ('규칙 F — 지역 import 그림자 (조용한 기능 꺼짐)', check_local_import_shadows),
-                      ('규칙 N — 킷 러너의 재하율 라벨이 실물인가', check_kit_rate_label)):
+                      ('규칙 N — 킷 러너의 재하율 라벨이 실물인가', check_kit_rate_label),
+                      ('규칙 O — 원고 산문은 미국식 철자', check_us_spelling)):
         if verbose:
             print(f'\n{title}')
         e, w = fn(verbose=verbose)
@@ -2109,6 +2162,16 @@ def _selftest():
     chk('N-5: 결함을 설명하는 **주석**은 통과한다 (검사가 문서화를 벌하지 않는다)',
         check_kit_rate_label(verbose=False,
                              src=_ksrc + '\n  #   옛 판은 "기하 규칙 유지" 를 찍었다\n')[0] == [])
+
+    # ── 규칙 O — 리포가 통과하고, 영국식이 들어오면 잡히고, US 로 유효한 낱말은 안 잡히는가 ──
+    chk('O-1: 원고·빌더 산문이 지금 통과한다', check_us_spelling(verbose=False)[0] == [])
+    chk('O-2: 영국식(fibres · voxelisation · idealised)을 넣으면 잡는다 (반례)',
+        check_us_spelling(verbose=False, text='the fibres were voxelised and idealised')[0] != [])
+    chk('O-3: US 로 유효한 낱말은 안 잡는다 (analyses · organism · characteristic · emphasis · realistic)',
+        check_us_spelling(verbose=False, text='analyses of the organism show a characteristic emphasis, '
+                                              'realistic and centered')[0] == [])
+    chk('O-4: 백틱 안의 코드 식별자는 안 잡는다 (`--fibre-buckle` · `fibre_stamp`)',
+        check_us_spelling(verbose=False, text='run with `--fibre-buckle` and read `fibre_stamp`')[0] == [])
 
     from scipy import ndimage
     chk('A: 프로브가 6-face 를 거동으로 읽는다',
