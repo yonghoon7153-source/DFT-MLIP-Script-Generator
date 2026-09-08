@@ -2218,6 +2218,23 @@
    "reviews_work_dated": "2026-09-08",
    "shared_input": null,
    "verdict": "⇒ **96 팔 STEP3 착수 조건이 전부 채워졌다**: 네 침대 실재 · 같은 Mach · 같은 stop_mode · STEP3 배선 정상(4/4 수렴) · 등급 B 공통모드 전제 실측(±4 %).\n★ CL-82 ③ 의 잔여 의문(*\"W2 +0.451 % 이탈, 원인 미규명\"*)은 **기하 규칙 런에만** 있는 현상으로 좁혀진다 — 등록 규약의 W2 는 −0.003 % 다.  기하 규칙에서 무엇이 W2 만 2.7 셀 밀었는지는 여전히 모르지만, 캠페인에는 걸리지 않는다.\n⚠ **σ_e 값 인용 금지** (vox 0.4).  쓸 수 있는 문장은 *\"네 침대에서 STEP3 가 수렴하고 σ_e 가 VGCF 와 함께 단조 증가한다\"* 뿐이다.  ⚠ 설계 함의(CL-84): 조성축 신호가 판정선의 수천 배라 `ORDER-ROBUST` 는 거의 자동이고, 정보가 있는 축은 **격자**다 — 96 팔이 돌면 그때 판단한다."
+  },
+  {
+   "id": "CL-86",
+   "date": "2026-09-08",
+   "status": "live",
+   "kind": "measurement_record",
+   "claim": "**Codex Methods 리뷰 = SUBMISSION HOLD.  P1 다섯 중 셋이 내가 이 세션에서 쓴 문장이고, 검증 가능한 넷은 전부 재현된다.**  ⓐ 비의 방향이 뒤집혔다 (1.308 = **DBE/SBE**, 내가 `SBE/DBE` 로 적었다) ⓑ 격자가 `334×334×**490**` 인데 내가 `484` 를 줬다 (plate gap 만 세고 **void cap 6 셀**을 뺐다) ⓒ *\"only the electrolyte densifies\"* 는 코드가 반증한다 (첨가제도 material point 로 J2 갱신을 받는다 — 고정되는 것은 AM 뿐).",
+   "measured": {
+    "metric": "Codex 지적을 리포 실물로 독립 재현.  `docs/data/prereg_v2/phase_ledger/ledger_*_v015_sph.json` · `w4_ptfe_centerline_20260827/p2_*_sph_a*.json` 8쌍 · `mpm3d_compaction.py` J2 루프.",
+    "value": "```\nⓐ 비 방향        DBE/SBE = 1.30782   SBE/DBE = 0.7646     ⇒ 원고 표기 뒤집힘\nⓑ 격자           ledger grid_shape = [334, 334, 490] @vox 0.15\n                 72.534/0.15 = 483.56 → ceil 484 = **plate gap 명목 층수**\n                 실제 nz 490 = +6 셀 (0.90 µm void cap).  origin shift 시 축당 +1 가능\n                 (0.125 격자 ledger 도 [400,400,588] 로 같은 구조)\nⓒ J2            `mpm3d_compaction.py:2622` 가 material point p 마다 yld_p[p]·mu_p[p] 로\n                 J2 갱신.  첨가제는 ADD dict 로 자기 E·σ_y 를 갖는 material point 다.\n                 고정은 `am_mask` (AM 뿐).\nⓓ origin 통계    popCV  SBE 0.518 · DBE 0.611 · ratio 0.213 %\n                 sampCV SBE 0.554 · DBE 0.653 · ratio 0.228 %\n                 full range SBE 1.685 · DBE 1.923 · ratio 0.667 %\n                 ⇒ 내 \"varied by 0.5–0.6 %\" 는 **population CV** 인데 정의를 안 적었고\n                    \"varied\" 는 range 로 읽힌다 (실제 range 는 1.7~1.9 %)\nⓔ 실현 질량비    ρ 4.8/2.0 에서 AM:SE = **72.25 : 27.75** (원고의 70:27 은 nominal)\n```",
+    "unit": "— / 셀 / %"
+   },
+   "asserted": "`docs/reviews/codex_request_methods_si_20260908.md` (요청, 스냅샷 `569caa513`).",
+   "provenance": "Codex 판정 2026-09-08.  위 다섯 항목은 이 리포에서 재계산해 일치 확인.  ⚠ Codex 가 든 `1.123672 ↔ 1.307820`(PTFE 규약)과 `1.335498`(h 0.125)은 **재현하지 않았다** — 방향은 CL-49·CL-41 과 정합하나 자릿수까지는 미검증.",
+   "reviews_work_dated": "2026-09-08",
+   "shared_input": null,
+   "verdict": "⇒ **P1 다섯 중 셋(ⓐⓑⓒ)이 내 산출물이다.**  ⓐ 는 8쌍을 직접 계산해 놓고도 문장에서 방향을 뒤집었고, ⓑ 는 사용자의 `333×333×483` 을 고치면서 `ceil` 은 맞췄으나 **원장을 안 보고 plate gap 산술로 멈췄다** (원장에 `grid_shape` 가 그대로 적혀 있다), ⓒ 는 바로 앞 문장에서 *\"첨가제가 압밀 중 material-point cloud 안에 있다\"* 고 쓰고 다음 문장에서 *\"only the electrolyte densifies\"* 라고 적어 **자기모순**이다.\n★ 공통 원인 하나: **산술로 답할 수 있으면 원장을 안 열었다.**  ⓑ 는 `ledger_*_v015_sph.json` 한 줄이면 끝났다.  CLAUDE.md 규율 ①(이 리포에 이미 있나)의 데이터 판이다.\n⇒ **채택**: ⓐⓑⓒⓓⓔ 전부 원고에 반영한다.  Codex 의 최소 수정문을 기본으로 쓰되 ⓓ 는 population CV 임을 명시하고 *\"insensitive to grid placement\"* → *\"limited origin-phase sensitivity at fixed h\"* 로 좁힌다 (h 0.15→0.125 에서 비가 계속 움직이므로 격자 수렴 주장이 아니다).\n⚠ **Q3 의 반례가 결정적이다** — 코드 기본값이 PTFE `off` 라 §1 만 읽고 재현하면 **1.124** 가 나오고 원고는 **1.308** 을 보고한다.  저자가 PTFE 민감도 표를 빼기로 했으므로, 최소한 **공칭 실행 설정**(`VOX=.15 · SDCP_SPHERE_D=.30 · PTFE_STAMP=centerline · 8 origins`)은 어딘가에 있어야 한다.\n⚠ **Q1 의 정본 미수렴은 미해결**: `methods_simulation_v7_draft.md` 가 아직 `PROVISIONAL — NOT FOR SUBMITTION` 이고 이미 커밋된 W4 자료를 *\"not committed\"* 라고 적는다.  빌더도 그 상태를 생성하고, 본문(centerline = 보고 규약)과 부속 산문(둘 중 어느 것도 primary 아님)이 **DOCX 안에 함께** 들어간다.  ⇒ 다음 작업."
   }
  ],
  "quotation_ban": [
