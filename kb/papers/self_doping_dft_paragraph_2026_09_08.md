@@ -52,7 +52,8 @@ deprotonated sulfonate as its fixed counter-anion. This is the molecular signatu
 the chain supplies both the carrier and the charge that compensates it. Because the backbone share
 has not saturated at six units, the polymer is expected to be at least this delocalized. These
 gas-phase models identify the carrier but not its mobility, which also requires the doping level and
-inter-chain transfer. The measured electronic conductivity is given in Section X.
+inter-chain transfer. That transport was measured directly: the polymer shows a four-point-probe
+electronic conductivity of 250 mS cm⁻¹ (Section X).
 
 ### 개정 이력 (2026-09-08)
 
@@ -77,7 +78,8 @@ inter-chain transfer. The measured electronic conductivity is given in Section X
 | `Counted over ring atoms only` → **Figure S4 캡션으로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
 | `rather than localized at the oxidation site` | ring4 23.3 을 "국재" 로 읽는 것. **자리는 ring3 확정**(2026-09-08) — 최대(ring4)와 다른 고리라 이 구절이 데이터로 받쳐진다 |
 | `expected to be at least this delocalized` | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
-| `identify the carrier but not its mobility` | 전도도 주장 차단 |
+| `identify the carrier but not its mobility` | 전도도를 계산으로 주장하는 것 차단 |
+| `That transport was measured directly` | 계산이 못 하는 것을 **측정이 답한다** — 회피가 아니라 역할 분담임을 보인다 |
 
 ⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Figure S4 캡션에 반드시 넣는다.**
 빠지면 7월 값과 다른 분할(strict 79.5 · extended 91.6)이 같은 그림에 섞여 읽힌다.
@@ -152,9 +154,11 @@ oxygens are excluded. The same partition is used for every chain length.*
 
 ## ⏳ 남은 것
 
-1. **Section X** — 순수 SDCP 의 전자전도도. 측정값이 있으면 그 절을 가리키고, 없으면 PEDOT-S
-   계열 문헌값을 **소환값으로 명시**해 한 줄 넣는다. 이게 비면 [5]가 "우리는 전도도를 안 다룬다"
-   로만 끝나 독자가 이 계산을 읽은 이유를 잃는다.
+1. ✅ **Section X 해결** — 4-probe 실측 **250 mS cm⁻¹** (1저자 2026-09-08). 문헌 소환값이
+   아니라 우리 측정이라 `measured directly` 로 쓴다. 단위는 mS cm⁻¹ 로 뒀다 — 이 논문의
+   황화물 전해질 이온전도도와 같은 축에서 읽히게 (0.25 S cm⁻¹ 로 바꾸려면 원고 전체 통일 필요).
+   ⏳ 시료 형태만 미확인: **박막이면 four-point-probe**, 펠릿이면 `four-terminal`/`van der Pauw`
+   로 한 단어 교체.
 2. **삽입 위치** — FT-IR 절 **뒤**여야 한다. [1]의 `above` 가 그 전제다 (앞이면 `below` 로).
 3. ✅ **n=6 도핑 자리 = ring3** (해결). 선택: 본문에 `(ring 3)` 을 넣어 검증 가능하게 만들지,
    Figure S4 (c) 패널에 자리 표시를 넣을지 — 1저자 결정.
