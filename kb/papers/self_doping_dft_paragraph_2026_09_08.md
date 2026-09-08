@@ -147,6 +147,37 @@ six repeat units.*
 ⚠ `E_binder`("the isolated binder")가 ORCA 기체상 분자로 오해될 여지가 생기지만, 바로 앞 문장이
 *"Gas-phase references were relaxed at the Γ point in the same cell"* 로 QE 안에서 정의하므로 성립한다.
 
+### ⛔ P0 — 흡착 문단·Table S1 에서 **자가도핑형을 뺀다** (1저자 발견 2026-09-08)
+
+1저자 지적: *"우리 adsorption 할 때는 자가도핑 뺐잖아."* 맞다. db 가 명시적이다.
+
+- `sdcp_doped_closed_2026_08_28.json` (**상태 active**) — 닫는 범위 = *"sdcp_doped(자가도핑 단량체,
+  C₁₁H₁₅O₆S₂ doublet)의 **표면 흡착 수치 전부** — E_ads·자리선호·carrier 상태 판정"*.
+  금지 서술에 *"doped E_ads 수치 일체"* · *"doped 가 중성보다 강하게/약하게 붙는다 — 비교 자체가
+  미정의"* 가 있다.
+- `sdcp_neutral_closed_2026_08_28.json` — 닫는 범위 = *"sdcp_neutral(C₁₁H₁₆O₆S₂) 의 LiNiO₂(104)
+  흡착"*, ⛔ *"doped 는 이 문서의 범위가 아니다"*.
+
+⇒ **흡착 계산은 중성 하나뿐이다.** 그런데 원고 두 곳이 둘 다 한 것처럼 읽혔다 —
+그리고 이는 내 수정본만이 아니라 **원문부터** 그랬다 (원문의 괄호 설명이 Adsorbate 맥락에 있어
+두 형태를 다 흡착시킨 것으로 읽힌다). 마감된 결과를 암묵적으로 주장하는 셈이라 P0 다.
+
+| 위치 | 고침 |
+|---|---|
+| Methods 슬랩 문단 | `…in its neutral (C₁₁H₁₆O₆S₂) and self-doped (C₁₁H₁₅O₆S₂) forms…` → **`…a single neutral repeat unit (C₁₁H₁₆O₆S₂), and PTFE by…`** |
+| Table S1 Adsorbate 행 | `SDCP repeat unit (neutral / self-doped)` · `C₁₁H₁₆O₆S₂ / C₁₁H₁₅O₆S₂` → **`SDCP repeat unit (neutral)`** · **`C₁₁H₁₆O₆S₂`** |
+
+부수 효과: 표의 자가도핑 화학식이 `C₁₁H₁₇O₆S₂` 로 읽히던 문제(H 가 **늘어난** 표기)도 그 행이
+사라지며 함께 해소된다. 구조도 깨끗해진다 — 자가도핑 화학종은 **분자 문단(ORCA)에만** 나오고
+거기서는 정당하다(스핀 위치를 보는 계산). 흡착 문단은 중성만.
+
+⏳ **본문 전체 점검 필요:** doped 흡착에너지 수치나 "자가도핑형이 더 강하게 붙는다" 류 비교가
+다른 절에 남아 있으면 전부 뺀다 (마감 문서의 금지 서술 2건).
+
+⏳ **고정 원자 144개가 본문에 없다.** Table S1 에는 `Constrained atoms 144 (z ≤ 17.40 Å)` 가 있는데
+Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with more than 15 Å of vacuum` 뒤에
+`, the lower 144 atoms held fixed,`. 1저자 결정 대기.
+
 ### Supplementary Note 2 (Methods 편입 후 남는 것)
 
 > **Supplementary Note 2. Spin partition of the oxidized SDCP oligomers**
