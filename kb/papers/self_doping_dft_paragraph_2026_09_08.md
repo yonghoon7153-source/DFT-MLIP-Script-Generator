@@ -35,55 +35,52 @@ evidenceScope: multi-source-primary
 ⚠ n=1(모노머)은 **싣지 않는다** — 에테르 산소가 없어 분모가 다르고, 35.0 → 32.6 으로 내려가
 백본 단조 서술이 깨진다.
 
-## 본문 (미국식 영어 · 짧은 문장)
+## 본문 (미국식 영어 · 2문단)
 
-**[1]** Density functional theory was used to identify what carries the charge in this oxidized,
-deprotonated state. The state was imposed, not predicted. A hydrogen atom was removed from the
-sulfonic acid group of gas-phase oligomers of two, three, and six repeat units. The resulting
-doublet was optimized at the r²SCAN-3c level, and the spin density was partitioned by Löwdin
-population analysis (Supplementary Note 2, Figure Sx, Table Sx). These calculations show where the
-unpaired spin resides in an already-oxidized chain. Whether that oxidation occurs is established by
-the infrared spectra above, not here.
+Density functional theory was used to identify what carries the charge in the oxidized,
+deprotonated chain. A hydrogen atom was removed from the sulfonic acid group of gas-phase oligomers
+of two, three, and six repeat units. The resulting doublets were optimized at the r²SCAN-3c level
+(Supplementary Note 2). The oxidized state is imposed by this construction; that it is realized in
+the material follows from the infrared spectra above. Löwdin spin populations show the unpaired spin
+migrating from the sulfonate onto the conjugated backbone as the chain grows. The backbone share
+rises from one-third in the dimer to 79.7% at six repeat units, while the sulfonate share falls to
+7.7% (Table Sx). At six units the spin is distributed over three adjacent rings (15.9%, 23.3%, and
+20.0%) rather than localized at the oxidation site.
 
-**[2]** The unpaired spin moves from the sulfonate onto the conjugated backbone as the chain
-lengthens. Counted over ring atoms only, the backbone share rises from one-third in the dimer to
-79.7% at six repeat units. The sulfonate share falls monotonically across the same series, reaching
-7.7%. The crossover occurs once the oxidation site has conjugated neighbors on both sides.
-Per-oligomer values are given in Table Sx.
+The carrier is therefore a backbone polaron delocalized over several repeat units, with the
+deprotonated sulfonate as its fixed counter-anion. This is the molecular signature of self-doping:
+the chain supplies both the carrier and the charge that compensates it. Because the backbone share
+has not saturated at six units, the polymer is expected to be at least this delocalized. These
+gas-phase models identify the carrier but not its mobility, which also requires the doping level and
+inter-chain transfer. The measured electronic conductivity is given in Section X.
 
-**[3]** At six repeat units the spin is not confined to one ring. It is spread over three adjacent
-rings, which carry 15.9%, 23.3%, and 20.0% — 59.2% in total. No single ring carries more than a
-quarter. The remainder lies on the side-chain ether oxygens (12.1%) and on ring and linker hydrogens
-(0.5%). The four groups sum to 100.0%.
+### 개정 이력 (2026-09-08)
 
-**[4]** These numbers describe a polaron delocalized over several repeat units of the backbone. The
-deprotonated sulfonate acts as a fixed counter-anion, not as the site of the unpaired electron. This
-is the molecular content of self-doping in this polymer. The chain supplies both the carrier and the
-charge that compensates it, and the carrier is not trapped on the anchoring group. The backbone
-share is still rising at six repeat units, so the delocalization in the polymer is expected to be at
-least this extensive.
+- **5문단 → 2문단.** 1저자 지적: *"논문스럽게 써야지 하나하나 다 넣으려고 하지 마."*
+  방어 문구를 문장마다 박으니 논문이 아니라 체크리스트가 됐다. 한계는 한 문장으로 접고
+  나머지는 Methods/SI 로 내린다.
+- **SI·Methods 로 내린 것 4:** 네 그룹 합 100.0% · "어느 고리도 1/4 미만" · 스핀 이성질체
+  탐색 없음 · 스핀밀도 ≠ 홀 전하밀도. 앞의 둘은 표가 보여주고 뒤의 둘은 Methods 한 줄이면 된다.
+- **본문에 남긴 방어 3:** `imposed by this construction`(자발성 주장 차단) ·
+  `rather than localized at the oxidation site`(ring4 국재 오독 차단) ·
+  마지막 두 문장(전도도 주장 차단).
+- **"Density functional theory" 를 되살렸다.** 압축 판에서 빠져 `r²SCAN-3c` 만 남았는데,
+  앞이 FT-IR 절이면 방법이 바뀌는 지점이라 명시해야 한다.
+- **문장 길이 9–24 단어로 균질화.** 한 문장에 몰아넣지 않는다.
 
-**[5]** These are isolated gas-phase oligomers of up to six repeat units. Each was obtained as a
-single self-consistent solution, without a search over spin isomers. The spin density is reported as
-such, and is not equated with the hole charge density. The calculations establish the identity and
-location of the carrier, not its mobility. An electronic conductivity also requires a carrier
-concentration set by the doping level, and transfer between chains. Neither is accessible from a
-single-chain gas-phase model. The measured electronic conductivity of the polymer is given in
-Section X.
+## 본문에 남긴 방어선
 
-## 각 문장이 지키는 것 (심사 방어선)
-
-| 문장 | 방어하는 것 |
+| 구절 | 막는 것 |
 |---|---|
-| [1] "imposed, not predicted" | DFT 로 **자발성**을 주장하지 않는다. H 를 손으로 뗀 계산이다 |
-| [1] 마지막 | 역할 분담 — 자발성은 FT-IR 몫. 전도도를 안 다루는 것이 회피가 아니라 설계로 읽힌다 |
-| [2] "Counted over ring atoms only" | 7월 n=1–3 과 **같은 분할**. strict(+고리H)·extended(+에테르O)를 섞지 않는다 |
-| [2] "sulfonate … monotonically" | 단조는 **SO₃ 에만** 참이다 (백본은 n=1→2 에서 내려간다) |
-| [3] "no single ring … a quarter" | ring4 23.3 을 "국재" 로 읽는 것을 막는다. 그리고 **도핑 자리는 아직 미확인**이라 자리 언급 없음 |
-| [3] "sum to 100.0%" | "87.4 밖에 안 되는데?" 를 사전에 닫는다 |
-| [4] "molecular content of self-doping" | *일어난다* 가 아니라 *일어났을 때의 모습* |
-| [4] "at least this extensive" | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
-| [5] 세 한계 | 기체상 · fresh SCF 한 번(스핀 이성질체 탐색 없음) · 스핀밀도 ≠ 홀 전하밀도 |
+| `The oxidized state is imposed by this construction` | DFT 로 **자발성**을 주장한다는 오독. H 를 손으로 뗀 계산이다 |
+| `follows from the infrared spectra above` | 자발성은 FT-IR 몫 — 역할 분담을 한 절로 |
+| `Counted over ring atoms only` → **Table Sx 각주로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
+| `rather than localized at the oxidation site` | ring4 23.3 을 "국재" 로 읽는 것. **도핑 자리는 미확인**이라 자리 언급은 없다 |
+| `expected to be at least this delocalized` | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
+| `identify the carrier but not its mobility` | 전도도 주장 차단 |
+
+⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Table Sx 의 각주에 반드시 넣는다.**
+빠지면 7월 값과 다른 분할이 한 표에 섞일 수 있다.
 
 ## SI 연결
 
