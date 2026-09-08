@@ -909,6 +909,10 @@ _RUNNER_AXES = ('LEAN', 'VOX', 'ARMS', 'SIGMA_PTFE', 'PTFE_STAMP', 'FIBRE_STAMP'
                 'SIGMA_ION_SDCP', 'SIGMA_ION_SE',
                 #  ★ 2026-08-31 (Codex R16 P1-5) — PTFE 이온 차단 축.
                 'PTFE_BLOCK_UM', 'PTFE_BLOCK_SCOPE',
+                #  ★ 2026-09-08 — Phase A 96 팔의 킷 목록.  이 목록에 **안 넣고** 러너에만
+                #    추가했다가 위 경고를 그대로 재현할 뻔했다 (호출 환경의 KITS 가 내부
+                #    프로브로 새면 프로브가 없는 킷을 찾는다).
+                'KITS',
                 #  ★ 2026-09-02 — closure 스윕의 두 대비 축 + 게이트 전용 문.
                 #    ⚠ 이제 안 넣으면 **두 겹으로** 막힌다: 격리가 뚫리는 옛 경로에 더해,
                 #    러너의 새 env fail-closed 가 `bash -s` 경로에서 ABORT 를 낸다.
@@ -2159,6 +2163,12 @@ def _selftest():
         '[ "$KITS" != "$_KITS_DEFAULT" ]' in _RSRC8)
     chk('L-K4: 기본값이 SDCP 두 킷 그대로 (기존 경로 불변)',
         '_KITS_DEFAULT="kit_SBE kit_DBE"' in _RSRC8)
+
+    chk('L-K5: 새 축 KITS 가 프로브 격리 목록에 있다 (없으면 생산이 막힌다)',
+        'KITS' in _RUNNER_AXES)
+    chk('L-K6: 러너가 쓰는 env 축이 전부 격리 목록에 있다',
+        not [a for a in ('KITS', 'LEAN', 'VOX', 'ARMS', 'BRIDGE_UM', 'PTFE_STAMP', 'FIBRE_STAMP')
+             if a not in _RUNNER_AXES])
 
     # ── 규칙 N — 리포가 통과하고, **되살리면 잡히는가** (사본에서만 훼손) ──────────────
     _ksrc = open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
