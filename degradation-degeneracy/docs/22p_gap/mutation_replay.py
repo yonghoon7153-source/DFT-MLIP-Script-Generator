@@ -1530,8 +1530,12 @@ MULTI = [
         #   "create-if-absent 를 last-writer-wins 로 되돌린다" 는 이 변이의 뜻을
         #   같은 자리에서 다시 쓴다: `link` 는 대상이 있으면 실패하고 `replace`
         #   는 덮는다.
-        ("            os.link(_tmp, path)            # no-replace CAS",
-         "            os.replace(_tmp, path)         # no-replace CAS"),
+        # ★ 60차 P1-1 — 배타 지점이 다시 옮겨졌다. `link` + `unlink` 는 잠깐
+        #   **이름을 둘** 만들었고, 그것이 P1-1 의 반례였다. 이제 게시는
+        #   `renameat2(RENAME_NOREPLACE)` 로 **옮긴다**. 변이의 뜻은 그대로다:
+        #   "무대체를 last-writer-wins 로 되돌린다."
+        ("            _moved = _rename_noreplace(_tmp, path)",
+         "            _moved = bool(os.replace(_tmp, path) or True)"),
      ], "only_one_writer_can_create_an_execution_class"),
     # ★ 58차 — L5 의 좌표 봉인이 `_assert_writable()` 의 **첫 층**이 되면서
     #   그 아래 층을 겨눈 옛 변이들이 안 물게 됐다 (실측: 변이만 rc 0 ·
@@ -3986,9 +3990,62 @@ def _env_facts(NAMES):
         f = getattr(m, "__file__", None) if m is not None else None
         if f:
             loaded[nm] = _d(f)
+    # ★ 60차 P1-3 — **상태가 아니라 이력을 잰다.** `sys.modules` 는 이 순간의
+    #   상태이고, startup 이 올렸다 **지운** module 은 거기 없다 (리뷰어 실측:
+    #   `sitecustomize` 가 payload 를 import 해 builtins 에 값을 남기고
+    #   `sys.modules` 에서 지우면, payload 바이트를 바꿔도 영수증이 안 움직였다).
+    #
+    #   `-X importtime` 은 인터프리터가 startup 에 **실제로 import 한** module 을
+    #   전부 stderr 로 찍는다 — 그 뒤 지워도 로그에는 남는다. 그래서 손자
+    #   프로세스를 하나 띄워 그 이력을 받고, 이름마다 파일을 찾아 해시한다.
+    history = {}
+    try:
+        import subprocess as _sp
+
+        _r = _sp.run([sys.executable, "-X", "importtime", "-c", "pass"],
+                     capture_output=True, text=True, timeout=120)
+        _names = set()
+        for _ln in (_r.stderr or "").splitlines():
+            if "|" in _ln:
+                _names.add(_ln.rsplit("|", 1)[-1].strip())
+        from importlib import util as _u
+
+        for _nm in sorted(n for n in _names if n and not n.startswith("import ")):
+            try:
+                _sp_ = _u.find_spec(_nm)
+            except (ImportError, ValueError, AttributeError):
+                continue
+            _o = getattr(_sp_, "origin", None) if _sp_ is not None else None
+            if _o and os.path.isfile(_o):
+                history[_nm] = _d(_o)
+    except Exception:                                    # pragma: no cover
+        history = {"<unmeasured>": "1"}
+
+    # ★ 60차 P1-4 — **문자열이 가리키는 바이트를 담는다.** 59차 영수증은
+    #   `PYTHONPATH` 를 문자열로만 담았고, 같은 문자열 아래 module 내용을 바꾸면
+    #   실행은 달라지는데 영수증은 그대로였다 (실측: `FIRST → OTHER`).
+    #
+    #   담는 범위는 그 자리의 **최상위 module** 이다 — startup 뒤에 import 되는
+    #   것을 이력으로는 못 보므로, "무엇이 import 될 수 있는가" 를 바이트로
+    #   답한다. 더 깊은 package 는 실제로 import 될 때 위 이력이 잡는다.
+    reachable = {}
+    for d in [x for x in os.environ.get("PYTHONPATH", "").split(os.pathsep) if x]:
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for nm in names:
+            f = os.path.join(d, nm)
+            if nm.endswith(".py") and os.path.isfile(f):
+                reachable[nm] = _d(f)
+            elif os.path.isfile(os.path.join(f, "__init__.py")):
+                reachable[nm + "/__init__.py"] = _d(os.path.join(f, "__init__.py"))
+
     return {"executable_sha256": _d(sys.executable),
             "customization": cust,
             "startup_modules": loaded,
+            "startup_history": history,
+            "importable_roots": reachable,
             "pth": pth,
             "version": "%d.%d.%d" % sys.version_info[:3],
             "env": {k: os.environ[k] for k in NAMES if k in os.environ}}

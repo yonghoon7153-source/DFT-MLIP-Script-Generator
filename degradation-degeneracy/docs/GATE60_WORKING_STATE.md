@@ -33,10 +33,10 @@
 | P0-11 | M17 | `_binding_shadows()` 가 `ast.walk` 로 **중첩 scope 의 parameter** 를 바깥에 적용 + subscript callee 우회 | ζ | **GREEN** |
 | P0-12 | M12 | compound **head**(`If.test`·`While.test`·`For.iter`·`With`·`Match.subject`) 와 **vararg/kwarg annotation** 이 import-time 밖 | ζ | **GREEN** |
 | P0-13 | M12 | module docstring 은 버리면서 **`__doc__` 접근은 허용** — 문서 문자열로 값이 흐른다 | ζ | **GREEN** |
-| P1-1 | M3·M13 | hardlink 게시가 temp alias 를 남기고(`nlink=2`) unlink 실패를 삼킨 채 성공 | η | 미착수 |
+| P1-1 | M3·M13 | hardlink 게시가 temp alias 를 남기고(`nlink=2`) unlink 실패를 삼킨 채 성공 | η | **GREEN** |
 | P1-2 | M9 | `phase_done()` 이 caller dict 를 **lock 밖에서 검사하고 같은 reference 를 나중에 직렬화** | ε | **GREEN** |
-| P1-3 | M14 | startup 에서 실행됐다 `sys.modules` 를 떠난 byte 를 probe 가 못 본다 | θ | 미착수 |
-| P1-4 | M15 | full receipt 가 **startup 뒤 import 되는 byte** 를 안 담는다 | θ | 미착수 |
+| P1-3 | M14 | startup 에서 실행됐다 `sys.modules` 를 떠난 byte 를 probe 가 못 본다 | θ | **GREEN** |
+| P1-4 | M15 | full receipt 가 **startup 뒤 import 되는 byte** 를 안 담는다 | θ | **GREEN** |
 
 ## 묶음
 
@@ -156,3 +156,32 @@ anchor 는 "들어갔어야 하는 것" 을 가리킨다 (증거가 아니라 �
 - cohort pin drift (row_projection.py 가 바뀌었다) → g14 freeze → g15
 - 검증 영수증 core sha 갱신 (`make_receipt.py paired_fixed5_v4`)
 - 12조각 전수 재생 · 전체 회귀 + strict smoke · 요청문
+
+### η (P1-1) — 한 이름 게시
+
+`os.link` + `unlink` 는 잠깐이라도 **이름을 둘** 만든다. 정리가 실패하면(평범한
+`OSError` 로도 됐다) 같은 inode 를 가리키는 **쓸 수 있는 두 번째 문**이 남고,
+그리로 쓴 값이 등록부의 답이 됐다.
+
+- `renameat2(RENAME_NOREPLACE)` 로 **옮긴다** (ctypes, Linux ≥3.15). 무대체
+  보장을 유지하면서 이름은 언제나 하나다 — "정리가 실패하면?" 이라는 물음
+  자체가 없어진다.
+- 없는 커널에서는 link + unlink 로 물러서되 **정리 실패를 안 삼킨다.**
+- 그리고 **읽는 쪽이 `st_nlink == 1` 을 요구한다.** crash 로 남은 alias 는
+  게시 경로를 아무리 고쳐도 있을 수 있다.
+
+죽은 변이 축 1건(`execution-class-record-is-exclusive-g58`) 재조준 — 배타
+지점이 `O_EXCL` → `link` → `renameat2` 로 세 번째 옮겨 갔다.
+
+### θ (P1-3·P1-4) — 실행이 실제로 올린 byte
+
+- **P1-3**: `sys.modules` 는 **상태**이고 이력이 아니다. `-X importtime` 손자
+  프로세스로 startup 이 **실제로 import 한** 이름을 전부 받고(그 뒤 지워도 로그에
+  남는다) 이름마다 파일을 찾아 해시한다.
+- **P1-4**: `PYTHONPATH` 를 **문자열로만** 담던 것을, 그 자리의 **최상위 module
+  바이트**로 담는다. 더 깊은 package 는 실제로 import 될 때 위 이력이 잡는다.
+- 반대 방향 시험도 뒀다 — 무관한 파일 하나에 영수증이 움직이면 그 층은 경계가
+  아니라 잡음이다.
+
+**남는 한계**: 이것도 "실행이 소비한 바이트 전부" 는 아니다. 종결은 독립
+replay 이고 이 라운드의 범위 밖이다 — 요청문에 적는다.

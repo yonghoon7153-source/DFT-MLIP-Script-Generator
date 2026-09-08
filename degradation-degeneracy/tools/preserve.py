@@ -4640,6 +4640,61 @@ def _exec_class_path(content_id: str, ledger=None) -> Path:
     return exec_class_root_for_ledger(ledger) / f"{content_id}.json"
 
 
+#: `renameat2(2)` 의 무대체 플래그 (Linux ≥ 3.15).
+_RENAME_NOREPLACE = 1
+
+
+def _rename_noreplace(src: Path, dst: Path) -> bool:
+    """`src` 를 `dst` 로 **옮긴다** — 이미 있으면 실패, 이름은 하나 (60차 P1-1).
+
+    `os.link()` + `unlink()` 는 잠깐이라도 **이름을 둘** 만든다. 그 사이에 죽거나
+    `unlink` 가 실패하면 같은 inode 를 가리키는 쓸 수 있는 두 번째 문이 남고,
+    그리로 쓰면 등록부의 내용이 바뀐다 (리뷰어 실측: `final_nlink: 2` ·
+    그 문으로 쓴 값이 그대로 읽혔다).
+
+    `renameat2(RENAME_NOREPLACE)` 는 무대체 보장을 유지하면서 **원자적으로
+    옮긴다** — 성공하면 이름은 언제나 하나다.
+
+    돌려주는 값: 이 커널에서 그 연산을 쓸 수 있었으면 `True`. 없으면 `False` 고,
+    호출자는 link + unlink 로 물러서되 **정리 실패를 삼키지 않는다.**
+    """
+    global _RENAMEAT2
+    if _RENAMEAT2 is False:
+        return False
+    if _RENAMEAT2 is None:
+        try:
+            import ctypes
+            import ctypes.util
+
+            _lib = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6",
+                               use_errno=True)
+            _fn = _lib.renameat2
+            _fn.restype = ctypes.c_int
+            _fn.argtypes = [ctypes.c_int, ctypes.c_char_p,
+                            ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+            _RENAMEAT2 = (_fn, ctypes)
+        except (OSError, AttributeError):                # pragma: no cover
+            _RENAMEAT2 = False
+            return False
+    fn, ctypes = _RENAMEAT2
+    AT_FDCWD = -100
+    rc = fn(AT_FDCWD, os.fsencode(str(src)), AT_FDCWD, os.fsencode(str(dst)),
+            _RENAME_NOREPLACE)
+    if rc == 0:
+        return True
+    err = ctypes.get_errno()
+    if err == errno.EEXIST:
+        raise FileExistsError(err, os.strerror(err), str(dst))
+    if err in (errno.ENOSYS, errno.EINVAL, errno.ENOTTY, errno.EOPNOTSUPP):
+        _RENAMEAT2 = False                               # pragma: no cover
+        return False                                     # pragma: no cover
+    raise OSError(err, os.strerror(err), str(dst))       # pragma: no cover
+
+
+#: `None` = 아직 안 물어봤다 · `False` = 이 커널에 없다 · tuple = 쓸 수 있다.
+_RENAMEAT2 = None
+
+
 def _record_execution_class(run_dir, cls: str, evidence: str,
                            ledger=None, dir_fd=None) -> Path:
     """이 산출의 실행 class 를 **등록부에 굳힌다.** (모듈 비공개 sink)
@@ -4787,21 +4842,34 @@ def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
                 "promote",
                 f"등록 레코드를 다시 읽었더니 쓴 것과 다르다 ({len(got)} ≠ "
                 f"{len(body)} 바이트) — 이름을 붙이지 않는다 (내용 {cid[:16]}…)")
+        # ★ 60차 P1-1 — **이름을 하나만 만든다.** `link` + `unlink` 는 잠깐이라도
+        #   이름을 둘 만들고, 그 사이에 죽거나 정리가 실패하면 쓸 수 있는 두
+        #   번째 문이 남는다 (리뷰어 실측: 평범한 `OSError` 로도 그 상태가 됐고
+        #   그 문으로 쓴 값이 그대로 읽혔다).
         try:
-            os.link(_tmp, path)            # no-replace CAS
+            _moved = _rename_noreplace(_tmp, path)
         except FileExistsError:            # pragma: no cover
             # lock 안에서 두 자리를 읽고 왔으므로 정상 경로에서는 안 온다.
             # 그래도 삼키지 않는다 — 아래 seal 이 그 파일을 **읽어서** 같은
             # class 인지 확인하고, 아니면 거기서 멈춘다.
-            pass
+            _moved = False
+        if not _moved:
+            # 이 커널에 `renameat2` 가 없다 — 물러서되 **정리 실패를 안 삼킨다.**
+            try:
+                os.link(_tmp, path)
+            except FileExistsError:        # pragma: no cover
+                pass
     finally:
-        # temp 는 어느 경로로 나가든 남기지 않는다 (link 성공 뒤에도 지운다 —
-        # 이름이 둘이면 하나가 지워질 때 다른 하나가 남는다는 사실에 기대는
-        # 것이지, 두 이름을 authority 로 두는 것이 아니다).
-        try:
-            _tmp.unlink()
-        except OSError:
-            pass
+        if _tmp.exists():
+            try:
+                os.unlink(_tmp)
+            except OSError as exc:
+                raise PreserveError(
+                    "promote",
+                    f"게시 뒤 temp 이름을 못 지웠다 ({_tmp}: {exc}) — 같은 "
+                    "레코드를 가리키는 **두 번째 문**이 남았고 그리로 쓰면 "
+                    "등록부의 내용이 바뀐다. 성공으로 보고하지 않는다 "
+                    "(60차 P1-1)") from exc
     # ★ 59차 M13 — 성공의 출구는 하나다. temp 를 치운 **뒤에** 굳혀야 게시와
     #   정리가 같은 directory entry 갱신 안에서 durable 해진다.
     return _seal_exec_class_record(path, cid, cls)
@@ -4810,6 +4878,19 @@ def _record_execution_class_locked(cid: str, cls: str, evidence, name: str,
 def _read_exec_class_at(p: Path, content_id: str) -> dict | None:
     if not p.is_file():
         return None
+    # ★ 60차 P1-1 — **이름이 둘인 레코드는 authority 가 아니다.**
+    #
+    #   게시 경로를 아무리 고쳐도 crash 로 남은 alias 는 있을 수 있다. 그때
+    #   읽는 쪽이 그것을 그대로 받으면 방어가 없는 것과 같다 — 두 번째 문으로
+    #   내용을 바꾸고도 등록부가 authority 인 척한다. 층을 둘로 둔다.
+    _st = os.stat(p, follow_symlinks=False)
+    if _st.st_nlink != 1:
+        raise PreserveError(
+            "promote",
+            f"등록 레코드의 이름이 {_st.st_nlink}개다 ({p}) — 같은 내용을 "
+            "가리키는 두 번째 문이 있으면 그리로 쓴 값이 등록부의 답이 된다. "
+            "authority 는 이름이 하나여야 한다 (60차 P1-1). 남은 alias 를 "
+            "지우고 다시 읽으라")
     try:
         rec = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
