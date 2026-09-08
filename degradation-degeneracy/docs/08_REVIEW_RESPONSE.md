@@ -6452,3 +6452,143 @@ pytest tests/ -q            1534 passed, 1 xfailed (0:28:07)   rc 0   @7e03cb19
 cohort                      g13 frozen → g14 active (journal seq 12)
 행 바이트                    ad598fe77e75afec — 열 세대째 같다
 ```
+
+---
+
+## §71 60차 판정 접수 — **NO-GO**. P0 13건 · P1 4건 (2026-09-08)
+
+대상 head `ae4ef190` · RUN_SCOPE `7e03cb19` · `source_digest 4fe8d27269ca9ca2`
+(리뷰어 실측 일치). 전용 회귀 46건은 통과했고, 그 초록과 아래 반례들은 **동시에
+성립한다** — 전용 회귀가 각 이름보다 좁은 축을 실행했기 때문이다.
+
+리뷰어가 새 발견으로 **세지 않은 것**: 요청문 §0 의 미착수·신고 항목, 환경
+결손(`pybamm`·`tqdm` 부재)으로 인한 실패 2건. `--check-preimages` 는 통과.
+커밋된 coverage 합집합은 **리뷰어 환경의 receipt 가 달라 fail-closed** 했고,
+그래서 전수 재생 증거도 통과로 옮겨 적지 않았다.
+
+### 가장 먼저 닫으라고 지목된 것은 공격 반례가 아니다
+
+정상 `all → report` 순서에서 `grid/fit` 이 실행 class 를 등록한 뒤 report 가
+`analysis_manifest.yaml` 을 쓰면 `run-content-id/v3` 가 바뀐다. 새 ID 에는 class
+가 없으므로 **정상 실행이 마지막 승격에서 거부된다** — 계산을 다 마친 뒤 막히는
+가용성 결함이다.
+
+### 공통 형태 넷
+
+1. capability 의 **발급·소비 authority 가 안 닫혔다** — raw sink/mint 가 공개고,
+   소비한 nonce 도 살아 있다.
+2. handle 검사가 **실제 pathname 출력이 끝난 뒤**에 실행된다.
+3. `lstat` 와 Python object snapshot 은 각각 **bind mount** 와 **가리킨 실물의
+   후속 교체**를 못 막는다.
+4. producer 의 "실행된다가 기본" 에 **parameter provenance · lexical scope ·
+   compound head · vararg annotation · module `__doc__`** 가 빠졌다.
+
+### 발견 17건
+
+| ID | 조건 | 무엇이 틀렸나 | 묶음 |
+|---|---|---|---|
+| P0-1 | M2 | 늦게 쓰는 manifest 가 정상 실행의 class identity 를 없앤다 | α |
+| P0-2 | M1 | raw class sink 와 unrestricted mint 가 공개 · 증인이 caller 의 같은 객체 | β |
+| P0-3 | M1·M5 | 소비·거부 뒤 nonce 가 살아 있고 결속만 사라진다 | β |
+| P0-4 | M5 | handle 검사가 산출을 다 쓴 뒤에 온다 | γ |
+| P0-5 | M6·M10 | `_attempts`·`_claims` **부모 symlink** 를 따라 frozen tree 에 쓴다 | δ |
+| P0-6 | — | lifecycle journal short write 뒤에도 freeze 가 성공한다 | δ |
+| P0-7 | M8 | `lstat` 가 outside bind mount 를 정상 파일로 센다 | ε |
+| P0-8 | M8 | payload index 가 bundle 밖 gitignored 경로여도 `full_bundle` | ε |
+| P0-9 | M9 | dict 는 snapshot 하지만 그것이 가리킨 bundle 은 안 한다 | ε |
+| P0-10 | M11·M17 | parameter/default 가 module·resolver provenance 를 지운다 | ζ |
+| P0-11 | M17 | nested scope 의 binding 이 바깥 scope capability 를 면제한다 | ζ |
+| P0-12 | M12 | compound head 와 `*args/**kwargs` annotation 이 import-time 밖 | ζ |
+| P0-13 | M12 | module docstring 은 버리면서 `__doc__` 접근은 허용한다 | ζ |
+| P1-1 | M3·M13 | class hardlink 게시가 writable temp alias 를 남기고 성공 | η |
+| P1-2 | M9 | phase receipt 도 검사한 object 와 봉인한 object 가 다를 수 있다 | ε |
+| P1-3 | M14 | startup 뒤의 `sys.modules` snapshot 은 실행 이력이 아니다 | θ |
+| P1-4 | M15 | "full receipt" 가 startup 뒤 import 되는 bytes 를 안 담는다 | θ |
+
+M4 · M7 · M16 은 **닫힘**으로 인정됐다.
+
+---
+
+## §72 60차 대응 — 묶음 α·β·γ·δ 닫음. P0 6건 (2026-09-08)
+
+### α (P0-1) — 내용 identity 를 **시간**에 결속 · `99e6e695`
+
+59차는 identity 가 담는 **이름 집합**을 schema 로 승격했다. 빠진 것은 집합이
+아니라 **시간**이었다 — 이름 집합 시험은 writer 들의 순서를 증명하지 않는다.
+
+`commit_run_outputs()` 가 등록보다 먼저 그 순간의 manifest 목록·digest 를
+`.run_identity.json` 에 봉인하고, 이후 독자는 전부 그것에서 유도한다. 봉인 값은
+봉인 시점의 v3 값과 **같다** — 봉인은 값을 바꾸지 않고 **얼린다**.
+
+**두 번 정정했다. 둘 다 실측이 뒤집었고, 둘 다 P0-1 과 같은 종류의 가용성
+결함이었다.**
+
+- ① "한 번만 봉인" → 정상 **재개**가 죽었다 (run 디렉터리는 여러 phase 가
+  이어서 쓴다). → **굳히는 순간마다 다시 봉인** (read-back 뒤 원자적 대체).
+- ② "낡은 봉인은 거부" → 프로세스를 넘는 정상 **e2e** 가 죽었다 (fit 이 자기
+  gate 를 지나는 시점에는 재봉인 기회가 없다). → **낡은 봉인은 무시**하고 지금
+  manifest 로 계산한다. 그 값은 등록부에 없으므로 승격은 여전히 거부된다 —
+  즉 60차 이전과 **같은 의미**이고, 바뀐 것은 잃는 방식이 예외가 아니라
+  미등록이라는 점뿐이다.
+
+### β (P0-2·P0-3) — 발급·소비 authority · `a3ab13ff`
+
+- raw sink 를 비공개로 (`_record_execution_class`) + 저장소 전체에서 그 이름의
+  **callsite 를 열거**하는 구조 회귀.
+- mint 에서 `cls` 제거 → `_decide_execution_class()` 가 정한다. 계획 gate 의
+  면제를 정하는 **같은 함수**(`is_inside_namespace()`, 커널 좌표)를 쓴다.
+- 권한 객체는 **일련번호만** 든다. class·leg·phase·원장·대상은 프로세스 안의
+  발행 기록(`_IssuedExecCap`)이 정본이다 — caller 가 고칠 수 있는 값이 없다.
+- 소비는 `issued → consuming` 원자 전이. 성공하면 **영구 폐기**, 실패하면
+  `issued` 로 되돌리되 **결속(fd·ident)은 유지**한다 (bound live → unbound live
+  상태를 만들지 않는다).
+
+### γ (P0-4) — 산출을 **판정한 실물 아래**로 · `4c6f0072`
+
+59차가 신고한 "gate 시점에 자리가 없으면 handle 이 없다" 는 드문 모서리가
+아니라 **production 의 정상 경우**였다 (grid 는 `mkdir` 보다 먼저 gate 를
+지난다). 즉 그 한계 아래에서 handle 은 **언제나** 없었고, "권한이 판정한 대상을
+나른다" 는 문장은 실제로 아무것도 안 날랐다.
+
+- gate 가 자리를 **만들고** handle 을 잡는다 (발행의 성공 경로에서만 — 거부는
+  그 전에 끝나므로 47차 조건 11-c 와 충돌하지 않는다).
+- `staged_root(cap)` = `/proc/self/fd/N`. grid·fit 의 gate 이후 **모든 쓰기**가
+  그 아래로 간다. writer 가 경로를 받는 라이브러리(pandas·yaml)이므로 전부
+  `openat` 으로 옮기는 대신 handle 을 **경로로 노출**했다 — 한 자리라도 빠지면
+  그 자리가 그대로 구멍이기 때문이다. 한계(Linux 성질·프로세스 지역)는 신고한다.
+- **이름은 따로 들고 간다**: 기록·다음 phase 가 여는 자리·commit 의 "이 이름이
+  아직 판정한 대상인가" 검사는 전부 이름으로 한다.
+- handle 없음은 이제 **통과가 아니라 거부**다 (59차의 조용한 통과가 P0-3 둘째
+  반례의 마지막 한 걸음이었다).
+
+### δ (P0-5·P0-6) — lifecycle root 의 좌표 · journal 의 checked write · `06789c3d`
+
+- **P0-6**: `_write_all_checked()` + `_publish_bytes_checked()` 를 만들고 journal
+  과 head 를 이 저장소가 claim·token·실행 class 레코드에서 이미 세 번 만든
+  **같은 계단**에 올렸다. anchor 는 **디스크에서 다시 읽은 journal** 의 마지막
+  줄에서 유도한다 — 메모리의 의도 record 를 해시하면 anchor 는 "들어갔어야 하는
+  것" 을 가리키고, 그것은 증거가 아니라 주장이다.
+- **P0-5**: `_lifecycle_root()` 하나로 합치고 root 자신을 본다 — ① `lstat` 로
+  alias 거부 ② 없으면 `mkdir` (symlink 자리면 `EEXIST` → ①이 잡는다) ③ **얼린
+  좌표를 덮으면 거부** (bind·이동으로도 같은 해악이 서므로 이름이 아니라 대상의
+  좌표를 묻는다).
+
+### 이 라운드가 스스로 잡은 것
+
+- **시험 하나가 처음부터 초록이었다.** "anchor 가 journal 마지막 줄과 같은가" 는
+  두 값을 같은 식이 만들므로 아무것도 구별하지 못했다. 잘림이 아니라 **변조**
+  (같은 길이·다른 내용)를 주입하는 시험으로 바꿔서야 물었다.
+- **승격 검사 시험이 자기 축을 안 봤다.** smoke 자리로 쓰면 경로 판정이 먼저
+  걸린다 — canonical 자리로 고쳤다.
+- **죽은 변이 축 3건** (`smoke-gate-issues-…` · `output-commit-requires-…` ·
+  `claims-root-comes-from-the-ledger`). 전부 `--check-preimages` 가 먼저 잡았고
+  다시 겨눠 무는 것을 확인했다.
+
+```
+실측 (마지막 전체)
+tests/ (docs_lint 제외)   1196 passed, 1 xfailed
+test_evidence_layer_58    8 passed
+--check-preimages         모든 변이 지점이 정확히 한 번
+```
+
+남은 것: ε(P0-7·P0-8·P0-9·P1-2) · ζ(P0-10~13) · η(P1-1) · θ(P1-3·P1-4).
