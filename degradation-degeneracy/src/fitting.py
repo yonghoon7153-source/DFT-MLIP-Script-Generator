@@ -1003,7 +1003,14 @@ def _run_fit_staged(_staged, in_dir, out_dir, obj_cfg, objectives, bounds,
                                                          leg=leg,
                                                          may_open=may_open)
     _assert_fit_input_is_authorized(claim, _fit_axis, _staged["in_dir"])
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # ★ 60차 P0-4 — grid 와 **같은 문장**. gate 뒤의 모든 쓰기를 판정한 실물
+    #   아래로 옮긴다 (면제 판정이 두 진입점에 있으면 배선도 두 진입점에
+    #   있어야 하고, 그러면 하나가 또 빠진다 — 58차 L1 의 교훈).
+    if _exec_cap is not None:
+        from tools.preserve import staged_root
+        out_dir = staged_root(_exec_cap)
+    else:
+        out_dir.mkdir(parents=True, exist_ok=True)
     acquire_run_lock(out_dir, ".fit.lock")
     try:
         summary = _run_fit_locked(_staged["in_dir"], out_dir, obj_cfg,

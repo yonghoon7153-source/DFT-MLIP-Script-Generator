@@ -347,7 +347,12 @@ def write_curves_manifest(out_dir, cfg: dict, conditions=None, extra=None,
 
     from src.io import env_fingerprint, file_digest, source_digest
 
-    out_dir = Path(out_dir)
+    # ★ 60차 P0-4 — **판정한 실물 아래로 쓴다.** 이름으로 쓰면 gate 와 이 쓰기
+    #   사이에 이름 아래가 바뀌었을 때 바이트가 밖으로 나가고, 마지막 class
+    #   검사의 거부는 이미 나간 것을 되돌리지 못한다 (리뷰어 실측).
+    from tools.preserve import staged_root
+    named = Path(out_dir)                       # 사람이 준 이름 (기록·검사용)
+    out_dir = staged_root(capability) if capability is not None else named
     curves = out_dir / "curves.parquet"
     gc = cfg.get("grid", {}) if isinstance(cfg, dict) else {}
     payload = {
@@ -376,8 +381,12 @@ def write_curves_manifest(out_dir, cfg: dict, conditions=None, extra=None,
     #   내용 identity 가 존재하므로, 실행 class 는 여기서 등록된다. 권한 없이는
     #   등록할 수 없고, 등록 없이 manifest 만 남기는 경로도 없다 (아래 호출이
     #   실패하면 예외가 올라간다 — 삼키지 않는다).
+    # ★ 60차 P0-4 — 굳힐 때는 **이름**을 넘긴다. 쓰기는 handle 아래로 갔지만,
+    #   "이 이름이 아직 판정한 대상을 가리키는가" 는 여전히 물어야 하는 질문이다
+    #   (다음 phase 는 이름으로 이 자리를 다시 연다). 이름이 그 사이에 다른 것을
+    #   가리키게 됐으면 여기서 보인다.
     from tools.preserve import commit_run_outputs
-    commit_run_outputs(capability, [out_dir])
+    commit_run_outputs(capability, [named])
     return p
 
 
@@ -571,7 +580,17 @@ def run_grid(cfg: dict, conditions: list[Condition], nproc: int,
                                                 conditions=conditions,
                                                 dry_run=dry_run, leg=leg,
                                                 may_open=may_open)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # ★ 60차 P0-4 — gate 뒤의 **모든** 쓰기를 판정한 실물 아래로 옮긴다. gate 가
+    #   자리를 만들고 handle 을 들고 왔으므로 여기서 `mkdir` 할 것도, 이름을
+    #   다시 해석할 것도 없다. 이름으로 쓰면 판정과 쓰기 사이에 이름 아래가
+    #   바뀌었을 때 바이트가 밖으로 나가고, 마지막 검사는 그것을 못 되돌린다.
+    named_out = out_dir                         # 사람이 준 이름 — 기록과 다음
+                                                # phase 가 여는 자리
+    if _exec_cap is not None:
+        from tools.preserve import staged_root
+        out_dir = staged_root(_exec_cap)
+    else:                                       # dry-run 등 권한이 없는 경로
+        out_dir.mkdir(parents=True, exist_ok=True)
     protocol_name = cfg.get(GRID_PROTOCOL_KEY, "charge_first")
 
     # ── resume: 완료 조건 건너뛰기 ──
@@ -752,7 +771,7 @@ def run_grid(cfg: dict, conditions: list[Condition], nproc: int,
     })
     # ★ F70/F74 — 곡선 producer 기록을 별도 파일로. fitting 이 이걸 봉인한다.
     from src.io import source_digest as _sd
-    write_curves_manifest(out_dir, cfg, conditions, capability=_exec_cap, extra={
+    write_curves_manifest(named_out, cfg, conditions, capability=_exec_cap, extra={
         "solver": solver_name(make_solver(cfg)),
         "n_curves": n_done_total - n_failed_total,
         "elapsed_s": round(elapsed, 1),
@@ -805,14 +824,17 @@ def run_grid(cfg: dict, conditions: list[Condition], nproc: int,
                             ("curves_manifest_sha256", "curves_manifest.yaml"),
                             ("curves_manifest_start_sha256",
                              "curves_manifest_start.yaml")):
-            _f = Path(out_dir) / _name
+            # ★ 60차 P0-4 — 여기는 commit **뒤**다. 권한은 소비되며 폐기됐고
+            #   handle 은 닫혔으므로, 결속 바이트는 **이름**으로 읽는다. 그
+            #   이름이 판정한 대상인지는 방금 commit 이 확인했다.
+            _f = Path(named_out) / _name
             if not _f.is_file():
                 raise SystemExit(
                     f"✗ grid 가 끝났는데 {_f} 가 없다 — 다음 phase 가 결속할 "
                     "입력이 없으므로 phase 를 닫지 않는다")
             _bind[_key] = _h49.sha256(_f.read_bytes()).hexdigest()
         _claim.phase_done("grid", dict(_bind, **{
-            "out": str(out_dir),
+            "out": str(named_out),
             "n_curves_total": summary["n_curves_total"],
             "grid_run_sig": g_sig,
             "finished_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))

@@ -5064,14 +5064,18 @@ def _open_judged_dir(run_dir) -> tuple:
     alias 면 그 alias 가 나중에 다른 곳을 가리킬 수 있고, 그러면 우리가 든
     handle 은 "판정한 대상" 이 아니다.
 
-    자리가 아직 없으면 `(None, None)` 이다. gate 는 산출을 만들기 **전에**
-    도는 것이 정상이므로 그것은 결함이 아니다. 다만 그 경우 굳히는 자리는
-    이름으로 열게 되고, 그 한계는 `commit_run_outputs()` 에 적혀 있다.
+    ★ 60차 P0-4 — **자리가 없으면 만든다.** 59차는 "자리가 아직 없으면 handle 이
+      없다" 를 신고된 한계로 뒀는데, 리뷰어가 보인 대로 그것은 드문 모서리가
+      아니라 **production 의 정상 경우**였다: grid 는 `mkdir` 보다 먼저 gate 를
+      지난다 (47차 조건 11-c). 즉 그 한계 아래에서는 handle 이 **언제나** 없었고,
+      59차가 "권한이 대상을 나른다" 고 말한 것은 실제로는 아무것도 안 날랐다.
+
+      만드는 것은 발행의 **성공 경로**에서만 일어난다. 거부는 그 전에 끝나므로
+      "gate 는 거부하기 전에 부작용을 만들지 않는다" 와 충돌하지 않는다.
     """
+    Path(run_dir).mkdir(parents=True, exist_ok=True)
     try:
         fd = os.open(run_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    except FileNotFoundError:
-        return None, None
     except OSError as exc:
         raise PreserveError(
             "promote",
@@ -5079,6 +5083,32 @@ def _open_judged_dir(run_dir) -> tuple:
             "symlink 이거나 디렉터리가 아니다 (59차 M5)") from exc
     st = os.fstat(fd)
     return fd, (st.st_dev, st.st_ino)
+
+
+def staged_root(capability) -> Path:
+    """권한이 든 handle 이 가리키는 **실물로 가는 길** (60차 P0-4).
+
+    `/proc/self/fd/<fd>` 는 커널이 그 fd 의 대상으로 이어 주는 자리다. 그래서
+    이 경로 아래로 쓰면 원래 이름이 그 뒤에 무엇을 가리키게 되든 — bind swap
+    이든 rename 이든 — 쓰는 곳은 **gate 가 판정한 그 커널 객체**다.
+
+    왜 이 모양인가: production 의 writer 는 pandas·yaml 처럼 경로를 받는
+    라이브러리다. 그것들을 전부 `openat` 기반으로 다시 쓰는 것은 이 라운드의
+    범위를 넘고, 다시 쓰는 동안 한 자리라도 빠지면 그 자리가 그대로 구멍이다.
+    handle 을 **경로로 노출**하면 writer 를 안 고치고도 전부가 handle 아래로
+    간다. 이 저장소는 이미 `/proc` 에 의존한다 (`fdinfo`·`mountinfo` 로 mount
+    좌표를 읽는다) — 새 전제가 아니다.
+
+    **한계**: 이것은 Linux 의 성질이다. 다른 커널에서는 writer 를 `openat` 으로
+    옮겨야 한다. 그리고 이 경로는 이 프로세스 안에서만 뜻이 있다.
+    """
+    rec = capability._record()
+    if rec.dir_fd is None:
+        raise PreserveError(
+            "promote",
+            "권한이 판정한 대상의 handle 을 안 들고 있다 — 이름으로 쓰면 판정과 "
+            "쓰기 사이의 창이 그대로 남는다 (60차 P0-4)")
+    return Path(f"/proc/self/fd/{rec.dir_fd}")
 
 
 def commit_run_outputs(capability, paths) -> list:
@@ -5166,8 +5196,20 @@ def discard_execution_capability(capability) -> None:
 
 def _assert_still_the_judged_dir(capability, path: Path) -> None:
     """지금 이 이름이 gate 가 판정한 **그 대상**인가 (59차 M5)."""
+    # ★ 60차 P0-4 — `None` 은 더 이상 정상 상태가 아니다 (발행이 언제나 자리를
+    #   만들고 handle 을 잡는다). 그러므로 조용히 통과하지 않는다 — 그 조용한
+    #   통과가 P0-3 둘째 반례의 마지막 한 걸음이었다.
     if capability.dir_fd is None:
-        return                  # 판정 시점에 자리가 없었다 — 들고 온 것이 없다
+        raise PreserveError(
+            "promote",
+            "권한이 판정한 대상의 handle 을 안 들고 있다 — 무엇을 굳히는지 "
+            "확인할 수 없으므로 거부한다 (60차 P0-4)")
+    # ★ 60차 P0-4 — 호출자가 **handle 자체**를 넘겼으면 물을 이름이 없다.
+    #   이 검사는 "이 **이름**이 아직 판정한 대상을 가리키는가" 이고, 대상을
+    #   직접 가리키는 길에는 그 물음이 성립하지 않는다 (그리고 그것이 이
+    #   라운드가 writer 를 옮긴 자리다).
+    if os.fspath(path) == os.fspath(staged_root(capability)):
+        return
     try:
         here = os.stat(path, follow_symlinks=False)
     except OSError as exc:

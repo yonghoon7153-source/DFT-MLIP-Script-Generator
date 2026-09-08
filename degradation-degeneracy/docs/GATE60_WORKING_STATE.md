@@ -20,10 +20,10 @@
 
 | ID | 조건 | 무엇이 틀렸나 | 묶음 | 상태 |
 |---|---|---|---|---|
-| P0-1 | M2 | 정상 `all → report` 가 `analysis_manifest.yaml` 을 늦게 써서 content id 가 바뀌고 class 가 사라진다 → **정상 실행이 마지막에 거부됨(가용성 결함)** | α | 미착수 |
-| P0-2 | M1 | 공개 `record_execution_class(run_dir, cls,…)` raw sink · `issue_execution_class(…, cls,…)` unrestricted mint · `_ISSUED_EXEC_CAPS` 가 caller 의 **같은 mutable object** 를 증인으로 씀 | β | 미착수 |
-| P0-3 | M1·M5 | commit/거부 뒤 **nonce 가 살아 있고** `dir_fd=None` 이라 두 번째 호출이 미판정 자리를 canonical 로 굳힌다 | β | 미착수 |
-| P0-4 | M5 | capability fd 는 마지막 commit 에만 닿는다 — grid chunk/parquet/manifest 는 pathname 으로 쓰여 bind swap 시 **밖에 이미 바이트가 남는다** | γ | 미착수 |
+| P0-1 | M2 | 정상 `all → report` 가 `analysis_manifest.yaml` 을 늦게 써서 content id 가 바뀌고 class 가 사라진다 → **정상 실행이 마지막에 거부됨(가용성 결함)** | α | **GREEN** |
+| P0-2 | M1 | 공개 `record_execution_class(run_dir, cls,…)` raw sink · `issue_execution_class(…, cls,…)` unrestricted mint · `_ISSUED_EXEC_CAPS` 가 caller 의 **같은 mutable object** 를 증인으로 씀 | β | **GREEN** |
+| P0-3 | M1·M5 | commit/거부 뒤 **nonce 가 살아 있고** `dir_fd=None` 이라 두 번째 호출이 미판정 자리를 canonical 로 굳힌다 | β | **GREEN** |
+| P0-4 | M5 | capability fd 는 마지막 commit 에만 닿는다 — grid chunk/parquet/manifest 는 pathname 으로 쓰여 bind swap 시 **밖에 이미 바이트가 남는다** | γ | **GREEN** |
 | P0-5 | M6·M10 | `_claims`/`_attempts` root 가 pathname 유도라 **부모 symlink** 를 따라 frozen tree 에 token·claim 을 쓴다 | δ | 미착수 |
 | P0-6 | — | lifecycle journal temp 가 unchecked `write_text` — **short write 뒤에도 freeze 성공**, head 는 메모리 record 로 만든다 | δ | 미착수 |
 | P0-7 | M8 | `lstat` walk 가 **bind mount 된 밖의 파일**을 평범한 inode 로 센다 | ε | 미착수 |
@@ -56,3 +56,43 @@
 - 발견마다 **RED 를 먼저 눈으로 본다**. 리뷰어 반례는 그대로 회귀로 고정한다.
 - 방어를 옮기면 **변이 축이 죽는다**. 묶음마다 `--check-preimages`, 마감에 12조각 전수.
 - 새 시험이 처음부터 통과하면 fixture 가 진실을 가린 신호다.
+
+
+## 진행 기록
+
+### α (P0-1) — 내용 identity 를 **시간에** 결속 · `99e6e695`
+
+`commit_run_outputs()` 가 등록보다 먼저 그 순간의 manifest 목록·digest 를
+`.run_identity.json` 에 봉인하고, 이후 독자는 전부 그것에서 유도한다. 봉인 값은
+봉인 시점의 v3 값과 **같다** — 봉인은 값을 바꾸지 않고 얼린다.
+
+**두 번 정정했다 (둘 다 실측이 뒤집었다).**
+① "한 번만 봉인" → 정상 재개가 죽었다 (run 디렉터리는 여러 phase 가 이어서 쓴다).
+   → **굳히는 순간마다 다시 봉인** (read-back 뒤 원자적 대체).
+② "낡은 봉인은 거부" → cross-process e2e 가 죽었다 (fit 이 자기 gate 를 지나는
+   시점에는 재봉인 기회가 없다). → **낡은 봉인은 무시**하고 지금 manifest 로
+   계산한다. 그 값은 등록부에 없으므로 승격은 여전히 거부된다 (= 60차 이전과
+   같은 의미). P0-1 을 고치다 같은 종류의 가용성 결함을 두 번 만들었다.
+
+### β (P0-2·P0-3) — 발급·소비 authority · `a3ab13ff`
+
+- raw sink 비공개화 + **callsite 열거** 구조 회귀.
+- mint 에서 `cls` 제거 → `_decide_execution_class()` (계획 gate 면제와 같은 함수).
+- 권한 객체는 **일련번호만**. 정본은 프로세스 안의 발행 기록 `_IssuedExecCap`.
+- 소비는 `issued → consuming` 원자 전이. 성공 시 영구 폐기, 실패 시 `issued` 로
+  되돌리되 **결속은 유지** (bound → unbound 상태를 만들지 않는다).
+- 죽은 변이 축 2건 재조준.
+
+### γ (P0-4) — 산출을 **판정한 실물 아래**로 · 진행 중
+
+- `_open_judged_dir()` 가 **자리를 만들고** handle 을 잡는다. 59차가 신고한
+  "자리가 없으면 handle 이 없다" 는 드문 모서리가 아니라 **production 의 정상
+  경우**였다 (grid 는 `mkdir` 보다 먼저 gate 를 지난다). 즉 그 한계 아래에서
+  handle 은 언제나 없었고, "권한이 대상을 나른다" 는 말은 아무것도 안 날랐다.
+- `staged_root(cap)` = `/proc/self/fd/N`. grid·fit 의 gate 이후 **모든 쓰기**가
+  그 아래로 간다. writer(pandas·yaml)를 안 고치고도 전부가 handle 아래로 온다.
+  한계: Linux 의 성질이고 이 프로세스 안에서만 뜻이 있다 — 요청문에 적는다.
+- **이름은 따로 들고 간다**: 기록(`out`)·다음 phase 가 여는 자리·commit 의
+  "이 이름이 아직 판정한 대상인가" 검사는 전부 이름으로 한다.
+- handle 없음은 이제 **통과가 아니라 거부**다 (59차의 조용한 통과가 P0-3 둘째
+  반례의 마지막 한 걸음이었다).
