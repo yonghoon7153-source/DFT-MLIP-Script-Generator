@@ -222,35 +222,90 @@ def _median(xs):
     return None if not n else (s[n // 2] if n % 2 else 0.5 * (s[n // 2 - 1] + s[n // 2]))
 
 
-def aggregate_designs(rows, axes):
-    """행 → **설계**. 축마다 복제본의 중앙값을 쓰고 산포를 같이 남긴다.
+#: 대표 행을 고르는 기준 축 — 비준 카드가 정한 predictor.
+#:   li_mobility_score = 3×migration_volume_fraction + bvs_li_proxy_score
+REP_PREDICTOR = "li_mobility_score"
 
-    중앙값인 이유: 복제본은 시드(그리고 가짜 x 라벨)이고, 그중 일부는 미수렴이라
-    평균이 끌려간다. 순위 상관·Pareto 는 중앙값으로 충분하다.
 
-    돌려주는 것: (designs, info). designs 의 각 행은 원 CSV 행 모양 + `n_replicates`,
-    축별 `<축>__spread` (max−min).
+def _row_identity(r):
+    """대표 행을 **결정론적으로** 가르는 열쇠. 값과 무관해야 한다.
+
+    ⚠ 우선순위: 좌표 해시 → 구조 경로 → 이름. 셋 다 없으면 빈 문자열이고,
+      그때는 동점 처리가 임의가 되므로 호출부가 그 사실을 알아야 한다
+      (`aggregate_designs` 가 info["reps_without_identity"] 로 센다).
+    """
+    for k in ("coord_sha256", "struct_sha256", "post_relax_sha256",
+              "structure_hash", "post_relax_xyz", "xyz_input", "structure_path", "name"):
+        v = str(r.get(k, "") or "").strip()
+        if v:
+            return v
+    return ""
+
+
+def aggregate_designs(rows, axes, predictor=REP_PREDICTOR):
+    """행 → **설계**. 대표는 **predictor 중앙값을 낸 실제 행 하나**다.
+
+    ⛔⛔ 2026-09-08 — 옛 판은 **축마다 독립적으로 중앙값**을 냈다. 그래서 설계의 4축
+      벡터가 **어느 실제 행에도 없는 합성 벡터**였다 (회신 AL P0-1 실측: 39개 중 35개.
+      이름의 행이 네 중앙값을 다 가진 경우는 1/39). 그 구조로 MD 를 돌리면
+      **predictor(config A)와 D(config B)를 상관시키게 된다.**
+      한 겹 더 나빴던 것: 같은 행에 `li_mobility_score = median(3m+b)` 와
+      `m = median(m)`·`b = median(b)` 가 **동시에** 들어 있어, 소비자마다 다른 것을 집었다
+      (`median(3m+b) ≠ 3·median(m)+median(b)` — 227설계 중 169개가 갈렸다, P0-2).
+
+    ★ 비준된 정의 (`db/properties/cascade_d_rel_estimand_2026_09_08.json` §2,
+      `D-2026-09-08-cascade-d-rel-estimand`, active):
+        ① 행마다 predictor 를 먼저 계산한다 (집계식 = **행별 score 후 집계**)
+        ② 그 중앙값을 낸 **행**을 대표로 삼는다 → 실재하는 구조다
+        ③ 짝수 복제본이면 **구조 식별자 사전순 앞** (값과 무관한 결정론적 규칙)
+        ④ 대표 행의 **모든 축 값을 그 행 그대로** 쓴다 → 축 간 정합이 구조적으로 보장된다
+
+    돌려주는 것: (designs, info). 각 설계 행은 **대표 행의 사본** + `n_replicates` ·
+    `representative_id` · 축별 `<축>__spread`(진단용).
 
     ⛔ 못 하는 것
-      · 산포를 **오차막대로 쓰지 마라.** 시드 5개(+가짜 x 3개)는 같은 파이프라인의
-        같은 설정이라 계통오차가 공통이다. 통계오차 하한일 뿐이다.
+      · 산포를 **오차막대로 쓰지 마라.** 복제본은 같은 파이프라인·같은 설정이라
+        계통오차가 공통이다. 통계오차 하한일 뿐이다.
+      · **구조 계보를 만들어내지 않는다.** 입력 행에 좌표 해시가 없으면 대표 행의
+        정체가 이름까지밖에 못 간다 — 그건 재실행(해제조건 #3)이 채워야 한다.
+      · predictor 가 없는 설계는 **버리지 않고** 대표 없이 표시한다 (조용한 탈락 금지).
     """
     comp_cols = [c for c in (rows[0] if rows else {}) if c.startswith("composition_")]
     g = {}
     for r in rows:
         g.setdefault(design_key(r, comp_cols), []).append(r)
-    out = []
+    out, no_pred, no_ident = [], 0, 0
     for _k, v in g.items():
-        base = dict(v[0])
+        cand = [(s, _row_identity(r), r) for s, r in
+                ((_f(r.get(predictor)), r) for r in v) if s is not None]
+        if cand:
+            cand.sort(key=lambda t: (t[0], t[1]))     # 값 → 식별자 (동점도 결정론적)
+            n = len(cand)
+            rep = cand[n // 2][2] if n % 2 else min(cand[n // 2 - 1: n // 2 + 1],
+                                                    key=lambda t: t[1])[2]
+            if not _row_identity(rep):
+                no_ident += 1
+        else:
+            # predictor 를 못 잰 설계 — 대표를 고를 수 없다. 버리지 않고 표시만 한다.
+            rep, no_pred = v[0], no_pred + 1
+        base = dict(rep)                               # ★ 대표 행 **그대로**
         base["n_replicates"] = len(v)
+        base["representative_id"] = _row_identity(rep)
+        base["representative_undefined"] = "" if cand else "predictor 없음"
         for key, _lab, _hi in axes:
             vals = [x for x in (_f(r.get(key)) for r in v) if x is not None]
-            base[key] = "" if not vals else _median(vals)
+            # ⚠ 축 값은 **덮어쓰지 않는다** (그게 합성 벡터를 만들던 자리다). 산포만 진단으로.
             base[key + "__spread"] = "" if len(vals) < 2 else (max(vals) - min(vals))
         out.append(base)
     return out, {"n_rows": len(rows), "n_designs": len(out),
                  "comp_cols": len(comp_cols),
-                 "replicates_per_design": sorted({d["n_replicates"] for d in out})}
+                 "replicates_per_design": sorted({d["n_replicates"] for d in out}),
+                 "representative_rule": f"median-of-{predictor} row (ties: identity asc)",
+                 "designs_without_predictor": no_pred,
+                 "reps_without_identity": no_ident,
+                 "⚠_계보": ("대표 행에 좌표 해시가 없으면 정체가 이름까지다 — "
+                            "해제조건 #1 의 '좌표 hash 연결' 은 재실행이 채운다")
+                 if no_ident else "대표 전원 식별자 보유"}
 
 
 def is_definitional(a, b):
@@ -413,6 +468,49 @@ def _selftest():
     p = rep["pairs"][0]
     say(p["rho"] is not None and p["rho"] > 0.99,
         f"⑤ 낮을수록 좋은 두 축은 부호 통일 뒤 ρ>0 ({p['rho']})")
+
+    # ── ⑥ 대표 행 선택 (비준 카드 2026-09-08 · 해제조건 #1·#2b) ──────────────
+    #   ⛔ 여기가 P0-1 이 났던 자리다. **합성 벡터가 다시 나오면 안 된다.**
+    AX = [("m", "m", True), ("b", "b", True)]
+    #   복제본 3개. 축별 중앙값 조합은 (m,b)=(2,0) 인데 **그런 행은 없다**(합성 벡터).
+    #   score=3m+b 는 3·15·9 → 중앙값 9 를 낸 행은 r3=(3,0) 이다.
+    #   ⇒ 두 답이 갈리는 픽스처라야 이 시험이 의미가 있다 (초판은 우연히 같아서 무의미했다).
+    def _row(name, m, b):
+        return {"composition_A": "X", "cation_site": "s", "anion_site": "a",
+                "charge_compensation": "cc", "name": name, "coord_sha256": "h" + name,
+                "m": str(m), "b": str(b), "li_mobility_score": str(3 * m + b)}
+    reps = [_row("r1", 1, 0), _row("r2", 2, 9), _row("r3", 3, 0)]
+    ds, gi = aggregate_designs(reps, AX)
+    say(len(ds) == 1, "⑥ 같은 조성 복제본 3개는 설계 1개로 묶인다")
+    d0 = ds[0]
+    say((d0["m"], d0["b"]) == ("3", "0"),
+        f"⑥ 대표는 predictor 중앙값을 낸 **실제 행** (m,b)=(3,0) — 얻음 ({d0['m']},{d0['b']})")
+    say(d0["name"] == "r3" and d0["representative_id"] == "hr3",
+        "⑥ 대표 행의 정체(name·coord_sha256)가 실려 나온다")
+    # ⛔음성: 축별 중앙값 조합 (2, 0) 이 나오면 옛 버그로 회귀한 것이다
+    say((d0["m"], d0["b"]) != ("2", "0"),
+        "⑥ [음성] 축별 중앙값 조합(합성 벡터)으로 회귀하지 않았다")
+    # ⛔음성: median(3m+b)=9 ≠ 3·median(m)+median(b)=6 — 두 집계가 실제로 갈리는 픽스처다
+    say(_f(d0["li_mobility_score"]) == 9.0,
+        f"⑥ [음성] 대표의 score 는 median(3m+b)=9 다 (3·median(m)+median(b)=6 이 아니다)")
+    # ⛔음성: 짝수 복제본은 **값이 아니라 식별자** 로 가른다 (사후 선택 여지 차단)
+    ev = [_row("zz", 1, 0), _row("aa", 2, 0)]          # score 1·2 → 중앙 두 행이 곧 전부
+    de, _ = aggregate_designs(ev, AX)
+    say(de[0]["name"] == "aa",
+        f"⑥ [음성] 짝수면 식별자 사전순 앞(aa) — 얻음 {de[0]['name']}")
+    # ⛔음성: predictor 가 없는 설계를 **조용히 버리지 않는다**
+    npr = [{"composition_A": "Y", "cation_site": "", "anion_site": "",
+            "charge_compensation": "", "name": "n1", "m": "1", "b": "1"}]
+    dn, gn = aggregate_designs(npr, AX)
+    say(len(dn) == 1 and dn[0]["representative_undefined"] == "predictor 없음"
+        and gn["designs_without_predictor"] == 1,
+        "⑥ [음성] predictor 없는 설계는 버리지 않고 '대표 미정' 으로 표시")
+    # ⛔음성: 좌표 해시가 없으면 그 사실을 센다 (계보 부재를 조용히 넘기지 않는다)
+    noh = [{"composition_A": "Z", "cation_site": "", "anion_site": "",
+            "charge_compensation": "", "m": "1", "b": "1", "li_mobility_score": "4"}]
+    _dz, gz = aggregate_designs(noh, AX)
+    say(gz["reps_without_identity"] == 1 and "계보" in "".join(gz.keys()),
+        "⑥ [음성] 대표에 식별자가 없으면 info 가 그 사실을 보고한다")
     # ── 파생 축 (2026-08-25) ────────────────────────────────────────────
     say(is_definitional("li_mobility_score", "migration_volume_fraction"),
         "⑥ 파생축 ↔ 그 재료를 '정의상' 으로 잡는다")
@@ -492,10 +590,14 @@ def _selftest():
     say(gi["n_rows"] == 4 and gi["n_designs"] == 2,
         f"[묶기·양성] 같은 조성 3행이 **설계 1개**로 접힌다 (4행 → {gi['n_designs']}설계)")
     big = [d for d in dz if d["n_replicates"] == 3][0]
-    say(abs(big["screen_de_per_atom"] - 0.20) < 1e-9,
-        f"[묶기] 복제본은 **중앙값**으로 접는다 ({big['screen_de_per_atom']})")
-    say(abs(big["screen_de_per_atom__spread"] - 0.20) < 1e-9,
-        f"[묶기] 산포(max−min)를 같이 남긴다 ({big['screen_de_per_atom__spread']})")
+    # ⛔ 2026-09-08 계약 변경 — 옛 시험은 `screen_de_per_atom == 0.20`(축별 중앙값)을 봤다.
+    #   그 계약이 P0-1(합성 벡터)의 원인이라 폐기됐다. 이제 축 값은 **대표 행 원본**이고,
+    #   이 픽스처엔 predictor 열이 없으므로 대표는 '미정' 이어야 한다 (조용히 v[0] 을
+    #   중앙값인 척 내보내면 안 된다).
+    say(big.get("representative_undefined") == "predictor 없음",
+        "[묶기] predictor 가 없는 픽스처는 대표 '미정' 으로 표시된다 (합성 벡터 금지)")
+    say(abs(_f(big["screen_de_per_atom__spread"]) - 0.20) < 1e-9,
+        f"[묶기] 산포(max−min)는 진단으로 남는다 ({big['screen_de_per_atom__spread']})")
     # 음성: 조성이 다르면 **묶이면 안 된다** (묶는 도구는 다 묶어도 통과할 수 있다)
     say(len({d["n_replicates"] for d in dz}) == 2 and
         sorted(d["n_replicates"] for d in dz) == [1, 3],
