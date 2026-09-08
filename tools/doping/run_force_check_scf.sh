@@ -57,7 +57,7 @@ if command -v mpirun >/dev/null 2>&1; then
   MPI="mpirun $_OS -np $NP"
 elif command -v mpiexec >/dev/null 2>&1; then MPI="mpiexec -n $NP"
 else echo "[$(ts)] ⚠ mpirun/mpiexec 없음 — 직렬로 돈다 (느리다)"; NP=1; fi
-echo "[$(ts)] 코어: 물리 $(_phys_cores) · 논리 $(getconf _NPROCESSORS_ONLN 2>/dev/null) → 랭크 $NP
+echo "[$(ts)] 코어: 물리 $(_phys_cores) · 논리 $(getconf _NPROCESSORS_ONLN 2>/dev/null) → 랭크 $NP"
 
 mapfile -t INS < <(find "$ROOT" -mindepth 2 -maxdepth 2 -name scf.in | sort)
 [ "${#INS[@]}" -gt 0 ] || { echo "⛔ scf.in 이 없다: $ROOT/*/scf.in"; exit 2; }
