@@ -130,14 +130,18 @@ def test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside(tmp_path, mo
     (outside / "secret.bin").write_bytes(b"x" * 4096)
     (bundle / "link.bin").symlink_to(outside / "secret.bin")
 
-    idx = root / "index.json"
+    # ★ 60차 P0-8 이후 index 는 **묶음 안**에 있어야 한다. 밖에 두면 이 시험이
+    #   재는 것(link 를 따라가는가)이 아니라 index 위치 검사가 먼저 걸려서,
+    #   변이를 심어도 같은 이유로 빨개진다 — 즉 아무것도 안 재게 된다.
+    idx = bundle / "index.json"
     idx.write_text("{}\n", encoding="utf-8")
     import hashlib
     ev = {
         "bundle_uri": "bundle",
-        "bundle_files": 2,                 # link 를 파일로 세면 2 다
-        "payload_bytes": len("in-repo\n") + 4096,
-        "payload_index": "index.json",
+        # link 를 파일로 세면 real.txt · link.bin · index.json = 3 이다
+        "bundle_files": 3,
+        "payload_bytes": len("in-repo\n") + 4096 + len("{}\n"),
+        "payload_index": "bundle/index.json",
         "payload_index_sha256": hashlib.sha256(idx.read_bytes()).hexdigest(),
     }
     bad = P._verify_declared_bundle(ev, repo_root=root)
