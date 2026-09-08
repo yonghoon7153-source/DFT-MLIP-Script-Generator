@@ -393,7 +393,8 @@ def gate():
     g = C.gate_sections(show)
     latest = []
     for n, s in enumerate(g.get("latest", []), 1):
-        latest.append({"title": s["title"], "id": f"r-{n}",
+        latest.append({"title": s["title"], "title_html": s["title_html"],
+                       "id": f"r-{n}",
                        "meta": C.gate_round_meta(s["title"], s["body"]),
                        "html": C.render_body(s["body"])})
     # 색인은 원장의 **모든** 절을 적지만 화면에 펼친 것은 최근 `show` 개뿐이다.

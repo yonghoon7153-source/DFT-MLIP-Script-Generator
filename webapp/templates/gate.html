@@ -25,12 +25,13 @@
   <h2 class="panel-h">라운드 색인 <span class="chip">{{ gate.count }}절</span></h2>
   <ol class="roundlist">
     {% for t in gate.titles|reverse %}
+    {% set t_html = gate.titles_html[gate.titles|length - loop.index] %}
     <li{% if anchors.get(t) %} class="rl-open"{% endif %}>
       <span class="rl-n">{{ loop.revindex }}</span>
       {# 아래에 실제로 펼쳐진 절만 링크로 만든다 — 나머지는 링크처럼 보이지 않아야 한다.
          (없는 앵커로 가는 링크는 눌러도 아무 일이 없어 화면이 고장난 것처럼 읽힌다.) #}
-      {% if anchors.get(t) %}<a href="#{{ anchors.get(t) }}">{{ t }}</a>
-      {% else %}<span class="rl-t">{{ t }}</span>{% endif %}
+      {% if anchors.get(t) %}<a href="#{{ anchors.get(t) }}">{{ t_html|safe }}</a>
+      {% else %}<span class="rl-t">{{ t_html|safe }}</span>{% endif %}
     </li>
     {% endfor %}
   </ol>
@@ -45,7 +46,7 @@
 {% for s in latest %}
 <section class="panel round" id="{{ s.id }}">
   <header class="round-h">
-    <h2 class="round-t">{{ s.title }}</h2>
+    <h2 class="round-t">{{ s.title_html|safe }}</h2>
     <div class="round-meta">
       {% if s.meta.verdict %}
       <span class="chip verdict v-{{ s.meta.verdict|lower|replace('-','') }}"

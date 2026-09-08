@@ -888,6 +888,11 @@ table.data tbody tr:hover td { background: var(--surface-2); }
 .rl-open .rl-n { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); background: var(--accent-soft); }
 .round-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line-2); }
 .round-t { font-size: var(--fs-lg); word-break: keep-all; }
+/* ★ 제목 안의 굵은 조각은 **판정** 이다 (`§71 … — **NO-GO**`). 같은 검정으로
+   두면 제목 안에서 묻히므로 색으로 가른다. 라이트/다크 토큰을 쓰므로 두 테마
+   모두에서 대비가 유지된다. */
+.round-t strong,
+.roundlist strong { color: var(--warn); font-weight: 700; }
 .round-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .verdict { font-weight: 700; }
 .v-nogo { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 36%, var(--line)); }

@@ -5807,6 +5807,13 @@ class LegClaim:
             raise PreserveError(
                 "plan", f"모르는 phase: {phase!r} — {list(CLAIM_PHASES)} 중 하나")
         _assert_json_domain(receipt, f"phase[{phase}]")
+        # ★ 60차 P1-2 — **검사한 것과 봉인한 것이 같아야 한다.** 59차 M9 는
+        #   finalize 의 evidence 에 대해 이것을 고쳤는데, phase receipt 는 그대로
+        #   caller 의 **같은 reference** 를 들고 lock 안으로 들어가 나중에
+        #   직렬화했다. 검사와 봉인 사이에 caller 가 고치면 다른 값이 굳는다.
+        #   그래서 여기서 정규 바이트로 굳히고, 아래에서는 그 바이트를 다시
+        #   해독한 값만 쓴다.
+        receipt = json.loads(_canon_json(receipt))
         # ★ 48차 P0-6 — read-modify-write 를 **임계 구역** 안에서 한다. 47차는
         #   `grid` 와 `fit` 을 동시에 닫으면 둘 다 `phases` 가 빈 record 를 읽고
         #   각자 자기 것만 담아 덮어써서 하나가 사라졌다 (실측). 그러면
@@ -7100,6 +7107,17 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
     #   뿌리만 고치고 구성원은 안 고쳤다. 여기서는 `lstat` 으로 보고, 일반
     #   파일이 아닌 구성원(symlink·socket·device…)은 **거부**한다 — 묶음은
     #   바이트의 집합이지 이름의 집합이 아니다.
+    # ★ 60차 P0-7 — **좌표로 담김을 묻는다.** `lstat` 는 symlink 만 구별하고
+    #   bind mount 는 평범한 inode 로 본다 (리뷰어 실측: 밖의 파일이 개수·바이트
+    #   에 그대로 들어가고 `verifier_errors:[]`). `Path.resolve()` 도 못 잡는다 —
+    #   그것은 이 namespace 안의 **철자**만 증명한다.
+    #
+    #   묻는 것: 이 구성원이 묶음 뿌리와 **같은 mount** 에 있는가. 다른 mount 면
+    #   그 바이트는 이 tree 의 것이 아니고, clone 에는 없다.
+    try:
+        root_mnt = _kernel_mount_id(d)
+    except SystemExit as exc:                               # pragma: no cover
+        return [f"묶음 뿌리의 mount 를 확정할 수 없다: {exc}"]
     files, member_bad = [], []
     for x in sorted(d.rglob("*")):
         try:
@@ -7107,6 +7125,19 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
         except OSError as exc:                              # pragma: no cover
             member_bad.append(f"묶음 구성원을 볼 수 없다: {x} ({exc})")
             continue
+        if not stat.S_ISLNK(st.st_mode):
+            try:
+                here_mnt = _kernel_mount_id(x)
+            except SystemExit as exc:                       # pragma: no cover
+                member_bad.append(f"구성원의 mount 를 확정할 수 없다: {x} ({exc})")
+                continue
+            if here_mnt != root_mnt:
+                member_bad.append(
+                    f"묶음 구성원이 **다른 mount** 에 있다: "
+                    f"{x.relative_to(d).as_posix()} (mount {here_mnt} ≠ 뿌리 "
+                    f"{root_mnt}) — bind 로 보이게 한 바이트는 이 tree 의 것이 "
+                    "아니고 clone 에는 없다 (60차 P0-7)")
+                continue
         if stat.S_ISDIR(st.st_mode):
             continue
         if stat.S_ISLNK(st.st_mode):
@@ -7132,12 +7163,86 @@ def _verify_declared_bundle(evidence: dict, repo_root=None) -> list:
                                    "payload_index")
     if not idx.is_file():
         bad.append(f"payload index 가 없다: {evidence['payload_index']}")
-    else:
-        got = hashlib.sha256(idx.read_bytes()).hexdigest()
-        if got != evidence["payload_index_sha256"]:
-            bad.append(f"payload index sha {got[:16]} ≠ 선언 "
-                       f"{str(evidence['payload_index_sha256'])[:16]}")
+        return bad
+    got = hashlib.sha256(idx.read_bytes()).hexdigest()
+    if got != evidence["payload_index_sha256"]:
+        bad.append(f"payload index sha {got[:16]} ≠ 선언 "
+                   f"{str(evidence['payload_index_sha256'])[:16]}")
+    # ★ 60차 P0-8 — **index 는 묶음의 구성원이어야 한다.** 59차까지는 저장소
+    #   안이기만 하면 됐고, 그래서 gitignore 된 `results/` 밑을 가리켜도
+    #   `full_bundle` 이 됐다. 그러면 묶음만 받은 사람에게는 그것을 인증한다는
+    #   목록이 **아예 없다** — `full_bundle` 의 뜻(계약 §8)이 성립하지 않는다.
+    member_paths = {x for x, _st in files}
+    if idx not in member_paths:
+        bad.append(
+            f"payload index 가 묶음 안에 없다: {evidence['payload_index']} — "
+            "묶음만 받은 사람에게는 그것을 인증한다는 목록이 없다 (60차 P0-8)")
+        return bad
+    # ★ 60차 P0-8 — 그리고 index 가 이름한 것과 **실제로 걸은 것**이 양방향으로
+    #   같아야 한다. 한쪽만 보면 "index 에 있는데 없는 파일" 이나 "묶음에 있는데
+    #   index 가 모르는 파일" 이 통과한다 — 그 둘이 "완전 묶음" 이라는 말이
+    #   무너지는 두 방향이다.
+    declared = _declared_index_members(idx)
+    if declared is not None:
+        walked = {x.relative_to(d).as_posix() for x in member_paths
+                  if x != idx}
+        only_walk = sorted(walked - declared)
+        only_index = sorted(declared - walked)
+        if only_walk or only_index:
+            bad.append(
+                f"index 와 실제 묶음이 다르다 — index 가 모르는 구성원 "
+                f"{only_walk}, 없는데 이름한 것 {only_index} (60차 P0-8)")
     return bad
+
+
+def _declared_index_members(idx: Path) -> set | None:
+    """payload index 가 이름한 구성원 집합 — 읽을 수 없으면 `None` (60차 P0-8).
+
+    `None` 은 "이 index 형식은 구성원을 열거하지 않는다" 는 뜻이고, 그 경우
+    양방향 대조는 건너뛴다. 형식을 억지로 해석해서 **틀린 집합**을 만드는 것보다
+    "그 축은 이 index 로 못 묻는다" 를 그대로 두는 편이 정직하다.
+    """
+    try:
+        body = json.loads(idx.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if isinstance(body, dict):
+        for key in ("members", "files", "payload"):
+            v = body.get(key)
+            if isinstance(v, list) and all(isinstance(x, str) for x in v):
+                return set(v)
+    elif isinstance(body, list) and all(isinstance(x, str) for x in body):
+        return set(body)
+    return None
+
+
+def bundle_content_id(evidence: dict, repo_root=None) -> str:
+    """검증한 묶음의 **내용 주소** (60차 P0-9).
+
+    59차 M9 는 caller 의 dict 를 진입 시점에 정규 바이트로 굳혔다. 그런데 그
+    dict 가 **가리키는 묶음**은 안 굳혔다 — 리뷰어는 검증 직후·ledger commit
+    전에 member 하나를 같은 길이의 다른 바이트로 갈아 끼우고 그대로
+    `full_bundle` 을 받았다.
+
+    그래서 검증이 **무엇을 봤는지**를 값으로 만들어 봉인에 넣는다. 이름과
+    바이트를 함께 담으므로, 나중에 바뀐 사실이 기록 자체에서 드러난다.
+
+    **남는 한계**: 묶음이 mutable directory 인 한 "검증 → 봉인" 사이의 창 자체는
+    없어지지 않는다. 없애려면 묶음을 immutable content-addressed object 로 먼저
+    게시해야 하고, 그것은 이 라운드의 범위 밖이다 — 요청문에 적는다.
+    """
+    root = Path(repo_root or Path(__file__).resolve().parents[1])
+    d = _repo_relative_or_refuse(root, evidence["bundle_uri"], "bundle_uri")
+    parts = []
+    for x in sorted(d.rglob("*")):
+        st = os.stat(x, follow_symlinks=False)
+        if not stat.S_ISREG(st.st_mode):
+            continue
+        parts.append([x.relative_to(d).as_posix(),
+                      hashlib.sha256(x.read_bytes()).hexdigest()])
+    body = json.dumps({"kind": "bundle-content-id/v1", "members": parts},
+                      sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 #: ★ 57차 P0-5 — legacy migration 의 **버전 태그**. 원장의
@@ -7367,6 +7472,14 @@ def finalize_leg(leg_id: str, evidence: dict, ledger=None, *,
             f"{leg_id!r} 의 묶음 주장이 실물과 다르다 — 검증되지 않은 보존 "
             "상태를 원장에 쓸 수 없다:\n  " + "\n  ".join(bundle_bad))
     claimed_bundle = all(k in evidence for k in BUNDLE_EVIDENCE_KEYS)
+    if claimed_bundle:
+        # ★ 60차 P0-9 — **검증이 무엇을 봤는지를 값으로 남긴다.** dict 만
+        #   굳히면 그 dict 가 **가리키는 묶음**은 안 굳는다 (리뷰어 실측: 검증
+        #   직후 member 를 같은 길이의 다른 바이트로 갈아 끼워도 `full_bundle`).
+        #   내용 주소를 봉인에 넣으면 나중에 바뀐 사실이 기록 자체에서 드러난다.
+        #   창 자체는 mutable directory 인 한 남고, 그 한계는 신고한다.
+        evidence = dict(evidence)
+        evidence["bundle_content_id"] = bundle_content_id(evidence)
     if not _nonempty_str(evidence.get("leg_source_digest") or ""):
         raise PreserveError(
             "plan", "evidence.leg_source_digest 가 없다 — 실행 기록을 실물에 "

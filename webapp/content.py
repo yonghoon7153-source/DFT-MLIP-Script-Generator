@@ -740,12 +740,19 @@ def gate_sections(show: int = 3) -> dict:
     for m in marks[-show:] if marks else []:
         i = marks.index(m)
         end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        latest.append({"title": m.group(1), "body": text[m.end():end]})
+        latest.append({"title": m.group(1),
+                       # ★ 제목 안의 `**굵게**` 를 실제로 굵게 낸다. 원장의
+                       #   제목은 판정(**NO-GO**)처럼 **가장 중요한 한 마디**를
+                       #   굵게 적는데, 그것이 화면에 별표 그대로 나오고 있었다
+                       #   — 본문은 markdown 을 지나고 제목만 안 지났기 때문이다.
+                       "title_html": md_inline(m.group(1)),
+                       "body": text[m.end():end]})
     latest.reverse()                                # 최신이 위
     return {
         "available": True,
         "path": GATE_DOC.relative_to(ROOT).as_posix(),
         "titles": titles,
+        "titles_html": [md_inline(t) for t in titles],
         "count": len(titles),
         "latest": latest,
         "bytes": GATE_DOC.stat().st_size,
