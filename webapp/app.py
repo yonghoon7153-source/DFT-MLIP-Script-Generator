@@ -485,6 +485,16 @@ def requests_page():
                            content=md_html(md, ("tables", "fenced_code", "toc")))
 
 
+# ── 회신 BG ② — 화면 결속용 claim id 변환 (템플릿에서 쓴다) ─────────────────
+#   판정 원장의 `claim_ref` 는 `value:<metric>/<system>` 형식이다. 그대로는 결속에 못 쓰므로
+#   레지스트리 id(`<metric>@<system>`)로 바꾼다. **없는 형식이면 빈 문자열** — 유령 결속을
+#   만들지 않는다 (빈 값이면 템플릿이 data-claim 자체를 안 붙인다).
+@app.template_global()
+def claim_ref_to_id(ref):
+    m = re.match(r"^value:([^/\s]+)/([^/\s]+)$", str(ref or "").strip())
+    return f"{m.group(1)}@{m.group(2)}" if m else ""
+
+
 @app.route("/governance")
 def governance_page():
     """판례·평가·산출물·인용위험 네 원장을 한 화면에 — **판정이 어디에 근거하는지**.

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import csv
 import json
+from html.parser import HTMLParser as _HTMLParser
 import re
 from pathlib import Path
 
@@ -375,6 +376,142 @@ def is_prohibition_context(ctx: str) -> bool:
       · 표지가 없다고 그 문장이 **틀렸다**는 뜻은 아니다. "결속이 없다" 는 뜻이다.
     """
     return any(m in ctx for m in PROHIBITION_MARKS)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# claim ID 결속 (2026-09-08 · 회신 BG ② — ±140자 근접성 폐기)
+#   ⛔⛔ 왜 바꾸나
+#     종전 결속 검사는 "철회값 근처 140자 안에 ⛔ 같은 표지가 있나" 였다. 세 가지가 틀렸다:
+#       ① 표지가 **그 값에 대한 것인지** 못 본다 — 옆 문단의 경고도 통과시킨다.
+#       ② 표 안에서는 셀이 길어 표지가 창 밖으로 밀린다 (실측: /governance 인용위험 표의
+#          `Ea … 0.199±0.034` 행이 스스로 위험 경고인데도 **미결속**으로 잡혔다).
+#       ③ 검사 대상 화면이 **손 목록**이었다 — 목록에 없는 화면은 아무리 틀려도 안 잡힌다.
+#     ⇒ 결속을 **구조**로 바꾼다. 값을 그리는 요소(또는 그 조상)가 `data-claim="<id>"` 로
+#       **어느 주장인지 이름을 대야** 한다. 이름이 맞으면 근접성은 보지 않는다.
+#
+#   claim id = "<metric>@<system>" — 레지스트리에서 파생하므로 별도 목록이 없다.
+#
+#   ⛔ 이 결속이 못 하는 것
+#     · 그 요소의 **글이 맞는지**는 안 본다. "이 값이 어느 주장인지 선언했나" 만 본다.
+#     · 선언이 거짓일 수 있다 (아무 값에나 data-claim 을 붙이는 것). 그건 레지스트리 대조
+#       (`scan_claim_bindings` 의 `dangling`)로 잡되, 사람의 성실성을 대체하지는 않는다.
+def claim_id(metric, system) -> str:
+    """화면 결속에 쓰는 주장 식별자. 레지스트리 (metric, system) 한 쌍이 곧 id 다."""
+    return f"{metric}@{system}"
+
+
+def bound_claims(reg=None, root=None) -> list:
+    """화면에서 **이름을 대야 하는** 주장들 — 철회 + 비인용(citable:false).
+
+    반환 `[{"id","metric","system","state","text","why","instead"}]`.
+      · `state` — "retracted" | "non_citable"
+      · `text`  — 화면에서 찾을 숫자열. 숫자 정본값이 없으면 `None` (id 만 검증한다).
+
+    ⚠ `text` 는 **네 글자 이상**일 때만 넣는다. "1.08" 같은 짧은 수를 전 화면에서 찾으면
+      무관한 표(원자수·비율)에 걸려 검사가 소음이 된다 — 그때는 결속을 강제하지 못하고
+      id 유효성만 본다. σ 비 3항목이 그 경우다 (`_ratio_display` 는 스캔에 쓰지 않는다).
+    """
+    reg = reg if reg is not None else registry(root=root)
+    out = []
+    for e in reg.get("entries", []):
+        st = e.get("status")
+        state = ("retracted" if st == "retracted"
+                 else ("non_citable" if e.get("citable") is False else None))
+        if state is None:
+            continue
+        v = e.get("value")
+        txt = f"{float(v):g}" if v is not None else None
+        if txt is not None and len(txt) < 4:
+            txt = None
+        r = e.get("retracted") or {}
+        out.append({"id": claim_id(e.get("metric"), e.get("system")),
+                    "metric": e.get("metric"), "system": e.get("system"),
+                    "state": state, "text": txt,
+                    "why": r.get("why", "") or e.get("why_non_citable", ""),
+                    "instead": r.get("usable_instead", "")})
+    return out
+
+
+class _ClaimScanner(_HTMLParser):
+    """`data-claim` 조상을 추적하며 텍스트 노드를 훑는다 (stdlib 만 쓴다)."""
+
+    #: 닫는 태그가 없는 요소 — 스택에 쌓으면 균형이 깨진다.
+    VOID = frozenset(("area", "base", "br", "col", "embed", "hr", "img", "input",
+                      "link", "meta", "param", "source", "track", "wbr"))
+    SKIP = frozenset(("script", "style"))
+
+    def __init__(self, texts):
+        super().__init__(convert_charrefs=True)
+        self._texts = texts            # {text: [claim, ...]}
+        self._stack = []               # [(tag, claim_id|None)]
+        self._skip = 0
+        self.hits = []                 # [(claim, bound_id|None, context)]
+        self.declared = []             # 화면이 선언한 data-claim 값 전부
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self._skip += 1
+            return
+        d = dict(attrs)
+        cid = d.get("data-claim")
+        if cid:
+            self.declared.append(cid)
+        if tag not in self.VOID:
+            self._stack.append((tag, cid))
+
+    def handle_startendtag(self, tag, attrs):
+        cid = dict(attrs).get("data-claim")
+        if cid:
+            self.declared.append(cid)
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP:
+            self._skip = max(0, self._skip - 1)
+            return
+        for i in range(len(self._stack) - 1, -1, -1):
+            if self._stack[i][0] == tag:
+                del self._stack[i:]
+                break
+
+    def handle_data(self, data):
+        if self._skip or not data.strip():
+            return
+        for txt, claims in self._texts.items():
+            i = 0
+            while (i := data.find(txt, i)) != -1:
+                nxt = data[i + len(txt): i + len(txt) + 1]
+                prv = data[i - 1: i] if i else " "
+                if not (nxt.isdigit() or prv.isdigit()):       # 0.1990 / 10.199 는 아니다
+                    open_ids = [x for _t, c in self._stack if c for x in c.split()]
+                    ctx = " ".join(data[max(0, i - 90): i + len(txt) + 90].split())
+                    for cl in claims:
+                        self.hits.append((cl, (cl["id"] if cl["id"] in open_ids else None), ctx))
+                i += len(txt)
+
+
+def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
+    """한 화면의 결속 상태. → `{"bound":[...], "unbound":[...], "declared":[...], "dangling":[...]}`
+
+    · `bound`   — 값이 **자기 claim id 를 단 요소 안에** 있다 (구조 결속).
+    · `unbound` — 그렇지 않다. 근접성은 보지 않는다 (호출자가 레거시 완화를 결정한다).
+    · `dangling`— 화면이 선언한 `data-claim` 중 레지스트리에 없는 id (오타·유령 결속).
+    """
+    claims = claims if claims is not None else bound_claims(reg=reg, root=root)
+    texts = {}
+    for c in claims:
+        if c.get("text"):
+            texts.setdefault(c["text"], []).append(c)
+    # ⚠ 유령 결속 판정은 **레지스트리 전체**로 한다 (결속 대상 목록으로 하면 정상 항목을
+    #   가리키는 결속까지 유령이 된다 — 실측: `MD_Ea_eV_singleseed@b2o3`).
+    _r = reg if reg is not None else registry(root=root)
+    known = {claim_id(e.get("metric"), e.get("system")) for e in _r.get("entries", [])}
+    known |= {c["id"] for c in claims}
+    sc = _ClaimScanner(texts)
+    sc.feed(html)
+    bound = [(c, ctx) for c, b, ctx in sc.hits if b]
+    unbound = [(c, ctx) for c, b, ctx in sc.hits if not b]
+    return {"bound": bound, "unbound": unbound, "declared": sc.declared,
+            "dangling": sorted({x for d in sc.declared for x in d.split() if x not in known})}
 
 
 def retracted_values(reg=None, root=None) -> list:

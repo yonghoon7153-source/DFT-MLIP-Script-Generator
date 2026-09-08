@@ -53,7 +53,8 @@
    "level": "CONDITIONAL",
    "what": "Ea — 헤드라인이 3회 교체됨 (0.207 → 0.2234 단일시드 → 0.199±0.034)",
    "why": "중간판이 아직 파일에 남아 있다",
-   "fix": "FINAL_for_paper.Ea_eV_PAPER 만 인용"
+   "fix": "FINAL_for_paper.Ea_eV_PAPER 만 인용",
+   "claim": "MD_Ea_eV@b2o3"
   },
   {
    "file": "db/properties/vgcf_hbn_neb.json",
@@ -205,5 +206,8 @@
    "note": "전수 조사 — 인용 게이트 자체의 오류 2건 정정(phaseB dE_extract 를 '인용하라'고 적고 있었다 · figure2e 의 v13/14잡 표기), 미등재 위험 3건 추가"
   }
  ],
- "updated": "2026-08-31"
+ "updated": "2026-08-31",
+ "_schema_note": {
+  "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②)."
+ }
 }

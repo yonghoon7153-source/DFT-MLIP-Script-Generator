@@ -43,7 +43,8 @@
 <div class="section-title">기록 타임라인 · {{ entries|length }}건</div>
 <div id="timeline">
 {% for e in entries %}
-<div class="card" style="margin-bottom:10px;padding:13px 18px">
+{# 회신 BG ② — 기록의 **본문은 고치지 않는다**. 어느 정본 주장을 말하는지만 결속한다 #}
+<div class="card" style="margin-bottom:10px;padding:13px 18px"{% if e.claims %} data-claim="{{ e.claims|join(' ') }}"{% endif %}>
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
     <span class="badge b-fam">{{ e.kind }}</span>
     {% if e.comp %}<span class="badge b-canon">{{ COMPS.get(e.comp,{}).get('label', e.comp) }}</span>{% endif %}

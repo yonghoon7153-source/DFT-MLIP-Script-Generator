@@ -2710,68 +2710,116 @@ def test_sdcp_closure_consistency():
 # ═══════════════════════════════════════════════════════════════════════════
 # 회신 AW P0-2 — 철회된 값이 **현재-facing 표면**에서 되살아나지 않는가
 # ═══════════════════════════════════════════════════════════════════════════
-#: 감사 대상 표면. AW 가 지목한 넷 + 대시보드.
-#: ⚠ 여기 라우트를 늘리는 것이 이 시험을 강하게 만드는 유일한 방법이다 —
-#:   목록에 없는 화면은 아무리 틀려도 안 잡힌다.
-_RETRACTION_SURFACES = ("/", "/todo", "/log", "/compare", "/glossary", "/sdcp", "/methods")
+#: ⛔ 2026-09-08 (회신 BG ②) — **손으로 적던 표면 목록을 폐기했다.**
+#:   목록에 없는 화면은 아무리 틀려도 안 잡혔다 (실측: `/governance` 의 인용위험 표에
+#:   철회값이 미결속으로 있었는데 목록 밖이라 초록이었다). 이제 라우트를 **자동 열거**한다.
+#: ⛔ 그리고 결속 판정을 **±140자 근접성 → claim id 구조 결속**으로 바꿨다.
+#:   근접성은 ① 표지가 그 값에 대한 것인지 못 보고 ② 표 셀이 길면 창 밖으로 밀리고
+#:   ③ 옆 문단의 경고를 통과로 읽었다. 이제 값을 그리는 요소(또는 조상)가
+#:   `data-claim="<metric>@<system>"` 로 **어느 주장인지 이름을 대야** 한다.
+_BINDING_SKIP_PREFIX = ("/static", "/api")
+
+#: 레거시 래칫 — 아직 구조 결속으로 못 옮긴 화면과 그 **현재 건수**.
+#:   · 목록에 **없는** 화면은 미결속 0 이어야 한다 (새 누출은 즉시 실패).
+#:   · 목록에 있는 화면도 건수가 **늘면 실패**한다. 줄면 이 표를 같이 줄인다.
+#:   ⛔ 항목을 늘려서 통과시키지 않는다 — 늘리는 것이 곧 완화다.
+#: 배선 완료: /governance(인용위험 표 · 게이트 평가 표) · /log(저널 항목)
+_LEGACY_UNBOUND = {
+    "/": 1, "/cascade": 1, "/compare": 1, "/explorer": 1,
+    "/glossary": 1, "/methods": 4, "/requests": 4, "/todo": 2,
+}
 
 
-def _visible_text(html: str) -> str:
-    """태그·스크립트를 걷어낸 **사람이 읽는 글**. 속성 안 문자열은 세지 않는다."""
-    body = re.sub(r"<script\b.*?</script>", " ", html, flags=re.S)
-    body = re.sub(r"<style\b.*?</style>", " ", body, flags=re.S)
-    return re.sub(r"<[^>]*>", " ", body)
+def _html_routes():
+    """인자 없는 GET 라우트 — **손 목록을 쓰지 않는다** (새 화면이 자동으로 검사에 든다)."""
+    return sorted({str(r) for r in A.app.url_map.iter_rules()
+                   if not r.arguments and "GET" in r.methods
+                   and not str(r).startswith(_BINDING_SKIP_PREFIX)})
 
 
-def test_retracted_canonical_values_are_bound_on_every_surface():
-    """⛔음성 AW P0-2: 철회된 정본값이 화면에 **결속 없이** 나오면 안 된다.
+def _scan_surface(client, url):
+    """→ (scan|None). HTML 이 아니거나 200 이 아니면 None."""
+    r = client.get(url)
+    if r.status_code != 200 or "html" not in (r.headers.get("Content-Type") or ""):
+        return None
+    return C.scan_claim_bindings(r.get_data(as_text=True), C.bound_claims())
 
-    목록을 손으로 적지 않는다 — `canonical.retracted_values()` 가 레지스트리의
-    `status=retracted` 에서 파생한다. 값을 되살리면 이 검사도 같이 풀린다.
 
-    ⛔ 지우라는 뜻이 아니다. 역사는 남기되 **그 숫자 바로 옆**(앞뒤 140자)에
-      철회·보류 표지가 있어야 한다. 상단 배너 하나로는 부족하다 — 스크롤하면
-      배너는 사라지고 숫자만 남는다 (회신 AW P0-2 문구).
+def test_retracted_claims_are_id_bound_on_every_surface():
+    """⛔음성 AW P0-2 / BG ②: 철회·비인용 값이 **어느 주장인지 이름 없이** 화면에 나오면 안 된다.
+
+    ⛔ 지우라는 뜻이 아니다. 역사는 남기되 그 값을 그리는 요소가 `data-claim` 으로
+      자기 주장을 선언해야 한다. 선언이 있으면 근접성은 보지 않는다 — 표 안이든
+      긴 문단이든 결속은 구조로 성립한다.
     """
-    rv = C.retracted_values()
-    assert rv, "전제: 철회된 정본값이 실제로 있다 (b2o3 MD_Ea 0.199)"
+    claims = C.bound_claims()
+    assert any(c["state"] == "retracted" and c["text"] for c in claims), \
+        "전제: 스캔 가능한 철회 정본값이 실제로 있다 (b2o3 MD_Ea 0.199)"
     c = A.app.test_client()
-    misses = []
-    for url in _RETRACTION_SURFACES:
-        r = c.get(url)
-        if r.status_code != 200:
+    fresh, grew, dangling = [], [], []
+    for url in _html_routes():
+        sc = _scan_surface(c, url)
+        if sc is None:
             continue
-        body = _visible_text(r.get_data(as_text=True))
-        for v in rv:
-            i = 0
-            while (i := body.find(v["text"], i)) != -1:
-                # 숫자의 일부(0.1990 / 10.199)로 걸린 것은 세지 않는다
-                nxt = body[i + len(v["text"]): i + len(v["text"]) + 1]
-                prv = body[i - 1: i] if i else " "
-                if nxt.isdigit() or prv.isdigit():
-                    i += len(v["text"])
-                    continue
-                ctx = body[max(0, i - 140): i + len(v["text"]) + 140]
-                if not C.is_prohibition_context(ctx):
-                    misses.append((url, v["metric"], v["system"], v["text"],
-                                   " ".join(ctx.split())[:160]))
-                i += len(v["text"])
-    assert not misses, "철회값이 결속 없이 노출된다:\n" + "\n".join(
-        f"  {u} · {m}/{s} = {t}\n      …{ctx}…" for u, m, s, t, ctx in misses)
+        n = len(sc["unbound"])
+        cap = _LEGACY_UNBOUND.get(url)
+        if cap is None and n:
+            fresh += [(url, cl["id"], ctx) for cl, ctx in sc["unbound"]]
+        elif cap is not None and n > cap:
+            grew.append((url, n, cap))
+        if sc["dangling"]:
+            dangling.append((url, sc["dangling"]))
+    assert not fresh, "결속 없는 철회값이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
+        "\n".join(f"  {u} · {i}\n      …{x[:140]}…" for u, i, x in fresh)
+    assert not grew, "레거시 미결속 건수가 늘었다 (래칫은 줄어들기만 한다): " + str(grew)
+    assert not dangling, "레지스트리에 없는 claim id 를 화면이 선언한다 (유령 결속): " + str(dangling)
 
 
-def test_retraction_binding_check_can_actually_fail():
-    """⛔음성: 위 시험이 **아무것도 안 잡는 상태**로 초록이 되는 것을 막는다.
+def test_legacy_unbound_ratchet_is_honest():
+    """래칫 표가 **실물보다 헐거우면** 안 된다 — 다 고쳤는데 표가 남으면 새 누출을 덮는다."""
+    c = A.app.test_client()
+    slack = []
+    for url, cap in _LEGACY_UNBOUND.items():
+        sc = _scan_surface(c, url)
+        if sc is None:
+            slack.append((url, "라우트가 없거나 HTML 이 아니다", cap))
+            continue
+        n = len(sc["unbound"])
+        if n < cap:
+            slack.append((url, n, cap))
+    assert not slack, ("래칫 표가 실물보다 헐겁다 — 줄어든 만큼 _LEGACY_UNBOUND 를 같이 줄여라: "
+                      + str(slack))
 
-    `is_prohibition_context` 가 항상 True 를 돌려주거나 `retracted_values()` 가
-    빈 리스트가 되면 위 시험은 통과한다 — 그건 통과가 아니라 검사 소실이다.
-    """
+
+def test_claim_binding_scanner_can_actually_fail():
+    """⛔음성: 스캐너가 **아무것도 안 잡는 상태**로 초록이 되는 것을 막는다."""
+    cl = C.bound_claims()
+    tgt = next(x for x in cl if x["state"] == "retracted" and x["text"])
+    t = tgt["text"]
+    # ① 결속 없는 노출 → unbound
+    r = C.scan_claim_bindings(f"<p>b2o3 의 MD Ea 는 {t} eV 다.</p>", cl)
+    assert len(r["unbound"]) == 1 and not r["bound"], r
+    # ② 근접 표지만 있고 id 가 없으면 **여전히 unbound** (이것이 BG ② 의 요지다)
+    r = C.scan_claim_bindings(f"<p>⛔ 철회됨 — 옛 값 {t} eV.</p>", cl)
+    assert len(r["unbound"]) == 1, "근접 표지를 결속으로 읽으면 안 된다 (±140자 방식 회귀)"
+    # ③ 조상이 id 를 대면 bound
+    r = C.scan_claim_bindings(f'<tr data-claim="{tgt["id"]}"><td>{t}</td></tr>', cl)
+    assert len(r["bound"]) == 1 and not r["unbound"], r
+    # ④ 다른 주장의 id 로는 결속되지 않는다
+    r = C.scan_claim_bindings(f'<tr data-claim="MD_Ea_eV@modelc"><td>{t}</td></tr>', cl)
+    assert len(r["unbound"]) == 1, "id 가 달라도 통과하면 결속이 아니다"
+    # ⑤ 숫자의 일부는 세지 않는다
+    assert not C.scan_claim_bindings(f"<p>{t}0 · 1{t}</p>", cl)["unbound"]
+    # ⑥ 유령 id 는 잡는다
+    assert C.scan_claim_bindings('<tr data-claim="NOPE@x">1</tr>', cl)["dangling"] == ["NOPE@x"]
+    # ⑦ 파생 경로가 살아 있는가 — 하드코딩이면 레지스트리를 고쳐도 안 바뀐다
+    assert ("MD_Ea_eV", "b2o3") in {(x["metric"], x["system"]) for x in cl}
+
+
+def test_prohibition_context_still_guards_prose():
+    """근접성 함수는 **다른 검사**에서 여전히 쓴다 — 그 함수가 죽지 않았는지만 본다."""
     assert not C.is_prohibition_context("b2o3 의 MD Ea 는 0.199 eV 다. modelc 와 동급이다.")
     assert C.is_prohibition_context("⛔ 0.199 는 철회됐다 — 800 K 위에서 굽는다")
-    assert C.is_prohibition_context("MD Ea 0.199 (⚠ 전구간 단일 직선, 인용 불가)")
-    # 파생 경로가 살아 있는가 — 하드코딩이면 레지스트리를 고쳐도 안 바뀐다
-    got = {(v["metric"], v["system"]) for v in C.retracted_values()}
-    assert ("MD_Ea_eV", "b2o3") in got, got
 
 
 # ══════════════════════════════════════════════════════════════════════════
