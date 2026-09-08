@@ -161,6 +161,22 @@ for i in "${INS[@]}"; do
   if _fc_ok "$d/scf.out"; then
     echo "[$(ts)] skip $n (완료: JOB DONE + 수렴 + 힘)"; skip_n=$((skip_n+1)); continue
   fi
+  # ── VRAM 양보 가드 (2026-09-08) ────────────────────────────────────────────
+  # ⛔ GPU 를 남과 나눠 쓸 때 QE 는 cuMemAlloc 으로 즉사한다 (li3nd r2 실측, 두 번).
+  #   위험한 건 **내가 죽는 것이 아니라 남을 죽이는 것**이다 — 먼저 돌던 잡이 BFGS
+  #   스텝에서 메모리를 더 잡으려 할 때 내가 자리를 먹고 있으면 그쪽이 죽는다.
+  #   그래서 점을 시작하기 **전에** 여유를 보고, 바닥이면 **이 잡이 물러난다**.
+  #   MIN_FREE_MIB=0 으로 끌 수 있다 (독점 실행일 때).
+  if [ "${MIN_FREE_MIB:-0}" -gt 0 ] && command -v nvidia-smi >/dev/null 2>&1; then
+    free_mib=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1)
+    if [ -n "$free_mib" ] && [ "$free_mib" -lt "$MIN_FREE_MIB" ]; then
+      echo "[$(ts)] ⛔ VRAM 여유 ${free_mib} MiB < MIN_FREE_MIB=${MIN_FREE_MIB} — **이 잡이 물러난다**."
+      echo "   남의 잡을 죽이지 않으려고 시작하지 않는다. 남은 점은 던지지 않았다."
+      echo "   먼저 돌던 계산이 끝난 뒤 같은 명령으로 이어 돌리면 끝난 점은 건너뛴다."
+      break
+    fi
+    echo "[$(ts)]   VRAM 여유 ${free_mib} MiB (문턱 ${MIN_FREE_MIB})"
+  fi
   s=$(date +%s)
   ( cd "$d" && $MPI "$PWX" $PW_EXTRA -in scf.in > scf.out 2>&1 )
   e=$(date +%s)
