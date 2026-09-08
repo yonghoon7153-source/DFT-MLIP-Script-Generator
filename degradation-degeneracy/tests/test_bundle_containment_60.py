@@ -112,6 +112,9 @@ def test_the_verified_bundle_is_sealed_by_its_bytes(tmp_path):
 # ── P0-7 ──────────────────────────────────────────────────────────────────
 _BIND_PROBE = textwrap.dedent('''
     import json, os, subprocess, sys, hashlib
+    # ★ 60차 — **지금 실행 중인 트리**의 preserve 를 쓴다. 저장소 뿌리를
+    #   상수로 박으면 변이 재생의 sandbox 안에서도 원본을 import 하고, 그러면
+    #   이 축은 무엇을 바꾸든 안 문다 (실측 rc 0 — false-green 이었다).
     sys.path.insert(0, {repo!r})
     import tools.preserve as P
     root = {root!r}
@@ -156,7 +159,8 @@ def test_a_bind_mounted_outside_directory_is_not_a_bundle_member(tmp_path):
     (out / "outside-only.csv").write_text("x\n" * 8, encoding="utf-8")
     (tmp_path / "ev.json").write_text(json.dumps(ev), encoding="utf-8")
 
-    src = _BIND_PROBE.format(repo=str(REPO), root=str(tmp_path))
+    src = _BIND_PROBE.format(repo=str(Path(P.__file__).resolve().parents[1]),
+                             root=str(tmp_path))
     r = subprocess.run(["unshare", "-Urnm", sys.executable, "-c", src],
                        capture_output=True, text=True, timeout=300)
     assert r.returncode == 0, r.stderr[-2000:]
@@ -228,3 +232,27 @@ def test_finalize_seals_the_bundle_content_id(tmp_path, monkeypatch):
     got = leg["evidence"].get("bundle_content_id")
     assert got == _real_cid(ev, repo_root=root), (
         f"봉인이 검증한 바이트를 말하지 않는다: {got!r} (P0-9)")
+
+
+def test_a_member_on_another_mount_is_refused(tmp_path, monkeypatch):
+    """★ P0-7 — 좌표 비교 **그 자체**를 mount namespace 없이 겨눈다.
+
+    위의 bind-mount 시험은 `unshare` 가 되는 환경에서만 돈다. 변이 재생의
+    sandbox 안에서는 그것이 안 되고, 그러면 그 축은 **건너뛰어져서** 무엇을
+    바꾸든 rc 0 이다 (실측 — false-green 이었다). 건너뛴 시험은 방어를 지키지
+    않는다.
+
+    그래서 커널에 묻는 자리를 시험이 대신 답하게 해서, **비교와 거부**가
+    실제로 도는지 본다. 실물 bind 반례는 위 시험이 그대로 들고 있다.
+    """
+    d, idx, ev = _bundle(tmp_path)
+    real = P._kernel_mount_id
+
+    def _fake(path):
+        return "999" if Path(path).name == "a.csv" else real(path)
+
+    monkeypatch.setattr(P, "_kernel_mount_id", _fake)
+    bad = P._verify_declared_bundle(ev, repo_root=tmp_path)
+    monkeypatch.setattr(P, "_kernel_mount_id", real)
+    assert any("mount" in b for b in bad), (
+        f"다른 mount 에 있는 구성원이 통과했다: {bad} (P0-7)")

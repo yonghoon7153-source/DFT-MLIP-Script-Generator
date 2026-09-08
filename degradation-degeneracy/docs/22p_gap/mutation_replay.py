@@ -1210,6 +1210,70 @@ MUTANTS = [
      '    body = json.dumps(e.get("startup"), sort_keys=True, '
      "ensure_ascii=False)",
      "the_environment_tag_covers_the_whole_receipt"),
+    # ══ 60차 — 이 라운드가 세운 방어 ══════════════════════════════════════
+    #   판정 17건을 닫으면서 만든 층들이다. 축이 없으면 그 층은 "있는 척" 이
+    #   될 수 있고, 이 저장소는 그것을 세 라운드 연속 실측했다.
+    ("run-identity-is-sealed-at-commit-g60", PRESERVE,               # P0-1
+     "            seal_run_identity(x, dir_fd=rec.dir_fd)",
+     "            pass",
+     "a_later_sanctioned_manifest_does_not_erase_the_registered_class"),
+    ("class-is-decided-by-the-place-g60", PRESERVE,                  # P0-2
+     "    cls = _decide_execution_class(run_dir)",
+     "    cls = EXEC_CLASS_CANONICAL",
+     "the_gate_decides_the_class_and_the_caller_cannot_choose_it"),
+    ("a-consumed-capability-is-retired-g60", PRESERVE,               # P0-3
+     "            _retire_capability(capability.nonce)",
+     "            pass",
+     "a_capability_is_spent_by_a_successful_commit"),
+    ("the-gate-creates-the-judged-place-g60", PRESERVE,              # P0-4
+     "    Path(run_dir).mkdir(parents=True, exist_ok=True)",
+     "    pass",
+     "the_gate_creates_the_place_and_always_carries_a_handle"),
+    # ★ 겨누는 자리를 `write_curves_manifest()` 로 옮겼다 — 시험이 부르는 것이
+    #   그 함수이고, `run_grid` 의 같은 문장을 겨누면 축이 안 문다 (실측 rc 0).
+    ("grid-writes-under-the-handle-g60", GRID,                       # P0-4
+     "    out_dir = staged_root(capability) if capability is not None else named",
+     "    out_dir = named",
+     "production_grid_writes_through_the_capability"),
+    ("lifecycle-root-is-not-an-alias-g60", PRESERVE,                 # P0-5
+     "    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):",
+     "    if False:",
+     "a_symlinked_claims_root_is_refused"),
+    ("journal-publish-reads-back-g60", RP,                           # P0-6
+     "        if got != body:",
+     "        if False:",
+     "a_short_journal_write_never_becomes_a_published_transition"),
+    ("bundle-members-share-the-root-mount-g60", PRESERVE,            # P0-7
+     "            if here_mnt != root_mnt:",
+     "            if False:",
+     # ★ bind-mount 시험은 `unshare` 가 되는 환경에서만 돈다 — 변이 재생의
+     #   sandbox 안에서는 건너뛰어지고, 건너뛴 시험은 방어를 안 지킨다
+     #   (실측 rc 0). 좌표 비교 자체를 겨누는 시험으로 축을 옮긴다.
+     "a_member_on_another_mount_is_refused"),
+    ("payload-index-is-a-bundle-member-g60", PRESERVE,               # P0-8
+     "    if idx not in member_paths:",
+     "    if False:",
+     "the_payload_index_must_be_a_member_of_the_bundle"),
+    ("finalize-seals-the-bundle-bytes-g60", PRESERVE,                # P0-9
+     '        evidence["bundle_content_id"] = bundle_content_id(evidence)',
+     "        pass",
+     "finalize_seals_the_bundle_content_id"),
+    ("phase-receipt-is-snapshotted-g60", PRESERVE,                   # P1-2
+     "        receipt = json.loads(_canon_json(receipt))",
+     "        pass",
+     "the_phase_receipt_is_snapshotted_at_entry"),
+    ("a-record-has-exactly-one-name-g60", PRESERVE,                  # P1-1
+     "    if _st.st_nlink != 1:",
+     "    if False:",
+     "a_record_with_two_names_is_refused_by_the_reader"),
+    ("module-docstring-is-bound-g60", RP,                            # P0-13
+     '        _bind("__doc__", _body[0])',
+     "        pass",
+     "the_module_docstring_is_inside_the_identity"),
+    ("a-caller-supplied-callee-is-refused-g60", RP,                  # P0-10
+     "            if isinstance(sub.func, ast.Name) and sub.func.id in shadows_at(sub):",
+     "            if False:",
+     "a_caller_supplied_binding_is_not_a_proof_of_non_namespace"),
 ]
 
 #: 여러 지점을 **함께** 되돌려야 관측되는 변이 (심층 방어라 하나만 지우면
@@ -3751,7 +3815,121 @@ EXPECT: dict = {
         "witness": {
             "tests/test_docs_lint.py::test_the_warm_consumers_go_through_the_accessors": "AssertionError: warm 소비자 → accessor 배선이 선언과 다르다. 새 소비자를 넣거나 호출을 뺐다면 `_WARM_CONSUMER_EDGES` 를 함께 고쳐라 (그 diff 가 리뷰에 보여야 한다)."
         }
-    }
+    },
+
+    # ══ 60차 — 이 라운드가 세운 방어의 **관측된** 실패 집합 ═════════
+    "a-caller-supplied-callee-is-refused-g60": {
+            "fail": [
+                    "tests/test_producer_surface_60.py::test_a_caller_supplied_binding_is_not_a_proof_of_non_namespace[def score_canonical(df, namespace=None, GET=None):\\n    return GET(namespace, 'add_error_columns')(df)\\n]"
+            ],
+            "witness": {
+                    "tests/test_producer_surface_60.py::test_a_caller_supplied_binding_is_not_a_proof_of_non_namespace[def score_canonical(df, namespace=None, GET=None):\\n    return GET(namespace, 'add_error_columns')(df)\\n]": "Failed: DID NOT RAISE SystemExit"
+            }
+    },
+    "a-consumed-capability-is-retired-g60": {
+            "fail": [
+                    "tests/test_issuance_authority_60.py::test_a_capability_is_spent_by_a_successful_commit"
+            ],
+            "witness": {
+                    "tests/test_issuance_authority_60.py::test_a_capability_is_spent_by_a_successful_commit": "AssertionError: 소비한 권한의 일련번호가 살아 있다 (P0-3)"
+            }
+    },
+    "a-record-has-exactly-one-name-g60": {
+            "fail": [
+                    "tests/test_one_name_publish_60.py::test_a_record_with_two_names_is_refused_by_the_reader"
+            ],
+            "witness": {
+                    "tests/test_one_name_publish_60.py::test_a_record_with_two_names_is_refused_by_the_reader": "Failed: DID NOT RAISE PreserveError"
+            }
+    },
+    "bundle-members-share-the-root-mount-g60": {
+            "fail": [
+                    "tests/test_bundle_containment_60.py::test_a_member_on_another_mount_is_refused"
+            ],
+            "witness": {
+                    "tests/test_bundle_containment_60.py::test_a_member_on_another_mount_is_refused": "AssertionError: 다른 mount 에 있는 구성원이 통과했다: [] (P0-7)"
+            }
+    },
+    "class-is-decided-by-the-place-g60": {
+            "fail": [
+                    "tests/test_issuance_authority_60.py::test_the_gate_decides_the_class_and_the_caller_cannot_choose_it"
+            ],
+            "witness": {
+                    "tests/test_issuance_authority_60.py::test_the_gate_decides_the_class_and_the_caller_cannot_choose_it": "AssertionError: assert 'canonical' == 'smoke'"
+            }
+    },
+    "finalize-seals-the-bundle-bytes-g60": {
+            "fail": [
+                    "tests/test_bundle_containment_60.py::test_finalize_seals_the_bundle_content_id"
+            ],
+            "witness": {
+                    "tests/test_bundle_containment_60.py::test_finalize_seals_the_bundle_content_id": "AssertionError: 봉인이 검증한 바이트를 말하지 않는다: None (P0-9)"
+            }
+    },
+    "grid-writes-under-the-handle-g60": {
+            "fail": [
+                    "tests/test_staged_writes_60.py::test_production_grid_writes_through_the_capability"
+            ],
+            "witness": {
+                    "tests/test_staged_writes_60.py::test_production_grid_writes_through_the_capability": "AssertionError: production 이 이름으로 써서 밖의 디렉터리가 manifest 를 받았다 — 마지막 거부는 이미 나간 바이트를 못 되돌린다 (P0-4)"
+            }
+    },
+    "journal-publish-reads-back-g60": {
+            "fail": [
+                    "tests/test_lifecycle_durability_60.py::test_a_short_journal_write_never_becomes_a_published_transition"
+            ],
+            "witness": {
+                    "tests/test_lifecycle_durability_60.py::test_a_short_journal_write_never_becomes_a_published_transition": "AssertionError: 손상된 temp 가 journal 로 게시됐다 (P0-6)"
+            }
+    },
+    "lifecycle-root-is-not-an-alias-g60": {
+            "fail": [
+                    "tests/test_lifecycle_roots_60.py::test_a_symlinked_claims_root_is_refused"
+            ],
+            "witness": {
+                    "tests/test_lifecycle_roots_60.py::test_a_symlinked_claims_root_is_refused": "Failed: DID NOT RAISE PreserveError"
+            }
+    },
+    "module-docstring-is-bound-g60": {
+            "fail": [
+                    "tests/test_producer_surface_60.py::test_the_module_docstring_is_inside_the_identity"
+            ],
+            "witness": {
+                    "tests/test_producer_surface_60.py::test_the_module_docstring_is_inside_the_identity": "AssertionError: module 문서 문자열만 바꿨는데 producer identity 가 그대로다 — 계산이 그것을 읽는데도 identity 밖이다 (P0-13)"
+            }
+    },
+    "payload-index-is-a-bundle-member-g60": {
+            "fail": [
+                    "tests/test_bundle_containment_60.py::test_the_payload_index_must_be_a_member_of_the_bundle"
+            ],
+            "witness": {
+                    "tests/test_bundle_containment_60.py::test_the_payload_index_must_be_a_member_of_the_bundle": "AssertionError: 묶음 밖 index 가 통과했다 (P0-8)"
+            }
+    },
+    "phase-receipt-is-snapshotted-g60": {
+            "fail": [
+                    "tests/test_bundle_containment_60.py::test_the_phase_receipt_is_snapshotted_at_entry"
+            ],
+            "witness": {
+                    "tests/test_bundle_containment_60.py::test_the_phase_receipt_is_snapshotted_at_entry": "AssertionError: 검사한 값이 아니라 나중 값이 굳었다: {'v': '검사 뒤에 바꾼 값'} (P1-2)"
+            }
+    },
+    "run-identity-is-sealed-at-commit-g60": {
+            "fail": [
+                    "tests/test_temporal_seal_60.py::test_a_later_sanctioned_manifest_does_not_erase_the_registered_class"
+            ],
+            "witness": {
+                    "tests/test_temporal_seal_60.py::test_a_later_sanctioned_manifest_does_not_erase_the_registered_class": "AssertionError: 파생 manifest 하나가 내용 identity 를 갈아 치웠다 — 정상 실행이 계산을 다 마친 뒤 승격에서 거부된다 (P0-1)"
+            }
+    },
+    "the-gate-creates-the-judged-place-g60": {
+            "fail": [
+                    "tests/test_staged_writes_60.py::test_the_gate_creates_the_place_and_always_carries_a_handle"
+            ],
+            "witness": {
+                    "tests/test_staged_writes_60.py::test_the_gate_creates_the_place_and_always_carries_a_handle": "FileNotFoundError: [Errno 2] No such file or directory"
+            }
+    },
 }
 
 
