@@ -187,7 +187,7 @@ def build(pilot, out, opt, nprocs, maxcore):
     if not july:
         sys.exit("⛔ manifest 의 rings 에서 고리 원자를 못 뽑았다 — 7월 정의를 재현할 수 없다. "
                  "구조를 확인하기 전에는 n-시리즈에 값을 얹지 않는다")
-    json.dump({"groups": groups, "n_atoms": D["n_atoms"],
+    json.dump({"groups": groups, "n_atoms": D["n_atoms"], "symbols": list(syms),
                "source_manifest": os.path.abspath(os.path.join(pilot, "MANIFEST_PILOT.json")),
                "source_xyz": os.path.abspath(src),
                "run": run,
@@ -254,11 +254,26 @@ def analyze(d):
         print(f"  {name:20s} {res[name]:6.1f} %  ({len(idx)}원자)")
     rings = gr.get("rings") or {}
     if isinstance(rings, dict) and rings:
-        print("  고리별:")
+        # ⛔ 2026-09-08 실물 — "고리별:" 헤더만 찍히고 행이 하나도 없었다. rings 값은
+        #   manifest 형식 그대로 **dict** ({"core": [...], "ether_O": [...]}) 인데 이 루프는
+        #   list 만 받아 조용히 건너뛰었다 (fail-silent). 7월 표의 '고리별 분해' 열
+        #   (A 14.0 / B 21.3 / C 14.9) 이 n=6 에서 비어 나가는 결과였다.
+        #   core 에는 고리 H 가 섞여 있으므로(7월은 H 제외) **두 값을 나눠** 찍는다.
+        syms = g.get("symbols") or []
+        print("  고리별 (7월 정의 = 고리 원자만 · 참고 = +고리H):")
+        any_row = False
         for k in sorted(rings):
-            idx = rings[k] if isinstance(rings[k], list) else []
-            if idx:
-                print(f"    {k:12s} {100.0*sum(sp.get(i,0.0) for i in idx)/tot:6.1f} %")
+            v = rings[k]
+            core = (v.get("core") if isinstance(v, dict) else v) or []
+            core = [int(i) for i in core]
+            july_idx = [i for i in core if not (0 <= i < len(syms) and syms[i].upper() == "H")] if syms else None
+            pj = 100.0 * sum(sp.get(i, 0.0) for i in (july_idx if july_idx is not None else core)) / tot
+            pc = 100.0 * sum(sp.get(i, 0.0) for i in core) / tot
+            tag = "" if syms else "  (⚠ symbols 없음 — H 못 걸러 +고리H 값)"
+            print(f"    {k:12s} {pj:6.1f} %   (참고 +고리H {pc:5.1f} % · {len(core)}원자){tag}")
+            any_row = True
+        if not any_row:
+            print("    ⚠ rings 에 원자 목록이 없다 — 고리별 분해를 낼 수 없다")
     print()
     print("  n-시리즈 (7월, Opt · kb/results/sdcp_master_summary_2026_07_16.md §3):")
     print(f"    n=1        SO3 {JULY[1]['so3']:.1f} / 백본 {JULY[1]['bb']:.1f}")
