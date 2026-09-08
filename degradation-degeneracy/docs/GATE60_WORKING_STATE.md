@@ -185,3 +185,40 @@ anchor 는 "들어갔어야 하는 것" 을 가리킨다 (증거가 아니라 �
 
 **남는 한계**: 이것도 "실행이 소비한 바이트 전부" 는 아니다. 종결은 독립
 replay 이고 이 라운드의 범위 밖이다 — 요청문에 적는다.
+
+## 마감 진행
+
+| 단계 | 상태 |
+|---|---|
+| 변이 등록부 60차 축 14개 | **완료** — MUTANTS 188 · EXPECT 210, 14축 전부 뭄 (`b37a7aae`) |
+| g14 freeze → g15 · 투영 재생성 · 영수증 | **완료** (`f79840bc`) |
+| 12조각 전수 재생 | 진행 중 |
+| 전체 회귀 + strict smoke | 대기 |
+| 요청문 | 초안 완료 (스크래치패드) — §2 증거만 남음 |
+| webapp · 원장 | 대기 |
+
+### 세대 전환 실측
+
+```
+g14_2026_09_08  active → frozen  (journal seq 13)
+g15_2026_09_08  새 active · docs/22p_gap/proj_g15
+
+pin        compute c02b963e5d65bb55 → 3b94bda70dc63869
+           row_projection c9bdaa2b33ad6ed4 → a425da3233253625
+           producer_semantic 1c768c143c35e43c → 6518c2fa47f1e8c4
+           src_scoring 69e69cb046f4b4ae (변동 없음)
+영수증      core c9b41978002d46fb… → d15881088e022ce6…
+validator  4fe8d27269ca9ca2 → d29650980daf6b9a
+행 바이트    ad598fe77e75afec — **열한 세대째 같다**
+```
+
+`evidence.cohorts` 갱신은 **g15 의 구성원에게만** 해야 한다 — 처음에 전체 다리에
+넣었다가 "cohort 선언이 양방향으로 맞지 않는다" 로 lint 가 잡았다.
+
+### 변이 축 두 건이 false-green 이었다
+
+- `grid-writes-under-the-handle-g60` — 겨누는 자리가 시험이 부르는 함수가 아니었다.
+- `bundle-members-share-the-root-mount-g60` — probe 가 저장소 뿌리를 **상수로 박아**
+  sandbox 안에서도 원본을 import 했고, 게다가 `unshare` 가 안 되는 환경에서는
+  통째로 **건너뛰어진다**. probe 가 지금 실행 중인 트리를 쓰게 고치고, 좌표 비교
+  자체를 겨누는 시험을 하나 더 뒀다. **건너뛴 시험은 방어를 지키지 않는다.**
