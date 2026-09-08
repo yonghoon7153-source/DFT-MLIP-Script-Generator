@@ -3025,6 +3025,12 @@ def _sweep_view(sw: dict) -> dict:
                 "power_exponent": pn, "power_R2": pr2,
                 "floor_share_at_base_T": a / float(bt[base]["median"]),
                 "_derived": "webapp 파생 (구판 JSON — 도구가 fit 을 지속하지 않던 판)",
+                # ⛔ 2026-09-07 회신 BG ⑤ — 화면이 만든 값인데 화면이 그 사실을
+                #   안 보여줬다. 몇 점으로 어떤 모형을 맞췄는지, 그리고 두 모형이
+                #   **구분되지 않는다**는 것까지 실어야 독자가 오독하지 않는다.
+                "_n_points": n,
+                "_temps_used": [float(t) for t in sorted(bt, key=float)][:n],
+                "_model_undecided": (abs(r2 - pr2) < 0.01),
             }
         except (KeyError, ValueError, ZeroDivisionError, ArithmeticError):
             pass

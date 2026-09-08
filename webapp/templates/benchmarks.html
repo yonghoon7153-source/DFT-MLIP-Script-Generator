@@ -328,8 +328,18 @@
     D = a + b·F 적합에서 온도무관 절편 <span class="mono">a = {{ '%+.4f'|format(S.force_model.linear_intercept_eV_per_A) }} eV/Å</span>
     ({{ S.base_T }} K 불일치의 <b>{{ (S.force_model.floor_share_at_base_T*100)|round|int }}%</b>)이라, 바닥이 있으면
     D/F 는 F 가 커질수록 자동으로 준다. 옳은 문장은 <b>“어느 온도에서도 외삽 신호가 없다”</b>.
-    그 바닥은 별개 발견 — 열운동이 0 이어도 남는 <b>평형 구조 PES 자체의 불일치</b>다.
     (멱함수 지수 n = {{ '%.3f'|format(S.force_model.power_exponent) }} &lt; 1 = 힘보다 느리게 증가)
+  </div>
+  {# ⛔ 회신 BG ⑤ — 이 적합은 **화면이 만든 값**이고, 두 모형이 사실상 구분되지 않는다.
+     종전 판은 양의 절편을 곧바로 "평형 구조 PES 자체의 불일치" 로 단정했다. #}
+  <div class="muted" style="margin-top:6px;font-size:.76rem">
+    ⚠ 이 적합은 <b>webapp 파생</b>이다{% if S.force_model._derived %} — {{ S.force_model._derived }}{% endif %}.
+    {% if S.force_model._n_points %}점 {{ S.force_model._n_points }}개{% endif %}로 두 모형을 함께 맞췄다:
+    선형 <span class="mono">R² = {{ '%.4f'|format(S.force_model.linear_R2) }}</span> ·
+    멱함수 <span class="mono">R² = {{ '%.4f'|format(S.force_model.power_R2) }}</span>.
+    {% if S.force_model._model_undecided %}두 값이 사실상 같아 <b>모형 선택은 미결정</b>이다 —
+    양의 절편을 곧바로 “평형 구조 PES 자체의 불일치”로 읽지 않는다. 절편은 <b>선형 모형을
+    가정했을 때의 값</b>이고, 멱함수를 택하면 그 항이 없다.{% endif %}
   </div>
   {% endif %}
   {% if S.honesty %}<ul class="muted" style="margin-top:8px;font-size:.78rem">
