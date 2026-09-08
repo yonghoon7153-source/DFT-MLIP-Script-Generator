@@ -3,7 +3,7 @@ title: "리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결
 date: 2026-09-08
 updated: 2026-09-08
 tags: [review, codex, prompt, webapp, governance, claim-binding]
-status: 작성 — 발송 대기
+status: 발송
 kind: review-prompt
 system: repo
 confidence: medium
@@ -17,7 +17,7 @@ evidenceScope: multi-source-primary
 # 리뷰 요청 BI
 
 > 앞 요청: `codex_BG_prompt_webapp_aw_release_2026_09_07.md` (AW 해제조건 6건 + 판정 셋)
-> 대상 브랜치: `claude/friendly-meitner-lldvar` · 대상 커밋 `12e6d0c9b`
+> 대상 브랜치: `claude/friendly-meitner-lldvar` · 대상 커밋 `c221ac933`
 > BG 회신은 **NO-GO** 였고, 그 중 외주(C-12)와 무관한 것을 전부 처리했습니다.
 > 이번에 여쭙는 것은 **새로 만든 어휘 하나**와 **남은 넷의 마감 조건**입니다.
 
@@ -30,11 +30,12 @@ evidenceScope: multi-source-primary
 
 | | BG 시점 | 지금 |
 |---|---|---|
-| 결속 대상 | 15 (수치만) | **43** (수치 + 비수치 금지주장) |
+| 결속 대상(주장 수) | 15 (수치만) | **43** (수치 + 비수치 금지주장) |
+| 결속된 자리(화면 등장 수) | — | **50** (동적 라우트·handoff 포함) |
 | 미결속 | 15 (8화면) | **0** (동적 라우트 포함) |
 | 래칫 `_LEGACY_UNBOUND` | 8항목 | **{} — 은퇴** (시험이 비어 있음을 강제) |
 | 검사 표면 | 인자 없는 GET | + **동적 라우트 fixture 전부** |
-| webapp 시험 | 171 | 173 |
+| webapp 시험 | 171 | 178 |
 
 **즉 Q2(래칫이 정당한가)는 저희 쪽에서 없앴습니다.** 래칫은 이주 장치였고 이주가
 끝났으므로 두면 다음 누출의 뚜껑이 됩니다. 다시 채우는 것을 시험으로 막았습니다.
@@ -154,8 +155,8 @@ BG ② 는 닫혔습니다. 남은 것: **hazard 전행·전필드 대조**, **P
 ## 4. 확인 방법 (재현)
 
 ```bash
-git checkout claude/friendly-meitner-lldvar && git log -1 --format=%H   # 12e6d0c9b…
-python3 -m pytest webapp/tests -q                                       # 173 passed
+git checkout claude/friendly-meitner-lldvar && git log -1 --format=%H   # c221ac933…
+python3 -m pytest webapp/tests -q                                       # 178 passed
 python3 tools/convention_check.py                                       # 0 위반
 python3 - <<'PY'
 import sys, re, json; sys.path.insert(0,"webapp")
@@ -196,3 +197,30 @@ PY
   정규식을 열면 원장이 코드가 됩니다.
 - Codex 는 이 변경을 아직 못 봤습니다 — v40 R4 의 구분(소스 수정 확인 ≠ 승인)이 여기도
   걸립니다. 저희가 "고쳤다" 고 닫으면 그 상황이 반복됩니다.
+
+---
+
+## 6. 이 요청을 쓴 뒤 같은 브랜치에 들어간 것 (발송 시점 정직 보고)
+
+BI 를 작성한 커밋(`12e6d0c9b`)과 발송 커밋(`c221ac933`) 사이에 webapp 이 더 바뀌었습니다.
+**결속 수치는 그대로입니다**(결속 50 · 미결속 0 · 부인 1 — 동적 라우트 포함 재확인).
+다만 리뷰어가 diff 에서 보게 될 것을 미리 적어 둡니다.
+
+- **`/governance` 에 결정 원장 표 신설.** `db/governance/decisions.json` 22건이 화면에
+  없었습니다(정확히는 네 칸짜리 표만 있었고 `kind`·`results_seen`·근거문서 경로가 전부
+  화면 밖). 그 과정에서 조용한 오류 둘을 같이 잡았습니다 — ⓐ `decision_state` 없이
+  `status` 만 든 기록이 상태 칸에 문자열 `None` 으로 찍히고 있었고, ⓑ 지문 칸이
+  **비준이 아예 없는** 결정에도 🔒 를 붙이고 있었습니다(없음/일치/불일치로 분리).
+- **`mdlite` 가 표를 그리게 했습니다.** 카드 본문이 `| a | b |` 를 쓰는데 필터가 표를
+  몰라 **화면에 파이프가 그대로 노출**되고 있었습니다. 카드 글을 고치는 대신 필터를
+  고쳤고, 그러자 오늘 카드만이 아니라 기존 카드 여럿이 같이 나았습니다.
+  ⚠ 이 변경이 **결속 스캐너와 같은 텍스트를 건드립니다** — 표 셀이 새 DOM 노드가 되므로
+  `data-claim` 조상 추적이 영향을 받을 수 있었는데, 재확인 결과 미결속 0 은 유지됐습니다.
+  그래도 이 상호작용은 저희가 **의도해서 설계한 것이 아니라 사후에 확인한 것**입니다.
+- **여백 메모(`/notes`)가 마크다운을 아예 안 걸치고 있었습니다** — `{{ c.text }}` 그대로였고
+  이제 `|mdlite` 를 탑니다. 즉 **메모 표면은 오늘까지 결속 대상 문자열을 원문 그대로
+  뱉고 있었을 수 있습니다.** 지금은 md 경로를 타므로 자동 결속이 걸립니다.
+
+⚠ 마지막 항목은 저희 §1 의 실측(*"검사 표면이 손 목록 7개였다"*)과 같은 유형입니다 —
+라우트 자동 열거로 표면은 넓혔지만, **한 표면 안에서 렌더 경로가 갈라지는 것**은
+여전히 사람이 알아채야 합니다. 이것을 기계로 잡을 방법이 있는지도 함께 봐 주십시오.
