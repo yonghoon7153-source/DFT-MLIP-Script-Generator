@@ -1100,6 +1100,108 @@ MUTANTS = [
      "            else exec_class_root_for_ledger(ledger))",
      "    return exec_class_root_for_ledger(ledger)",
      "smoke_records_do_not_land_in_the_shared_registry"),
+    # ── 59차 (게이트 58차 반증 조건) ──────────────────────────────────────
+    #
+    #   17건을 닫으면서 붙인 방어의 축이다. 각 항목의 뜻은 "이 층을 지우면
+    #   그 층을 증명하는 시험이 빨개진다" 이고, 그것이 성립하지 않으면 그
+    #   방어는 시험에 결속돼 있지 않은 것이다.
+
+    # α — 실행 class 를 권한으로
+    ("output-commit-requires-a-capability-g59", PRESERVE,             # M1
+     "    if not isinstance(capability, ExecutionClassCapability):",
+     "    if False:",
+     "committing_an_output_without_a_capability_is_refused"),
+    ("exec-class-record-is-read-back-g59", PRESERVE,                  # M3
+     "        got = _tmp.read_bytes()\n        if got != body:",
+     "        got = body\n        if got != body:",
+     "a_short_write_never_publishes_a_partial_record"),
+    ("exec-class-retry-reseals-durability-g59", PRESERVE,             # M13
+     "        return _seal_exec_class_record(root / name, cid, cls)",
+     "        return root / name",
+     "a_retry_after_a_failed_parent_fsync_redoes_the_durability_step"),
+
+    # γ — schema 를 하나로
+    ("run-content-id-refuses-unknown-manifests-g59", PRESERVE,        # M2
+     "    unknown = sorted(n for n in present\n"
+     "                     if _MANIFEST_NAME_RE.match(n)\n"
+     "                     and n not in RUN_MANIFEST_SCHEMA)",
+     "    unknown = []",
+     "an_undeclared_manifest_in_a_run_dir_is_refused"),
+    ("run-manifest-schema-is-production-wide-g59", PRESERVE,          # M2
+     'RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",\n'
+     '                       "curves_manifest_start.yaml", "manifest.yaml",\n'
+     '                       "manifest_grid.yaml", "manifest_start.yaml")',
+     'RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",\n'
+     '                       "manifest.yaml", "manifest_grid.yaml")',
+     "the_start_manifest_takes_part_in_the_content_identity"),
+    ("phase-order-is-enforced-g59", PRESERVE,                         # M7
+     "                if _open:",
+     "                if False:",
+     "a_later_phase_can_not_close_before_its_predecessor"),
+    ("finalize-requires-the-consumed-binding-g59", PRESERVE,          # M7
+     "            if _missing:",
+     "            if False:",
+     "finalize_refuses_a_later_phase_with_no_recorded_predecessor"),
+
+    # β — handle 을 끝까지
+    ("capability-carries-the-judged-handle-g59", PRESERVE,            # M5
+     "            _assert_still_the_judged_dir(capability, x)",
+     "            pass",
+     "the_capability_is_bound_to_the_directory_the_gate_judged"),
+    ("bundle-members-are-not-followed-g59", PRESERVE,                 # M8
+     "            st = os.stat(x, follow_symlinks=False)",
+     "            st = os.stat(x)",
+     "a_bundle_member_symlink_can_not_smuggle_bytes_from_outside"),
+    ("finalize-snapshots-the-evidence-g59", PRESERVE,                 # M9
+     "    evidence = json.loads(_canon_json(evidence))",
+     "    evidence = dict(evidence)",
+     "finalize_seals_the_evidence_it_verified"),
+    ("frozen-publication-needs-a-local-seal-g59", RP,                 # M6
+     "    _unsealed = unsealed_frozen_cohorts()",
+     "    _unsealed = []",
+     "publication_is_refused_while_a_frozen_cohort_has_no_local_seal"),
+
+    # ζ — 발급 표면
+    ("issuance-requires-a-durable-token-g59", PRESERVE,               # M10
+     "    if _ondisk is None or not secrets.compare_digest(str(_ondisk), "
+     "str(token)):",
+     "    if False:",
+     "issuing_with_a_token_that_is_not_on_disk_is_refused"),
+
+    # δ — producer identity 를 실행 의미로
+    ("capability-target-must-be-provable-g59", RP,                    # M11
+     "    return isinstance(cur, ast.Name) and cur.id not in targets",
+     "    return True",
+     "wrapping_the_capability_target_does_not_escape"),
+    ("module-assert-runs-at-import-g59", RP,                          # M12
+     '_MODULE_NONBINDING = ("Pass", "Global", "Nonlocal", "Break", "Continue",\n'
+     '                      "Return")',
+     '_MODULE_NONBINDING = ("Pass", "Raise", "Assert", "Global", "Nonlocal",\n'
+     '                      "Break", "Continue", "Return")',
+     "the_import_time_slice_contains_everything_that_runs"),
+    ("class-bases-are-substitution-g59", RP,                          # M12
+     '    out += [ast.copy_location(ast.Expr(value=b), b)\n'
+     '            for b in (getattr(node, "bases", ()) or ())]\n'
+     '    out += [ast.copy_location(ast.Expr(value=k.value), k.value)\n'
+     '            for k in (getattr(node, "keywords", ()) or ())]\n',
+     "",
+     "a_metaclass_body_change_moves_the_identity"),
+    ("future-flag-changes-the-model-g59", RP,                         # M12
+     '                if getattr(node, "module", None) == "__future__":',
+     "                if False:",
+     "the_future_annotations_flag_is_part_of_the_model"),
+
+    # ε — 증언의 범위
+    #   선언이 자기 자신의 preimage 로 세어지지 않게 철자를 escape 한다
+    #   (이 파일이 자기 변이 대상이다).
+    ("startup-binds-every-loaded-module-g59", MR,                     # M14
+     '            \u0022startup_module\u0073\u0022: loaded,\n', "",
+     "the_startup_probe_binds_what_sitecustomize_pulls_in"),
+    ("env-tag-covers-the-whole-receipt-g59", MR,                      # M15
+     "    body = j\u0073on.dumps(e, sort_keys=True, ensure_ascii=False)",
+     '    body = json.dumps(e.get("startup"), sort_keys=True, '
+     "ensure_ascii=False)",
+     "the_environment_tag_covers_the_whole_receipt"),
 ]
 
 #: 여러 지점을 **함께** 되돌려야 관측되는 변이 (심층 방어라 하나만 지우면
