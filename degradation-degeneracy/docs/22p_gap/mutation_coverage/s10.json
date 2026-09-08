@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-08T21:12:50Z",
+  "at": "2026-09-08T23:29:40Z",
   "binding": {
     "execution": {
       "env": {
@@ -262,13 +262,13 @@
       }
     },
     "execution_digest": "57eac73abbff21eeeed3a766f2224cd973b56aaa2937a91d20633a75fdddfad3",
-    "expect_digest": "4a172024a4d930ab450d410dc46455f7211e4608a23d06b7ebaac7e118141df1",
-    "head": "b0215bf35aad86b3cdba7fbc06ef348618e225be",
-    "registry_digest": "b0c0b76e7c8d6dd93fbcb3f2f94616c95585d450254430730b625f24a229e8dc",
+    "expect_digest": "f760f9f214ad71450fc8f5693a46036f635232bc11e604149b34c17001363b77",
+    "head": "62f4db0edd1745746450c310971cb95b6f690bce",
+    "registry_digest": "eb68d86bedb2a85a009c4eb29183ad51ba20463c6ab41897171643d8686d205d",
     "reports_dir": "s10",
-    "runner_digest": "39681eb4e76f2fcc6a34f8bfde6498a4c8515ef05d5121142f88cb55b2680b39",
-    "transcript_digest": "351b0e7d9bbff90e6ed063b25e703d8af1e8369ec0bc3ebb549172020dea580b",
-    "tree_digest": "8e062f352408b4fcec93ed5ea911659066fc9df8c5d3458d36ea25d98c765452"
+    "runner_digest": "a4036ee675a847940a8bdc9979c683c5a3f6b1b20e8ba73a5b18c0bfa65cdda7",
+    "transcript_digest": "aeaaede41aef848e488d8113f89b36b63ccc5fc3b31a1c868e738fe6e90af7ab",
+    "tree_digest": "aa1dd2426b3c7b7d32b5b67f2627ec3f1549e81ff908005538841579da62e900"
   },
   "scenarios": {
     "authority-frozen": {
@@ -276,7 +276,7 @@
       "class": "executable",
       "kexpr": "frozen_authority_cannot_be_edited",
       "ran": true,
-      "report_sha256": "cef1d42da0ec8de4dab86220b136fbf22aa110cc7fdc6d08ca80fdf2a1cdd58d",
+      "report_sha256": "767aad8e38bf3a4aab80fe146cecbb1f33c18c7f3607c36f820ee9e5adef2f23",
       "sites": 1
     },
     "capability-target-must-be-provable-g59": {
@@ -284,7 +284,7 @@
       "class": "executable",
       "kexpr": "wrapping_the_capability_target_does_not_escape",
       "ran": true,
-      "report_sha256": "bdd46b4d5f227a236e6ad1a47aec683af639498770e40b496121211d6e7f3141",
+      "report_sha256": "d23713779933f8e81eb9b79d993bc0492c399cfe4ee29723a185149d101286bb",
       "sites": 1
     },
     "closure-refuses-dynamic-resolution": {
@@ -292,126 +292,127 @@
       "class": "executable",
       "kexpr": "dynamic_name_resolution_inside_the_closure_is_fail_closed",
       "ran": true,
-      "report_sha256": "2f315d436ce72493917dc0ce23a16ac311fb2b9a1e5236601c951dc016ce5d5b",
+      "report_sha256": "b7f98266b1100eefbd4986e98b93993cb8bbbfc6f1cb01620ac6a229bdd155af",
       "sites": 1
     },
-    "decorators-are-import-time-effects-g58": {
+    "crossed-module-effects-are-seeded": {
       "bit": true,
       "class": "executable",
-      "kexpr": "a_name_only_decorator_changes_the_identity_when_its_body_changes",
+      "kexpr": "module_effects_are_seeded_in_every_crossed_module",
       "ran": true,
-      "report_sha256": "be3c65af728641cb21ec93e5f75e8437de0e1e5ff567acaaf54e1f6e85a06d8f",
+      "report_sha256": "0c4c7881c9ae1ba24b172a05deb7e70b10cda3b38aa8d18513865eb89bbe1099",
       "sites": 1
     },
-    "execution-receipt-binds-the-startup-g58": {
+    "execution-class-record-is-exclusive-g58": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_execution_receipt_binds",
+      "kexpr": "only_one_writer_can_create_an_execution_class",
       "ran": true,
-      "report_sha256": "6f1f0ab734a7f7230098ec61748f6f5de5724a0baf50b824ad38cc1d25cfff64",
-      "sites": 1
-    },
-    "fit-axis-seals-the-smoothing-backend": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "effective_smoothing_backend_is_inside_the_approval",
-      "ran": true,
-      "report_sha256": "7680f8a38f6014fe2102f2051f7cac3766c83481e1f5720d14388b8248eccdc7",
-      "sites": 1
-    },
-    "freeze-seals-the-output-directory": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "frozen_directory_cannot_be_republished_under_a_new_cohort_id",
-      "ran": true,
-      "report_sha256": "7ed4fd035732c71f3f75add03dbfd146be614542219052df9ead93e8f15b3525",
-      "sites": 3
-    },
-    "idempotent-shares-the-validator": {
-      "bit": null,
-      "class": "declared",
-      "kexpr": null,
-      "ran": false,
-      "sites": 1
-    },
-    "ledger-status-enum": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "status_is_an_exact_enum",
-      "ran": true,
-      "report_sha256": "f697807c84f369f06c161f9b8a3b5589cd0f816b3b0235377d7847d86b81de17",
-      "sites": 1
-    },
-    "module-defs-see-tuple-targets": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "producer_closure_sees_tuple_targets or producer_closure_follows_a_tuple_defined_constant",
-      "ran": true,
-      "report_sha256": "7d8e5d1e489eb87edc68da31a9397ed5ce7fe017b9ee3bceebab4f0ea5d5e246",
-      "sites": 1
-    },
-    "output-commit-requires-a-capability-g59": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "committing_an_output_without_a_capability_is_refused",
-      "ran": true,
-      "report_sha256": "151e3247af52eb37991cb27baaaadfdd9ea9806c9659f5787a03beb8fded2015",
-      "sites": 1
-    },
-    "pin-is-publication-authority": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "producer_pin_is_part",
-      "ran": true,
-      "report_sha256": "cba0bf297703c7f0f9dc80097965736f1a06e2ed382739f54d01916271aa3eed",
-      "sites": 1
-    },
-    "prelock-digest-check": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "wrong_bytes_are_never_locked",
-      "ran": true,
-      "report_sha256": "1e059afcd0b346dc333568b20fc09bc62282fee3270ca8859faab507e78c57a9",
-      "sites": 1
-    },
-    "producer-normalizes-the-node": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "producer_digest_sees_decorators",
-      "ran": true,
-      "report_sha256": "03f3ed45d7f13445b0d4906e16142c6b16315ce067c5e70199e5447981e36d95",
-      "sites": 3
-    },
-    "release-moves-the-ledger-before-the-claim": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "crash_inside_release_leaves_a_recoverable_state",
-      "ran": true,
-      "report_sha256": "946e7ff8639f3ab0879af735365d5c0d71b14f5a441adf8e7d6af95f2a21f057",
-      "sites": 1
-    },
-    "seal-exact-types": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "an_omap_and_a_list_of_lists_do_not_share_a_seal",
-      "ran": true,
-      "report_sha256": "29d37a0344902cbfd940206ecd429a05c621db9693d86954ce71c98474cdc129",
-      "sites": 1
-    },
-    "thaw-is-refused-before-the-first-write": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "publisher_refuses_a_thawed_cohort_before_the_first_write",
-      "ran": true,
-      "report_sha256": "d4787beb97966d9100ed6cff73fb564da1d3ab18281b5ba9f4f896db0792af8d",
+      "report_sha256": "3427c0f6657c24415e5967b3d687fda8e868e447ce0a91b96f89bc12ca85ac81",
       "sites": 2
     },
-    "warm-consumer-uses-accessor": {
+    "fit-axis-seals-the-objective-payload": {
       "bit": true,
       "class": "executable",
-      "kexpr": "warm_consumers_go_through_the_accessors",
+      "kexpr": "objective_payload_is_inside_the_approval_digest",
       "ran": true,
-      "report_sha256": "d10c6461024af3ca3ca23ffc28da506471d18f8d7b4afa4216a9f99c0fa8ab1b",
+      "report_sha256": "b306e0e419a549a3ccab0eb11a124802ad47c2f23cf83a54033508aad9cca394",
+      "sites": 1
+    },
+    "freeze-rereads-the-ledger-before-writing": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "freeze_does_not_erase_a_record_written_while_it_ran",
+      "ran": true,
+      "report_sha256": "6699e867062dcdf41b7995ac9c10ae026edaaa1dc8f70dac695a26536c8e052b",
+      "sites": 1
+    },
+    "guard-before-commit": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "pathname_after_the_check or same_roster_ledger_change",
+      "ran": true,
+      "report_sha256": "cc540209914627807f53af8e9baad5466775ad4dde7b78173a25e0c5f12af95b",
+      "sites": 1
+    },
+    "ledger-seal-record": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "same_roster_ledger_change",
+      "ran": true,
+      "report_sha256": "97b153aa039eaa1d7169bdf951726e8a567bdf6f8ed26f7af7f37ac6e24fa12a",
+      "sites": 2
+    },
+    "module-defs-enter-compound-statements": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "producer_closure_sees_every_module_binding_form",
+      "ran": true,
+      "report_sha256": "b88162810474dfc4a47eaba5073101a8ce408f0410f97fa790e02a3ddefe73b5",
+      "sites": 1
+    },
+    "namespace-check-rejects-symlinks": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "symlinked_path_is_not_inside_the_smoke_namespace or namespace_check_is_fail_closed_on_a_symlinked_component",
+      "ran": true,
+      "report_sha256": "c3dae8b2eae663892c6d0e684165da51fdbef546eb7ae9c9012e159fd2cfc7ba",
+      "sites": 1
+    },
+    "phase-write-checks-the-credential": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "forged_claim_object_cannot_write_a_phase",
+      "ran": true,
+      "report_sha256": "da15ebfce360cad87de00c7f186d8b9c1ebde7af63ca5f443b9e344e9f411234",
+      "sites": 1
+    },
+    "pre-write-authority": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "frozen_cohort_publish_writes_nothing_before_it_refuses",
+      "ran": true,
+      "report_sha256": "f687b6e371d27602f7d1eef5ad31fd844cc3183d14c2bf5c0c391c8add78d16d",
+      "sites": 1
+    },
+    "producer-dunder-is-an-allowlist": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "producer_cannot_reach_its_own_bytes_through_the_module_loader",
+      "ran": true,
+      "report_sha256": "d96d6fd5e7acb7365003e55f5d339b82e0c5113344b7900dbe560b02dd87894f",
+      "sites": 1
+    },
+    "recheck-before-rename": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "rechecked_immediately_before_the_rename",
+      "ran": true,
+      "report_sha256": "25877562b256dce0c441c57976bbc83b93e2076f62f1c1b86e255142787076ec",
+      "sites": 1
+    },
+    "run-identity-is-sealed-at-commit-g60": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "a_later_sanctioned_manifest_does_not_erase_the_registered_class",
+      "ran": true,
+      "report_sha256": "2beb256d5303c6545b97dd9b4362e6079efbe227cbc5e014a5515ed0ec53d1f4",
+      "sites": 1
+    },
+    "staging-nlink-one": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "staging_aliases_never_become_an_immutable_generation",
+      "ran": true,
+      "report_sha256": "bd28e73acc0986aa31f229a2a217e083d40305a3e64077d9ecee1118b951c629",
+      "sites": 1
+    },
+    "token-unlink-is-generation-scoped": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "late_release_cleanup_cannot_delete_the_next_attempts_token",
+      "ran": true,
+      "report_sha256": "0156a6a268092e17ac77119116ff6e2b128b27570869018804ec8d7dfdfe0f8a",
       "sites": 1
     }
   },

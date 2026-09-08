@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-08T21:20:10Z",
+  "at": "2026-09-08T23:36:59Z",
   "binding": {
     "execution": {
       "env": {
@@ -262,13 +262,13 @@
       }
     },
     "execution_digest": "57eac73abbff21eeeed3a766f2224cd973b56aaa2937a91d20633a75fdddfad3",
-    "expect_digest": "4a172024a4d930ab450d410dc46455f7211e4608a23d06b7ebaac7e118141df1",
-    "head": "b0215bf35aad86b3cdba7fbc06ef348618e225be",
-    "registry_digest": "b0c0b76e7c8d6dd93fbcb3f2f94616c95585d450254430730b625f24a229e8dc",
+    "expect_digest": "f760f9f214ad71450fc8f5693a46036f635232bc11e604149b34c17001363b77",
+    "head": "62f4db0edd1745746450c310971cb95b6f690bce",
+    "registry_digest": "eb68d86bedb2a85a009c4eb29183ad51ba20463c6ab41897171643d8686d205d",
     "reports_dir": "s12",
-    "runner_digest": "39681eb4e76f2fcc6a34f8bfde6498a4c8515ef05d5121142f88cb55b2680b39",
-    "transcript_digest": "336b96585deb82c42880b17684315deb5f9ec6d3ac310e2ef9d31af73d28d02b",
-    "tree_digest": "8e062f352408b4fcec93ed5ea911659066fc9df8c5d3458d36ea25d98c765452"
+    "runner_digest": "a4036ee675a847940a8bdc9979c683c5a3f6b1b20e8ba73a5b18c0bfa65cdda7",
+    "transcript_digest": "e067003678d5dbdecfa91a2c17ff77e0930974e8ab6cdf0f667ebd52d314797e",
+    "tree_digest": "aa1dd2426b3c7b7d32b5b67f2627ec3f1549e81ff908005538841579da62e900"
   },
   "scenarios": {
     "authority-registry": {
@@ -276,7 +276,7 @@
       "class": "executable",
       "kexpr": "raw_publisher_takes_no",
       "ran": true,
-      "report_sha256": "0a51cd824cf9dd649a953df4b8e903dd224fe8065ee54f8b78c4eba52c745262",
+      "report_sha256": "d56db7629664bd154dd3ac173d6f8652f8a9889bd2c3422ef709c5fa0bf87fee",
       "sites": 1
     },
     "claim-bytes-are-verified-on-disk": {
@@ -284,7 +284,7 @@
       "class": "executable",
       "kexpr": "lying_write_is_caught_by_reading_the_bytes_back",
       "ran": true,
-      "report_sha256": "46da5ac7768c2bcc9962c83608646396864d243184577f9236b58e6efaf720f6",
+      "report_sha256": "d8e53a76afa2ce711610cc0f34f31426bbae1da410d205d7473fd71fbebd69fb",
       "sites": 1
     },
     "closure-unresolved-attr-is-fail-closed": {
@@ -292,127 +292,127 @@
       "class": "executable",
       "kexpr": "unresolved_producer_module_reference_is_fail_closed",
       "ran": true,
-      "report_sha256": "ddf41cb72b4034959a850ec28cbb327a5e2b5ccf6eb7532131d96d74f723f041",
+      "report_sha256": "35873488d3d45b04d0c5f3e8ef685fbd769754f4201c0375b7f3e2d4a86709f0",
       "sites": 1
     },
-    "diagnostic-hides-the-credential": {
+    "destination-is-compared-in-filesystem-coordinates": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_diagnostic_reader_never_hands_out_the_credential",
+      "kexpr": "bind_mounted_alias_of_a_frozen_child_is_not_writable",
       "ran": true,
-      "report_sha256": "2283fa25e0c43146948301732f2d898967d5095f8b8180a6a81a6f4b2463a724",
+      "report_sha256": "190ad74e7c5a81993bb71c690bfb014c861043e8d34617663f87c565c515c684",
+      "sites": 3
+    },
+    "external-binding-covers-the-package": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "external_input_binding_covers_the_whole_package",
+      "ran": true,
+      "report_sha256": "ad28e5148f50d91ccf63b6c86370904889c24eb2f092ab80e6fa47e671d42132",
       "sites": 1
     },
-    "finalize-holds-the-claim-lock": {
+    "fit-stages-its-inputs-before-the-gate": {
       "bit": true,
       "class": "executable",
-      "kexpr": "canonical_lock_order_is_declared_and_finalize_holds_the_claim or finalize_recovery_branch_holds_the_claim_lock",
+      "kexpr": "run_fit_hands_the_body_the_staged_copies_not_the_originals",
       "ran": true,
-      "report_sha256": "8d5a0cc88a6b1e3bbe2f9f5583771f2a5ac83e2eaf22987923830317e3b75033",
+      "report_sha256": "632add66b3393a26b0b0491d2db82083060b5d3993b82ea7fbce4a26e458d28f",
       "sites": 1
     },
-    "flock-two-publisher": {
+    "frozen-destination-is-monotonic": {
       "bit": true,
       "class": "executable",
-      "kexpr": "two_independent_publishers",
+      "kexpr": "later_active_record_cannot_thaw_a_frozen_destination",
       "ran": true,
-      "report_sha256": "4703ab532fc9779461a2efd11484bbdc6dcef9b65b864c3e4427bdd51cdbd6d3",
+      "report_sha256": "03eebf80ed0a61ac5512cf2674db1e78dbae65c3c97a6cfd5affd3bd4c74b2a8",
       "sites": 2
     },
-    "frozen-publication-needs-a-local-seal-g59": {
+    "importable-roots-are-measured-g60": {
       "bit": true,
       "class": "executable",
-      "kexpr": "publication_is_refused_while_a_frozen_cohort_has_no_local_seal",
+      "kexpr": "a_module_imported_after_startup_is_inside_the_receipt",
       "ran": true,
-      "report_sha256": "5a8020dae964329177e9bad63a47dd56977c07e544d04d9fdb6a17421268e4b9",
+      "report_sha256": "a54fa245a52a87b21c4644601eb55bd35bb4abfdac704043c56a6ce4f0dae84a",
       "sites": 1
     },
-    "inner-unbound-sentinel": {
+    "ledger-status-enum": {
       "bit": true,
       "class": "executable",
-      "kexpr": "blank_its_sentinel_check",
+      "kexpr": "status_is_an_exact_enum",
       "ran": true,
-      "report_sha256": "9949d5da536501c7e84c60195bf1182d948e908dedb81e29f13379bc7326b5de",
+      "report_sha256": "380a2349285db1fd25e0b647ce9deebc513d1bf2309114811c67909e3e4ce245",
       "sites": 1
     },
-    "lifecycle-completes-a-partial-append": {
+    "module-defs-see-tuple-targets": {
       "bit": true,
       "class": "executable",
-      "kexpr": "freeze_crash_between_journal_and_anchor_is_recoverable",
+      "kexpr": "producer_closure_sees_tuple_targets or producer_closure_follows_a_tuple_defined_constant",
       "ran": true,
-      "report_sha256": "551630e4ac4d3a7296a3f90f1f9590a558fe87ff3f4718678d958351175f8087",
+      "report_sha256": "daf130686b37d802219c6ed937ac5a065f575e66844290822f5518499cbaa82a",
       "sites": 1
     },
-    "module-defs-track-mutating-bindings": {
+    "output-commit-requires-a-capability-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "producer_closure_tracks_mutating_and_import_bindings",
+      "kexpr": "committing_an_output_without_a_capability_is_refused",
       "ran": true,
-      "report_sha256": "c8c1bcb84add2f63fcda6974f400f6a5603ba62329dc9148ed3e9ed535cc9971",
+      "report_sha256": "fe2cb444a98f5f3a5f62880a4dec991fea69e53965e387655fa9addb2a79c611",
       "sites": 1
     },
-    "pending-base-generation": {
+    "pin-is-publication-authority": {
       "bit": true,
       "class": "executable",
-      "kexpr": "stale_bootstrap_pending",
+      "kexpr": "producer_pin_is_part",
       "ran": true,
-      "report_sha256": "a8ab416db3f8939a2d5c479e96f70a357581b161820317184bbc801c25043785",
+      "report_sha256": "be6c73ccca9d884069b4f561bab53bd5ebe42f4497688e481cefba8d369710fa",
       "sites": 1
     },
-    "plan-parser-dir-hygiene": {
+    "prelock-digest-check": {
       "bit": true,
       "class": "executable",
-      "kexpr": "plan_parser_requires_a_canonical_relative_dir or plan_parser_refuses_a_cohort_dir_outside_the_repository",
+      "kexpr": "wrong_bytes_are_never_locked",
       "ran": true,
-      "report_sha256": "69a0bc66d9a1e5046f4d3f299e632a461947edc8b5c10ad35de6f24a53057f9a",
+      "report_sha256": "225d9ec80856f7760469e8afd29e4dc819555446cdd9abf73821a6e93605f355",
       "sites": 1
     },
-    "prelock-version-id-is-a-string": {
+    "producer-normalizes-the-node": {
       "bit": true,
       "class": "executable",
-      "kexpr": "falsy_version_id",
+      "kexpr": "producer_digest_sees_decorators",
       "ran": true,
-      "report_sha256": "49c17fe757e8a0f4a6737f66f84cf59109c057f907d03b23f98505c3eecd6c99",
+      "report_sha256": "066e3f3cc39e2cd6b6a1f07e3e8c488aadaf16029c3e84b5c6dd9a3978b2c0df",
+      "sites": 3
+    },
+    "release-moves-the-ledger-before-the-claim": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "crash_inside_release_leaves_a_recoverable_state",
+      "ran": true,
+      "report_sha256": "d19c258b6ef01dead30d2577a5061acad1793b8f8614d7f020a7480c8172ba39",
       "sites": 1
     },
-    "proof-handoff-to-verify": {
+    "seal-exact-types": {
       "bit": true,
       "class": "executable",
-      "kexpr": "repaired_proof_is_handed or pre_journal_finalize or journal_seals_the_content",
+      "kexpr": "an_omap_and_a_list_of_lists_do_not_share_a_seal",
       "ran": true,
-      "report_sha256": "7fd4755eb5c5235b911b7fa6f745d9d794c358bb2d0e4e7ebea728ab74afd126",
+      "report_sha256": "3250a97b229b0ddba00b2bbcb30ad2f0908433e9e5206bdc0333310ab1b98138",
       "sites": 1
     },
-    "repair-source-uses-the-snapshot": {
+    "startup-binds-every-loaded-module-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "repair_lookups_go_through_the_validated_version_snapshot or no_version_enumeration_bypasses_the_helper",
+      "kexpr": "the_startup_probe_binds_what_sitecustomize_pulls_in or a_module_with_no_findable_spec_is_still_bound",
       "ran": true,
-      "report_sha256": "88134228ddbb947d7d505696c3229164f9ab493ea37891b711cba86b6a8187b3",
+      "report_sha256": "15d54a03cc7d3d2501774eaa47d4c40a472b519048a469fc92948ef63ccb9940",
       "sites": 1
     },
-    "seal-typed-input": {
+    "trust-boundary-declared": {
       "bit": true,
       "class": "executable",
-      "kexpr": "types_differ_is_not_folded",
+      "kexpr": "publisher_declares_its_trust_boundary",
       "ran": true,
-      "report_sha256": "035b4df342b75a06be766709581d70633a20726ab4dae4bcec0796ed82740e8e",
-      "sites": 1
-    },
-    "the-gate-creates-the-judged-place-g60": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "the_gate_creates_the_place_and_always_carries_a_handle",
-      "ran": true,
-      "report_sha256": "bd1ab6e227ebd2702c30e31f0adfaccc8113fdde349286343e24c9162ba838d7",
-      "sites": 1
-    },
-    "warm-edges-are-declared": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "warm_consumers_go_through_the_accessors",
-      "ran": true,
-      "report_sha256": "cd0aaed1ef8481dd27089fdc08d1aac7369f94c0924977876e641dfea71239b3",
+      "report_sha256": "073c5987466ee412e5ad4bcde060a87b3bae454fd9af488df9886bcc5879a924",
       "sites": 1
     }
   },

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-08T21:01:22Z",
+  "at": "2026-09-08T23:18:21Z",
   "binding": {
     "execution": {
       "env": {
@@ -262,13 +262,13 @@
       }
     },
     "execution_digest": "57eac73abbff21eeeed3a766f2224cd973b56aaa2937a91d20633a75fdddfad3",
-    "expect_digest": "4a172024a4d930ab450d410dc46455f7211e4608a23d06b7ebaac7e118141df1",
-    "head": "b0215bf35aad86b3cdba7fbc06ef348618e225be",
-    "registry_digest": "b0c0b76e7c8d6dd93fbcb3f2f94616c95585d450254430730b625f24a229e8dc",
+    "expect_digest": "f760f9f214ad71450fc8f5693a46036f635232bc11e604149b34c17001363b77",
+    "head": "62f4db0edd1745746450c310971cb95b6f690bce",
+    "registry_digest": "eb68d86bedb2a85a009c4eb29183ad51ba20463c6ab41897171643d8686d205d",
     "reports_dir": "s7",
-    "runner_digest": "39681eb4e76f2fcc6a34f8bfde6498a4c8515ef05d5121142f88cb55b2680b39",
-    "transcript_digest": "c908d58a733389c65f509f1aeddb73ac5ffa84324364bac459837458d17906c0",
-    "tree_digest": "8e062f352408b4fcec93ed5ea911659066fc9df8c5d3458d36ea25d98c765452"
+    "runner_digest": "a4036ee675a847940a8bdc9979c683c5a3f6b1b20e8ba73a5b18c0bfa65cdda7",
+    "transcript_digest": "a521184c9bda7f5d8ce9720a300ff61a2bd9cb73328207fb81b9da5450d170a1",
+    "tree_digest": "aa1dd2426b3c7b7d32b5b67f2627ec3f1549e81ff908005538841579da62e900"
   },
   "scenarios": {
     "append-finishes-the-pending-anchor-first": {
@@ -276,7 +276,7 @@
       "class": "executable",
       "kexpr": "two_consecutive_partial_appends_are_still_recoverable",
       "ran": true,
-      "report_sha256": "92a135312c6cee8ea3f518ac354de92b38939d949b3b407ceee26fdd7a7ed981",
+      "report_sha256": "b0b382ca0ec342e4dbd64ce34a72e6a92964cd5244a5462472a5494c2061e820",
       "sites": 1
     },
     "canon-keeps-docstrings": {
@@ -284,7 +284,7 @@
       "class": "executable",
       "kexpr": "docstring_the_computation_reads_is_inside_the_identity",
       "ran": true,
-      "report_sha256": "e8e5c57f8bae5da1c0bf153a7c3c1fc573bc2585c1efb42f9b38b1434817ee56",
+      "report_sha256": "a46e0fc16bb18c3fb1641dc9719e64dada7f5bd8a48c1c78007af1e87041526c",
       "sites": 1
     },
     "class-bases-are-substitution-g59": {
@@ -292,128 +292,136 @@
       "class": "executable",
       "kexpr": "a_metaclass_body_change_moves_the_identity",
       "ran": true,
-      "report_sha256": "cf360c28d6dc9013bc0f3acbe16b22660b2b2deebfc6a7ef7a0347cd6748f305",
+      "report_sha256": "8a0179f7f3fffd6fbf2a7518b57433576cdc2114dfdfd655070d25064c381193",
       "sites": 1
     },
-    "crash-recovery-is-idempotent": {
+    "coverage-is-bound-to-the-tested-tree": {
       "bit": true,
       "class": "executable",
-      "kexpr": "finalize_is_idempotent_after_a_crash_before_cleanup",
+      "kexpr": "coverage_is_bound_to_the_tree_it_actually_tested",
       "ran": true,
-      "report_sha256": "c08c03bd8447b83efbf861090b6a61407c48ae37987da30a1141fd2092649b90",
+      "report_sha256": "bc52f6b0cfda26a95bc1aa8e96d76d3ca7a6a20e8b444616fdd3261bdd711c19",
       "sites": 1
     },
-    "exec-class-record-is-read-back-g59": {
+    "evidence-paths-are-repo-relative": {
       "bit": true,
       "class": "executable",
-      "kexpr": "a_short_write_never_publishes_a_partial_record",
+      "kexpr": "evidence_tree_digest_does_not_depend_on_the_checkout_path",
       "ran": true,
-      "report_sha256": "80056c7cb21af1d4f2b22f99ab52ba654cf6b79d41c766d73c73795e97e1f6a9",
+      "report_sha256": "ef304d573316e4f0a7bdbd9ac9151b5087eecec2e618078c9e468a172d53bcfb",
       "sites": 1
     },
-    "fit-axis-seals-the-config-closure": {
+    "fit-axis-is-the-real-policy": {
       "bit": true,
       "class": "executable",
-      "kexpr": "base_config_parent_is_inside_the_approval_digest",
+      "kexpr": "fit_axis_seals_every_intent_that_changes_the_answer",
       "ran": true,
-      "report_sha256": "3c680a41c9de301b5b7537311614c7be248a97edfccc953b90a85a0c6c8dc959",
+      "report_sha256": "a4ce99136816e7c58e5dab27a665ffd04a8d0ad0f72368c6a0e8e68d55f37170",
       "sites": 1
     },
-    "freeze-linearizes-its-start": {
+    "freeze-ledger-write-is-atomic": {
       "bit": true,
       "class": "executable",
-      "kexpr": "issuer_refuses_while_a_freeze_is_half_committed",
+      "kexpr": "partial_write_during_freeze_leaves_the_ledger_readable",
       "ran": true,
-      "report_sha256": "7e8cf67c9a06693493db5727bfaab253e28af7fc71cd638b5332fa2e84da8d39",
+      "report_sha256": "e641f1a3b9f4dbd6a8cc240de97ed63f234759f3514a7538af2d45ca0aac1158",
       "sites": 1
     },
-    "grid-axis-seals-the-discharged-cache": {
+    "generation-root-nofollow": {
       "bit": true,
       "class": "executable",
-      "kexpr": "grid_axis_binds_the_discharged_state_cache",
+      "kexpr": "generation_root_symlink_is_never_read_as_a_generation or symlinked_gen_ancestor_never_holds_a_generation",
       "ran": true,
-      "report_sha256": "7af4bf628a411763e18ab520bfcee47e10e910c6054db21ccd60f84e98174dff",
+      "report_sha256": "ce62b71df5e7f3f7ba59415de7d3b8cb1f4c6a59af693bd417ad21e9fee00063",
       "sites": 1
     },
-    "ledger-is-resolved-once": {
+    "ledger-dir-contained": {
       "bit": true,
       "class": "executable",
-      "kexpr": "same_ledger_argument_always_names_the_same_claims_root",
+      "kexpr": "dir_that_is_not_contained",
       "ran": true,
-      "report_sha256": "da897369b1348a065bda61de7c089996189856402c2466a65cfd559ad1050cf6",
+      "report_sha256": "b95007d1b55c90ee20a6935d6c4b4a74835c6476d03ffdfd53df26565c75325a",
       "sites": 1
     },
-    "module-assert-runs-at-import-g59": {
+    "lifecycle-transitions-are-checked-when-read": {
       "bit": true,
       "class": "executable",
-      "kexpr": "the_import_time_slice_contains_everything_that_runs",
+      "kexpr": "lifecycle_reader_never_anchors_a_transition_it_did_not_make",
       "ran": true,
-      "report_sha256": "d59ad63429cf54390a4642d07b1fee1d4d2db87834ceb2df06e38131f00ccf4a",
+      "report_sha256": "a643ec8172254e351b2e153bf2ff0df90fbc3eb1f4cd54fb9a3370918964ebe9",
+      "sites": 1
+    },
+    "mount-identity-comes-from-the-kernel": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "a_stacked_mount_is_identified_by_the_kernel_not_by_row_order",
+      "ran": true,
+      "report_sha256": "019bee98158a35af5927c4af61a8f478f05241a58982b5cdb59937d4b3b9d8e1",
       "sites": 2
     },
-    "mountinfo-octal-escape-is-decoded": {
+    "phase-order-is-enforced-g59": {
       "bit": true,
       "class": "executable",
-      "kexpr": "frozen_alias_whose_path_has_a_space_is_not_writable",
+      "kexpr": "a_later_phase_can_not_close_before_its_predecessor",
       "ran": true,
-      "report_sha256": "b3ce39867c5442b1adfcdaf36a07983c4fa18da21c0afc274f42f3669c4d8059",
+      "report_sha256": "a804f09d323ecb64212d1d37aec3fa1793fe4247ec58a0633ce16b1f39fe5b7f",
+      "sites": 1
+    },
+    "pointer-binds-the-ledger": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "expanding_a_roster_over_an_active_cohort_requires_a_new_cohort",
+      "ran": true,
+      "report_sha256": "2d4b9d61fdb8cdd46b1e9e2f10392ce2417ebe3e0d71e12b3d041e3f9acbf49c",
+      "sites": 1
+    },
+    "producer-crossing-is-fail-closed": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "breaking_the_crossing_into_src_scoring_is_fail_closed",
+      "ran": true,
+      "report_sha256": "8fbbfb42682680001d6af4156012c6e3519140516384c31bdfdd852e484870c0",
+      "sites": 1
+    },
+    "receipt-carries-the-mutant-marker": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "genuine_report_from_another_mutant_is_refused",
+      "ran": true,
+      "report_sha256": "9da347723f2cc8e3dc7cb9c5b493bab8b8cc49d9d0ffcf0d42dcf2397cfe51f2",
+      "sites": 1
+    },
+    "roster-is-a-set": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "ledger_roster_is_a_set_not_a_multiset",
+      "ran": true,
+      "report_sha256": "cf831b3539d9d2077aff2b9fcbf5bea894a9769ff7bb0a2171af5428d5b74d8b",
+      "sites": 1
+    },
+    "smoke-gate-issues-the-execution-capability-g59": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "production_smoke_gate_records_the_execution_class",
+      "ran": true,
+      "report_sha256": "0243ae05fdd6f1e110b3e64c8c526aa88ad2d09f0618667a9d6c9319b8308ea2",
+      "sites": 1
+    },
+    "token-is-written-before-the-claim": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "crash_between_the_claim_and_the_token_leaves_nothing_stranded",
+      "ran": true,
+      "report_sha256": "75278cdf1be8ebfbd8b39d09ef320e4adcd9e27490615ba6b876a1addc6a1fde",
+      "sites": 1
+    },
+    "wrapped-dunder-names-are-refused": {
+      "bit": true,
+      "class": "executable",
+      "kexpr": "dunder_named_indirectly_is_still_refused",
+      "ran": true,
+      "report_sha256": "89e346576d3a980f13ba08b5a33bcb7a1fd63c2cd57777c3a6708769fb078930",
       "sites": 2
-    },
-    "phase-receipt-is-write-once-g58": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "a_closed_phase_cannot_be_rewritten_with_a_different_receipt",
-      "ran": true,
-      "report_sha256": "5c99e8ac858d4db4bae07d2ba3c2189ceb3132d717792e68b90813a70914bd37",
-      "sites": 1
-    },
-    "policy-binds-the-roster": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "single_leg_policy_must_match_the_roster_cardinality",
-      "ran": true,
-      "report_sha256": "6894df5a81f01ed753070df8d62cded05d80d967afc19ed4b58c818f1922bae8",
-      "sites": 1
-    },
-    "producer-cut-is-sealed": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "widening_the_producer_cut_moves_the_digest",
-      "ran": true,
-      "report_sha256": "0d99f6754041796f8cdbcff76fdae302ef9d2d478218e80b983cee737472b5e1",
-      "sites": 1
-    },
-    "receipt-verdict-is-fail-closed": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "unreadable_receipt_is_not_a_pass",
-      "ran": true,
-      "report_sha256": "355b52c32bf20f89c2d00f52e5640b466f72038fe83db8ac5afc75a574b7f7ce",
-      "sites": 2
-    },
-    "run-content-id-refuses-unknown-manifests-g59": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "an_undeclared_manifest_in_a_run_dir_is_refused",
-      "ran": true,
-      "report_sha256": "d151aebd313bcc47814b570c79c24ed0fea09c21bb4a344ecf446538400e4a6c",
-      "sites": 1
-    },
-    "staging-nlink-one": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "staging_aliases_never_become_an_immutable_generation",
-      "ran": true,
-      "report_sha256": "4072f50cd2f76f27c2c3dc419abd27af77f21328657097ccc65b19089ec0f698",
-      "sites": 1
-    },
-    "token-write-is-all-or-nothing": {
-      "bit": true,
-      "class": "executable",
-      "kexpr": "short_write_does_not_leave_a_truncated_claim",
-      "ran": true,
-      "report_sha256": "86706b4903580f2d6618e83f874e8ab2d98524a831ab722a4423dc5575220bb4",
-      "sites": 1
     }
   },
   "schema": "mutation-coverage/v3",
