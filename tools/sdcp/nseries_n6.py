@@ -231,6 +231,74 @@ def parse_loewdin(txt):
     return out or None
 
 
+def _xyz_coords(path):
+    """xyz → [(sym, x, y, z)]. 좌표가 필요한 것은 도핑 자리 추적뿐이다."""
+    out = []
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        n = int(f.readline().split()[0]); f.readline()
+        for _ in range(n):
+            t = f.readline().split()
+            out.append((t[0], float(t[1]), float(t[2]), float(t[3])))
+    return out
+
+
+def doping_site(d, g):
+    """어느 고리의 SO₃H 에서 H 를 뗐나 → ("ring3", 근거) | (None, 사유).
+
+    라벨(`B_ring3`)을 **믿지 않고** 실물에서 찾는다: 도핑 구조에서 **양성자가 없는**
+    sulfonate 를 찾고, 그 S 에서 곁사슬을 따라가 처음 만나는 고리를 돌려준다.
+
+    ⛔ 못 하는 것
+      · 결합을 양자화학으로 판정하지 않는다 — 원소별 공유결합 반경 합 × 1.25 의 거리 기준이다.
+      · SO₃H 가 둘 이상 탈양성자된 구조(다중 도핑)는 다루지 않는다 — 그런 경우 None 을 준다.
+      · 고리 번호의 **의미**(사슬 어느 끝부터 세는가)는 groups.json 이 정한다. 여기서는
+        그 키를 그대로 돌려줄 뿐이다.
+    """
+    xp = os.path.join(d, "n6_doped.xyz")
+    if not os.path.isfile(xp):
+        return None, "n6_doped.xyz 가 없다"
+    at = _xyz_coords(xp)
+    gr = g.get("groups") or {}
+    rings = gr.get("rings") or {}
+    if not isinstance(rings, dict) or not rings:
+        return None, "groups.json 에 rings dict 가 없다"
+    RCOV = {"H": 0.31, "C": 0.76, "N": 0.71, "O": 0.66, "S": 1.05}
+
+    def bonded(i, j):
+        (a, x1, y1, z1), (b, x2, y2, z2) = at[i], at[j]
+        r = RCOV.get(a.capitalize(), 0.8) + RCOV.get(b.capitalize(), 0.8)
+        return ((x1-x2)**2 + (y1-y2)**2 + (z1-z2)**2) ** 0.5 < r * 1.25
+
+    nbr = {i: [j for j in range(len(at)) if j != i and bonded(i, j)] for i in range(len(at))}
+    sul = set(gr.get("sulfonate") or [])
+    s_idx = [i for i in sul if at[i][0].capitalize() == "S"]
+    # 탈양성자된 S: 그 S 의 산소 중 어느 것에도 H 가 안 붙어 있다
+    bare = []
+    for i in s_idx:
+        oxy = [j for j in nbr[i] if at[j][0].capitalize() == "O"]
+        if not any(at[k][0].capitalize() == "H" for j in oxy for k in nbr[j]):
+            bare.append(i)
+    if len(bare) != 1:
+        return None, f"탈양성자된 sulfonate 가 {len(bare)}개다 (1개여야 한다)"
+    # 고리 원자 집합 (core 그대로 — 여기서는 H 제외가 중요하지 않다)
+    ring_of = {}
+    for k, v in rings.items():
+        for i in ((v.get("core") if isinstance(v, dict) else v) or []):
+            ring_of[i] = k
+    # S 에서 시작해 산소를 건너 곁사슬을 따라간다 (BFS)
+    seen, q = {bare[0]}, [bare[0]]
+    while q:
+        cur = q.pop(0)
+        for j in nbr[cur]:
+            if j in seen:
+                continue
+            if j in ring_of:
+                return ring_of[j], (f"탈양성자 S={bare[0]} → 곁사슬 → 원자 {j} "
+                                    f"({at[j][0]}) 가 {ring_of[j]} 에 속한다")
+            seen.add(j); q.append(j)
+    return None, f"탈양성자 S={bare[0]} 에서 고리에 도달하지 못했다"
+
+
 def analyze(d):
     g = json.load(open(os.path.join(d, "groups.json"), encoding="utf-8"))
     p = os.path.join(d, "n6_doped.out")
@@ -252,6 +320,13 @@ def analyze(d):
         idx = gr.get(name) or []
         res[name] = 100.0 * sum(sp.get(i, 0.0) for i in idx) / tot if tot else 0.0
         print(f"  {name:20s} {res[name]:6.1f} %  ({len(idx)}원자)")
+    site, why = doping_site(d, g)
+    if site:
+        print(f"\n  ★ 도핑 자리 = **{site}** — {why}")
+        print(f"     (라벨 `{os.path.basename(os.path.dirname(g.get('source_xyz','') or 'x/y'))}` "
+              "가 아니라 실물 구조에서 찾은 값이다)")
+    else:
+        print(f"\n  ⚠ 도핑 자리 미확인 — {why}")
     rings = gr.get("rings") or {}
     if isinstance(rings, dict) and rings:
         # ⛔ 2026-09-08 실물 — "고리별:" 헤더만 찍히고 행이 하나도 없었다. rings 값은
@@ -370,6 +445,36 @@ def selftest():
         "core 키가 없는 옛 형식도 받는다")
     chk(_ring_atoms(R, SY).isdisjoint({9}),
         "⛔음성: 에테르 O 를 고리에 넣지 않는다")
+    # ── 도핑 자리 추적 (합성 구조) ──────────────────────────────────────
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as _d:
+        # S(0)–O(1,2,3), O3–H(4) 는 **양성자 있음**;  S(5)–O(6,7,8) 은 없음(탈양성자)
+        # 곁사슬: O8–C(9)–C(10) 이고 C10 이 ring1 의 core 에 속한다
+        rows = [("S", 0, 0, 0), ("O", 1.45, 0, 0), ("O", -1.45, 0, 0), ("O", 0, 1.45, 0),
+                ("H", 0, 2.4, 0),
+                ("S", 0, 0, 10), ("O", 1.45, 0, 10), ("O", -1.45, 0, 10), ("O", 0, 1.45, 10),
+                ("C", 0, 2.85, 10), ("C", 0, 4.3, 10)]
+        with open(os.path.join(_d, "n6_doped.xyz"), "w") as f:
+            f.write(f"{len(rows)}\ntest\n")
+            for sy, x, y, z in rows:
+                f.write(f"{sy} {x} {y} {z}\n")
+        gg = {"groups": {"sulfonate": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+                         "rings": {"ring0": {"core": [99]}, "ring1": {"core": [10]}}}}
+        st, wh = doping_site(_d, gg)
+        chk(st == "ring1", f"★ 탈양성자 sulfonate 에서 곁사슬을 따라 ring1 을 찾는다 (얻음 {st})")
+        gg2 = json.loads(json.dumps(gg)); gg2["groups"]["sulfonate"] = [5, 6, 7, 8]
+        st2, wh2 = doping_site(_d, gg2)
+        chk(st2 == "ring1", "sulfonate 목록에 탈양성자 S 만 있어도 찾는다")
+        gg3 = json.loads(json.dumps(gg)); gg3["groups"]["rings"] = {}
+        chk(doping_site(_d, gg3)[0] is None, "⛔음성: rings 가 없으면 None (추측하지 않는다)")
+        # ⛔음성: 탈양성자 S 가 둘이면 판정하지 않는다
+        rows2 = rows[:4] + [("H", 0, 2.4, 99)] + rows[5:]     # 첫 S 의 H 를 멀리 보낸다
+        with open(os.path.join(_d, "n6_doped.xyz"), "w") as f:
+            f.write(f"{len(rows2)}\ntest\n")
+            for sy, x, y, z in rows2:
+                f.write(f"{sy} {x} {y} {z}\n")
+        chk(doping_site(_d, gg)[0] is None, "⛔음성: 탈양성자 S 가 2개면 판정하지 않는다")
+
     print(f"  selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
