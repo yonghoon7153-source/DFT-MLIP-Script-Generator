@@ -140,10 +140,14 @@ done
 #   실측 사고: 20점을 새 믹싱으로 재생성하려다 생성이 조용히 실패했고(ase 없음),
 #   옛 입력 그대로 러너가 다시 돌았다. 일부만 재생성됐다면 더 나쁘다 — 섞인 채
 #   끝까지 돌고 판정 단계에서야 드러난다. 그러니 **시작 전에** 대조한다.
-#   비교하는 것: &SYSTEM·&ELECTRONS 의 설정 줄 (좌표·prefix 는 당연히 다르므로 제외).
+#   ⛔ 2026-09-08 — 초판이 &SYSTEM 전체를 비교해 **b2o3(128원자·B 포함)와 modelc(62원자)를
+#     설정 차이로 읽고 정상 실행을 막았다.** 계 크기·조성은 당연히 다르다. 균일해야 하는 것은
+#     **방법 노브**뿐이다 → 블랙리스트가 아니라 **화이트리스트**로 센다.
+#     제외(설계상): nat·ntyp·prefix·좌표 · tot_magnetization·starting_magnetization
+#     (조성에서 유도되는 값이라 셀마다 달라야 정상이다).
+_UNIFORM_KEYS='ecutwfc|ecutrho|occupations|smearing|degauss|nosym|conv_thr|mixing_mode|mixing_beta|electron_maxstep|diagonalization|nspin'
 _settings_key() {
-  awk '/^&(SYSTEM|ELECTRONS)/{p=1} /^\//{p=0}
-       p && !/prefix|^&|nat *=|^\// {gsub(/[ \t]+/,""); print}' "$1" | sort | md5sum | cut -d' ' -f1
+  grep -aE "^ *($_UNIFORM_KEYS) *=" "$1" | tr -d ' \t' | sort | md5sum | cut -d' ' -f1
 }
 _k0=""; _bad=0
 for i in "${INS[@]}"; do
