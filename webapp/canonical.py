@@ -432,6 +432,136 @@ def bound_claims(reg=None, root=None) -> list:
     return out
 
 
+_HZ_CACHE = {"key": None, "out": None}
+
+
+def hazard_claims(root=None) -> list:
+    """인용 위험 원장에서 **비수치 주장**의 결속 대상을 만든다 (회신 BG ② · 2026-09-08).
+
+    숫자 결속(`bound_claims`)은 canonical_registry 의 수치만 본다. 그래서 산문으로 된
+    금지 주장 — 계간 Ea `+90 meV` 비교, 폐기된 β 0.80 하드게이트 — 을 못 잡는다.
+    원장의 `forbidden_phrases` 를 claim 으로 바꿔 같은 스캐너에 태운다.
+
+    반환: `[{"id","metric","system","state","text","why","instead"}]` (bound_claims 와 같은 모양).
+    ⛔ 못 하는 것: 문구가 **그 위험을 뜻하는지**는 못 본다. 문자열이 있으면 결속을 요구할 뿐이다.
+      그래서 `forbidden_phrases` 는 **구체적**이어야 한다 — 흔한 낱말을 넣으면 오탐이 된다.
+    """
+    base = Path(root) if root else Path(__file__).resolve().parent.parent
+    f = base / "db/properties/citation_hazards.json"
+    if not f.exists():
+        return []
+    # mtime 캐시 — md_html 이 문서마다 부른다 (litdb 한 화면에 수십 번). registry() 와 같은 관례.
+    k = (str(f), f.stat().st_mtime_ns)
+    if _HZ_CACHE["key"] == k:
+        return _HZ_CACHE["out"]
+    try:
+        hz = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:                                   # noqa: BLE001
+        return []
+    out = []
+    for z in (hz.get("hazards") or []):
+        hid, ph = z.get("id"), (z.get("forbidden_phrases") or [])
+        if not hid or z.get("level") == "RESOLVED":
+            continue
+        # ⚠ 금지 문구가 없어도 **id 는 낸다** (`text=None`). 그래야 화면이 그 위험을
+        #   선언했을 때 유령 결속(dangling)으로 잡히지 않는다 — bound_claims 의 짧은 수와 같은 처리.
+        for t in (ph or [None]):
+            out.append({"id": hid, "metric": hid, "system": "hazard",
+                        "state": "hazard_" + str(z.get("level", "")).lower(),
+                        "text": t, "why": z.get("why", ""),
+                        "instead": z.get("fix", "")})
+    _HZ_CACHE.update(key=k, out=out)
+    return out
+
+
+def all_claims(reg=None, root=None) -> list:
+    """결속을 요구하는 주장 **전부** — 수치(레지스트리) + 비수치(인용위험 원장).
+
+    화면 검사는 이 목록을 기준으로 한다. 둘을 따로 부르면 한쪽을 빠뜨린 채 초록이 뜬다
+    (BG ② 실측: 숫자만 보던 검사가 `+90 meV` 계간 비교를 여덟 화면에서 놓쳤다).
+    """
+    return bound_claims(reg=reg, root=root) + hazard_claims(root=root)
+
+
+# ── 마크다운 조각의 자동 결속 (회신 BG ② · 2026-09-08) ────────────────────────
+#   kb 산문(`/todo`·`/requests`·저널)은 손으로 `data-claim` 을 달 수 없다 — 원문이
+#   마크다운이고, 거기에 HTML 을 심으면 원장이 화면 형식에 오염된다. 그래서 **렌더할 때**
+#   결속 대상 문자열을 찾아 그 자리를 감싼다.
+#
+#   ⚠ 자동 결속이 정직하려면 **눈에 보여야** 한다. 속성만 붙이면 검사만 초록이 되고
+#     읽는 사람은 여전히 철회값을 그냥 읽는다 — 그건 결속이 아니라 도장이다.
+#     그래서 `.claim-flag` 는 CSS 로 밑줄 + ⛔ 를 그리고 title 에 사유를 싣는다.
+_TAG_SPLIT = re.compile(r"(<[^>]*>)")
+_STATE_MARK = {"retracted": "⛔ 철회 — 인용 금지",
+               "non_citable": "⛔ 비인용 — 정본으로 옮기지 않는다"}
+
+
+def _claim_flag(c: dict, text: str) -> str:
+    from html import escape as _e
+    tip = " · ".join(x for x in (_STATE_MARK.get(c.get("state"), "⛔ 인용 위험"),
+                                 (c.get("why") or "").strip(),
+                                 ("대신: " + c["instead"].strip()) if (c.get("instead") or "").strip() else "")
+                     if x)
+    return (f'<span class="claim-flag" data-claim="{_e(str(c["id"]), True)}"'
+            f' title="{_e(tip[:300], True)}">{text}</span>')
+
+
+def annotate_claims(fragment: str, claims=None, reg=None, root=None):
+    """마크다운으로 렌더된 **조각**에서 결속 대상 문자열을 찾아 그 자리에 이름을 붙인다.
+
+    → `(html, [결속한 claim id …])`
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 문장을 읽지 않는다. 문자열이 일치하면 감싼다 — 그 문맥이 정당한 인용인지
+        (역사 기록·반례 인용) 는 **사람이** 판단할 몫이고, 표시는 그 판단을 돕는 것뿐이다.
+      · **완전한 HTML 문서에 쓰면 안 된다.** 태그 밖 텍스트만 건드리도록 태그 단위로
+        쪼개는데, `<script>`·`<style>`·주석 안의 `>텍스트<` 는 구분하지 못한다.
+        마크다운 렌더 결과(raw HTML 이 꺼져 있다)에만 쓴다.
+      · 이미 붙은 결속을 지우거나 겹쳐 감싸지 않는다 — 같은 자리를 두 번 훑지 않는다.
+    """
+    claims = claims if claims is not None else all_claims(reg=reg, root=root)
+    idx = {}
+    for c in claims:
+        t = c.get("text")
+        # HTML 특수문자가 든 문자열은 건드리지 않는다 (엔티티로 인코딩돼 있을 수 있다)
+        if t and not any(ch in t for ch in "<>&"):
+            idx.setdefault(t, c)
+    if not idx or not fragment:
+        return fragment, []
+    order = sorted(idx, key=len, reverse=True)   # 긴 것 우선 ("+90 meV" > "90 meV")
+    found = []
+
+    def _first(seg, i):
+        """seg[i:] 에서 제일 앞선 일치 → (위치, 문자열) · 없으면 (None, None)"""
+        best = bt = None
+        for t in order:
+            j = seg.find(t, i)
+            while j != -1:                        # 숫자에 붙은 일치는 다른 수다 (10.199)
+                nx, pv = seg[j + len(t):j + len(t) + 1], (seg[j - 1:j] if j else " ")
+                if not (nx.isdigit() or pv.isdigit()):
+                    break
+                j = seg.find(t, j + 1)
+            if j != -1 and (best is None or j < best or (j == best and len(t) > len(bt))):
+                best, bt = j, t
+        return best, bt
+
+    parts = _TAG_SPLIT.split(fragment)
+    for k in range(0, len(parts), 2):             # 짝수 = 태그 밖 텍스트
+        seg, out, i = parts[k], [], 0
+        while seg:
+            j, t = _first(seg, i)
+            if j is None:
+                out.append(seg[i:])
+                break
+            out.append(seg[i:j])
+            out.append(_claim_flag(idx[t], t))
+            found.append(idx[t]["id"])
+            i = j + len(t)
+        if out:
+            parts[k] = "".join(out)
+    return "".join(parts), sorted(set(found))
+
+
 class _ClaimScanner(_HTMLParser):
     """`data-claim` 조상을 추적하며 텍스트 노드를 훑는다 (stdlib 만 쓴다)."""
 
@@ -443,26 +573,28 @@ class _ClaimScanner(_HTMLParser):
     def __init__(self, texts):
         super().__init__(convert_charrefs=True)
         self._texts = texts            # {text: [claim, ...]}
-        self._stack = []               # [(tag, claim_id|None)]
+        self._stack = []               # [(tag, claim_id|None, not_id|None)]
         self._skip = 0
-        self.hits = []                 # [(claim, bound_id|None, context)]
-        self.declared = []             # 화면이 선언한 data-claim 값 전부
+        self.hits = []                 # [(claim, "bound"|"disclaimed"|None, context)]
+        self.declared = []             # 화면이 선언한 data-claim / data-claim-not 값 전부
 
     def handle_starttag(self, tag, attrs):
         if tag in self.SKIP:
             self._skip += 1
             return
         d = dict(attrs)
-        cid = d.get("data-claim")
-        if cid:
-            self.declared.append(cid)
+        cid, nid = d.get("data-claim"), d.get("data-claim-not")
+        for x in (cid, nid):
+            if x:
+                self.declared.append(x)
         if tag not in self.VOID:
-            self._stack.append((tag, cid))
+            self._stack.append((tag, cid, nid))
 
     def handle_startendtag(self, tag, attrs):
-        cid = dict(attrs).get("data-claim")
-        if cid:
-            self.declared.append(cid)
+        d = dict(attrs)
+        for x in (d.get("data-claim"), d.get("data-claim-not")):
+            if x:
+                self.declared.append(x)
 
     def handle_endtag(self, tag):
         if tag in self.SKIP:
@@ -482,21 +614,31 @@ class _ClaimScanner(_HTMLParser):
                 nxt = data[i + len(txt): i + len(txt) + 1]
                 prv = data[i - 1: i] if i else " "
                 if not (nxt.isdigit() or prv.isdigit()):       # 0.1990 / 10.199 는 아니다
-                    open_ids = [x for _t, c in self._stack if c for x in c.split()]
+                    yes = {x for _t, c, _n in self._stack if c for x in c.split()}
+                    no = {x for _t, _c, n in self._stack if n for x in n.split()}
                     ctx = " ".join(data[max(0, i - 90): i + len(txt) + 90].split())
                     for cl in claims:
-                        self.hits.append((cl, (cl["id"] if cl["id"] in open_ids else None), ctx))
+                        st = ("bound" if cl["id"] in yes
+                              else ("disclaimed" if cl["id"] in no else None))
+                        self.hits.append((cl, st, ctx))
                 i += len(txt)
 
 
 def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
-    """한 화면의 결속 상태. → `{"bound":[...], "unbound":[...], "declared":[...], "dangling":[...]}`
+    """한 화면의 결속 상태.
+    → `{"bound", "unbound", "disclaimed", "declared", "dangling"}`
 
-    · `bound`   — 값이 **자기 claim id 를 단 요소 안에** 있다 (구조 결속).
-    · `unbound` — 그렇지 않다. 근접성은 보지 않는다 (호출자가 레거시 완화를 결정한다).
-    · `dangling`— 화면이 선언한 `data-claim` 중 레지스트리에 없는 id (오타·유령 결속).
+    · `bound`     — 값이 **자기 claim id 를 단 요소 안에** 있다 (구조 결속).
+    · `disclaimed`— `data-claim-not="<id>"` 안에 있다: *"이 문자열은 그 주장이 아니다"*.
+      우연 일치를 위한 것이다 — 실측 예: `/cascade` 스크리닝 표의 `window_gain 0.199`(V)는
+      b2o3 MD Ea 0.199(eV)와 **아무 관계가 없다**. 그걸 결속하면 거짓 선언이 된다.
+      ⚠ 이건 **면제가 아니라 선언**이다. id 를 이름으로 대야 하고(`*` 없음), 화면 검사가
+        따로 세어 목록으로 남긴다 — 감사 대상이지 침묵이 아니다.
+    · `unbound`   — 둘 다 아니다. 근접성은 보지 않는다 (호출자가 레거시 완화를 결정한다).
+    · `dangling`  — 선언한 id 중 레지스트리·위험원장에 없는 것 (오타·유령 결속).
+      `data-claim-not` 도 같이 검사한다 — 오타 난 부인은 **조용히 억제**로 이어지므로.
     """
-    claims = claims if claims is not None else bound_claims(reg=reg, root=root)
+    claims = claims if claims is not None else all_claims(reg=reg, root=root)
     texts = {}
     for c in claims:
         if c.get("text"):
@@ -506,11 +648,12 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None) -> dict:
     _r = reg if reg is not None else registry(root=root)
     known = {claim_id(e.get("metric"), e.get("system")) for e in _r.get("entries", [])}
     known |= {c["id"] for c in claims}
+    known |= {c["id"] for c in hazard_claims(root=root)}   # 위험 id 도 유효한 선언이다
     sc = _ClaimScanner(texts)
     sc.feed(html)
-    bound = [(c, ctx) for c, b, ctx in sc.hits if b]
-    unbound = [(c, ctx) for c, b, ctx in sc.hits if not b]
-    return {"bound": bound, "unbound": unbound, "declared": sc.declared,
+    pick = lambda w: [(c, ctx) for c, s, ctx in sc.hits if s == w]     # noqa: E731
+    return {"bound": pick("bound"), "disclaimed": pick("disclaimed"), "unbound": pick(None),
+            "declared": sc.declared,
             "dangling": sorted({x for d in sc.declared for x in d.split() if x not in known})}
 
 

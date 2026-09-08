@@ -44,8 +44,10 @@
       {%- set gb = canonical_gen.get(key) %}
       {%- if gb %} <span class="badge" style="color:{{ gb.fg }};background:{{ gb.bg }}"
         title="{{ gb.why }}">{{ gb.label }}</span>{% endif %}</div>
-    <div class="mm" title="{{ canonical_meta[key] }}">{{ canonical_meta[key] }}</div>
-    {%- if prov %}<div class="mm mm-prov" title="{{ prov }}">⚠ {{ prov }}</div>{% endif %}
+    {# 회신 BG ② — 방법·출처 주석은 **다른 계의 정본값을 자주 인용한다**(여기선 b2o3 0.199).
+       그 값이 나중에 철회돼도 이 문장은 그대로 남으므로, 렌더할 때 결속을 붙인다. #}
+    <div class="mm" title="{{ canonical_meta[key] }}">{{ canonical_meta[key]|claimbind }}</div>
+    {%- if prov %}<div class="mm mm-prov" title="{{ prov }}">⚠ {{ prov|claimbind }}</div>{% endif %}
   </div>
   {% elif canonical_na.get(key) %}
   {# '하면 안 되거나 정의되지 않는' 축은 TODO 로 광고하면 안 된다 (예: li3n × UMA MD) #}

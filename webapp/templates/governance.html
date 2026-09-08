@@ -56,8 +56,10 @@
     <thead><tr><th>수준</th><th>파일</th><th>무엇이</th><th>왜</th><th>풀리는 조건</th></tr></thead>
     <tbody>
     {% for h in hazards %}
-    {# 회신 BG ② — 이 위험이 **어느 주장**인지 이름을 댄다 (근접성 대신 구조 결속) #}
-    <tr{% if h.claim %} data-claim="{{ h.claim }}"{% endif %}>
+    {# 회신 BG ② — 이 위험이 **어느 주장**인지 이름을 댄다 (근접성 대신 구조 결속).
+       두 가지를 함께 단다: `claim`(가리키는 정본값)과 `id`(위험 자체 = 비수치 금지주장). #}
+    {% set _cids = [h.claim, h.id]|select|join(' ') %}
+    <tr{% if _cids %} data-claim="{{ _cids }}"{% endif %}>
       <td><span class="tbadge" style="background:{{ hz_color.get(h.level, '#6b7280') }};color:#fff">{{ h.level }}</span></td>
       <td class="mono" style="font-size:.7rem">{{ h.file }}</td>
       <td>{{ h.what|bold }}</td>

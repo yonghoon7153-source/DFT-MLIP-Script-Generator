@@ -1326,3 +1326,12 @@ body.rail .rail-peek:hover ~ .sidebar,body.rail .sidebar:hover{transform:transla
 @media(max-width:860px){.rail-btn,.rail-peek{display:none}
   body.rail .content{padding-left:18px}}
 @media print{.rail-btn,.rail-peek{display:none}}
+
+/* ── 결속 표식 (회신 BG ② · 2026-09-08) ─────────────────────────────────────
+   md_html 이 철회·비인용·인용위험 문자열을 자동으로 감싼다. 속성만 붙이면
+   검사만 초록이 되고 읽는 사람은 그대로 인용한다 — 그래서 **보이게** 그린다.
+   호버하면 title 에 사유와 대체값이 뜬다. */
+.claim-flag{border-bottom:1.5px dotted var(--red);cursor:help;
+  background:color-mix(in srgb,var(--red) 7%,transparent);border-radius:2px;padding:0 1px}
+.claim-flag::after{content:"⛔";font-size:.72em;vertical-align:super;margin-left:1px;opacity:.85}
+@media print{.claim-flag{border-bottom:1.5px dotted #be123c}}

@@ -1258,7 +1258,12 @@
       </div>
     </details>
     {% endif %}
+    {# 회신 BG ② — 이 표의 숫자는 캐스케이드 스크리닝 양(ml_score·window_gain V 등)이지
+       MD 활성화에너지가 아니다. `window_gain 0.199` 이 b2o3 MD Ea 0.199 eV 와 **글자만**
+       같아 결속 검사에 걸린다. 결속하면 거짓 선언이므로 **부인**한다 (id 를 이름으로 댄다). #}
+    <div data-claim-not="MD_Ea_eV@b2o3">
     {{ gtable({'data': casc.codoping_v2.data[:40]}, casc.codoping_v2.columns) }}
+    </div>
     <div class="muted" style="font-size:.74rem;margin-top:6px">상위 40쌍만 표시 (전체 {{ casc.codoping_v2.n }}쌍 → <a href="/api/csv/properties/codoping_ml_v2.csv">CSV 원본</a>) ·
       ml_score ± uncertainty = 모델 예측 ± 내부 LOOCV-잔차 전파 불확실도 · joint_window = pair 합동 ESW 창 · top_interaction = 기여 최대 교호작용 항.</div>
   </div>

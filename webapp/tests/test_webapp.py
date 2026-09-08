@@ -734,6 +734,10 @@ DYNAMIC_FIXTURES = {
     "/api/csv/<path:rel>":        ["db/properties/b2o3_msd.csv"],
     "/api/fairchem/v1/<name>":    ["models"],
     "/api/file/<path:rel>":       ["db/properties/electronic.json"],
+    # ⛔ 2026-09-08 (회신 BG ②) — EXEMPT 사유가 **사실과 달랐다**: "실행 중 생기는 무상태 id" 가
+    #   아니라 `kb/results/*.md` 의 파일명이다(저장소에 94개 커밋돼 있다). 틀린 사유가
+    #   결속 검사에서 handoff 를 통째로 빼고 있었다 — fixture 로 옮긴다.
+    "/api/handoff/<hid>":         ["lpsocl_box_size_600K_2026_08_18"],
     "/api/highlights/<path:rel>": ["CLAUDE.md"],
     "/api/paper/<pid>":           ["deng2026_polysulfate_layer_moisture_oxidation_lpsc"],
     "/api/property/<name>":       ["electronic", "li_transport"],
@@ -745,9 +749,6 @@ DYNAMIC_FIXTURES = {
 #: 스모크로 못 미는 동적 라우트 — **사유를 반드시 적는다**(빈 사유 금지).
 #: ⚠ 여기 넣는 것은 "검사 안 함" 이라는 선언이다. 늘어나면 그만큼 눈이 먼다.
 DYNAMIC_EXEMPT = {
-    "/api/handoff/<hid>":
-        "handoff 는 실행 중 생기는 무상태 id 라 저장소에 고정 표본이 없다. "
-        "id 생성까지 하려면 스모크가 아니라 통합시험이다.",
     "/api/note-image/<name>":
         "사용자가 노트에 붙인 이미지. 저장소에 커밋되지 않는다(업로드 산물).",
     "/talk/<slug>":
@@ -2717,16 +2718,21 @@ def test_sdcp_closure_consistency():
 #:   근접성은 ① 표지가 그 값에 대한 것인지 못 보고 ② 표 셀이 길면 창 밖으로 밀리고
 #:   ③ 옆 문단의 경고를 통과로 읽었다. 이제 값을 그리는 요소(또는 조상)가
 #:   `data-claim="<metric>@<system>"` 로 **어느 주장인지 이름을 대야** 한다.
-_BINDING_SKIP_PREFIX = ("/static", "/api")
+_BINDING_SKIP_PREFIX = ("/static",)
 
-#: 레거시 래칫 — 아직 구조 결속으로 못 옮긴 화면과 그 **현재 건수**.
-#:   · 목록에 **없는** 화면은 미결속 0 이어야 한다 (새 누출은 즉시 실패).
-#:   · 목록에 있는 화면도 건수가 **늘면 실패**한다. 줄면 이 표를 같이 줄인다.
-#:   ⛔ 항목을 늘려서 통과시키지 않는다 — 늘리는 것이 곧 완화다.
-#: 배선 완료: /governance(인용위험 표 · 게이트 평가 표) · /log(저널 항목)
-_LEGACY_UNBOUND = {
-    "/": 1, "/cascade": 1, "/compare": 1, "/explorer": 1,
-    "/glossary": 1, "/methods": 4, "/requests": 4, "/todo": 2,
+#: 레거시 래칫 — **은퇴했다** (2026-09-08). 이주가 끝나 전 표면 미결속 0 이다.
+#:   래칫은 이주 장치였고, 이주가 끝난 뒤에도 남겨 두면 새 누출을 덮는 뚜껑이 된다
+#:   (회신 BG Q2 가 물은 위험이 정확히 그것이다). 비어 있어야 하고, 다시 채우는 것은
+#:   **완화**다 — 새 미결속은 표를 늘려서가 아니라 결속을 붙여서 없앤다.
+_LEGACY_UNBOUND: dict = {}
+
+#: `data-claim-not` 부인 원장 — **우연 일치**를 선언으로 처리한 자리와 그 사유.
+#:   ⚠ 이건 면제가 아니라 주장이다: *"이 문자열은 그 주장이 아니다"*. 틀리면 거짓 선언이고,
+#:     그래서 여기 사유를 적어 감사 가능하게 남긴다 (빈 사유 금지 — DYNAMIC_EXEMPT 관례).
+_DISCLAIMED = {
+    ("/cascade", "MD_Ea_eV@b2o3"):
+        "codoping_ml_v2 스크리닝 표의 `window_gain 0.199`(V)다. b2o3 MD Ea 0.199(eV)와 "
+        "글자만 같고 양·단위·출처가 전부 다르다 — 결속하면 거짓 선언이 된다.",
 }
 
 
@@ -2737,27 +2743,54 @@ def _html_routes():
                    and not str(r).startswith(_BINDING_SKIP_PREFIX)})
 
 
-def _scan_surface(client, url):
-    """→ (scan|None). HTML 이 아니거나 200 이 아니면 None."""
+def _surface_html(client, url):
+    """→ HTML 문자열 | None. JSON 응답(`/api/handoff`)은 `html` 필드를 꺼낸다."""
     r = client.get(url)
-    if r.status_code != 200 or "html" not in (r.headers.get("Content-Type") or ""):
+    if r.status_code != 200:
         return None
-    return C.scan_claim_bindings(r.get_data(as_text=True), C.bound_claims())
+    ct = r.headers.get("Content-Type") or ""
+    if "html" in ct:
+        return r.get_data(as_text=True)
+    if "json" in ct:
+        try:
+            d = json.loads(r.get_data(as_text=True))
+        except Exception:                                   # noqa: BLE001
+            return None
+        return d.get("html") if isinstance(d, dict) and isinstance(d.get("html"), str) else None
+    return None
+
+
+def _scan_surface(client, url):
+    """→ (scan|None). 결속 대상은 **수치 + 비수치 전부**(`all_claims`)."""
+    h = _surface_html(client, url)
+    return None if h is None else C.scan_claim_bindings(h, C.all_claims())
+
+
+#: 결속 선언만 지운다 — 텍스트는 그대로 둔다. 음성시험의 도구다.
+#: ⚠ 따옴표 두 종류를 다 받는다. 홑따옴표를 빼먹었더니 `/glossary`(파이썬 문자열 안이라
+#:   홑따옴표를 쓴다)에서 **선언이 안 지워져** 음성시험이 통과해 버렸다 (2026-09-08 실측).
+_STRIP_DECL = re.compile(r"""\s+data-claim(?:-not)?=(?:"[^"]*"|'[^']*')""")
 
 
 def test_retracted_claims_are_id_bound_on_every_surface():
-    """⛔음성 AW P0-2 / BG ②: 철회·비인용 값이 **어느 주장인지 이름 없이** 화면에 나오면 안 된다.
+    """⛔음성 AW P0-2 / BG ②: 철회·비인용·인용위험 주장이 **이름 없이** 화면에 나오면 안 된다.
 
     ⛔ 지우라는 뜻이 아니다. 역사는 남기되 그 값을 그리는 요소가 `data-claim` 으로
       자기 주장을 선언해야 한다. 선언이 있으면 근접성은 보지 않는다 — 표 안이든
       긴 문단이든 결속은 구조로 성립한다.
+    ⚠ 2026-09-08: 검사 대상이 숫자에서 **비수치 금지주장**(`+90 meV` 계간 비교 등)까지
+      넓어졌다. 숫자만 보던 판이 여덟 화면의 산문 누출을 놓쳤다.
     """
-    claims = C.bound_claims()
+    claims = C.all_claims()
     assert any(c["state"] == "retracted" and c["text"] for c in claims), \
         "전제: 스캔 가능한 철회 정본값이 실제로 있다 (b2o3 MD_Ea 0.199)"
+    assert any(str(c["state"]).startswith("hazard_") and c["text"] for c in claims), \
+        "전제: 스캔 가능한 **비수치** 금지주장이 실제로 있다 (citation_hazards forbidden_phrases)"
     c = A.app.test_client()
-    fresh, grew, dangling = [], [], []
-    for url in _html_routes():
+    urls = _html_routes() + [re.sub(r"<[^>]+>", v, r)
+                             for r, vs in DYNAMIC_FIXTURES.items() for v in vs]
+    fresh, grew, dangling, undeclared = [], [], [], []
+    for url in urls:
         sc = _scan_surface(c, url)
         if sc is None:
             continue
@@ -2769,31 +2802,85 @@ def test_retracted_claims_are_id_bound_on_every_surface():
             grew.append((url, n, cap))
         if sc["dangling"]:
             dangling.append((url, sc["dangling"]))
-    assert not fresh, "결속 없는 철회값이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
+        # 부인은 **원장에 사유가 적혀 있어야** 한다 — 조용한 억제 금지
+        undeclared += [(url, cl["id"]) for cl, _x in sc["disclaimed"]
+                       if not (_DISCLAIMED.get((url, cl["id"])) or "").strip()]
+    assert not fresh, "결속 없는 철회·금지 주장이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
         "\n".join(f"  {u} · {i}\n      …{x[:140]}…" for u, i, x in fresh)
     assert not grew, "레거시 미결속 건수가 늘었다 (래칫은 줄어들기만 한다): " + str(grew)
     assert not dangling, "레지스트리에 없는 claim id 를 화면이 선언한다 (유령 결속): " + str(dangling)
+    assert not undeclared, ("사유 없는 `data-claim-not` 부인이 있다 — _DISCLAIMED 에 "
+                            "**왜 그 주장이 아닌지** 적어라: " + str(undeclared))
 
 
-def test_legacy_unbound_ratchet_is_honest():
-    """래칫 표가 **실물보다 헐거우면** 안 된다 — 다 고쳤는데 표가 남으면 새 누출을 덮는다."""
+def test_legacy_ratchet_is_retired_not_reintroduced():
+    """⛔음성: 래칫을 **다시 넣어** 미결속을 통과시키는 것을 막는다 (회신 BG Q2).
+
+    이주는 2026-09-08 에 끝났다(전 표면 0). 래칫이 남아 있으면 다음 누출이 표에 한 줄
+    늘어나는 것으로 무마된다 — 그게 리뷰가 물은 "안 고치고 통과시키는 장치" 다.
+    """
+    assert _LEGACY_UNBOUND == {}, (
+        "래칫이 다시 채워졌다. 미결속은 표를 늘려 덮는 게 아니라 결속을 붙여 없앤다: "
+        + str(_LEGACY_UNBOUND))
+
+
+def test_each_surface_zero_comes_from_declarations_not_from_absence():
+    """⛔음성 **표면별**: 화면의 미결속 0 이 *선언 덕분*인지 *글자가 없어서*인지 가른다.
+
+    회신 BG 가 요구한 표면별 음성시험이다. 방법: 렌더된 HTML 에서 `data-claim`
+    선언만 지우고 다시 스캔한다. 결속이 있던 화면이라면 **반드시 미결속으로 떨어져야**
+    한다 — 안 떨어지면 그 화면의 초록은 스캐너가 그 화면을 안 본다는 뜻이다.
+    ⚠ 이 시험이 `/todo`·`/log`·handoff·`/compare`·`/glossary` 를 각각 따로 확인한다.
+    """
     c = A.app.test_client()
-    slack = []
-    for url, cap in _LEGACY_UNBOUND.items():
-        sc = _scan_surface(c, url)
-        if sc is None:
-            slack.append((url, "라우트가 없거나 HTML 이 아니다", cap))
+    must = ["/", "/compare", "/explorer", "/glossary", "/governance", "/log",
+            "/methods", "/requests", "/todo",
+            "/api/handoff/lpsocl_box_size_600K_2026_08_18"]
+    cl = C.all_claims()
+    blind, no_drop = [], []
+    for url in must:
+        h = _surface_html(c, url)
+        if h is None:
+            blind.append((url, "응답이 없거나 형식이 다르다"))
             continue
-        n = len(sc["unbound"])
-        if n < cap:
-            slack.append((url, n, cap))
-    assert not slack, ("래칫 표가 실물보다 헐겁다 — 줄어든 만큼 _LEGACY_UNBOUND 를 같이 줄여라: "
-                      + str(slack))
+        sc = C.scan_claim_bindings(h, cl)
+        if not sc["bound"]:
+            blind.append((url, "결속이 0 이다 — 이 화면은 검사에 안 걸린다(대상 문자열이 없다)"))
+            continue
+        naked = C.scan_claim_bindings(_STRIP_DECL.sub("", h), cl)
+        if len(naked["unbound"]) < len(sc["bound"]):
+            no_drop.append((url, len(sc["bound"]), len(naked["unbound"])))
+    assert not blind, ("표면별 음성시험의 전제가 깨졌다 — 이 화면들은 검사 대상 문자열을 "
+                       "그리지 않는다. 목록에서 빼거나 왜 빠졌는지 확인해라: " + str(blind))
+    assert not no_drop, ("선언을 지웠는데도 미결속으로 안 떨어진 화면이 있다 — 그 화면의 "
+                         "초록은 결속 때문이 아니다: " + str(no_drop))
+
+
+def test_markdown_render_binds_claims_and_can_fail():
+    """양성+⛔음성: kb 산문 경로(`md_html`)가 결속을 **자동으로** 붙인다.
+
+    `/todo`·`/requests`·handoff·litdb 는 전부 이 한 경로를 지난다. 여기가 죽으면
+    네 화면이 동시에 눈이 먼다 — 그래서 경로 자체를 시험한다.
+    """
+    tgt = next(x for x in C.all_claims() if x["state"] == "retracted" and x["text"])
+    t = tgt["text"]
+    out = A.md_html(f"옛 값 {t} eV 를 인용한 문장.")
+    assert f'data-claim="{tgt["id"]}"' in out, f"md_html 이 결속을 안 붙였다: {out}"
+    assert not C.scan_claim_bindings(out, C.all_claims())["unbound"], out
+    # ⛔음성 ①: 붙이기 **전** 상태는 반드시 미결속이어야 한다 (안 그러면 위 양성이 공허하다)
+    assert C.scan_claim_bindings(f"<p>옛 값 {t} eV 를 인용한 문장.</p>",
+                                 C.all_claims())["unbound"], "표시 없이도 통과한다 — 검사가 죽었다"
+    # ⛔음성 ②: 태그 **속성 안**의 같은 문자열은 건드리지 않는다 (HTML 을 깨뜨리는 경로)
+    frag, found = C.annotate_claims(f'<a title="{t}">x</a>')
+    assert frag == f'<a title="{t}">x</a>' and not found, frag
+    # ⛔음성 ③: 다른 수의 일부는 감싸지 않는다
+    frag, _ = C.annotate_claims(f"<p>1{t} · {t}9</p>")
+    assert "claim-flag" not in frag, frag
 
 
 def test_claim_binding_scanner_can_actually_fail():
     """⛔음성: 스캐너가 **아무것도 안 잡는 상태**로 초록이 되는 것을 막는다."""
-    cl = C.bound_claims()
+    cl = C.all_claims()
     tgt = next(x for x in cl if x["state"] == "retracted" and x["text"])
     t = tgt["text"]
     # ① 결속 없는 노출 → unbound

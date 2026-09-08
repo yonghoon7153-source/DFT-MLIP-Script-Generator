@@ -144,7 +144,33 @@ def md_html(text: str, extensions=("tables", "fenced_code")) -> str:
             md.inlinePatterns.deregister(name)
         except (KeyError, ValueError):
             pass
-    return _sanitize_urls(md.convert(text or ""))
+    return _bind_claims(_sanitize_urls(md.convert(text or "")))
+
+
+# ── 회신 BG ② — kb 산문의 결속은 **렌더할 때** 붙인다 ─────────────────────────
+#   `/todo`·`/requests`·저널·litdb 는 원문이 마크다운이다. 손으로 data-claim 을 심으면
+#   원장이 화면 형식에 오염되고, 다음에 원문을 고치면 결속이 조용히 사라진다.
+#   그래서 md_html 한 곳에서 자동으로 붙인다 — 새 문서가 들어와도 자동으로 결속된다.
+#   ⚠ 자동이라서 **눈에 보여야** 정직하다: `.claim-flag` 가 밑줄+⛔ 를 그리고 사유를 띄운다.
+def _bind_claims(html: str) -> str:
+    import canonical as _C
+    try:
+        return _C.annotate_claims(html)[0]
+    except Exception:                                    # noqa: BLE001
+        # 결속 실패가 화면을 죽이면 안 된다. 다만 **조용히 통과시키지도 않는다** —
+        # 시험(`test_markdown_render_binds_claims_and_can_fail`)이 이 경로를 음성으로 잡는다.
+        return html
+
+
+@app.template_filter("claimbind")
+def claimbind(text):
+    """평문 한 토막에 결속을 붙인다 — 마크다운이 아닌 **템플릿 문자열**용.
+
+    쓰는 곳: 방법·출처 주석처럼 다른 계의 정본값을 인용하는 자유 문장
+    (`/composition` 의 `canonical_meta`·`canonical_provisional`).
+    ⚠ 먼저 escape 하고 나서 감싼다 — 순서가 바뀌면 삽입한 span 이 이스케이프된다.
+    """
+    return Markup(_bind_claims(str(escape(text or ""))))
 
 
 # 허용 scheme — 나머지(javascript:, data:, vbscript: …)는 링크를 죽인다.

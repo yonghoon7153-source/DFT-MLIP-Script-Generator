@@ -39,7 +39,9 @@
    "level": "HOLD",
    "what": "Ea",
    "why": "⚠_DIFFUSIVE_GATE_2026_08_01 — 확산영역 β 게이트 미통과",
-   "fix": "tools/ionic/msd_diffusive_check.py 통과 후 해제"
+   "fix": "tools/ionic/msd_diffusive_check.py 통과 후 해제",
+   "id": "HZ-lpsocl-Ea-diffusive-gate",
+   "forbidden_phrases": []
   },
   {
    "file": "db/properties/li_transport.json",
@@ -141,7 +143,12 @@
    "why": "세 계(LPSOCl·modelc·b2o3)가 각자 다른 셀·다른 수렴상태다. 회신 AK(2026-08-30) Q2=C 판정: 세 계 Ea 직접 비교는 철회·보류",
    "fix": "계별 셀·VRAM·finite-size 감사를 포함한 **별도 캠페인**으로 재설계. 계 내부 값(62원자 4시드×3T Ea 0.287±0.024)은 cell-specific 보고량 로는 유효",
    "added": "2026-08-30",
-   "근거": "db/properties/lpsocl_box331_estimand_2026_08_30.json"
+   "근거": "db/properties/lpsocl_box331_estimand_2026_08_30.json",
+   "id": "HZ-cross-system-Ea",
+   "forbidden_phrases": [
+    "90 meV",
+    "+90 meV"
+   ]
   },
   {
    "file": "tools/ionic/msd_diffusive_check.py (규약)",
@@ -149,7 +156,13 @@
    "what": "β ≥ 0.80 하드게이트 — **판정으로 인용 금지**. β 는 경보로만",
    "why": "kb/concepts/beta-gate.md §7-5(2026-08-26)·§7-8b(회신 F, 2026-08-27)에서 폐기. 우리 운영점에서 고정문턱 0.8 은 거짓탈락률 50 %",
    "fix": "판정축은 D_inc plateau · 창 안정성 · 홉 수. 도구는 2026-08-30 에 맞췄다 (그 전 나흘간 도구가 폐기된 문턱을 강제했고 회신 AK 가 그걸 근거로 인용했다)",
-   "added": "2026-08-30"
+   "added": "2026-08-30",
+   "id": "HZ-beta-hard-gate",
+   "forbidden_phrases": [
+    "β ≥ 0.80",
+    "베타 하드게이트",
+    "β 하드게이트"
+   ]
   },
   {
    "file": "docs/manuscripts/figure2e_explained_v10.md",
@@ -208,6 +221,8 @@
  ],
  "updated": "2026-08-31",
  "_schema_note": {
-  "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②)."
+  "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②).",
+  "id": "안정 hazard 식별자. 화면·handoff 가 `data-claim=\"<id>\"` 로 이 위험을 선언한다 (회신 BG ②).",
+  "forbidden_phrases": "이 위험에 걸리는 **비수치 주장**을 기계가 찾기 위한 문자열. 숫자 결속(canonical_registry 파생)이 못 잡는 산문을 여기서 잡는다. ⛔ 문구를 지우는 것으로 검사를 통과시키지 않는다 — 위험이 풀리면 level 을 RESOLVED 로 올린다."
  }
 }

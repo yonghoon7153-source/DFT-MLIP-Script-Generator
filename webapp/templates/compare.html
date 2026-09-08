@@ -244,7 +244,8 @@ upd();
         <td style="padding:4px 10px 4px 0">modelc → LPSOCl</td>
         <td style="text-align:right;padding:4px 10px">+43%</td>
         <td style="text-align:right;padding:4px 10px"><b>D 0.60× ↓</b></td>
-        <td style="padding:4px 0 4px 10px"><b>O 트랩 문턱</b> — 부피는 D₀에(3.4×), Eₐ +90 meV가 이김 (0.60 = 0.18×3.4)</td>
+        {# 회신 BG ② — 계간 Ea 비교는 HZ-cross-system-Ea 로 보류 중이다. 문장은 남기고 이름을 댄다 #}
+        <td style="padding:4px 0 4px 10px" data-claim="HZ-cross-system-Ea"><b>O 트랩 문턱</b> — 부피는 D₀에(3.4×), Eₐ +90 meV가 이김 (0.60 = 0.18×3.4)</td>
       </tr>
       <tr>
         <td style="padding:4px 10px 4px 0">modelc → B₂O₃</td>
@@ -417,7 +418,8 @@ upd();
       <td style="text-align:right;padding:4px 10px">0.287</td>
       <td style="text-align:right;padding:4px 10px;color:#2563eb"><b>−64 meV</b></td>
       <td style="text-align:right;padding:4px 0 4px 10px">12.0× 과대</td></tr>
-    <tr><td style="padding:4px 10px 4px 0">B₂O₃@LPSCl1.6</td>
+    {# 회신 BG ② — 이 행의 MD Ea 0.199 는 **철회**됐다 (2026-08-23 전구간 단일적합) #}
+    <tr data-claim="MD_Ea_eV@b2o3"><td style="padding:4px 10px 4px 0">B₂O₃@LPSCl1.6</td>
       <td style="text-align:right;padding:4px 10px">0.281</td>
       <td style="text-align:right;padding:4px 10px">0.199</td>
       <td style="text-align:right;padding:4px 10px;color:#dc2626"><b>+82 meV</b></td>
@@ -531,7 +533,7 @@ upd();
       <tr><td style="padding:4px 10px 4px 0">B2O3@LPSCl1.6</td><td style="text-align:right;padding:4px 10px">13.9</td>
         <td style="text-align:right;padding:4px 10px">0.81 ✓</td><td style="padding:4px 0 4px 10px">✅</td></tr>
     </table></div>
-    <div class="muted" style="font-size:.74rem;margin-top:6px">
+    <div class="muted" style="font-size:.74rem;margin-top:6px" data-claim="HZ-cross-system-Ea">
       LPSOCl 만 탈락한 이유가 여기서 닫힌다 — Ea 가 90 meV 높아 같은 온도·시간에서 D 가 0.60배,
       즉 <b>홉이 40% 적다</b>. 사고가 아니라 예측 가능했던 통계 부족.
       ⚠ n<sub>hop</sub> 은 <b>상한</b>(되돌아오는 홉 미포함, Haven 0.3–0.7 &lt; 1).
