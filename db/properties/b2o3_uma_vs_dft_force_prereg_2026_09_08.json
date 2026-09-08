@@ -3,7 +3,7 @@
  "record_kind": "prospective",
  "sealed_on": "2026-09-08",
  "results_seen": false,
- "status": "proposed — 개정 재비준 대기",
+ "status": "ratified",
  "제목": "b2o3 골격 creep — UMA 결함인가 실물리인가: 스냅샷 힘 비교 **보고량 카드** (계산 전 봉인)",
  "⛔_봉인_선언": "이 카드는 **첫 DFT 점을 던지기 전에** 작성·커밋한다. §2 보고량 · §4 집계 · §5 문턱 · §6 판정문구 는 결과를 본 뒤에 바꾸지 않는다. 1저자 ratify 전에는 던지지 않는다.",
  "1_무엇을_원하는가": "b2o3 의 UMA-MD 에서 관측된 폴리음이온 **골격 creep** (β_framework 0.47–0.79, modelc 는 7/7 rigid ≤0.27) 이 **UMA 포텐셜의 결함**인가, 아니면 그 조성의 **실제 물리**인가.",
@@ -135,7 +135,24 @@
     "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다 — 비준을 받아 놓고 내용을 고치는 길을 막는다.",
     "⚠_base_commit_이_아니다": "`commit` 은 기록일 뿐 앵커가 아니다. 앵커는 위 digest 다."
    }
+  },
+  {
+   "at": "2026-09-08",
+   "state": "ratified",
+   "note": "§4 개정판 1저자 재비준. 결과 보기 전 봉인(results_seen:false) 유지. 개정 요지는 직전 amended_pending_ratification 항목 참조."
   }
  ],
- "_amended_digest_preview": "87299c8588fb52a86b5e912d50893e056039f2167989e1747ff9e36aa4960723"
+ "ratification": {
+  "state": "ratified",
+  "role": "scientific_owner",
+  "at": "2026-09-08",
+  "by": "1저자",
+  "actor_id": "yonghoon7153@gmail.com",
+  "timestamp": "2026-09-08T12:05:00Z",
+  "commit": "070ccab20320cf138f448515c843859f7075de27",
+  "content_digest": "a0acb0a8903f449c6b816d8022a8a8e15a003b8adc89a1fec6d94f17ae9b7f7f",
+  "revision": "§4 개정판 (2판)",
+  "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다.",
+  "⚠_1판_지문": "d9e6907ab00b3d4eab7373b425f5ba42fea39caabfd0db11a8f7fb6eecf21480 (2026-09-08 오전 · §4 개정 전). 폐기가 아니라 이력이다."
+ }
 }
