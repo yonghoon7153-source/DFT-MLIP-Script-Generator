@@ -237,3 +237,33 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 2. **삽입 위치** — FT-IR 절 **뒤**여야 한다. [1]의 `above` 가 그 전제다 (앞이면 `below` 로).
 3. ✅ **n=6 도핑 자리 = ring3** (해결). 선택: 본문에 `(ring 3)` 을 넣어 검증 가능하게 만들지,
    Figure S4 (c) 패널에 자리 표시를 넣을지 — 1저자 결정.
+
+## 흡착 문단 — C-12 대기 상태로 동결 (2026-09-08)
+
+**1저자 결정: 외주(C-12) 결과가 올 때까지 hold.** 지금 문단은 자리표시로 둔다.
+
+### 확정된 것
+
+- **SI 그림 폐지.** 흡착 쪽 SI 그림은 만들지 않는다 — Figure 2f 가 슬랩·흡착 구조를,
+  Table S1 이 셀·진공·고정원자 144·상자 여백을 싣는다. 본문 참조는 `Table S1` 하나로 줄인다
+  (`computational models and` · `Figure S[x] and` · `respectively` 삭제).
+  ⚠ 자가도핑 쪽 SI 그림 둘(올리고머 구조 · 스핀 분포)은 **그대로 살아 있다.**
+- **이름은 `adsorption energy`.** 사전등록이 막은 것은 `binding energy` · `free energy` 뿐이다.
+  한정어 `fixed-geometry` 는 식 (1) `where` 절에 한 번:
+  *"…all evaluated as single points at fixed geometries."*
+- **인과 서술 삭제.** `primarily due to robust hydrogen bonding` 은 쓰지 않는다. 자세에 그 접촉이
+  있다는 기술은 되지만, 에너지 하나로 특정 접촉의 기여를 분리할 수 없다.
+
+### C-12 가 오면 할 일 4
+
+1. 숫자 셋 채우기 — `E_ads(sdcp)` · `E_ads(ptfe)` · `ΔE_ads` (사전등록이 셋 다 보고하라고 정함).
+2. **주어를 ΔE_ads 로.** 사전등록: *"순위·부호 주장은 ΔE_ads 로, 절대값은 '규모(order)' 로만."*
+   ΔE 는 clean slab 항이 소거돼 안정하고 절대값은 그것을 직접 빼서 민감하다.
+3. 식 (1) `where` 절에 `fixed geometries` 한정어 확인.
+4. 축자 조건 문구 한 줄 넣기 — *"사전등록한 18.272 × 11.512 Å² lateral cell, 1 fragment/cell,
+   fixed geometry, pm1, PBE+U+D3 프로토콜에서의 differential complex–gas reference energy 이다…"*
+   ⛔ 사전등록이 **줄이거나 조건절 떼는 것을 금지**한다.
+
+⚠ 숫자와 구조는 **같은 런(C-12)에서 함께** 온다. 섞으면 안 된다 — 이번에 내가 에너지는 wave1,
+기하는 b00 로 섞어 쓴 사고가 있었다 (wave1 자세는 술포네이트가 표면에서 4.88–5.39 Å 떨어져 있다).
+
