@@ -1240,6 +1240,54 @@
     "decision_digest": "sha256:53f6e40e2858e8c438929968d1834c9fc190d535ae084b3eed87a36543622090",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-08-b2o3-uma-vs-dft-force",
+   "schema_version": 2,
+   "kind": "estimand",
+   "scope": "b2o3.uma_md.framework_creep.potential_fidelity",
+   "slot": "uma_vs_dft_force_contrast",
+   "applies_to": {
+    "systems": [
+     "b2o3",
+     "modelc"
+    ],
+    "tasks": [
+     "snapshot_force_comparison"
+    ],
+    "methods": [
+     "uma-s-1p1-omat",
+     "qe-7.4.1-pbe-uspp"
+    ],
+    "use_cases": [
+     "internal"
+    ]
+   },
+   "title": "b2o3 골격 creep — UMA vs DFT 스냅샷 힘 대조 (보고량 카드 · 결과 보기 전 봉인)",
+   "statement": "보고량은 `R = dF_frame(b2o3) / dF_frame(modelc)` 이다. dF_frame = 골격 원자(비-Li)의 |F_UMA − F_DFT| 평균. 기존 궤적(highT_reseed_traj) s2 의 800·1000 K 에서 2–50 ps 창 등간격 5프레임씩, 계 2 × 온도 2 × 5 = 20 점. R ≥ 2.0 → UMA 결함 지지 · R ≤ 1.25 → 실물리 쪽 · 그 사이는 판정하지 않는다. 절대 힘 오차가 아니라 **대조군 대비 비**를 쓰는 이유는 의사포텐셜·기저 계통오차를 상쇄하기 위함이다.",
+   "rationale": "2026-08-25 마감 이후 남은 유일한 갈래 — 'UMA 가 황화물 속 B 를 못 다루는가 vs 진짜 물리인가' 는 non-UMA 참조 없이 못 가른다 (md_run_ledger ★_VERDICT.⚠_CONTRADICTS_OUR_DFT.not_resolved). 검사 ①(결합S/자유S)은 닫혔고 검사 ③(2×2×1)은 유한크기 축만 본다 — 셀을 키워도 포텐셜은 그대로다.",
+   "decision_state": "proposed",
+   "record_kind": "prospective",
+   "results_seen": false,
+   "card": "db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json",
+   "evidence": [
+    "db/properties/md_run_ledger.json",
+    "db/properties/b2o3_md_arrhenius.json",
+    "db/properties/b2o3_cell_expansion_prereg_2026_09_07.json"
+   ],
+   "method_ref": "기존 traj.xyz → 스냅샷 추출 → QE pw.x scf(tprnfor) · uma-s-1p1(omat) 단일점 → 원소별 |ΔF| 집계",
+   "reopen_criteria": "어느 결과든 b2o3 UMA-MD 전도도 축의 인용 불가(D-2026-09-07-b2o3-md-closure-retrospective)는 바뀌지 않는다. 이 카드는 진단이지 값 복원이 아니다.",
+   "enforcement": "무효 조건 6개(좌표 동일성 해시 · DFT 수렴 · k점 파일럿 · 표본 규칙 · 20점 완주 · gabia pw.x/UMA 동시 실행 금지)를 지키고, 하나라도 어긋나면 판정에 쓰지 않는다.",
+   "proposed_by": "claude-session-2026-09-08",
+   "status": "proposed",
+   "status_history": [
+    {
+     "at": "2026-09-08",
+     "state": "proposed",
+     "note": "1저자 ratify 전에는 던지지 않는다 (CLAUDE.md 계산 규율)."
+    }
+   ],
+   "content_digest": "sha256:e9b77fbfee1be9835666b2f1f029c03fc3aaf25488eab0f450fb7eccb8dbaf2b"
   }
  ]
 }

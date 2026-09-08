@@ -76,6 +76,28 @@ fi
 #   ⚠ 나눠 돌렸으면 **양쪽 결과를 합친 뒤에** Ea 를 재적합할 것. 한쪽만 새 값으로
 #     갈아끼우면 위의 계보 혼합이 그대로 재발한다.
 SYSTEMS=${SYSTEMS:-"b2o3 modelc"}
+# ── 셀 확장·시드 목록 (2026-09-08, b2o3 2×2×1 진단 사전등록 D-2026-09-07-b2o3-cell-expansion-diagnostic) ──
+#   새 파일을 만들지 않고 이 러너에 플래그를 붙인다 (CLAUDE.md 코드 규율 ③).
+#   SUPERCELL="2 2 1" 이면 드라이버에 --supercell 로 넘긴다. 비우면 종전과 **완전히 같다**.
+#   SEEDS 는 기본이 종전과 같은 "2 3 4" — 사전등록이 시드 2개면 SEEDS="2 3".
+SUPERCELL=${SUPERCELL:-}
+SEEDS=${SEEDS:-"2 3 4"}
+SC_ARG=""
+if [ -n "$SUPERCELL" ]; then
+  # shellcheck disable=SC2086
+  set -- $SUPERCELL
+  [ "$#" = 3 ] || { echo "⛔ SUPERCELL='$SUPERCELL' — 정수 3개여야 한다 (예: \"2 2 1\")"; exit 1; }
+  for _v in "$@"; do case "$_v" in ''|*[!0-9]*) echo "⛔ SUPERCELL 성분이 정수가 아니다: $_v"; exit 1 ;; esac; done
+  SC_ARG="--supercell $SUPERCELL"
+  # ⛔ 확장 셀을 소형셀 트리에 섞으면 collect 가 두 크기를 한 통에 담고, 사전등록의
+  #   무효 조건 ①(셀이 실제로 그 크기인가)을 사후에 못 가른다. 전용 OUTROOT 를 강제한다.
+  case "$OUTROOT" in
+    *"$(echo "$SUPERCELL" | tr -d ' ')"*) : ;;
+    *) echo "⛔ SUPERCELL 을 쓸 때는 OUTROOT 에 셀 표기를 넣어 **새 트리**로 돌린다."
+       echo "   예: OUTROOT=\$HOME/work/runs/highT_reseed_$(echo "$SUPERCELL" | tr -d ' ') SUPERCELL='$SUPERCELL' $0"
+       exit 1 ;;
+  esac
+fi
 for _s in $SYSTEMS; do
   case "$_s" in b2o3|modelc) : ;;
     *) echo "⛔ SYSTEMS='$SYSTEMS' 에 모르는 계가 있다: $_s (b2o3|modelc)"; exit 1 ;;
@@ -95,7 +117,7 @@ if [ "${TEMPS:-}" = "600" ] && [ "${PROD_PS:-100}" -lt 200 ]; then
   echo "   PROD_PS=200 TEMPS=600 ... 로 다시 실행하라. 의도한 것이면 FORCE_SHORT=1 을 붙여라."
   [ "${FORCE_SHORT:-0}" = "1" ] || exit 1
 fi
-echo "OUT=$OUTROOT  DEVICE=$DEVICE  SYSTEMS=$SYSTEMS  TEMPS=${TEMPS:-800 1000}  PROD_PS=${PROD_PS:-100} ps"
+echo "OUT=$OUTROOT  DEVICE=$DEVICE  SYSTEMS=$SYSTEMS  TEMPS=${TEMPS:-800 1000}  PROD_PS=${PROD_PS:-100} ps  SEEDS=$SEEDS  SUPERCELL=${SUPERCELL:-1 1 1 (원본 셀)}"
 echo "⚠ 재실행분은 **새 런**이다 — D 와 beta 를 이 궤적들에서 같이 뽑아 Ea 를 다시 적합할 것."
 [ "$SYSTEMS" = "b2o3 modelc" ] || \
   echo "⚠ 계를 갈라 돌린다 ($SYSTEMS) — 나머지 계를 다른 서버에서 돌리고 **합친 뒤** Ea 재적합."
@@ -110,10 +132,11 @@ import importlib.util, sys
 sys.exit(0 if importlib.util.find_spec("fairchem") else 1)
 PYCHK
 for SYS in $SYSTEMS; do
-  for S in 2 3 4; do
-    echo "===================== $SYS  ${TEMPS:-800 1000} K (${PROD_PS:-100} ps)  reseed s${S} ====================="
+  for S in $SEEDS; do
+    echo "===================== $SYS  ${TEMPS:-800 1000} K (${PROD_PS:-100} ps)  reseed s${S}  cell=${SUPERCELL:-원본} ====================="
+    # shellcheck disable=SC2086
     python3 "$DRIVER" \
-      --v0_xyz "${V0[$SYS]}" --label "$SYS" \
+      --v0_xyz "${V0[$SYS]}" --label "$SYS" $SC_ARG \
       --out_root "$OUTROOT/${SYS}/s${S}" \
       --disorder_levels 0.0 --n_configs 1 \
       --temperatures ${TEMPS:-800 1000} \
