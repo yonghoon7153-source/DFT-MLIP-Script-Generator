@@ -22,6 +22,7 @@
 | **[Shin26]** | **Shin/Han/Kim**(공동1저자 3인)/…/**Sangdoo Ahn\***/**Sang Uck Lee\***/**Young Whan Cho\***/**Young Joo Lee\*** 2026 ***Small* 22, e73722** (KBSI + 중앙대 화학 + KIST 수소에너지소재 + **성균관대 화공 = 이상욱 랩**) — "**Enhancing Li⁺ Ion Transport via Dynamic Coupling With Borohydride Reorientation in Li₆PS₅X Argyrodites**". **⭐⭐ 우리 물질 그 자체**(Li₆PS₅X). `Li₇₋ₓ₋ᵧPS₆₋ₓ₋ᵧ(BH₄)ₓClᵧ` 3조성 σ 16.4/7.9/0.7 mS/cm(EIS). **BH₄⁻ 는 halide/free-S²⁻ 자리(4a·4d) 점유**. **coupling 을 3중으로 측정**(⁷Li↔¹¹B SLR Ea 일치 · 회전구속 AIMD D 2–3배↓ · hop 31건 중 28건 동반). 계산은 **AIMD(VASP/PBE/Γ/80원자/500–900 K)**, 무질서 = **BH₄ 배향 4배열 Boltzmann 가중**. ⚠ **계산 σ 는 자유 파라미터 2개(χ_c 0.6↔0.8, 차원 불성립 가중식)로 지탱** — 우리가 3자리 재현해 확정 | ✅ `papers/shin2026_bh4_reorientation_li_transport_li6ps5x.md` | **exp 주(EIS·XRD-Rietveld·MAS/SLR/PFG/EXSY NMR·SEM) + AIMD 보조** — **σ·D 절대값은 소환값, 계산 σ 는 인용 금지** |
 | **[Zuo]** | Zuo 2022 Angew — 양극 계면 chlorination | ✅ `papers/zuo2022_chlorination_cathode_interface.md` | exp |
 | **[Qian26]** | Qian/Dean/Kochetkov/Chen/Huang/**Nazar** 2026 Angew (e9983580) — **SE 입자 유기(데칸산) 표면코팅**: 수분(39 % RH 2 h σ 91 %) + 양극(무코팅 NCM85 150cyc 96 %) + 음극(대칭셀 1000 h) 동시. **[Adeli]/[Zuo]와 동일 Waterloo/Nazar 그룹** | ✅ `papers/qian2026_decanoate_coating_lpscl_moisture_interface.md` | exp + DFT보조(슬랩 표면E·분자흡착) |
+| **[Qian25]** | **Lanting Qian⁺**/**Yangyang Huang⁺**/Dean/**Kochetkov**/**B. Singh**/**Nazar\*** 2025 *Angew. Chem. Int. Ed.* **64**, e202413591 (Univ. Waterloo; BASF+NSERC; OA CC-BY) — "**Engineering Stable Decomposition Products on Cathode Surfaces…**": **LiPO₂F₂(LiPOF) 를 NCM85 입자에 1 wt% 용액코팅(~35 nm 비정질, 소결 0)**. 근거는 **convex-hull 3종**(element profile / 닫힌 pseudo-binary / grand-potential 계면반응, VASP+pymatgen+MP). **[Adeli]→[Zuo]→본 논문(2025)→[Qian26](2026)** = Waterloo/Nazar 라인 4번째, **[Qian26] 과 1저자 동일** | ✅ `papers/qian2025_lipo2f2_coating_stable_cei.md` | DFT(hull) + exp |
 | **[Deng26PS]** | **Deng⁺/Tang⁺**/Lin/Chen/**Hui Li\***/Cao/Fang/Qian/Yang/**Xinping Ai\*** 2026 *Angew. Chem. Int. Ed.* **65**, e202520531 (武汉大 Wuhan Univ. + 武汉纺织大) — "**A Surface Non-Destructive Modification Strategy Addressing Moisture and Oxidation Instabilities of Sulfide SSEs**". **표면 S²⁻ 개시 DTD 개환중합 → ~10 nm poly(sulfate)(PS) 층**. exp 주 + **DFT 보조는 H₂O 흡착E 2값이 전부** (VASP 5.4.4·PBE·PAW·550 eV·**Γ-only**·**vdW 없음**·LPSC **(011) 슬랩(종단·크기·무질서 미기재)** vs **고립 삼량체**·**자리 샘플링 없음**). ⛔ **AIMD·NEB·COHP·DOS·Bader·ELF·ESW·탄성·phonon 전무.** **[Qian26] 과 같은 저널·같은 해·같은 문제의 자매 논문**이고 **둘 다 슬랩/흡착부 vdW 누락** — 이 분야 관행 (우리 차별화 지점) | ✅ `papers/deng2026_polysulfate_layer_moisture_oxidation_lpsc.md` | **exp 주(코팅·전기화학) — 소환값. DFT 값은 정성 방향까지만.** 축 ②(전자 접근 차단)·④(수분) |
 | **[LiGaF]** | Yaru Li/**Dabing Li**/**Yang Li**/Zhang/Qi/**Li-Zhen Fan** (**USTB — [Fan26] 리뷰·[Li25] CuBr₂와 같은 연구실**), "**Dual-Functional Ga/F Co-Doped Argyrodite Sulfide Electrolytes for ASSLBs**" (**Energy Mater. Adv. 2026;7:0227**, DOI 10.34133/energymatadv.0227, 출판 2026-04-27) — `Li₅.₅₊₂ₓP₁₋ₓGaₓS₄.₅Cl₁.₅₋₃ₓF₃ₓ` x=4 %(=Li₅.₅₈P₀.₉₆Ga₀.₀₄S₄.₅Cl₁.₃₈F₀.₁₂), host=[Yang25]와 동일 Li₅.₅PS₄.₅Cl₁.₅. **한 염 두 도펀트 5번째**([Taklu]CuCl→[Liu23]MgF₂→[Li25]CuBr₂→[Yang25]La₂O₃→본편 GaF₃), 자기 선행 = **InF₃**(ref[4] AEM 2024, [Fan26]이 인용한 그것) | ✅ `papers/liyaru_gaf3_codoping_argyrodite.md` **(본문+SI 통합)** | exp + DFT보조(SE 슬랩 NEB·Li 금속 슬랩 NEB·H₂O 흡착E·이성분 DOS) |
 | **[LiInF]** | **Dabing Li**†/Xinyu Liu†/**Yang Li**/Zhao/Wu/Qi/Gao/**Li-Zhen Fan** (**USTB — [Fan26] 리뷰·[Li25] CuBr₂·[LiGaF] GaF₃ 와 같은 연구실**), "**A Versatile InF₃ Substituted Argyrodite Sulfide Electrolyte toward Ultrathin Films for ASSLBs**" (**Adv. Energy Mater. 2024, 14(47), 2402929**, DOI 10.1002/aenm.202402929, 출판 2024-10-10) — `Li₅.₇₊₂ₓP₁₋ₓInₓS₄.₇Cl₁.₃₋₃ₓF₃ₓ`, host **Li₅.₇PS₄.₇Cl₁.₃**; **In→P 4b · F→Cl 4a**. **[LiGaF] 가 자리 배정을 이 논문에서 그대로 인용(ref [34]) = "한 염 두 도펀트" 계보의 앞칸** (InF₃ 2024 → GaF₃ 2026). ⭐ **[Fan26] 리뷰 §3.2 가 인용한 바로 그 논문(ref [97], Fig 4c)** — 리뷰어 노트 **A12·A13** 판정 근거. ⚠ 헤드라인 시료 둘: **x=0.02 σ 챔피언 5.6** vs **x=0.06 "LPSCInF" 안정성 주인공 σ 4.0 mS/cm**. **★ 본문 실물 재검증 `2026-08-06`(inbox #55)**: 교정 1(**"본문 800 h" 지적 철회** — 본문도 2000 h) · 신규 4(**⑯ 산화/환원 뒤바뀜**(→ §B 새 행) · **⑰ Li–In 표면에너지 0.40 eV Å⁻²=6.4 J m⁻² = Li 실측의 10–20배 단위오기** · **⑱ "carrier↑ + vacancy↑" 동시 주장 불가** — In³⁺→P⁵⁺ 는 Li 를 늘려 vacancy 를 *줄인다*; **우리 comp1→modelc 의 "Cl↑→Li↓→vacancy↑" 와 정반대 방향**이므로 **이 논문의 σ 상승을 vacancy 서사로 인용 금지**(§A) · **⑲ "Figure 4e"→실제 `Fig. 3e` 오지칭**) · 출처 정밀화 1(**In-only 7 / F-only 4.3 은 SI 가 아니라 본문 인쇄** ⇒ A13 논거 강화) | ✅ `papers/li2024_inf3_argyrodite_ultrathin_film.md` **(본문+SI 통합 · §14 재검증)** | exp 주 + DFT 보조(자리 E_f · 슬랩 NEB · Li/Li–In 슬랩 NEB · H₂O/유기용매 흡착E · PDOS) |
@@ -324,6 +325,12 @@
 | **B③ cathode 계면 cycling** | **Cl-rich 승** | [Zuo] R_cat 8.9<13.2, CE 79>77% (산물 양호) | 우리 grand-potential이 [Zuo] Eq1/Eq2 분해 stoichiometry 재현 → **✓ 화학**. **+ Zuo ToF-SIMS 종(PO₃⁻/SO₃⁻/Sₓ⁻/Cl⁻) = 우리 interface_reactivity 산물(Li₃PO₄/Li₂SO₄/폴리설파이드/LiCl, vs LiCoO₂) = `xps_reference_sei.csv` anchor(133.3/168.0/160.2/198.6) 1:1** (`papers/zuo2022…md` §11b, 2026-06-26). 단 "phosphate/sulfate *양*↓·폴리설파이드↑"는 SIMS-fold라 우리 정적 hull로 비율 못 가름. **+ [Liu] 독립 확증**(NCM811 full): cycled NCM/LPSCl이 oxidized S(sulfate/sulfite)·oxidized P 더 많고 argyrodite 적음 → R_cat 142.8 < 276 Ω·CE↑(Fig 5d–f). 같은 방향(Cl-rich NCM 계면 산화 산물 적음)이나 Liu는 "less oxidized solid"만, Zuo의 gas/polysulfide diversion 메커니즘은 없음 |
 | **B③ cathode 계면 — *레버 = SE 코팅*** (Cl 함량 아님) | **SE-coated 승** | **[Kang25]** ⭐ R_int 4.3 Ω cm²·200cyc 유지율 **+15.0 %**·OCV 강하 +10.1 mV; 식1 `2Li₆PS₅Cl→P₂S₅+5S+2LiCl+10e⁻+10Li⁺` → NCM811 균질 chemical lithiation(SOC↓) | 우리 grand-potential이 식1 산화분해(P₂S₅계+S+LiCl)를 **voltage-resolved로 재현·검증** (2.14 V S²⁻→폴리설파이드 … 3.06 V 원소 S). **단 이로움 = SOC-강하(코팅 균일화)이지 passivation 아님** → Nd(절연 CEI)와 *다른 physics* (§B 주석·§D) |
 | **B③ cathode 계면 — *레버 = SE 입자 **유기** 코팅(전자 절연)*** (Cl 함량 아님; 코팅 대상 = **SE 입자**) | **DA-coated LPSCl 승** | **[Qian26]** ⭐ 데칸산(C10 지방산) **2 wt% / 25 nm conformal** 용액코팅(고온소결 0) + **무코팅 NCM85** · Li–In · 2.8–4.3 V: 초기 **CE 60→83 %**·첫충전 **<3.5 V sloping(=LPSCl 산화) 소실**·1C **55→104 mAh/g**·**150cyc 61→96 %**·**R_cathode(EIS+TLM, 150cyc) 461→104 Ω(4.4×)**·4.6 V 110cyc 91 %·21 mg/cm² 3.2 mAh/cm²; ToF-SIMS **SO₂⁻/SO₃⁻/PO₂⁻/PO₃⁻ 대폭↓**·XPS 원소S(163.1 eV)↓·FIB intragranular crack↓ | **🔑🔑 기전이 우리 축분리와 정확히 일치 — 저자 자인**: CV bare **anodic onset 2.5 V**를 DA가 억제하는 이유를 "**electronically insulating** DA layer → **limits electron transfer**"로 명시, 즉 **열역학 창 확대가 아니라 전자 전달 차단**. → 우리 **B① 무승부(S²⁻-pin, comp1=modelc 2.256 V)** + **B③은 전자 절연 CEI가 레버**([Nd]/[B₂O₃] 서사)의 **외부·실험·독립 증거**. 우리 grand-potential onset **2.256 V < 실험 apparent 2.5 V**(kinetic 격차 0.24 V, [GG] 2.40·[Rupp] 2.0–2.2 밴드와 한 줄). 분해 산물도 **phosphate/sulfate/원소S = 우리 interface_reactivity 산물**과 1:1([Zuo] Fig4·5·[Liu]와 **3편 독립 확증**). ⚠ σ는 **판다**(Table S3: 1 wt% 1.4 → 2 wt% 1.3 → 5 wt% 0.7 → 10 wt% 0.2 mS/cm; **bare 절대값 미제시**) — "무손실 코팅" 아님. ⚠ 유기물은 우리 MP hull 밖 → **코팅 자체의 열역학 판정 불가**, 우리는 "전자 절연" 기전 정합까지만 |
+| **B③ cathode 계면 — *레버 = 양극 입자 **무기염** 코팅(용액·무소결)*** (Cl 함량 아님; 코팅 대상 = **CAM 입자**) | **LiPOF-coated NCM85 승** | **[Qian25]** ⭐ **LiPO₂F₂ 1 wt%** DMC 용액코팅 → **~35 nm 비정질 conformal**(HRTEM), **100 °C 증발만·소결 0** + 상용 LPSCl(σ 2.2 mS/cm) · Li–In · 2.8–4.3 V · 0.2 C: **ICE 64.6→81.6 %**(첫충전 잉여 ≈48 mAh/g 소멸 = LPSCl 산화 몫, figure-read) · dQ/dV **3.0–3.2 V "Argyrodite decomposition" 혹 소멸** · 0.1/1 C **152/51→180/85 mAh/g** · **200 cyc 56.0→81.4 %** · 고로딩 25.6 mg/cm² **4.4 mAh/cm² 200 cyc 77 %** · **R_cathode(EIS+TLM) 200→90 Ω·cm²** · **S 2p 산화-S(163.2 eV) 소멸**(bare 는 thiosulfate·polythionate 까지) · ToF-SIMS **SOₓ⁻ 급감** · FIB 균열 완화. **2 wt% 는 손해**(80 cyc 92 % 지만 초기 167 vs 182 mAh/g, ICE ≈78.6 % figure-read) → **두께 최적점 존재** | **🔑 우리 축분리와 정합 — 코팅은 onset 을 안 옮긴다.** 저자들은 LPSCl 의 ~2.5 V 산화한계를 **전제로 깔고** "그 위에서 어떻게 버티나"만 묻는다 → **B① 무승부(우리 2.256 V S²⁻-pin) · 이득은 전부 B③**. `[Qian26]`(SE 입자 유기코팅)·`[Deng26PS]`(표면개질)·`[Kang25]`(SE 코팅)·`[Cha]`(할라이드 코팅)·`[BZOx]`(양극 산화물 코팅)에 이어 **레버 6번째인데 여섯 편 모두 B① 을 못 움직인다** — 이 자체가 우리 서사의 문장. ⚠ **복합양극에 카본 없음**(SE:CAM 2:8) → `[Zuo]`(CV 에 C65 20 wt%)와 **분해 "양" 직접비교 금지**. ⚠ 초록 82 % vs 도면 81.4 % 불일치 — **81.4 %** 로 인용 |
+| **B③ ★★ 계면 산물 열역학이 우리 `interface_reactivity.py` 를 *문자 그대로* 재현 — LPSCl 자기분해식** | (우위 아님 — **독립 재현**) | **[Qian25]** `Fig. 1b` x=1.0 회색 점선("Decomposition"): **Li₆PS₅Cl → Li₃PS₄ + Li₂S + LiCl**, 구동력 **figure-read ≈ −83 meV/atom**. 방법 = pymatgen `InterfacialReactivity`, MP hull, meV/atom, 끝점 hull-평형 규약 | 우리 `db/properties/interface_reactivity_results.json` 의 x=1.0 kink 가 **`Li6PS5Cl -> Li3PS4 + Li2S + LiCl`** — **산물 3종 문자열까지 일치**. ⛔ **−83 meV/atom 은 이식 금지**: 우리는 `energy_mode: hull`(조성의 hull 에너지 = e_above_hull ≡ 0)을 쓰고, 그들은 **어느 S/Cl 배열인지 안 밝힌 LPSCl 구조 1개**의 에너지를 썼다(참고: MP 실엔트리 `mp-985592-GGA` 는 e_above_hull **1.5663 eV/atom** = 무질서 미보정 인공물). **정의도 구조도 다르다** |
+| **B③ ★ 계면반응 크기의 자릿수 기준선 (코팅\|양극도 크게 반응한다)** | (기준선 — 우위 판정 아님) | **[Qian25]** `Fig. 1e,f` **figure-read ≈**: NCM\|LiPOF **2.8 V −395 meV/atom**(CoO+NiO+Li₃PO₄+LiF) / **4.3 V −108**(Li₂NiF₄+CoO₂+MnO₂+Ni₃(PO₄)₂). LPSCl\|LiPOF 는 **2.8 V −43 / 4.3 V −96** | 우리 `interface_reactivity_results.json`: LiCoO₂\|comp1 **−323** / LiCoO₂\|modelc **−331 meV/atom** → **같은 자릿수(수백 meV/atom)**. ⛔ **값 대소 비교 금지** — 양극도 계도 functional/U/MP 버전도 다르고, 그들은 **끝점 규약이 Fig 1b(닫힌)와 1c–f(grand) 사이에서 다르다**. "코팅이든 SE 든 산화물 양극과는 수백 meV/atom 급으로 반응한다" 까지만 |
+| **⚠ B③ 게이트 문턱 \|ΔE_rxn\|<100 meV/atom 의 *귀속*이 한 편 어긋난다 (인용 규율)** | (판정 아님 — **서지 교정**) | **[Qian25]** 본문: *"reaction energies … less than 100 meV/atom, which has been used as an indicator for low chemical reactivity"* + **ref [7] = [Rich16]** | 우리 실물 검증 digest 기준 — **[Rich16] 의 100 meV/atom 은 "무시한 계면에너지의 상한"**(Δγ 0.5 J/m²·원자층 두께)이고, **반응성 게이트로서의 \|ΔE_rxt\|<100 meV/atom 은 [Xiao19] filter 4**(= [Qian25] 자신의 ref [33]). 숫자·계보는 맞지만 **인용처가 한 편 밀렸다**. 🔑 그리고 두 뜻이 **수치적으로 겹친다**는 사실이 규율을 준다 — **게이트 바로 위/아래 물질의 순위는 우리가 무시한 항의 크기 안에 있다**(우리 [Rich16] digest §16 과 동일 결론). (부수: [Qian25] ref [7] 페이지 **255–273** 은 오기, 실물 **266–273**) |
+| **⚠ B③ "분해산물이 전자절연" 주장을 논문 자기 표가 절반만 지지** | (판정 아님 — **인용 범위 제한**) | **[Qian25]** `Table S1`(SI, 텍스트): LiF **8.7** · LiCl **6.3** · Li₃PO₄ **5.8** · Li₄P₂O₇ 5.6 · Li₂NiF₄ 4.7 · P₂O₃F₄ 5.8 · SOCl₂ 3.6 · Ni₃(PO₄)₂ 3.4 · **P₂S₅ 2.6** · **LiPO₃ 2.5** · **P₂S₇ 2.1** · CoO/CoO₂ **0.6** · MnO₂ **0.5** eV | 우리 `sei_products.json` 문턱(**절연 ≥4 / marginal 2–4 / 전도 <2 eV**)으로 재면 **2.8 V 대표 산물 세트에 든 P₂S₇(2.1)·LiPO₃(2.5)는 marginal**, NCM 쪽 CoO/CoO₂/MnO₂ 는 **전도체**. → 인용은 **"LiF·LiCl·Li₃PO₄ 가 절연"** 으로 좁힐 것. ⛔ **gap 절대값 혼용 금지**: 같은 "MP GGA gap" 인데 **LiCl 그들 6.3 vs 우리 6.65 eV**(Δ0.35) = MP DB 버전/엔트리 차이. ⛔ Table S1 **전압창도 우리 ESW 표에 붙이지 말 것** — 출처가 refs [7,32,33] 소환값과 자체 DFT 추정의 **혼합인데 매핑이 없다** |
+| **⚠ B③ 계산 NCM ≠ 실험 NCM (조성 불일치, 논문이 언급조차 안 함)** | (판정 아님 — **인용 시 교정**) | **[Qian25]** `Fig. 1e,f` x축 **figure-read**: DFT 입력은 **LiMn₀.₀₈₃Co₀.₀₈₃Ni₀.₈₃O₂**(=12-포뮬라 정수치환 정황) 인데 실험 CAM 은 **LiNi₀.₈₅Mn₀.₁Co₀.₀₅O₂**(BASF NCM85). **Co 0.083 vs 0.05 = 1.7배** | Fig 1e 대표 산물에 **CoO** 가 들어 있으므로 **"NCM85 와 반응해 CoO 가 생긴다"로 인용하면 과대**. 우리가 NCM 계 계면반응을 돌릴 때도 **입력 조성을 반드시 명기**해야 한다는 사례 (우리 `estimand_card` §1 "무엇을 재는가" 위반 유형) |
 | **B③ cathode 계면 — *레버 = 할라이드 코팅의 dual compatibility*** (Cl 함량 아님) | **dual-compat 할라이드(LZC) 승** | **[Cha]** ⭐ 할라이드(LIC/LYC/LZC) 8–10 nm 코팅; **LZC=Li₂ZrCl₆만 NCM·LPSCl 양쪽 호환**(7일 무분해) → 계면저항 74.4→**20.1 Ω·cm²**·100cyc **91.2 %**; LIC(In₂S₃)·LYC(Y₂S₃) 비호환·**LIC는 bare보다 나쁨(80.8<83.1)** | 우리 grand-potential이 bare NCM-LPSCl 분해(phosphate·P₂Sₓ·Li₂S, Cha XPS Fig5e)를 **재현**(우리 산화 staircase P₂S₇·S·폴리설파이드·LiCl). **단 LZC dual compatibility(Zr⁴⁺ passivation)는 Zr가 우리 hull에 없어 *아직* 정량 못 함** → 향후 Zr hull + interface_reactivity. **이로움 = *새 저항층 안 만듦*(비반응성 코팅)이지 능동적 절연 CEI 형성(Nd) 아님** → §B 주석·§D, "Cha=Nd 실험증거"는 부정확 |
 | **B① 황화물 SE 산화 한계 = 5 V 직접접촉 불가** (intrinsic) | **황화물 패배 (실험 명문화)** | **[Son]** ⭐외부 본문 "sulfide SEs … limited electrochemical stability (**<2.5 V** vs Li/Li⁺)"(intro) + Fig 3b 막대 + Fig 3a CV | 우리 grand-potential **2.256 V**(S²⁻-limited, LiS4 제외; 포함 2.14) → **✓✓✓ 정량 일치** — Nature Energy 본문 "<2.5 V"가 우리 thermo onset과 부합. **우리 계산이 5 V 논문의 출발 전제를 수치로 뒷받침** |
 | **B③ cathode 계면 — *레버 = 산화안정 차폐 SE 교체*** (Cl 함량도 코팅도 아님; *물질군 교체*) | **불소계 차폐(LiCl–4LTF) 승** | **[Son]** ⭐외부 황화물(<2.5)·할라이드(LYC 3.7·Zr-OCl 4.1)·기존산화물코팅(LiNbO₃ 3.86, 산소방출→Mn₃O₄) 전부 5 V 불가 → **불소계 LiCl–4Li₂TiF₆**(σ 1.7e-5·**>6.7 V**) 차폐 → LNMO 2C 500cyc **75.2 %**·R_int 0.1 kΩ·cm² | 우리 hull 밖(Ti/F·Y/Zr) → 수치 재현 불가, **방법(grand-potential ESW)만 동일**. **[Cha] 할라이드코팅 전압천장(~4 V NCM)** 을 Son이 명시(할라이드도 5 V 불가) → 우리 그룹 코팅 서사는 4 V급·5 V는 물질군 교체. **고전압 산소방출→절연상(Mn₃O₄)** = [Zuo]/[Kang25] O-release와 결 동일 |
@@ -352,6 +359,8 @@
 > - **[Kang25] (우리 그룹 실험, 이 논문)**: "이로운 기생반응" = 고전압 LPSCl 산화분해[식1]가 NCM을 **균일 재리튬화(SOC↓)** → layered→rock-salt 억제 → +15.0 % 유지율. **🔑 우리 narrative와의 두 가지 정밀 정렬**: ① 식1 산물(P₂S₅계+S+LiCl) = **우리 grand-potential 산화분해와 동일 화학** → *같은 그룹 실험이 우리 계산을 (간접) 검증*; ② **그러나 이로움의 *메커니즘*은 SOC-강하(코팅 균일화)이지 wide-gap 절연 CEI가 아님** → 우리 **Nd passivation(NdPO₄/NdCl₃ 절연 e⁻차단)과 *다른 physics*** (Kang 산물 중 LiCl만 절연, P₂S₅·S·폴리설파이드는 전도성). **"Kang = Nd passivation 실험증거"라고 하면 틀림**; 둘은 *상보적 두 레버*(코팅=SOC관리 / 도핑=절연CEI). 변수도 Cl이 아니라 *SE 코팅 유무* → 4축 Cl표에 넣지 말 것.
 > - **[Cha] (우리 그룹 실험, 2024 — cathode-interface 라인 *기원*)**: NCM에 **할라이드 SE(LIC/LYC/LZC) 나노코팅**으로 NCM-LPSCl 계면을 *차단*. 결정 변수 = **dual compatibility**(코팅이 NCM·LPSCl *양쪽*과 무분해) — **LZC=Li₂ZrCl₆**만 만족(7일 무분해)·LIC(In₂S₃)·LYC(Y₂S₃) 비호환. **🔑 우리 narrative와 두 정밀 정렬**: ① **σ≠계면저항**(σ LIC>LZC>LYC인데 계면저항 LZC≪LIC·LIC는 bare보다도 나쁨) = 우리 "lever=interphase, not bulk σ"의 cathode-side 증거(축 A에도 등재); ② **dual-compatibility(6계면)=우리 `GrandPotentialInterfacialReactivity` 도구의 완벽한 적용대상**(왜 Zr⁴⁺만 견디나 in-silico). **그러나 이로움 메커니즘 ≠ Nd passivation**: Cha=*비반응성 코팅(no new interphase)*, Nd=*능동적 wide-gap 절연 CEI 형성* → 위치 다름(레버 A=[Kang25]SE코팅·B=[Cha]할라이드코팅·C=우리 SE도핑, 셋 다 *다른* 레버). **변수 = Cl 함량 아니라 *코팅 할라이드 종류* → 4축 Cl표에 넣지 말 것**(이 표는 cathode-interface 레버 행으로만). ⚠ Zr 우리 hull 부재 → 정량은 향후.
 > - **🔑 [Son] (외부·Nat. Energy 2025, 이 논문) = B① 황화물 산화 한계의 *외부 실험 캡스톤* + 코팅/물질군 서사 완성**: Son이 본문에서 "황화물 SE <2.5 V"·"할라이드 ~4.3 V부터 분해"를 *명문화*하고, 5 V급 LNMO/LCMO를 위해 **새 불소계 SE(LiCl–4Li₂TiF₆, >6.7 V)를 차폐층**으로 도입(2C 500cyc 75.2 %·35.3 mAh/cm²). **세 정렬**: (a) **우리 grand-potential 2.256 V(S²⁻-limited) ↔ 본문 "<2.5 V" 정량 일치** — 우리 thermo onset이 *Nature Energy 출발 전제*를 수치로 뒷받침; (b) **[Banik] S-pin "치환으론 못 늘림→코팅/타 물질군 필요"의 *실현*** — Son이 *타 물질군(불소계)* 으로 5 V 달성(Banik은 SE intrinsic, Son은 차폐층 = 같은 결론 다른 구현); (c) **우리 그룹 [Cha] 할라이드 dual-compat 코팅의 *전압 천장* 명시** — 할라이드(LYC/Zr-OCl)조차 ~4 V서 분해 → [Cha]는 NCM 4 V급엔 유효하나 **5 V급(LNMO)엔 부족** → 우리 코팅 서사를 "4 V급 계면관리"로 정확히 위치, 5 V는 *물질군 교체* 영역. ⚠ **절대화·과확장 금지**: 불소계(Ti/F)·할라이드(Y/Zr)는 우리 6원소 hull 밖 → 6.7 V·4 V 수치는 *Son이 계산*한 것이지 우리 재현 아님(방법만 동일); "우리가 5 V 차폐 SE를 검증했다"식 금지. 황화물 한 줄(<2.5 V↔2.256)만 우리 값과 엄밀 정합.
+> - **🔑 [Qian25] (외부·Nazar 2025, 이 논문) = "코팅은 *그 자체*가 아니라 *분해산물*로 심사한다" 의 절차화 + 우리 계면열역학 도구의 외부 대조군**: LiPON 선례(*"LiPON 이 고전압 양극과 호환되는 건 그 분해산물 Li₄P₂O₇·LiPO₃·P₄O₁₀ 가 산화안정하기 때문"*, ref [7]=[Rich16])를 **설계 원리로 일반화**해 LiPO₂F₂ 를 골랐다. 계산 3층 = **① 코팅 혼자의 창**(`get_element_profile`) → **② SE 와 섞였을 때**(닫힌 pseudo-binary) → **③ 작동전압에서**(grand-potential, μ_Li 2점 고정) — **우리 `esw_grand_potential.py` + `interface_reactivity.py` + `interface_reactivity_v2.py` 와 같은 클래스·같은 순서**다. **🔑 우리 쪽 정보량이 더 많다**: 그들은 2.8/4.3 V **두 점 스냅샷**인데 우리 v2 는 **전압축을 훑어 산물 세트가 바뀌는 kink 전압**을 낼 수 있다 — 이 논문이 못 낸 값이고 우리 그림의 차별점. ⚠ 반대로 **재현성은 그들이 아래**다: 계산 절이 **11줄**이고 functional·U·PAW·MP 버전·**MP2020 음이온보정**(황화물+산화물+불화물 혼합 hull 에 필수)·**LPSCl S/Cl 배열**·NCM 고용체 배열이 **전부 미기재** → 우리 `estimand_card` 규율의 *"admissible state 가 여럿인데 선택 규칙이 없다"* 전형. 우리 원고 SI 는 이 수준이면 안 된다. ⚠ **자기 게이트의 4배(−395 meV/atom)를 근거 없이 "속도론이 막는다"로 넘기는 논증**은 우리가 하면 안 되는 견본(검출한계 미제시 → "없다" 가 아니라 "못 봤다").
+> - **🔑 [Qian25] 에서 F 축 경고 하나**: `Fig. 1f`(4.3 V) 는 **F 가 TM 으로 갈아타 Li₂NiF₄** 를 만든다고 예측한다. LiF(gap 8.7 eV)는 최고의 절연 CEI 지만 **고전압에서 F 가 TM 불화물로 이동**하는 경로가 있다 → 우리 cascade 의 **F 계열 도판트 검토에 이 게이트를 반드시 넣을 것**.
 > - **deck 결론**: "전도도 이득이 산화창 손해 없이(B①–③ 중립~유리), 비용은 shelf-life(B④). **양극 계면은 별도 레버로 관리** — 4 V급은 코팅·도핑([Cha]할라이드 dual-compat / [Kang25]SE코팅 균일화 / 우리 cascade SE도핑), **5 V급은 산화안정 차폐 SE 물질군 교체([Son] 불소계 LiCl–4LTF)**. 황화물 intrinsic 산화창은 어느 경우도 못 늘림(우리 2.256 V·Banik S-pin·Son <2.5 V)." 축·레버·전압대 명명 필수.
 > - **⚠ "넓은 ESW" 문헌 over-claim 주의 (carbon-composite kinetic ≠ thermodynamic)**: **[Taklu]** "**8 V ultra-wide ESW**"(CuCl 도핑, Fig 3b)는 **(a) In/InLi 기준**·**(b) carbon-composite CV의 *kinetic/접근성*** 측정 — 황화물 *intrinsic* 산화 onset이 아님. Cu가 bridging-S를 *kinetically* 안정화(분해전류 160×↓)하는 건 사실이나, **thermodynamic 산화창은 여전히 S²⁻-limited ~2.3 V**([Banik] VBM=S 3p·우리 grand-potential 2.256 V). → **"CuCl/도핑이 산화창을 N V로 넓혔다"는 인용 금지** — "carbon-composite 셀 kinetic 분해전류 감소"로만. (Dewald ref49 "planar는 분해 과소평가"를 저자도 인용하나 composite 8 V도 동일 함정.) — **동일 함정 3번째 사례 [Zhou26]**: LGPS 고엔트로피 조성의 *"decomposition potential exceeds 5 V"* (Fig 2b)는 **Li \| SE \| 스테인리스 blocking, 카본 없음, 1 mV/s 단일 스윕** — [Adeli]가 경고한 **평판 셀 = 분해 *과소*평가** 유형이다([Taklu]는 carbon-composite = *과대*, 방향은 반대지만 둘 다 kinetic). **LGPS 계의 열역학 창은 `fan2026…review` 기준 1.71–2.14 V** 이고 Ge⁴⁺ 환원 때문에 argyrodite 보다 오히려 좁다. → **"고엔트로피가 5 V 안정성을 준다"는 인용 금지**; 쓰려면 "blocking-electrode CV 에서 5 V 까지 유의 faradaic 전류 미검출(동역학적)"로만. **⚠ 단 [Zhou26]의 Li *금속 측* 주장(CCD 2.5 vs 1.6 mA/cm²·대칭셀 1200 h·풀셀 100 cyc)은 대조군이 있고 조건이 HE 에 불리했으므로 별개로 신뢰 가능** — B축(산화)이 아니라 E축(환원/음극)의 값이다.
 > - **LiS4 단서**: 우리 onset 2.14 vs [GG] 2.40 차이 = LiS4(mp-995393) 포함 탓 → 제외 시 2.26 (정합↑).
@@ -1146,6 +1155,8 @@ C6(Zn(002) Wulff) · C7(MD)와 각각의 **"못 하는 것"**, 착수 게이트 
 > ⇒ **§K-4 의 "AFM(Zhu) 만 인입 중" 이 해소됐다.** 나머지 4편은 여전히 미보유.
 > 이 논문은 **덱 슬 6(G2)의 원출처**이자 **정본**이다 — 덱과 어긋나면 논문이 이긴다.
 > **두 번째 수계 Zn digest**: `papers/cho2026_eipc_zn_anode_azib.md` (코팅막 축, [Cho26Zn]).
+> **세 번째**: `papers/wu2026_dilute_electrolyte_zn_calendar_aging.md` (**calendar aging 축**, [Wu26Zn]) → **§K-10~K-12**.
+> ⛔ 세 편은 전해질이 전부 다르다 — CE 를 같은 표에 놓지 않는다.
 
 **논문값 (⚠ 발표 소환값과 섞지 말 것 — §K-1 표와 *다른 계*다: 1 M ZnSO₄, 요오드 없음, 탄소 코팅 Cu)**
 
@@ -1236,6 +1247,99 @@ code · 범함수 · vdW · 유사퍼텐셜 · k-mesh · cutoff · 슬랩두께/
 - **"520 Wh kg⁻¹"** 를 실측 셀 에너지밀도로 (본문은 *theoretical*).
 - **§K-1 의 발표 소환값과 §K-5 의 논문값을 같은 표에** — 전해질(2 M ZnSO₄+ZnI₂ vs 1 M ZnSO₄)·기판·
   프로토콜이 전부 다르다. ⛔ 방향은 **논문 → talk** 단방향.
+
+### K-10. 📄 세 번째 편 — **[Wu26Zn]** calendar aging 축이 들어왔다 (2026-09-08, 논문 에이전트)
+
+> `papers/wu2026_dilute_electrolyte_zn_calendar_aging.md` — H. Wu, B. Liu, D. Zhao (공동1저자 3인),
+> **D. Cheng**(DFT), … **P. Sautet**, **Y. Li\*** (UCLA), "Dilute electrolytes for suppressing metal anode
+> corrosion during calendar aging and cycling in aqueous zinc batteries",
+> ***Nat. Commun.* (2026), Article in Press**, DOI `10.1038/s41467-026-75100-x`.
+> 🎤 이 논문이 **`talks/do2026_bml_alzib_preconditioning.md` §11.3(b)** 의 결론
+> — *"우리가 계산할 양은 **calendar 축**에 걸어야 한다"* — **의 문헌 앵커**다. 덱은 citable=no, 논문이 정본.
+
+**논문값** (⚠ **§K-1(덱)·§K-5([Zhu26Zn]) 와 같은 표에 놓지 말 것** — 전해질이 셋 다 다르다:
+2 M ZnSO₄+ZnI₂ / 1 M ZnSO₄ / **0.1 M ZnSO₄ + 0.5 M Li₂SO₄ + 5 vol% DMF in D₂O**)
+
+| 지표 | 1 M ZnSO₄ 대조 | **1Z5L (본 논문)** | 조건 |
+|---|---|---|---|
+| 24 h calendar 유지 | 64.4 % | **98.4 %** | 1 mAh cm⁻²·1 mA cm⁻²·25 °C·graphite |
+| 7 d 유지 | (2 M/Cu) 3 % | **84.9 %** | ⚠ 대조만 **Cu 기판** — §K-11 |
+| 기판별 24 h | 72.0 / 26.9 / 72.3 % | **98.0 / 97.2 / 93.7 %** | graphite / Ti foil / Cu foam |
+| 온도별 24 h | 79.9 / 72.0 / 40.6 % | **98.8 / 98.0 / 96.1 %** | 4 / 25 / 45 °C |
+| 하프셀 CE | 23 cyc 에서 급락 | **99.7 %** (220 cyc) | 1 mA/1 mAh cm⁻² |
+| 대칭셀 | <100 h | **>1,500 h** | 〃 |
+| Zn‖LMO 4 C | — | **3,300 cyc · 평균 CE 99.8 %** | ⚠ 궤적 비단조 — §K-11 |
+| pH (농도) | 3 M **3.5** · 1 M 5.3 · 0.3 M 6.02 | **0.1 M 6.5** · 0.01 M 7.04 | `Fig. 2c` Source Data |
+| **TGC 손실 분해** | — | 연속사이클 **Zn⁰ 0.50 / 부식 0.003 %**<br>24 h 정지 후 **Zn⁰ 0.65 / 부식 0.85 %** | ★ 이 논문 최고 데이터 |
+
+> ★ **TGC 행이 이 축에서 제일 중요하다.** *"사이클 손실 = 고립 Zn⁰, calendar 손실 = 화학부식 Zn²⁺"* 라는
+> **기구 분리를 실험이 직접 쟀다.** ⇒ 우리 **C3(HER)·C4(갈바닉)의 검증 게이트는 사이클 CE 가 아니라
+> 정지 상태 부식률**(j_corr · OCV plateau · TGC 부식분율)에 걸어야 한다는 것이 문헌으로 확정됐다.
+
+### K-11. 🔴 **[Wu26Zn] 계산 층위 판정 — "CG-MD" 가 아니다** + 우리 축 매핑
+
+**MD 가 0건이다.** CG-MD·all-atom MD·AIMD·MLIP·continuum 전부 없고 **전량 0 K 정적 DFT**다.
+
+| 층위 | 이 논문 |
+|---|---|
+| VASP · **PBE + D3** · PAW · **400 eV** · **4×4×1 Γ** | ✅ |
+| **Zn(002) 3층 (4×4) = 48 Zn**, 아래 1층 고정 / 위 2층+흡착종 이완 | ✅ |
+| 명시적 물 **2층**(분자 개수 미기재, figure-read ≈ 20) + Zn 이온 1개(**최적화 결과 CN = 4**) | ✅ |
+| **VASPsol** 선형 PB (ε 78.4, Debye **3.0 Å = 1 M**) | ✅ |
+| **EChO 정전위(surface charging) −0.8 V vs SHE** — 이완·TS 둘 다 | ✅ **이 논문의 방법론적 강점** |
+| **CI-NEB → dimer** (0.05 eV/Å), 경로당 **9점**(RC 0–8) | ✅ |
+| 앙상블·온도·시간·시드 | ❌ **전부 해당 없음. 경로당 배열 1개, 오차막대 없음** |
+| **RDF · 배위수 · MSD · D · 용매화 껍질 조성** | ❌ **0건** |
+
+계산값: Volmer 장벽 **pure H₂O 1.207 / Zn 1st shell 0.601 / Zn 2nd shell 0.700 eV**,
+ΔE **0.622 / 0.167 / 0.165 eV** (`Fig. 2a` Source Data 원값) · **−ICOHP(O–H) 3.94 → 2.30 eV** (`Fig. S1c,d` 인쇄값).
+
+**우리 축 매핑** (스코핑 카드 C1–C7 기준):
+
+| 우리 후보 | [Wu26Zn] 와의 관계 |
+|---|---|
+| **C3 (HER ΔG_H\*)** | ★ **업그레이드 목표점.** 우리 C3 카드가 자인한 한계 4개 중 **3개(속도론 없음·EDL 전기장 없음·명시적 물 없음)** 를 이 방식이 정면으로 해소한다. 단 §K-12 대로 **지금 우리 장비로는 못 돌린다** |
+| **C4 (갈바닉 Φ)** | ★ 우리 카드가 *"암시적 용매 판을 따로 세워야 한다"* 고만 적어 둔 자리에 **구체 사양**(ε 78.4, Debye 3.0 Å, surface charging)을 준다 |
+| **C5 (Zn²⁺ 용매화 / Marcus λ)** | ⭕ 상보. 우리는 ORCA 클러스터+CPCM, 이 논문은 **표면 위 −ICOHP(O–H)**. **같은 질문의 두 번째 관측창** |
+| **C7 (MD / EDL 조성)** | ❌ 도움 안 됨 — 이 논문에 MD 가 없다. 오히려 *"MD 없이 정적 DFT 만으로 이만큼 주장했다"* 의 사례이자 그 **위험 사례**(§K-12 비판 1) |
+| C1 (상 지문) | ⭕ `Table S3` 의 **ZnO d-spacing 7면**(측정 ± 불확도 vs 표준)이 우리 지문표 ZnO 행과 직접 대조 가능 |
+| C2 · C6 | 겹침 **0** |
+
+### K-12. 🔧 [Wu26Zn] 에서 **방법으로만** 가져오는 것 + ⛔ 금지 목록
+
+> ⚠ 이 블록은 **물성 4축 표가 아니라 방법 원전 블록**이다. 이 논문은 σ·Ea·ESW·E_VRH·gap 을
+> **하나도 계산하지 않았다** — 4축에 넣을 행이 없다.
+
+| 항목 | 논문 | 우리 활용 |
+|---|---|---|
+| **정전위 슬랩(surface charging)** | EChO + VASPsol, −0.8 V vs SHE | ⭕ **C3/C4 의 최종 사양.** ⚠ 우리는 QE → Environ 으로 옮기면 **다른 방법**이 된다(값 대조 금지) |
+| **−ICOHP(O–H) 를 물 반응성 서술자로** | 3.94 → 2.30 eV | ⭕ 우리 LOBSTER 파이프라인(`lobster_nscf`)에 **결합만 바꿔** 재현 가능. 축소판(2층 슬랩+물 1층)은 우리 GPU 로 돌아간다 |
+| **조건 스윕 설계**(`Fig. 4c–e`) | 기판 3 × 전착용량 3 × 온도 3, 각 3–5 반복 | ⭕ 협업 상대(BML)에게 줄 **calendar 실험 처방 골격** |
+| **하이브리드 프로토콜**(`Fig. 4f,g`) | 5 cyc 마다 2 h 휴지, 100 % SOC | ⭕ calendar 를 **셀 수준에서** 재는 유일한 형식 |
+| **TGC 3분할**(가역/Zn⁰/부식 Zn²⁺) | HCl 적정 → H₂ GC-MS, m/z 5 | ⭕ C3/C4 게이트의 **정량 대상** |
+| **첨가제 선정 지도**(`Fig. S6b`, DN–ε) | 비양성자성 · DN ≳16 · ε ≳27 | ⭕ 우리 ZnI₂ 계 첨가제 논의의 **좌표축 통일** |
+
+⛔ **인용 금지**
+- 이 논문의 **CE·용량유지·j_corr·pH** 를 `our_dft_baseline.md` / `db/properties/` **황화물 값과 같은 표**에.
+- 이 논문의 CE 를 **§K-1(덱, citable=no)·§K-5([Zhu26Zn]) 와 같은 표**에 — 전해질이 셋 다 다르다.
+- **−ICOHP 3.94 / 2.30 eV** 를 우리 **ICOHP(Li–Cl) −1.86 / −2.10** 옆에 —
+  ⓐ 부호 규약 반대(우리 ICOHP 음수 vs 저들 −ICOHP 양수) ⓑ 결합종 다름(O–H 공유 vs Li–Cl 이온)
+  ⓒ **COHP 코드 미기재**(LOBSTER 인지 불명) ⓓ 적분 하한 창 미기재. **정성 방향만.**
+- **Volmer 장벽 절대값**(1.207/0.601/0.700 eV) — **단일 배열·0 K·ΔE(ZPE 없음)**. **차이(−0.6 eV)만** 쓴다.
+- **`Table S1` ΔG(−0.724 / −0.543 kcal/mol)** 을 "이 논문 DFT 결과" 로 — 캡션 각주가 **인용(ref 7)** 을 가리킨다.
+- **"KIE 를 DFT 로 확인"** — **O–D 계산 0건.** KIE 는 순수 ZPE 효과라 ΔE 만으로는 원리상 안 나온다.
+- **"용매화 껍질 조성"** — 측정된 적 없음(RDF·배위수 0건). 모델 **CN=4** vs 도식 **CN=6**.
+- **"저비용 전해질"** — 용매 **전량이 D₂O(99.96 % D)** 인데 비용 분석이 논문에 없다.
+
+⚠ **우리가 Source Data 로 직접 잡은 불일치 3건** (그림 판독 추정 아님):
+1. `Fig. 2c` 에 **4 M 점(24 h 62.8 ± 4.8 %)이 빠져 있다** — Source Data 에는 있고, 3 M(52.2 ± 10.7 %)보다 **높아** 단조성을 깬다. 언급 없음.
+2. `Fig. 4b` 7일 곡선은 **1Z5L = graphite / 대조 = Cu** 로 **기판이 다르다**(Source Data 열 이름에만 표기, 캡션에 없음). 같은 논문 `Fig. 4c` 가 기판만으로 72.0 % ↔ 26.9 % 를 보여준다 ⇒ **비교 불공정**.
+3. `Fig. 5e` "3,300 cyc 80 % 유지" 는 **비단조 궤적**을 감춘다: 방전용량 **64.1(cyc 1) → 68.4(cyc 301) → 42.4(cyc 1001) → 47.5 mAh g⁻¹(cyc 3517)**. 최종/초기 = **74 %**.
+
+🖥 **재현 가능성 판정**: ⛔ **우리 장비로 불가.** VASPsol·EChO 부재(우리는 QE) + 원자 ~110/가전자 ~740 ·
+기약 k ~8–16 · 정전위 외부루프 × NEB 7이미지 ⇒ gabia A6000 **단일 GPU 수 개월**(그동안 UMA 동시실행 금지).
+가능한 축소판은 ① CHE ΔG_H\*(= 현행 C3) ② 2층 슬랩+물 1층 정적 COHP(O–H) ③ ORCA λ(기존 C5) 셋뿐이고,
+**셋 다 이 논문과 다른 보고량**이다. 착수하려면 **보고량 카드 + 게이트(양성 대조: 순수 물 장벽 재현)** 를 먼저.
 
 ---
 
