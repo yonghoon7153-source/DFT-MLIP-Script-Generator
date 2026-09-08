@@ -330,7 +330,8 @@
     "★_rotation_cap_analysis": "회전만으로 가능한 bonded-S MSD 상한 ≈ 2r² ≈ 8.4 Å² (P–S 2.05 Å, 무상관 최종 배향). 실측: 800 K s4 3.2(회전 이하) · s3 10.6(경계) / 1000 K 10–34 / 1200 K 40–100 — **상한의 4–12배**. 게다가 중심원자 P 자체의 MSD 가 s3/T800 9.6 Å² (회전이면 P 는 안 움직인다) ⇒ ≥1000 K 는 회전이 아니라 **단위째 병진**이다.",
     "new_description_4": "서술④ (현재 최선): **공유결합은 끊기지 않은 채(결합 교환 9/9 = 0) 온전한 폴리음이온 단위(PS₄·PS₃O·PS₂O₂·BS₃)가 통째로 이동한다.** 800 K 는 시드에 따라 회전(rotor)+자유음이온 단계, ≥1000 K 는 단위 병진 — 음이온 부격자 전체가 유동화. UMA 안에서 b2o3 고유(modelc 7/7 rigid).",
     "still_unresolved": "이것이 실제 물리인가 UMA-s-1p1 의 B 기술 실패인가 — 이 데이터로는 못 가른다 (기존 A/B 미결 그대로)",
-    "unchanged": "인용 불가 결론 불변 · modelc 기준선 무영향"
+    "unchanged": "인용 불가 결론 불변 · modelc 기준선 무영향",
+    "재실행_2026_09_08": "kgy 에서 같은 9런(s2/s3/s4 × T800/1000/1200, highT_reseed_traj/b2o3) 을 다시 돌렸다 — 합계 **동일** (polyanion_frame_mobile 7 · free_anion_sublattice_mobile 2 / BS3_driven 0 · host_wide 5 · both_mobile 3 · inconclusive 1). 판정 불변 · 재현 확인 이상의 정보 없음. ⚠ 이것은 **닫힌 시험의 세 번째 실행**이다(2026-09-07 두 번째 제안 → b2o3_md_arrhenius.json ⛔_이_가설은_닫혔다 참조) — 세션이 바뀌어 kgy 명령을 다시 짜다가 이 항목을 안 읽고 넣었다. 다음부터 b2o3 MD 관련 명령을 만들기 전에 이 원장의 ★_VERDICT · consequence_b2o3(전도도 축 인용 불가) 를 먼저 읽는다. 남은 갈래(UMA 가 황화물 속 B 를 못 다루는가 vs 진짜 물리인가)는 non-UMA 참조 없이는 못 가르며, 그것은 1저자 결정이다."
   },
   "modelc_refresh_2026_08_25": {
     "goal": "traj-검증 대칭 3시드로 modelc Ea 재적합 (0.197 의 800/1000 은 traj 없는 구판)",
@@ -564,7 +565,8 @@
       "weight": "MLIP 한계 쪽. 같은 UMA·같은 T 에서 modelc 호스트는 7/7 rigid(max β 0.27)인데 b2o3 의 같은 PS₄ 는 β 0.35–1.01. 그런데 0 K DFT 는 반대를 말한다 — ICOHP 호스트 결합 전부 5% 이내 불변 · B₀ +13% 더 딱딱. 호스트 결합이 안 변했는데 호스트만 무르다 = 결합 세기로 설명 불가.",
       "⛔_not_proven": "'도펀트가 국소 좌절을 만들어 호스트를 진짜로 무르게 한다'는 물리 해석은 이 시험만으로 배제되지 않는다. 가르려면 AIMD 스팟체크나 다른 포텐셜이 필요하다. 세 시드가 같은 cfg0 을 쓰는 한계도 그대로."
     },
-    "citation_status_unchanged": "b2o3 MD 축(D·Ea·σ)은 계속 인용 불가. 이 판정은 값을 살리지 않고 **원고 메커니즘 문장을 특정**한다."
+    "citation_status_unchanged": "b2o3 MD 축(D·Ea·σ)은 계속 인용 불가. 이 판정은 값을 살리지 않고 **원고 메커니즘 문장을 특정**한다.",
+    "재실행_2026_09_08": "위 framework_split_verdict_2026_08_25.재실행_2026_09_08 와 같은 실행 — 단위 판정도 동일(BS3_driven 0/9)."
   },
   "modelc_framework_gate_2026_08_26": {
     "★_verdict": "**modelc 9/9 framework_rigid** (최대 β 0.27). b2o3 골격 이완이 b2o3 **고유**임을 같은 조건 대조로 확인했다.",
