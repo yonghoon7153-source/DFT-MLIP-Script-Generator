@@ -627,12 +627,12 @@ legs:
     payload_index_sha256: eeb8ae8911083c992710ace2c8f255682b64930a03929f12ae72796ade174716
     member_rehash_by: tools.archive_bundle.check
     verification_receipt: docs/22p_gap/receipts/paired_fixed5_v4.validate.yaml
-    verification_receipt_core_sha256: d38ed5b908d3e06880a74cf081db3a8a271d5074a06b1ea69f68e759413bcd1d
+    verification_receipt_core_sha256: c9b41978002d46fb48a29fdd978a815bacb75e4ced82abff0b4fe709d8058c49
     verification_receipt_generator: docs/22p_gap/make_receipt.py
     empty_root_restore: true
     rescored_from_restored_fits: true
     validator_identity:
-      source_digest: 5472a8b94520a5ec
+      source_digest: 4fe8d27269ca9ca2
       n_checks: 34
       ok: true
     leg_source_digest: d50295f980ccaa81
@@ -652,6 +652,7 @@ legs:
     - g11_2026_09_02
     - g12_2026_09_03
     - g13_2026_09_07
+    - g14_2026_09_08
     regeneration_capability: available_raw_present
   claim_roles:
   - claim_id: LEGACY_PAIRED_FIXED5

@@ -1007,17 +1007,16 @@ MUTANTS = [
     #     기록(`record_run_outputs`)에 걸었는데 변이가 "안 물었다" 로 나왔다 —
     #     production gate 가 지나는 것은 `note_smoke_exemption()` 이다. L13 이
     #     지적한 실패형을 등록부에서 되풀이할 뻔했고, 실행이 잡았다.
-    ("smoke-gate-records-the-execution-class-g58", PRESERVE,          # L1
-     "    pending = []\n"
-     "    for x in [Path(p) for p in paths if p]:\n"
-     "        try:\n"
-     "            record_execution_class(\n"
-     "                x, EXEC_CLASS_SMOKE,",
-     "    pending = []\n"
-     "    for x in []:\n"
-     "        try:\n"
-     "            record_execution_class(\n"
-     "                x, EXEC_CLASS_SMOKE,",
+    # ★ 59차 마감 — **축을 다시 겨눴다.** 58차 L1 의 원상은
+    #   `note_smoke_exemption()` 의 loop 였는데, M1 이 계약을 "gate 가 적는다"
+    #   에서 "gate 가 권한을 발행하고 굳는 자리가 적는다" 로 옮기면서 그 함수는
+    #   호출자가 0곳이 됐다 (그래서 삭제했다). 전수 재생의 조각 3 이 "안 물었다"
+    #   로 그것을 알려 줬다 — **죽은 축은 죽은 코드를 가리킨다.**
+    #   지금의 L1 명제는 "production 진입점의 면제 분기가 권한을 발행하는가" 다.
+    ("smoke-gate-issues-the-execution-capability-g59", GRID,          # L1 → M1
+     "        return None, issue_execution_class(out_dir, leg, \"grid\",\n"
+     "                                           EXEC_CLASS_SMOKE, ledger=None)",
+     "        return None, None",
      "production_smoke_gate_records_the_execution_class"),
     # ★ 59차 M2 — descriptor 의 형식 표시가 상수에서 이름으로 바뀌었다
     #   (`_CONTENT_ID_KIND`). 원상을 안 고치면 이 축이 죽는다.
@@ -1030,10 +1029,6 @@ MUTANTS = [
      "    return True",
      "bind_mounted_outside_directory_is_not_inside_the_smoke_namespace or "
      "an_unplanned_leg_under_a_bind_alias_is_not_exempted"),
-    ("frozen-seal-is-consulted-first-g58", RP,                        # L5
-     "    _sealed = frozen_coordinate_covering(dest)",
-     "    _sealed = None",
-     "hiding_every_name_of_a_frozen_ancestor_does_not_make_it_writable"),
     ("phase-receipt-is-write-once-g58", PRESERVE,                     # L6
      '                if _canon_json(prev.get("receipt")) != _canon_json(receipt):',
      "                if False:",
@@ -1362,11 +1357,27 @@ MULTI = [
     #   중복이라서 하나를 지우는 것이 아니다: `O_EXCL` 은 **원자적 primitive**
     #   이고 상태 전이는 lock 에 기대는 두 번째 방벽이다. 둘 다 남기되, 변이는
     #   47차 상태(둘 다 없음)를 복원해 그 쌍이 실제로 일하는지 본다.
+    # ★ 59차 마감 세 번째 자리 — M10 이 시험 22곳을 raw 발급에서 production
+    #   진입점(`open_leg_run()`)으로 옮기면서, 이 축이 **더 바깥 층에 먼저
+    #   막혔다.** `open_leg_run()` 은 임계 구역 안에서 살아 있는 claim 을 먼저
+    #   보고 거부한다 (51차 P0-L1 · 53차 P0-3). 그래서 claim 파일의 원자성을
+    #   지워도 두 번째 호출이 여전히 `PreserveError` 를 받아 시험이 초록이었다
+    #   (전수 재생 조각 10 의 실측). "배타가 하나 있으니 됐다" 가 아니라
+    #   **claim 자신이 원자적인가** 가 이 축의 물음이므로, 같은 성질을 구현하는
+    #   세 자리를 함께 되돌린다 (심층 방어의 정상 신호 — `thaw-…` 와 같은 형태).
     ("claim-is-atomic", PRESERVE, [
         ("        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | _O_BIN, 0o644)",
          "        fd = os.open(path, os.O_CREAT | os.O_WRONLY | _O_BIN, 0o644)"),
         ("        row[\"status\"] = \"running\"",
          "        row[\"status\"] = \"planned\""),
+        ("        if cp.is_file():\n"
+         "            raise PreserveError(\n"
+         "                \"plan\",\n"
+         "                f\"{leg_id!r} 은 이미 실행 중이다",
+         "        if False:\n"
+         "            raise PreserveError(\n"
+         "                \"plan\",\n"
+         "                f\"{leg_id!r} 은 이미 실행 중이다"),
      ], "exactly_one_attempt_enters_compute"),
     # ★ 48차 P0-2 — decorator 축은 **정규형이 node 를 보는가**에 달렸다.
     #   47차처럼 source segment 로 되돌리면 `FunctionDef.lineno` 가 `def`
@@ -1376,6 +1387,15 @@ MULTI = [
     #   조회 · `_frozen_cohort_dirs()` 의 journal 합집합). 하나만 지우면 다른
     #   쪽이 여전히 거부하므로 단일 변이는 더 이상 안 문다 — 심층 방어의 정상
     #   신호다. 함께 되돌려야 관측된다.
+    # ★ 59차 마감 — 58차 L5 축이 **단일 변이로는 더 이상 안 문다.** M6 이
+    #   `_assert_writable()` 의 맨 앞에 "얼린 자리를 알기는 하는가" 를 넣었고,
+    #   조상의 이름을 전부 덮으면 그 첫 층이 먼저 거부한다 (전수 재생 조각 7 의
+    #   실측: 봉인 조회를 지워도 guard 는 REFUSED). 좌표 봉인 자신이 판정에
+    #   쓰이는지 보려면 **두 층을 함께** 되돌려야 한다.
+    ("frozen-seal-is-consulted-first-g58", RP, [
+        ("    _sealed = frozen_coordinate_covering(dest)", "    _sealed = None"),
+        ("    _unsealed = unsealed_frozen_cohorts()", "    _unsealed = []"),
+     ], "hiding_every_name_of_a_frozen_ancestor_does_not_make_it_writable"),
     ("thaw-is-refused-before-the-first-write", RP, [
         ('    assert_not_thawed(_pre["cohort_id"])', "    pass"),
         ("    for d, cid in frozen_dirs_from_journal().items():\n"
@@ -2322,13 +2342,13 @@ EXPECT: dict = {
                 "AssertionError: 계획에 없는 다리가 bind alias 아래에서 면제받았다 (exempted) — smoke 면제가 실물 경계를 안 본다 (L4)",
         }
     },
-    "smoke-gate-records-the-execution-class-g58": {
+    "smoke-gate-issues-the-execution-capability-g59": {
         "fail": [
             "tests/test_execution_class_wiring_58.py::test_production_smoke_gate_records_the_execution_class",
         ],
         "witness": {
             "tests/test_execution_class_wiring_58.py::test_production_smoke_gate_records_the_execution_class":
-                "AssertionError: production smoke gate 를 지났는데 등록부에 아무것도 없다 — 면제를 정한 authority 에 진입점이 닿지 않았다 (L1)",
+                "AssertionError: 면제 분기가 권한을 발행하지 않았다 (M1)",
         }
     },
 

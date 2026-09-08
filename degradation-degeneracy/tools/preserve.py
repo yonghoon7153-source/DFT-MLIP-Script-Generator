@@ -4704,6 +4704,11 @@ class ExecutionClassCapability:
     **요구**하기 때문이다. class 는 gate 가 정해 권한이 나르므로, 호출자가
     raw `cls` 를 다시 줄 자리가 없다 (최소 조건이 명시한 우회로).
 
+    ★ 59차 마감 — `note_smoke_exemption()` 은 **삭제했다.** 권한이 그 자리를
+      대신한 뒤 호출자가 0곳이 됐고, 호출자 없는 방어 표면은 "있는 척" 이다
+      (전수 재생의 조각 3 이 그 함수를 겨눈 변이가 아무것도 안 문다고
+      알려 줘서 발견했다 — 죽은 축은 죽은 코드를 가리킨다).
+
     ★ 59차 M5 — 권한은 class 만이 아니라 **gate 가 판정한 대상**도 나른다.
 
       58차까지 판정은 한 시점의 pathname 을 보고 끝났고, 실제 쓰기는 나중에
@@ -7241,40 +7246,3 @@ def assert_planned_index_consistent(ledger=None) -> bool:
                 f"{lid!r} 의 계획 cohort {e['cohort_id']!r} 가 실행 기록의 "
                 f"cohort {coh} 에 없다")
     return True
-
-
-def note_smoke_exemption(paths, leg_id: str, phase: str, ledger=None) -> list:
-    """smoke 면제를 **등록부에 남긴다.** 진입점이 조기 return 하기 전에 부른다.
-
-    ★ 58차 L1 — 57차는 이 기록이 `assert_run_is_authorized()` **안에만** 있었다.
-      그런데 production 의 두 진입점(`src/grid.py:_assert_grid_authorized()` ·
-      `src/fitting.py:_assert_fit_authorized()`)은 smoke 면 그 함수를 **부르기
-      전에** return 한다. 그래서 실제로 등록부에 굳는 것은 시험 fixture 와
-      손수 분류한 legacy 4건뿐이었고, §64 가 근거로 든 "양쪽 분기가 모두
-      적는다" 가 production 에서 성립하지 않았다. 등록이 없으면 "등록 없음 =
-      모른다" 도 무너진다 — 그러면 P0-8 전체가 장식이 된다.
-
-      **진입점마다 `record_execution_class()` 호출을 추가하는 수정은 하지
-      않았다.** 그러면 다음 진입점이 또 빠진다 (56차가 거절한 "검사를 늘리는
-      수정"이다). 대신 면제를 **말하는 함수 하나**를 두고, 조기 return 하는
-      자리는 반드시 이것을 거치게 한다. 새 진입점이 생겨도 같은 문장을 쓴다.
-
-    반환값은 "지금 기록하지 못한 자리" 목록이다. 실행 **직전**에는 manifest 가
-    아직 없어 내용 identity 가 없다 — 그 자리는 산출이 굳는 순간
-    `record_run_outputs()` 가 맡는다. 호출자는 이 목록을 무시해도 되지만,
-    무시한다는 사실이 여기 적혀 있다.
-    """
-    pending = []
-    for x in [Path(p) for p in paths if p]:
-        try:
-            record_execution_class(
-                x, EXEC_CLASS_SMOKE,
-                evidence=(f"실행 전 gate 면제 (계약 §13.3.3): {x} 가 "
-                          f"{SMOKE_NAMESPACE} 안이라 계획 gate 를 면제했다 · "
-                          f"leg={leg_id} phase={phase}"),
-                ledger=ledger)
-        except PreserveError as exc:
-            if not _is_missing_manifest(exc):
-                raise            # class 충돌은 사람이 봐야 하는 사건이다
-            pending.append(x)
-    return pending
