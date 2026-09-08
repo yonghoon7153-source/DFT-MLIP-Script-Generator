@@ -86,6 +86,10 @@ if [ "$DRY_RUN" = 1 ]; then
   echo "[$(ts)] DRY_RUN — 계산은 하지 않았다"; exit 0
 fi
 
+# ⚠ 이번 실행의 시작 시각을 남긴다 — watch 가 **옛 실패**(이전 배치가 남긴 scf.out)와
+#   이번 실행의 실패를 가르는 기준이다. 없으면 아직 차례가 안 온 점의 옛 출력이
+#   "지금 실패한 것" 처럼 읽힌다 (2026-09-08 실측: 진행 1 인데 문제 19 로 표시).
+touch "$ROOT/.fc_run_started"
 done_n=0; skip_n=0; fail_n=0; t0=$(date +%s)
 for i in "${INS[@]}"; do
   d=$(dirname "$i"); n=$(basename "$d")

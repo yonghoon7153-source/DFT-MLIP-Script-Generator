@@ -54,17 +54,29 @@ if [ "${1:-}" = "--selftest" ]; then
   chk "⛔음성: JOB DONE 만으로 완료 아님" "$(fc_state "$t/d" | cut -d'|' -f1)" "⚠ 완료(불완전)"
   printf 'Error in routine electrons (1):\n     charge is wrong\n' > "$t/e"
   chk "⛔음성: pw.x 오류를 진행으로 읽지 않음" "$(fc_state "$t/e" | cut -d'|' -f1)" "☠ 오류"
+  # ⛔음성: '옛 실패' 판정은 fc_state 가 아니라 호출부(mtime 비교)가 한다 —
+  #   fc_state 자체는 시각을 모른다. 그 경계를 시험으로 못박는다.
+  chk "fc_state 는 시각을 모른다 (옛/새 구분은 호출부 몫)" \
+      "$(fc_state "$t/a" | cut -d'|' -f1)" "☠ 즉사"
   rm -rf "$t"; echo "  selftest: ⭕ $ok · ⛔ $bad"; [ "$bad" = 0 ] || exit 1; exit 0
 fi
 
 [ -d "$W" ] || { echo "⛔ 디렉터리가 없다: $W"; exit 2; }
+MARK="$W/.fc_run_started"
 echo "═══ 힘 대조 DFT 20점 · $(date '+%m-%d %H:%M') · $W"
+[ -f "$MARK" ] && echo "    이번 실행 시작 $(date -r "$MARK" '+%m-%d %H:%M')"
 printf "%-20s %-16s %s\n" "점" "상태" "비고"
-tot=0; don=0; run=0; dead=0
+tot=0; don=0; run=0; dead=0; wait_n=0
 declare -A SUM CNT
 for d in $(find "$W" -mindepth 1 -maxdepth 1 -type d | sort); do
   n=$(basename "$d"); tot=$((tot+1))
   IFS='|' read -r st note <<< "$(fc_state "$d/scf.out")"
+  # 이번 실행보다 **오래된** 실패는 아직 차례가 안 온 점의 옛 출력이다 — 재시도 대상으로 표시한다.
+  case "$st" in ☠*|"⚠ 완료(불완전)")
+    if [ -f "$MARK" ] && [ -f "$d/scf.out" ] && [ "$d/scf.out" -ot "$MARK" ]; then
+      st="↻ 옛 실패"; note="이전 배치의 출력 — 차례가 오면 덮어쓴다"
+    fi ;;
+  esac
   printf "%-20s %-16s %s\n" "$n" "$st" "${note:0:52}"
   case "$st" in
     "✓ 완료") don=$((don+1))
@@ -77,10 +89,12 @@ for d in $(find "$W" -mindepth 1 -maxdepth 1 -type d | sort); do
       age=$(( ($(date +%s) - $(stat -c %Y "$d/scf.out")) / 60 ))
       [ "$age" -ge "$STALL_MIN" ] && echo "    ⚠ ${age}분째 출력 없음 (STALL_MIN=$STALL_MIN)" ;;
     ☠*|"⚠ 완료(불완전)") dead=$((dead+1)) ;;
+    "↻ 옛 실패") wait_n=$((wait_n+1)) ;;
   esac
 done
 echo "───"
-echo "완료 $don / $tot · 진행 $run · 문제 $dead"
+echo "완료 $don / $tot · 진행 $run · 문제 $dead" \
+     "$( [ "$wait_n" -gt 0 ] && echo "· 재시도 대기 $wait_n (이전 배치 출력)" )"
 for sys in "${!CNT[@]}"; do
   echo "  $sys 점당 평균 $(( SUM[$sys] / CNT[$sys] / 60 ))분 (${CNT[$sys]}점 기준)"
 done
