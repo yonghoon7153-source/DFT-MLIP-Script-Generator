@@ -565,7 +565,9 @@ numbers**: VGCF 함량이 변해도 PTFE 형상은 **바이트 동일**하게 �
 
 ```
 fibre_stamp = segment          ptfe_stamp = centerline       sigma_ptfe = 0
-bridge = 0                     plate rule                    physical area
+bridge = **0.24 µm 물리 고정** (개정 2026-09-08, CL-87 — 옛 표기 `0` 은 CLI 에서
+                               '반경 0' 이 아니라 **'기본 1.2·vox'** 라 격자에 묶인다)
+                               plate rule                    physical area
 conductivity tables            backend / rtol / maxiter      LEAN = 2 의 전체 확장
 --no-ion --no-pore (σ_e 전용)
 ```
