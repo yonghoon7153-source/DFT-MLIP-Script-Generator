@@ -135,6 +135,30 @@ for f in $(awk 'FNR==1{c=0}
 done
 [ "$MISS" = 0 ] || { echo "⛔ 유사포텐셜이 빠졌다 — 시작하지 않는다"; exit 2; }
 
+# ── 설정 균일성 검사 (2026-09-08) ────────────────────────────────────────────
+# ⛔ 점마다 SCF 설정이 다르면 이 캠페인은 **계 간 비교가 아니라 설정 간 비교**가 된다.
+#   실측 사고: 20점을 새 믹싱으로 재생성하려다 생성이 조용히 실패했고(ase 없음),
+#   옛 입력 그대로 러너가 다시 돌았다. 일부만 재생성됐다면 더 나쁘다 — 섞인 채
+#   끝까지 돌고 판정 단계에서야 드러난다. 그러니 **시작 전에** 대조한다.
+#   비교하는 것: &SYSTEM·&ELECTRONS 의 설정 줄 (좌표·prefix 는 당연히 다르므로 제외).
+_settings_key() {
+  awk '/^&(SYSTEM|ELECTRONS)/{p=1} /^\//{p=0}
+       p && !/prefix|^&|nat *=|^\// {gsub(/[ \t]+/,""); print}' "$1" | sort | md5sum | cut -d' ' -f1
+}
+_k0=""; _bad=0
+for i in "${INS[@]}"; do
+  _k=$(_settings_key "$i")
+  if [ -z "$_k0" ]; then _k0="$_k"; _ref="$i"
+  elif [ "$_k" != "$_k0" ]; then
+    echo "⛔ SCF 설정이 점마다 다르다: $(basename "$(dirname "$i")") ≠ $(basename "$(dirname "$_ref")")"
+    _bad=1
+  fi
+done
+[ "$_bad" = 0 ] || { echo "⛔ 섞인 설정으로는 시작하지 않는다 — 전 점을 같은 인자로 재생성해라."
+                     echo "   (diff 로 확인: diff <(sed -n '/&SYSTEM/,/^\\//p' A/scf.in) <(… B/scf.in))"; exit 2; }
+echo "[$(ts)] 설정 균일성 ✓ (${#INS[@]}점 동일 · key ${_k0:0:8})"
+grep -a "mixing_mode\|electron_maxstep\|occupations" "${INS[0]}" | sed 's/^/           /'
+
 echo "[$(ts)] 점 ${#INS[@]}개 · $MPI · pw.x=$PWX · pseudo=$PSD"
 if [ "$DRY_RUN" = 1 ]; then
   for i in "${INS[@]}"; do
