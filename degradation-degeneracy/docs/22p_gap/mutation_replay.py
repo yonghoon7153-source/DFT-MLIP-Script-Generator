@@ -2060,18 +2060,26 @@ def _last_line(text: str) -> str:
 #:   처럼 실행마다 달라지는 부분은 손으로 잘라 안정한 접두만 남긴다.
 EXPECT: dict = {
     # ── 59차 (게이트 58차 반증 조건) — 전부 `--emit-expect` 로 관측한 값 ──
+    # ★ 60차 마감 — 선언이 하나 줄고 하나 늘었다. P0-12 가 `If.test` 를 실행
+    #   슬라이스에 넣으면서 `if` 문 자체가 (body 가 무엇이든) `MODULE_EFFECTS`
+    #   로 묶이게 됐고, 그래서 `if False: raise …` 는 `Raise` 규칙을 지워도
+    #   **안 빨개진다** — 층이 둘이 된 것은 좋지만 그 경우는 이 축의 증인이
+    #   아니게 됐다. 전수 재생이 "실패 집합이 선언과 다르다" 로 잡았다.
+    #   그래서 `Raise` 규칙을 **홀로** 지키는 자리를 하나 뒀다: `Try` 는
+    #   head 가 없어 `MODULE_EFFECTS` 로 안 묶이므로, 안의 `raise` 만이 그
+    #   문장을 슬라이스 안에 넣는다. 아래는 `--emit-expect` 로 관측한 값이다.
     "module-assert-runs-at-import-g59": {
         "fail": [
             "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert True, str(sc.add_error_columns)\\n]",
             "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert sc.add_error_columns is not None\\n]",
-            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[if False:\\n    raise RuntimeError(str(sc.add_error_columns))\\n]",
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[try:\\n    raise RuntimeError(str(sc.add_error_columns))\\nexcept RuntimeError:\\n    pass\\n]",
         ],
         "witness": {
             "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert True, str(sc.add_error_columns)\\n]":
                 "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
             "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[assert sc.add_error_columns is not None\\n]":
                 "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
-            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[if False:\\n    raise RuntimeError(str(sc.add_error_columns))\\n]":
+            "tests/test_import_time_slice_59.py::test_the_import_time_slice_contains_everything_that_runs[try:\\n    raise RuntimeError(str(sc.add_error_columns))\\nexcept RuntimeError:\\n    pass\\n]":
                 "AssertionError: import 때 실행되는 문장을 더했는데 producer digest 가 그대로다 — 그 실행은 봉인 밖이다 (59차 M12)",
         }
     },

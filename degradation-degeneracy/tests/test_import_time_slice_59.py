@@ -118,6 +118,17 @@ def test_reading_a_plain_object_attribute_is_still_allowed():
     "class _Derived(_Base):\n    pass\n",
     # ⑤ module scope 의 `raise` 는 실행 흐름을 정한다 (뒤 문장이 안 돈다).
     "if False:\n    raise RuntimeError(str(sc.add_error_columns))\n",
+    # ⑥ ★ 60차 마감 — ⑤ 는 이제 **두 층이 지킨다**. P0-12 가 `If.test` 를
+    #    실행 슬라이스에 넣으면서, `if` 문 자체가 (body 가 무엇이든)
+    #    `MODULE_EFFECTS` 로 묶이게 됐다. 그래서 `Raise` 규칙만 지워도 ⑤ 는
+    #    안 빨개진다 — 전수 재생이 그것을 잡았다 ("실패 집합이 선언과 다르다").
+    #    층이 둘인 것은 좋은 일이지만, 그러면 ⑤ 는 `Raise` 규칙의 **증인이
+    #    아니게 된다**. 그 규칙을 홀로 지키는 자리를 하나 둔다:
+    #    `Try` 는 head(`test`·`iter`·`subject`·`items`)가 없으므로
+    #    `MODULE_EFFECTS` 로 안 묶이고, 안의 `raise` 만이 이 문장을 슬라이스
+    #    안에 넣는다.
+    "try:\n    raise RuntimeError(str(sc.add_error_columns))\n"
+    "except RuntimeError:\n    pass\n",
 ])
 def test_the_import_time_slice_contains_everything_that_runs(inject):
     """★ M12 — import 때 도는 문장을 더했는데 digest 가 그대로면 안 된다.

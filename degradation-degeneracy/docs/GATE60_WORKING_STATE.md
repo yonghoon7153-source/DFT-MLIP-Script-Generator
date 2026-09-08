@@ -256,3 +256,37 @@ payload index 를 묶음 **밖**(`repo/index.json`)에 두고 있었다. 60차 P
 | 판정 대상 코드 | `c4e710040c2631d4f8140ee31c2f3c5004d9bcbb` — RUN_SCOPE 를 마지막으로 건드린 커밋 |
 | `source_digest` | `d29650980daf6b9a` |
 | 대상 이후 RUN_SCOPE diff | 없음 (`git log --oneline c4e71004..HEAD -- src tools configs scripts run.sh requirements*.txt` 이 빈 출력) |
+
+### 전수 재생이 잡은 둘째 — 방어가 하나 늘자 **증인이 하나 사라졌다**
+
+7조각에서:
+
+```
+module-assert-runs-at-import-g59: 실패 집합이 선언과 다르다 —
+안 빨개짐 ['…test_the_import_time_slice_contains_everything_that_runs
+          [if False:\n    raise RuntimeError(str(sc.add_error_columns))\n]']
+```
+
+P0-12 가 `If.test` 를 실행 슬라이스에 넣으면서, `if` 문은 body 가 무엇이든
+`MODULE_EFFECTS` 로 묶이게 됐다. 그래서 `_MODULE_EVALUATING` 에서 `Raise` 를
+지워도 `if False: raise …` 는 **안 빨개진다** — 층이 둘이 된 것 자체는 좋지만,
+그러면 그 경우는 `Raise` 규칙의 **증인이 아니게 된다**. 선언만 줄이면 `Raise`
+규칙을 홀로 지키는 시험이 **하나도 없게** 된다 (남는 둘은 전부 `assert` 다).
+
+그래서 규칙을 홀로 지키는 자리를 하나 뒀다: `Try` 는 head(`test`·`iter`·
+`subject`·`items`)가 없어 `MODULE_EFFECTS` 로 안 묶이므로, 안의 `raise` 만이
+그 문장을 슬라이스에 넣는다.
+
+측정 (방금 실행):
+```
+pytest tests/test_import_time_slice_59.py -q      → 17 passed
+mutation_replay.py -k module-assert-runs-at-import --emit-expect
+    → try/raise 가 새로 빨개지고 if/raise 는 안 빨개짐 (관측값을 그대로 반영)
+mutation_replay.py -k module-assert-runs-at-import → 물었다 · ran 1
+mutation_replay.py --check-preimages              → 모든 변이 지점이 정확히 한 번
+pytest tests/test_docs_lint.py -q                 → 356 passed (18분 17초)
+```
+
+전수 재생은 이 수정으로 **또 1조각부터** 다시 돈다 (`tests/`·`mutation_replay.py`
+는 `_tested_tree_digest()` 안이다). RUN_SCOPE 는 안 건드렸으므로 판정 대상
+커밋 `c4e71004` 와 `source_digest d29650980daf6b9a` 는 그대로다.
