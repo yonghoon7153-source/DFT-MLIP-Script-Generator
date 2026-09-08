@@ -553,8 +553,8 @@ def sign_producer(out_dir, df, n_infeasible=0, failed_conds=None,
     #   지난다: 여기서 권한을 발행한다 (시험 전용 우회로를 만들지 않는다 —
     #   그런 우회로가 있으면 그것이 실효 규칙이 된다).
     from tools.preserve import issue_execution_class, EXEC_CLASS_SMOKE
-    _cap = issue_execution_class(out_dir, "L", "grid", EXEC_CLASS_SMOKE,
-                                 ledger=None)
+    _cap = issue_execution_class(out_dir, "L", "grid",
+                                  ledger=None)
     write_curves_manifest(out_dir, {"parameter_set": "test", "grid": {"noise_seed": 42}},
                           conditions=cond_ids, capability=_cap,
                           extra={"solver": "test", "grid_run_spec": spec,

@@ -34,10 +34,16 @@ if str(REPO) not in sys.path:
 import tools.preserve as P                                      # noqa: E402
 
 
-def _ledger(tmp_path: Path) -> Path:
+def _ledger(tmp_path: Path, monkeypatch=None) -> Path:
     led = tmp_path / "authority" / "LEG_PRESERVATION.yaml"
     led.parent.mkdir(parents=True, exist_ok=True)
     led.write_text("planned: []\nlegs: []\n", encoding="utf-8")
+    # ★ 60차 P0-2 — class 는 이제 **자리가 정한다.** 그러므로 시험이
+    #   `results/_smoke/...` 라고 부르는 자리가 실제로 smoke namespace 안이어야
+    #   한다. 59차까지는 발급 인자로 class 를 강제했고, 그 인자가 바로
+    #   리뷰어가 지목한 우회로였다.
+    if monkeypatch is not None:
+        monkeypatch.setattr(P, "SMOKE_NAMESPACE", tmp_path / "results" / "_smoke")
     return led
 
 
@@ -49,17 +55,17 @@ def _manifest(d: Path, *, curves: str = "aa") -> None:
 
 
 # ── M1 ────────────────────────────────────────────────────────────────────
-def test_the_gate_issues_a_capability_and_the_commit_requires_it(tmp_path):
+def test_the_gate_issues_a_capability_and_the_commit_requires_it(tmp_path, monkeypatch):
     """★ M1 — gate 는 **권한**을 발행한다 (무시할 수 있는 목록이 아니라).
 
     58차판은 `note_smoke_exemption()` 이 pending 목록을 돌려주고 호출자가 그것을
     버려도 됐다. 권한이면 버릴 수 없다 — 산출을 굳히는 함수가 그것을 요구한다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     out.mkdir(parents=True)
 
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     assert cap is not None, "gate 가 권한을 발행하지 않는다"
 
@@ -71,7 +77,7 @@ def test_the_gate_issues_a_capability_and_the_commit_requires_it(tmp_path):
         f"산출을 굳혔는데 class 가 등록부에 없다: {rec!r} (M1)")
 
 
-def test_committing_an_output_without_a_capability_is_refused(tmp_path):
+def test_committing_an_output_without_a_capability_is_refused(tmp_path, monkeypatch):
     """★ M1 — 권한 없이 굳히는 경로가 **없어야** 한다.
 
     최소 조건이 명시한다: "완료 함수가 caller 에게 raw `cls` 를 다시 받으면 같은
@@ -81,7 +87,7 @@ def test_committing_an_output_without_a_capability_is_refused(tmp_path):
         "raw class 를 받는 완료 함수가 아직 공개돼 있다 — 권한을 우회하는 "
         "같은 길이 남는다 (M1)")
 
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
     # ★ 59차 마감 — 받아들이는 예외를 **`PreserveError` 하나로** 좁혔다.
@@ -99,7 +105,7 @@ def test_committing_an_output_without_a_capability_is_refused(tmp_path):
     assert P.read_execution_class(P.run_content_id(out), ledger=led) is None
 
 
-def test_a_smoke_output_moved_outside_is_not_relabelled_canonical(tmp_path):
+def test_a_smoke_output_moved_outside_is_not_relabelled_canonical(tmp_path, monkeypatch):
     """★ M1 — 리뷰어 반례 그대로: 등록 → 이동 → legacy migration.
 
     58차판은 gate 시점에 manifest 가 없어 등록이 pending 이었고, 그것을 버린 채
@@ -107,10 +113,10 @@ def test_a_smoke_output_moved_outside_is_not_relabelled_canonical(tmp_path):
     canonical 을 발급했다. 권한이 산출 commit 에서 class 를 굳히면, 이동 뒤
     분류는 이미 등록된 것을 읽을 뿐 새로 정하지 않는다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     out.mkdir(parents=True)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     _manifest(out)
     P.commit_run_outputs(cap, [out])
@@ -127,14 +133,14 @@ def test_a_smoke_output_moved_outside_is_not_relabelled_canonical(tmp_path):
         P.assert_not_smoke_provenance([moved], sink="promote")
 
 
-def test_legacy_migration_only_applies_to_a_declared_roster(tmp_path):
+def test_legacy_migration_only_applies_to_a_declared_roster(tmp_path, monkeypatch):
     """★ M1 — legacy 분류는 **배선 전 산출의 명시적 roster** 에만.
 
     최소 조건: "legacy migration 은 배선 전 산출의 명시적 roster 에만 허용해야
     한다." 그렇지 않으면 새 산출을 등록 없이 만든 뒤 migration 으로 세탁하는
     길이 계속 열려 있다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     fresh = tmp_path / "brand-new" / "run"
     _manifest(fresh, curves="bb")
     with pytest.raises(P.PreserveError) as ei:
@@ -169,10 +175,10 @@ def test_a_short_write_never_publishes_a_partial_record(tmp_path, monkeypatch):
 
     `O_EXCL` 은 writer **사이의 이름 배타**를 줄 뿐 내용 완전성을 주지 않는다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
 
     # ★ 이 시험이 겨누는 층은 **read-back** 이다.
@@ -182,20 +188,31 @@ def test_a_short_write_never_publishes_a_partial_record(tmp_path, monkeypatch):
     #   드러낸 진짜 구멍은 "loop 가 없다" 가 아니라 **"쓴 것을 다시 읽지 않고
     #   final 이름을 붙인다"** 이다. loop 를 통째로 우회해 부분 바이트를 만들고,
     #   그 상태로 이름이 붙는지 본다.
+    # ★ 60차 — **겨누는 writer 를 이름으로 고른다.** P0-1 이 굳히는 자리 앞에
+    #   내용 봉인 writer 를 하나 더 놓았으므로, `_write_all` 을 통째로 바꾸면
+    #   이 시험은 자기 축(등록 레코드의 read-back)이 아니라 봉인의 read-back 을
+    #   보게 된다. 그러면 이름이 약속한 축을 한 번도 안 실행한다 (L13 형태).
+    _real_write_all = P._write_all
+
     def _truncated(fd, data, where):
+        if where != "execution-class-register":
+            return _real_write_all(fd, data, where)
         P.os.write(fd, data[:1])                     # loop 없이 한 바이트만
 
     monkeypatch.setattr(P, "_write_all", _truncated)
     with pytest.raises(P.PreserveError):
         P.commit_run_outputs(cap, [out])
-    monkeypatch.undo()
+    # `monkeypatch.undo()` 는 이 시험의 **모든** patch 를 되돌린다 — smoke
+    # namespace 까지 되돌아가면 아래 재시도가 canonical 이 된다. 겨눈 것 하나만
+    # 되돌린다.
+    monkeypatch.setattr(P, "_write_all", _real_write_all)
 
     cid = P.run_content_id(out)
     assert P.read_execution_class(cid, ledger=led) is None, (
         "부분 바이트가 final 이름으로 공개됐다 (M3)")
     # 그리고 그 자리가 poison 되지 않았다 — 정상 재시도가 된다
-    cap2 = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
-                                   ledger=led)
+    cap2 = P.issue_execution_class(out, "L", "grid",
+                                  ledger=led)
     P.commit_run_outputs(cap2, [out])
     rec = P.read_execution_class(cid, ledger=led)
     assert rec and rec["execution_class"] == P.EXEC_CLASS_SMOKE, (
@@ -203,7 +220,7 @@ def test_a_short_write_never_publishes_a_partial_record(tmp_path, monkeypatch):
 
 
 # ── M4 ────────────────────────────────────────────────────────────────────
-def test_a_shared_local_class_conflict_is_fail_closed(tmp_path):
+def test_a_shared_local_class_conflict_is_fail_closed(tmp_path, monkeypatch):
     """★ M4 — 두 authority 가 반대말을 하면 **거부**한다.
 
     리뷰어 반례: clone A 는 같은 내용을 local smoke 로, clone B 는 tracked
@@ -214,10 +231,10 @@ def test_a_shared_local_class_conflict_is_fail_closed(tmp_path):
     content lock 은 clone 지역이라 Git 으로 들어오는 record 를 직렬화하지 못한다.
     그러므로 reader 가 둘 다 읽고 충돌이면 멈춰야 한다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     P.commit_run_outputs(cap, [out])
     cid = P.run_content_id(out)
@@ -268,7 +285,7 @@ def test_a_retry_after_a_failed_parent_fsync_redoes_the_durability_step(
     등록이 사라지고, 등록이 없으면 승격은 거부(fail-closed)이므로 **정본 산출이
     되살릴 수 없게 막힌다**.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
     reg = P._exec_class_root_for_class(P.EXEC_CLASS_SMOKE, led)
@@ -278,7 +295,7 @@ def test_a_retry_after_a_failed_parent_fsync_redoes_the_durability_step(
     boom = {"on": True}
     _flaky_fsync(monkeypatch, reg, boom, seen)
 
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     with pytest.raises(P.PreserveError):
         P.commit_run_outputs(cap, [out])
@@ -289,8 +306,8 @@ def test_a_retry_after_a_failed_parent_fsync_redoes_the_durability_step(
     # 재시도 — 이제 fsync 는 된다. 그런데 굳히러 **가기는** 하는가?
     boom["on"] = False
     seen.clear()
-    cap2 = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
-                                   ledger=led)
+    cap2 = P.issue_execution_class(out, "L", "grid",
+                                  ledger=led)
     P.commit_run_outputs(cap2, [out])
     assert (reg, "execution-class-register") in seen, (
         "같은 class 재시도가 등록부 이름을 다시 굳히지 않았다 — 첫 시도의 "
@@ -305,7 +322,7 @@ def test_the_registry_hierarchy_itself_is_created_durably(tmp_path,
     안 굳히면 crash 뒤 층째로 사라진다. 30차 P0-3 이 CAS·pin 에서 고친 것과
     같은 형태이고, 그때 만든 `_mkdir_durable()` 이 답이다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
     shared = P.exec_class_root_for_ledger(led)
@@ -315,7 +332,7 @@ def test_the_registry_hierarchy_itself_is_created_durably(tmp_path,
     seen: list = []
     _flaky_fsync(monkeypatch, tmp_path / "없는자리", {"on": False}, seen)
 
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     P.commit_run_outputs(cap, [out])
 

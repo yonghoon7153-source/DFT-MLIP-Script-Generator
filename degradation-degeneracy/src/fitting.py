@@ -878,17 +878,16 @@ def _assert_fit_authorized(live_fit: dict, out_dir, leg: str | None = None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
-                                issue_execution_class, EXEC_CLASS_SMOKE,
-                                EXEC_CLASS_CANONICAL, SMOKE_NAMESPACE)
+                                issue_execution_class, SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
     if is_inside_namespace(out_dir, SMOKE_NAMESPACE):
         # ★ 58차 L1 — grid 와 **같은 문장**을 쓴다. 면제 판정이 두 진입점에
         #   있으면 기록도 두 진입점에 있어야 하고, 그러면 하나가 또 빠진다.
         # ★ 59차 M1 — grid 와 **같은 문장**을 쓴다: 목록이 아니라 권한.
+        # ★ 60차 P0-2 — class 는 **자리가 정한다** (grid 와 같은 문장).
         return (None, live_fit,
-                issue_execution_class(out_dir, leg, "fit",
-                                      EXEC_CLASS_SMOKE, ledger=None))
+                issue_execution_class(out_dir, leg, "fit", ledger=None))
     declared = declared_leg_run_spec(leg)
     # ★ 49차 P0-5 — `in_digest` 는 **계획만** 아는 축이다 (grid 절반과 같다).
     #   "이 다리의 grid 가 입력을 만든다(null)" 인지 "밖에서 온 입력이다(hex64)"
@@ -909,7 +908,6 @@ def _assert_fit_authorized(live_fit: dict, out_dir, leg: str | None = None,
                                      source_digest(), token=token,
                                      may_open=may_open)
     return claim, fit_axis, issue_execution_class(out_dir, leg, "fit",
-                                                 EXEC_CLASS_CANONICAL,
                                                  ledger=None)
 
 

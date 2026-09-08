@@ -32,10 +32,15 @@ if str(REPO) not in sys.path:
 import tools.preserve as P                                      # noqa: E402
 
 
-def _ledger(tmp_path: Path) -> Path:
+def _ledger(tmp_path: Path, monkeypatch=None) -> Path:
     led = tmp_path / "authority" / "LEG_PRESERVATION.yaml"
     led.parent.mkdir(parents=True, exist_ok=True)
     led.write_text("planned: []\nlegs: []\n", encoding="utf-8")
+    # ★ 60차 P0-2 — class 는 **자리가 정한다.** 시험이 smoke 자리라고 부르는
+    #   곳이 실제로 smoke namespace 안이어야 한다 (발급 인자로 강제하던 것이
+    #   리뷰어가 지목한 우회로였다).
+    if monkeypatch is not None:
+        monkeypatch.setattr(P, "SMOKE_NAMESPACE", tmp_path / "results" / "_smoke")
     return led
 
 
@@ -46,7 +51,7 @@ def _manifest(d: Path, *, curves: str = "aa") -> None:
 
 
 # ── M5 ────────────────────────────────────────────────────────────────────
-def test_the_capability_is_bound_to_the_directory_the_gate_judged(tmp_path):
+def test_the_capability_is_bound_to_the_directory_the_gate_judged(tmp_path, monkeypatch):
     """★ M5 — gate 가 본 **실물**과 산출을 굳히는 실물이 같아야 한다.
 
     리뷰어는 bind mount 로 바꿨다. 여기서는 mount 권한 없이 같은 성질을
@@ -57,10 +62,10 @@ def test_the_capability_is_bound_to_the_directory_the_gate_judged(tmp_path):
     (mount 를 실제로 쓰는 축은 `test_frozen_coordinate_seal_58.py` 가 이미
      갖고 있다 — 그쪽은 skipif 로 환경을 가린다. 이 성질은 가리지 않는다.)
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
 
     # 판정 뒤 — 같은 이름, 다른 실물
@@ -77,7 +82,7 @@ def test_the_capability_is_bound_to_the_directory_the_gate_judged(tmp_path):
     assert P.read_execution_class(P.run_content_id(out), ledger=led) is None
 
 
-def test_the_capability_reads_the_manifest_through_the_carried_handle(tmp_path):
+def test_the_capability_reads_the_manifest_through_the_carried_handle(tmp_path, monkeypatch):
     """★ M5 — 등록하는 identity 는 **들고 온 handle 로 읽은** 바이트여야 한다.
 
     이름으로 다시 열면, 그 순간의 이름이 무엇을 가리키든 그것이 identity 가
@@ -86,10 +91,10 @@ def test_the_capability_reads_the_manifest_through_the_carried_handle(tmp_path):
     치우지 않고 **내용만** 바꾼 경우는 정상 거부가 아니다 (산출이 도중에 자라는
     것은 정상이다). 여기서 보는 것은 handle 로 읽는가 하나다.
     """
-    led = _ledger(tmp_path)
+    led = _ledger(tmp_path, monkeypatch)
     out = tmp_path / "results" / "_smoke" / "run"
     _manifest(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_SMOKE,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=led)
     assert cap.dir_fd is not None, (
         "권한이 판정한 디렉터리의 handle 을 안 들고 있다 (M5)")
@@ -104,7 +109,7 @@ def test_the_capability_reads_the_manifest_through_the_carried_handle(tmp_path):
 
 
 # ── M8 ────────────────────────────────────────────────────────────────────
-def test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside(tmp_path):
+def test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside(tmp_path, monkeypatch):
     """★ M8 — 묶음 구성원을 걸을 때 **이름을 따라가지 않는다**.
 
     `files = sorted(x for x in d.rglob("*") if x.is_file())` 의 `is_file()` 은
@@ -142,7 +147,7 @@ def test_a_bundle_member_symlink_can_not_smuggle_bytes_from_outside(tmp_path):
     assert any("link.bin" in b for b in bad), bad
 
 
-def test_a_bundle_of_plain_files_still_passes(tmp_path):
+def test_a_bundle_of_plain_files_still_passes(tmp_path, monkeypatch):
     """M8 의 반대 방향 — 정상 묶음까지 막으면 그것은 경계가 아니라 마비다."""
     import hashlib
 

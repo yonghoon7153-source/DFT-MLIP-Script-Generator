@@ -16,7 +16,7 @@ import pytest
 from tools.preserve import (EXEC_CLASS_CANONICAL, EXEC_CLASS_SMOKE,
                             PreserveError, assert_not_smoke_provenance,
                             classify_legacy_run, read_execution_class,
-                            record_execution_class, run_content_id)
+                            _record_execution_class, run_content_id)
 
 
 def _run_dir(root: Path, name: str, body: str = "source_digest: abc\n") -> Path:
@@ -44,7 +44,7 @@ def test_moving_a_smoke_run_out_of_the_namespace_does_not_make_it_promotable(
     monkeypatch.setattr(P, "canonical_ledger", lambda _=None: ledger)
 
     inside = _run_dir(ns, "run1")
-    P.record_execution_class(inside, EXEC_CLASS_SMOKE, evidence="시험", ledger=ledger)
+    P._record_execution_class(inside, EXEC_CLASS_SMOKE, evidence="시험", ledger=ledger)
 
     # 제자리에서는 예전에도 막혔다
     with pytest.raises(PreserveError, match="승격 대상이 아니다"):
@@ -133,9 +133,9 @@ def test_a_content_cannot_hold_two_classes(tmp_path, ledger, monkeypatch):
     import tools.preserve as P
     monkeypatch.setattr(P, "canonical_ledger", lambda _=None: ledger)
     d = _run_dir(tmp_path, "run")
-    P.record_execution_class(d, EXEC_CLASS_SMOKE, evidence="첫 등록", ledger=ledger)
+    P._record_execution_class(d, EXEC_CLASS_SMOKE, evidence="첫 등록", ledger=ledger)
     with pytest.raises(PreserveError, match="이미 .*로 등록"):
-        P.record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="뒤집기",
+        P._record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="뒤집기",
                                  ledger=ledger)
 
 
@@ -146,6 +146,6 @@ def test_a_canonical_registration_lets_promotion_through(
     monkeypatch.setattr(P, "SMOKE_NAMESPACE", tmp_path / "results" / "_smoke")
     monkeypatch.setattr(P, "canonical_ledger", lambda _=None: ledger)
     d = _run_dir(tmp_path, "good_run")
-    P.record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="계획 gate 통과",
+    P._record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="계획 gate 통과",
                              ledger=ledger)
     P.assert_not_smoke_provenance([d], "보고서", dest=tmp_path / "OUT.md")

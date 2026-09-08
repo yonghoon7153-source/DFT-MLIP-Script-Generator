@@ -1013,9 +1013,11 @@ MUTANTS = [
     #   호출자가 0곳이 됐다 (그래서 삭제했다). 전수 재생의 조각 3 이 "안 물었다"
     #   로 그것을 알려 줬다 — **죽은 축은 죽은 코드를 가리킨다.**
     #   지금의 L1 명제는 "production 진입점의 면제 분기가 권한을 발행하는가" 다.
+    # ★ 60차 P0-2 — 원상이 한 줄로 줄었다. mint 가 더 이상 class 를 안 받으므로
+    #   (`EXEC_CLASS_SMOKE` 인자가 사라졌다) 그 인자를 담은 옛 원상은 파일에
+    #   없다. 축의 물음은 그대로다: **면제 분기가 권한을 발행하는가.**
     ("smoke-gate-issues-the-execution-capability-g59", GRID,          # L1 → M1
-     "        return None, issue_execution_class(out_dir, leg, \"grid\",\n"
-     "                                           EXEC_CLASS_SMOKE, ledger=None)",
+     "        return None, issue_execution_class(out_dir, leg, \"grid\", ledger=None)",
      "        return None, None",
      "production_smoke_gate_records_the_execution_class"),
     # ★ 59차 M2 — descriptor 의 형식 표시가 상수에서 이름으로 바뀌었다
@@ -1107,9 +1109,18 @@ MUTANTS = [
     #   방어는 시험에 결속돼 있지 않은 것이다.
 
     # α — 실행 class 를 권한으로
+    # ★ 60차 P0-3 — 같은 철자가 두 자리가 됐다 (`discard_execution_capability()`
+    #   가 같은 문장으로 권한을 확인한다). 원상에 다음 줄까지 넣어 **굳히는
+    #   자리**를 가리킨다.
     ("output-commit-requires-a-capability-g59", PRESERVE,             # M1
-     "    if not isinstance(capability, ExecutionClassCapability):",
-     "    if False:",
+     "    if not isinstance(capability, ExecutionClassCapability):\n"
+     "        raise PreserveError(\n"
+     "            \"promote\",\n"
+     "            \"산출을 굳히려면 gate 가 발행한 실행 class 권한이 필요하다 \"",
+     "    if False:\n"
+     "        raise PreserveError(\n"
+     "            \"promote\",\n"
+     "            \"산출을 굳히려면 gate 가 발행한 실행 class 권한이 필요하다 \"",
      "committing_an_output_without_a_capability_is_refused"),
     ("exec-class-record-is-read-back-g59", PRESERVE,                  # M3
      "        got = _tmp.read_bytes()\n        if got != body:",
@@ -1999,7 +2010,9 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_exec_class_capability_59.py::test_committing_an_output_without_a_capability_is_refused":
-                "AttributeError: 'NoneType' object has no attribute 'nonce'",
+                # 속성 이름은 refactor 로 바뀐다 (60차: `nonce` → `_record`).
+                # 축이 묻는 것은 "거부 대신 crash 가 난다" 이므로 거기까지만 적는다.
+                "AttributeError: 'NoneType' object has no attribute",
         }
     },
     "bundle-members-are-not-followed-g59": {

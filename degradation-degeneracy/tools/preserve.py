@@ -3754,7 +3754,7 @@ def assert_run_is_authorized(leg_id: str, phase: str, paths, run_spec: dict,
         #   한 번 정하고 등록부에 굳히면 sink 는 다시 정할 필요가 없다.
         for x in real:
             try:
-                record_execution_class(
+                _record_execution_class(
                     x, EXEC_CLASS_SMOKE,
                     evidence=(f"실행 전 gate 면제 (계약 §13.3.3): "
                               f"{x} 가 {SMOKE_NAMESPACE} 안이라 계획 gate 를 "
@@ -3846,7 +3846,7 @@ def _record_canonical_if_identifiable(paths, leg_id, phase, ledger) -> None:
     """
     for x in paths or []:
         try:
-            record_execution_class(
+            _record_execution_class(
                 x, EXEC_CLASS_CANONICAL,
                 evidence=(f"실행 전 계획 gate 통과: leg={leg_id} phase={phase} "
                           f"(계획 원장이 승인한 다리)"),
@@ -4356,11 +4356,26 @@ def _read_member(d: Path, name: str, dir_fd) -> bytes | None:
 def _sealed_manifest_parts(d: Path, dir_fd) -> list | None:
     """봉인이 있으면 **그 목록을 지금 바이트로 검증해서** 돌려준다 (60차 P0-1).
 
-    봉인이 없으면 `None` — 아직 아무것도 굳지 않은 자리다.
+    `None` 은 **"지금 쓸 수 있는 봉인이 없다"** 는 뜻이고, 두 경우가 있다:
+    아직 아무것도 안 굳혔거나(봉인 파일 없음), 봉인이 **낡았거나**(그때 담은
+    member 가 사라졌거나 바이트가 달라졌다). 형식 자체가 깨진 경우만 예외를
+    낸다 — 그것은 표류가 아니라 손상이다.
 
-    검증은 봉인이 이름한 member 를 **다시 읽어 해시**하는 것이다. 그래서 이
-    함수가 성공했다는 것은 "그때 담긴 바이트가 지금도 그대로다" 라는 뜻이고,
-    실패는 identity 를 만들 수 없다는 뜻이다 (fail-closed).
+    ★ 왜 낡은 봉인이 **거부가 아니라 무시**인가 (두 번째 실측이 뒤집었다).
+
+      첫 판은 낡은 봉인을 `PreserveError` 로 거부했다. 그런데 이 저장소의 run
+      디렉터리는 phase 를 넘어 이어서 쓰인다: grid 가 굳힌 뒤 fit 프로세스가
+      같은 자리에서 `curves_manifest.yaml` 을 다시 쓰고, 그 다음 자기 gate 를
+      지난다. 그 gate 는 아직 아무것도 안 굳혔으므로 재봉인 기회가 없고,
+      그래서 **정상 cross-process e2e 가 죽었다** (실측:
+      `test_grid_then_fit_then_finalize_completes_across_processes`).
+      P0-1 을 고치다 P0-1 과 같은 종류의 가용성 결함을 두 번 만든 것이다.
+
+      낡은 봉인을 무시해도 잃는 것이 없다: 그러면 identity 는 **지금 있는
+      manifest** 로 계산되고(59차 v3 그대로), 그 값은 등록부에 없으므로
+      승격은 여전히 거부된다. 즉 "봉인한 member 를 고치면 class 를 잃는다" 는
+      성질은 그대로이고, 바뀐 것은 **잃는 방식이 예외가 아니라 미등록**이라는
+      점뿐이다. 그리고 그것이 60차 이전의 의미와 정확히 같다.
     """
     body = _read_member(d, RUN_SEAL_NAME, dir_fd)
     if body is None:
@@ -4394,17 +4409,10 @@ def _sealed_manifest_parts(d: Path, dir_fd) -> list | None:
                 "선언된 manifest 만 담는다 (60차 P0-1)")
         got = _read_member(d, name, dir_fd)
         if got is None:
-            raise PreserveError(
-                "promote",
-                f"{d} 의 봉인이 이름한 {name!r} 이 지금 없다 — 굳힌 뒤 사라졌으므로 "
-                "identity 를 만들지 않는다 (60차 P0-1)")
+            return None             # 봉인이 낡았다 — 아래 설명을 보라
         real = hashlib.sha256(got).hexdigest()
         if not secrets.compare_digest(real, digest):
-            raise PreserveError(
-                "promote",
-                f"{d} 의 봉인이 담은 {name!r} 의 바이트가 달라졌다 "
-                f"(봉인 {digest[:16]} ≠ 지금 {real[:16]}) — 굳힌 내용을 뒤에 "
-                "고쳤다 (60차 P0-1)")
+            return None             # 봉인이 낡았다 — 아래 설명을 보라
         out.append([name, real])
     return out
 
@@ -4439,17 +4447,29 @@ def _present_manifest_parts(d: Path, dir_fd) -> list:
 def seal_run_identity(run_dir, dir_fd=None) -> str:
     """굳히는 순간의 manifest 집합을 **한 번** 봉인한다 (60차 P0-1).
 
-    이미 봉인이 있으면 검증만 하고 그대로 둔다 (멱등). 봉인은 이 함수 밖에서
-    만들어지지 않는다 — 그래야 "언제 굳었는가" 가 한 자리에서만 정해진다.
+    봉인은 이 함수 밖에서 만들어지지 않는다 — 그래야 "언제 굳었는가" 가 한
+    자리에서만 정해진다. 그리고 이 함수는 **권한을 소비하는 자리에서만** 불린다.
+
+    ★ 왜 "한 번 봉인하고 끝" 이 아닌가 (첫 판을 실측이 뒤집었다).
+
+      이 저장소의 run 디렉터리는 **여러 phase 가 이어서 쓴다.** grid 가 굳힌
+      뒤 fit 이 같은 자리에 `manifest_start.yaml`·`manifest.yaml` 을 쓰고,
+      재개(resume)는 `manifest.yaml` 자체를 다시 쓴다. 첫 판은 봉인을 한 번만
+      만들고 이후의 member 변경을 전부 거부했고, 그래서 **정상 재개가 죽었다**
+      (실측: `test_start_manifest_is_not_overwritten_by_resume` 등 4건).
+      P0-1 을 고치다가 P0-1 과 같은 종류의 가용성 결함을 새로 만든 것이다.
+
+      그러므로 규칙은 "한 번" 이 아니라 **"굳히는 순간마다"** 다. 굳히는 것은
+      gate 가 발행한 권한을 소비하는 자리뿐이므로 봉인을 새로 쓸 수 있는 것도
+      그 자리뿐이고, 권한 없는 쪽에서 본 member 변경은 여전히 거부된다.
+      마지막 commit 이 정한 값이 그 뒤 report 가 무엇을 더 쓰든 안 흔들린다 —
+      그것이 P0-1 이 요구한 성질이다.
 
     게시는 다른 durable 게시와 같은 계단이다: temp 에 write-all → fsync →
     **바이트 read-back** → `os.link()` 무대체 CAS → 부모 fsync. 이름만 잡는
     `O_EXCL` 로는 "이름은 생겼는데 내용이 없다" 를 못 막는다 (59차 M3).
     """
     d = Path(run_dir)
-    if _sealed_manifest_parts(d, dir_fd) is not None:
-        return run_content_id(d, dir_fd=dir_fd)
-
     parts = [[n, h] for n, h in _present_manifest_parts(d, dir_fd)]
     if not parts:
         raise PreserveError(
@@ -4459,6 +4479,7 @@ def seal_run_identity(run_dir, dir_fd=None) -> str:
                        sort_keys=True, ensure_ascii=False,
                        separators=(",", ":")) + "\n").encode("utf-8")
     tmp_name = f".{RUN_SEAL_NAME}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    published = False
     try:
         if dir_fd is not None:
             fd = os.open(tmp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
@@ -4476,22 +4497,23 @@ def seal_run_identity(run_dir, dir_fd=None) -> str:
                 "promote",
                 f"{d} 의 내용 봉인을 다시 읽었더니 쓴 바이트와 다르다 — "
                 "이름을 붙이지 않는다 (60차 P0-1)")
-        try:
-            if dir_fd is not None:
-                os.link(tmp_name, RUN_SEAL_NAME,
-                        src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
-            else:
-                os.link(d / tmp_name, d / RUN_SEAL_NAME)
-        except FileExistsError:          # pragma: no cover - 동시 게시
-            pass
+        # 굳힐 때마다 다시 쓰므로 **대체**가 정상이다 (무대체 CAS 가 아니다).
+        # 대체는 원자적이고, 대체하기 전에 이미 바이트를 되읽어 확인했다.
+        if dir_fd is not None:
+            os.replace(tmp_name, RUN_SEAL_NAME,
+                       src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        else:
+            os.replace(d / tmp_name, d / RUN_SEAL_NAME)
+        published = True
     finally:
-        try:
-            if dir_fd is not None:
-                os.unlink(tmp_name, dir_fd=dir_fd)
-            else:
-                os.unlink(d / tmp_name)
-        except OSError:
-            pass
+        if not published:
+            try:
+                if dir_fd is not None:
+                    os.unlink(tmp_name, dir_fd=dir_fd)
+                else:
+                    os.unlink(d / tmp_name)
+            except OSError:
+                pass
     if dir_fd is not None:
         os.fsync(dir_fd)
     else:
@@ -4618,9 +4640,20 @@ def _exec_class_path(content_id: str, ledger=None) -> Path:
     return exec_class_root_for_ledger(ledger) / f"{content_id}.json"
 
 
-def record_execution_class(run_dir, cls: str, evidence: str,
+def _record_execution_class(run_dir, cls: str, evidence: str,
                            ledger=None, dir_fd=None) -> Path:
-    """이 산출의 실행 class 를 **등록부에 굳힌다.**
+    """이 산출의 실행 class 를 **등록부에 굳힌다.** (모듈 비공개 sink)
+
+    ★ 60차 P0-2 — 이 함수는 **공개 이름이 아니다.** 59차까지는
+      `record_execution_class(run_dir, cls, …)` 라는 공개 이름이 raw class 를
+      받았고, 그래서 gate 를 한 번도 안 지난 산출을 canonical 로 등록할 수
+      있었다 (리뷰어 실측). 계약 §13.3.4 는 "공개 API 를 지나는 호출은 전부
+      범위 안" 이라고 적었으므로, "같은 프로세스의 적대적 writer 는 범위 밖"
+      이라는 변명으로 그 표면을 남길 수 없었다.
+
+      class 를 정하는 자리는 이제 `issue_execution_class()` 하나이고, 이
+      sink 를 부르는 자리는 publisher 안에만 있다 (구조 회귀가 열거한다).
+
 
     `evidence` 는 "무엇을 보고 그렇게 정했는가" 를 사람이 읽을 문장으로 남긴다.
     경로를 보고 정했다면 **그 사실이 여기 적힌다** — 그것이 이 설계의 요점이다:
@@ -4796,7 +4829,7 @@ def read_execution_class(content_id: str, ledger=None) -> dict | None:
     판정이 정확히 그 형태였다.
 
     ★ 59차 M4 — 58차판은 공유를 **먼저 찾으면 즉시 반환**했다. 주석은 "양쪽에
-      있으면 `record_execution_class()` 가 애초에 막는다" 였는데, 그 배타는
+      있으면 `_record_execution_class()` 가 애초에 막는다" 였는데, 그 배타는
       **내용당 lock 으로 이 clone 안에서만** 성립한다. 리뷰어 반례: clone A 가
       local smoke 로, clone B 가 tracked canonical 로 각각 합법 등록한 뒤 B 의
       tracked record 가 평범한 VCS 동기화로 A 에 들어온다. lock 은 Git 을
@@ -4858,6 +4891,36 @@ def resolve_execution_class(run_dir, ledger=None) -> dict:
 #:   애초에 없어야 한다.
 _ISSUED_EXEC_CAPS: dict = {}
 
+#: **소비된** 일련번호. 재사용을 "발행한 적 없다" 와 구별해서 말하기 위한 것이고,
+#: 그 구별이 없으면 재사용 버그가 위조로 오인돼 진단이 어긋난다 (60차 P0-3).
+_SPENT_EXEC_CAPS: set = set()
+
+
+@dataclass
+class _IssuedExecCap:
+    """gate 가 발행한 권한의 **정본 기록** (60차 P0-2·P0-3).
+
+    caller 는 이 객체를 받지 않는다 — 받는 것은 일련번호뿐이다. 그래서 여기
+    적힌 class·leg·phase·원장·대상은 caller 가 고칠 수 없다.
+
+    `state` 는 소비의 일회성을 강제한다:
+
+        issued  → 아직 아무도 안 굳혔다
+        consuming → 지금 굳히는 중이다 (재진입 금지)
+
+    성공하면 기록 자체가 사라지고 `nonce` 는 `_SPENT_EXEC_CAPS` 로 간다.
+    실패하면 `issued` 로 되돌아가되 **결속(fd·ident)은 그대로다** — 최소 조건이
+    말한 "bound live nonce 를 unbound live nonce 로 바꾸는 상태" 를 만들지
+    않기 위해서다.
+    """
+    leg_id: str
+    phase: str
+    execution_class: str
+    ledger: str | None
+    dir_fd: int | None
+    dir_ident: tuple | None
+    state: str = "issued"
+
 
 @dataclass(frozen=True)
 class ExecutionClassCapability:
@@ -4890,28 +4953,70 @@ class ExecutionClassCapability:
       identity 를 만들고 (b) 지금 그 이름이 가리키는 것이 **같은 커널 객체**
       인지 확인한다. 이름이 바뀌었으면 그 사실이 보인다 — 이름은 시점의
       성질이고 handle 은 대상의 성질이다.
-    """
-    leg_id: str
-    phase: str
-    execution_class: str
-    ledger: str | None
-    nonce: str
-    #: gate 가 판정한 디렉터리의 handle. 발행 시점에 그 자리가 아직 없으면
-    #: `None` 이다 — 그때는 굳히는 자리가 이름으로 연다 (들고 갈 것이 없다).
-    dir_fd: int | None = None
-    #: 그 handle 의 `(st_dev, st_ino)` — 굳힐 때 이름이 여전히 같은 대상을
-    #: 가리키는지 대조하는 값.
-    dir_ident: tuple | None = None
 
-    def __post_init__(self):
-        if self.execution_class not in EXEC_CLASSES:
+    ★ 60차 P0-2 — 권한 객체는 **일련번호만** 든다.
+
+      59차는 `leg_id`·`phase`·`execution_class`·`dir_fd` 를 이 객체의 field 로
+      두고, 등록부에는 **같은 객체**를 저장해 `is` 로 대조했다. 같은 객체를
+      대조하는 것은 봉인이 아니다 — 리뷰어가 진짜로 발행된 smoke 권한의
+      필드를 제자리에서 고치자 `issued_as smoke → committed_as canonical`
+      이었다. 증인이 caller 와 같은 메모리를 봤기 때문이다.
+
+      그래서 정본은 프로세스 안의 **발행 기록**(`_IssuedExecCap`)이고, 이
+      객체는 그 기록을 가리키는 불투명한 손잡이다. 아래 속성들은 전부 기록을
+      읽는다 — caller 가 고칠 수 있는 값은 하나도 없다.
+    """
+
+    nonce: str
+
+    def _record(self) -> "_IssuedExecCap":
+        rec = _ISSUED_EXEC_CAPS.get(self.nonce)
+        if rec is None:
             raise PreserveError(
                 "promote",
-                f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: "
-                f"{self.execution_class!r}")
+                ("이미 소비된 권한이다 — 소비는 한 번뿐이다 (60차 P0-3)"
+                 if self.nonce in _SPENT_EXEC_CAPS else
+                 "이 권한은 이 프로세스의 gate 가 발행한 것이 아니다 — "
+                 "위조했거나 다른 실행의 것이다 (59차 M1)"))
+        return rec
+
+    @property
+    def leg_id(self) -> str:
+        return self._record().leg_id
+
+    @property
+    def phase(self) -> str:
+        return self._record().phase
+
+    @property
+    def execution_class(self) -> str:
+        return self._record().execution_class
+
+    @property
+    def ledger(self):
+        return self._record().ledger
+
+    @property
+    def dir_fd(self):
+        return self._record().dir_fd
+
+    @property
+    def dir_ident(self):
+        return self._record().dir_ident
 
 
-def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
+def _decide_execution_class(run_dir) -> str:
+    """이 **자리**가 정하는 실행 class (60차 P0-2).
+
+    계획 gate 의 면제를 정하는 것과 **같은 함수**(`is_inside_namespace()`)로
+    판정한다 — 두 규칙이 갈리면 어느 쪽이 경계인지 정할 수 없다. 그리고 그
+    판정은 이름이 아니라 커널 좌표로 한다 (58차 L4).
+    """
+    return (EXEC_CLASS_SMOKE if is_inside_namespace(run_dir, SMOKE_NAMESPACE)
+            else EXEC_CLASS_CANONICAL)
+
+
+def issue_execution_class(run_dir, leg_id: str, phase: str,
                           ledger=None) -> ExecutionClassCapability:
     """gate 가 이 실행의 class 를 정하고 **권한을 발행한다** (59차 M1).
 
@@ -4926,9 +5031,10 @@ def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
       handle 은 `None` 이고, 그때는 굳히는 자리가 이름으로 연다 (들고 갈 것이
       없으므로 있다고 말하지 않는다 — 없음을 없음으로 나른다).
     """
-    if cls not in EXEC_CLASSES:
-        raise PreserveError("promote",
-                            f"실행 class 는 {EXEC_CLASSES} 중 하나여야 한다: {cls!r}")
+    # ★ 60차 P0-2 — **class 는 caller 가 안 고른다.** 59차의 mint 는 `cls` 를
+    #   받았고, 그래서 gate 를 지나지 않고도 canonical 권한을 찍을 수 있었다.
+    #   고르는 자리와 찍는 자리를 한 함수로 합친다.
+    cls = _decide_execution_class(run_dir)
     check_id(leg_id)
     try:
         cid = run_content_id(run_dir)
@@ -4943,12 +5049,12 @@ def issue_execution_class(run_dir, leg_id: str, phase: str, cls: str,
                 f"이 산출은 이미 {prev.get('execution_class')!r} 로 등록돼 "
                 f"있다 — {cls!r} 권한을 발행할 수 없다 (내용 {cid[:16]}…)")
     _fd, _ident = _open_judged_dir(run_dir)
-    cap = ExecutionClassCapability(
+    nonce = uuid.uuid4().hex
+    _ISSUED_EXEC_CAPS[nonce] = _IssuedExecCap(
         leg_id=leg_id, phase=phase, execution_class=cls,
         ledger=None if ledger is None else str(ledger),
-        nonce=uuid.uuid4().hex, dir_fd=_fd, dir_ident=_ident)
-    _ISSUED_EXEC_CAPS[cap.nonce] = cap
-    return cap
+        dir_fd=_fd, dir_ident=_ident)
+    return ExecutionClassCapability(nonce=nonce)
 
 
 def _open_judged_dir(run_dir) -> tuple:
@@ -4998,29 +5104,64 @@ def commit_run_outputs(capability, paths) -> list:
             "산출을 굳히려면 gate 가 발행한 실행 class 권한이 필요하다 "
             f"(받은 것: {type(capability).__name__}) — 권한 없이 굳히는 경로는 "
             "없다 (59차 M1)")
-    if _ISSUED_EXEC_CAPS.get(capability.nonce) is not capability:
+    # ★ 60차 P0-3 — **소비는 원자적 상태 전이로 시작한다.** 59차는 굳힌 뒤에도
+    #   일련번호를 남기고 `dir_fd` 만 `None` 으로 바꿨다. 그래서 두 번째 호출이
+    #   대조를 다시 통과하고, `_assert_still_the_judged_dir()` 는 handle 이
+    #   없으면 곧바로 반환하므로 **판정하지 않은 자리**가 canonical 로 굳었다.
+    rec = capability._record()
+    if rec.state != "issued":
         raise PreserveError(
             "promote",
-            "이 권한은 이 프로세스의 gate 가 발행한 것이 아니다 — 위조했거나 "
-            "다른 실행의 것이다 (59차 M1)")
-    led = capability.ledger
+            f"이 권한은 지금 소비 중이다 (state={rec.state!r}) — 재진입해서 "
+            "굳히는 경로는 없다 (60차 P0-3)")
+    rec.state = "consuming"
+    led = rec.ledger
     done = []
+    ok = False
     try:
         for x in [Path(p) for p in paths if p]:
             _assert_still_the_judged_dir(capability, x)
             # ★ 60차 P0-1 — **여기가 유일한 시간 봉인 지점이다.** 등록보다 먼저
             #   봉인해야 등록의 키와 이후 독자의 키가 같다.
-            seal_run_identity(x, dir_fd=capability.dir_fd)
-            record_execution_class(
-                x, capability.execution_class,
-                evidence=(f"산출 완료 시점 등록 · leg={capability.leg_id} "
-                          f"phase={capability.phase} "
-                          f"class={capability.execution_class}"),
-                ledger=led, dir_fd=capability.dir_fd)
+            seal_run_identity(x, dir_fd=rec.dir_fd)
+            _record_execution_class(
+                x, rec.execution_class,
+                evidence=(f"산출 완료 시점 등록 · leg={rec.leg_id} "
+                          f"phase={rec.phase} class={rec.execution_class}"),
+                ledger=led, dir_fd=rec.dir_fd)
             done.append(x)
+        ok = True
     finally:
-        _close_capability_handle(capability)
+        if ok:
+            # 성공했다 — 권한을 **영구히 폐기**한다. handle 도 여기서 놓는다.
+            _retire_capability(capability.nonce)
+        else:
+            # 실패했다 — 결속을 **그대로 둔 채** 재시도를 허용한다. fd 를 닫으면
+            # 다음 호출이 결속 없는 권한을 들게 되고, 그것이 P0-3 의 둘째 반례다.
+            rec.state = "issued"
     return done
+
+
+def _retire_capability(nonce: str) -> None:
+    """소비된 권한을 등록부에서 지우고 handle 을 놓는다 (60차 P0-3)."""
+    rec = _ISSUED_EXEC_CAPS.pop(nonce, None)
+    _SPENT_EXEC_CAPS.add(nonce)
+    if rec is None or rec.dir_fd is None:
+        return
+    try:
+        os.close(rec.dir_fd)
+    except OSError:                                          # pragma: no cover
+        pass
+    rec.dir_fd = None
+
+
+def discard_execution_capability(capability) -> None:
+    """굳히지 않고 권한을 버린다 — 폐기 경로도 한 자리여야 한다 (60차 P0-3)."""
+    if not isinstance(capability, ExecutionClassCapability):
+        raise PreserveError(
+            "promote",
+            f"권한이 아니다: {type(capability).__name__}")
+    _retire_capability(capability.nonce)
 
 
 def _assert_still_the_judged_dir(capability, path: Path) -> None:
@@ -5042,18 +5183,6 @@ def _assert_still_the_judged_dir(capability, path: Path) -> None:
             f"({path}: 판정 {capability.dir_ident} ≠ 지금 {now}) — 판정과 쓰기 "
             "사이에 이름 아래가 바뀌었다 (bind·rename). 판정은 그 대상에 대한 "
             "것이므로 이 산출에 적용할 수 없다 (59차 M5)")
-
-
-def _close_capability_handle(capability) -> None:
-    """권한이 든 handle 을 놓는다 — 소비는 한 번이고 fd 는 남기지 않는다."""
-    fd = getattr(capability, "dir_fd", None)
-    if fd is None:
-        return
-    try:
-        os.close(fd)
-    except OSError:                                          # pragma: no cover
-        pass
-    object.__setattr__(capability, "dir_fd", None)
 
 
 #: legacy 분류를 허용하는 **명시적 roster** (59차 M1).
@@ -5109,7 +5238,7 @@ def classify_legacy_run(run_dir, ledger=None, namespace=None) -> dict:
     ns = SMOKE_NAMESPACE if namespace is None else Path(namespace)
     inside = is_inside_namespace(d, ns)
     cls = EXEC_CLASS_SMOKE if inside else EXEC_CLASS_CANONICAL
-    record_execution_class(
+    _record_execution_class(
         d, cls,
         evidence=(f"legacy 분류 (58차 P0-8): 분류 시점 경로 {d} 가 "
                   f"{ns} {'안' if inside else '밖'}이었다"),

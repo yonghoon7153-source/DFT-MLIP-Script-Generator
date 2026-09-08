@@ -937,8 +937,8 @@ def _complete_artifact(tmp_path, repo_root=None, objectives=("pocv_dvdq",)):
     #   그 한 단계를 여기서 대신한다. 안 하면 이 fixture 가 만든 것은
     #   "게이트를 통과한 적 없는데 승격되는 산출" 이고 — 그것이 바로 P0-8 이
     #   막으려는 것이다.
-    from tools.preserve import EXEC_CLASS_CANONICAL, record_execution_class
-    record_execution_class(
+    from tools.preserve import EXEC_CLASS_CANONICAL, _record_execution_class
+    _record_execution_class(
         d, EXEC_CLASS_CANONICAL,
         evidence="시험 fixture `_complete_artifact` 가 정본 산출로 합성했다")
     return d, sig

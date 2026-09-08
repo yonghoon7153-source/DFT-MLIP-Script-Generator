@@ -401,8 +401,7 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
     from src.io import source_digest
     from tools.preserve import (assert_run_is_authorized, declared_leg_run_spec,
                                 leg_run_spec, is_inside_namespace,
-                                issue_execution_class, EXEC_CLASS_SMOKE,
-                                EXEC_CLASS_CANONICAL, SMOKE_NAMESPACE)
+                                issue_execution_class, SMOKE_NAMESPACE)
 
     leg = leg_name(leg)
     # smoke namespace 안이면 계획을 요구하지 않는다 (계약 §13.3.3). 그 판정은
@@ -414,8 +413,9 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
         #   docstring 이 "무시해도 된다" 고 스스로 적었다). 목록은 버릴 수 있지만
         #   권한은 버릴 수 없다 — 산출을 굳히는 `write_curves_manifest()` 가
         #   그것을 요구한다.
-        return None, issue_execution_class(out_dir, leg, "grid",
-                                           EXEC_CLASS_SMOKE, ledger=None)
+        # ★ 60차 P0-2 — class 는 **자리가 정한다.** 발행자가 계획 gate 와
+        #   같은 함수로 판정하므로 이 자리는 class 를 고르지 않는다.
+        return None, issue_execution_class(out_dir, leg, "grid", ledger=None)
     # ★ 51차 — **계획 소속을 먼저 묻는다.** 살아 있는 축을 만드는 것
     #   (`live_grid_axis()`)이 `cfg["discharged_state"]` 를 읽으므로, 순서가
     #   반대면 계획에 없는 다리가 `KeyError` 로 죽는다 — 거부한 것이 계획
@@ -437,8 +437,7 @@ def _assert_grid_authorized(cfg: dict, out_dir, conditions=None,
                                      source_digest(), token=token,
                                      may_open=may_open)
     # 정본 경로도 같은 권한을 받는다 — class 는 gate 가 정하고 권한이 나른다.
-    return claim, issue_execution_class(out_dir, leg, "grid",
-                                        EXEC_CLASS_CANONICAL, ledger=None)
+    return claim, issue_execution_class(out_dir, leg, "grid", ledger=None)
 
 def _discharged_kw(cfg: dict, claim) -> dict:
     """승인 축이 정한 **완방상태 입력 대상** 을 `get_discharged_state()` 인자로.

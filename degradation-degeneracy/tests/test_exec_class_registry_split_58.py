@@ -51,7 +51,7 @@ def test_smoke_records_do_not_land_in_the_shared_registry(tmp_path, ledger):
     local = P.local_exec_class_root_for_ledger(ledger)
 
     for i in range(3):                       # smoke 를 세 번 돌린 셈
-        P.record_execution_class(_run(tmp_path, f"s{i}", f"run {i}\n".encode()),
+        P._record_execution_class(_run(tmp_path, f"s{i}", f"run {i}\n".encode()),
                                  EXEC_CLASS_SMOKE, evidence="면제", ledger=ledger)
 
     n_shared = len(list(shared.glob("*.json"))) if shared.is_dir() else 0
@@ -64,7 +64,7 @@ def test_smoke_records_do_not_land_in_the_shared_registry(tmp_path, ledger):
 
 def test_canonical_records_still_land_in_the_shared_registry(tmp_path, ledger):
     """정본 분류는 **여전히 공유**된다 — 감사 대상이고 리뷰어가 인용한다."""
-    P.record_execution_class(_run(tmp_path, "c", b"canonical\n"),
+    P._record_execution_class(_run(tmp_path, "c", b"canonical\n"),
                              EXEC_CLASS_CANONICAL, evidence="계획 gate 통과",
                              ledger=ledger)
     shared = P.exec_class_root_for_ledger(ledger)
@@ -79,7 +79,7 @@ def test_a_smoke_record_still_blocks_promotion(tmp_path, ledger, monkeypatch):
     """
     monkeypatch.setattr(P, "canonical_ledger", lambda x=None: ledger)
     d = _run(tmp_path, "moved", b"smoke bytes\n")
-    P.record_execution_class(d, EXEC_CLASS_SMOKE, evidence="면제", ledger=ledger)
+    P._record_execution_class(d, EXEC_CLASS_SMOKE, evidence="면제", ledger=ledger)
 
     with pytest.raises(P.PreserveError):
         P.assert_not_smoke_provenance([d], "보고서", dest=tmp_path / "OUT.md")
@@ -94,10 +94,10 @@ def test_one_content_still_cannot_hold_two_classes_across_the_split(
     읽는 쪽이 무엇을 믿을지 정할 수 없다.
     """
     d = _run(tmp_path, "both", b"same bytes\n")
-    P.record_execution_class(d, EXEC_CLASS_SMOKE, evidence="먼저 smoke",
+    P._record_execution_class(d, EXEC_CLASS_SMOKE, evidence="먼저 smoke",
                              ledger=ledger)
     with pytest.raises(P.PreserveError):
-        P.record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="뒤집기",
+        P._record_execution_class(d, EXEC_CLASS_CANONICAL, evidence="뒤집기",
                                  ledger=ledger)
 
 

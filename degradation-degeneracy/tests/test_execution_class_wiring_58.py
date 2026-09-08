@@ -1,6 +1,6 @@
 """58차 L1·L2·L3 — 실행 class 를 **production 배선**에서 검증한다.
 
-57차의 `tests/test_execution_class_p0_8.py` 7건은 전부 `record_execution_class()`
+57차의 `tests/test_execution_class_p0_8.py` 7건은 전부 `_record_execution_class()`
 나 `assert_run_is_authorized()` 를 **직접** 불렀다. 그래서 authority 함수의 규칙은
 확인했지만 **production 진입점이 그 함수에 닿는지는 한 번도 안 물었다.**
 58차 리뷰어가 그 구멍(L1)과, 그것을 못 잡은 이유(L13)를 같이 지적했다.
@@ -181,7 +181,7 @@ def test_a_class_conflict_is_not_swallowed_by_the_gate(
     monkeypatch.setattr(P, "SMOKE_NAMESPACE",
                         tmp_path / "results" / "_smoke")
     out = _smoke_out(tmp_path, "conflict-leg")
-    P.record_execution_class(out, EXEC_CLASS_CANONICAL,
+    P._record_execution_class(out, EXEC_CLASS_CANONICAL,
                             evidence="먼저 정본으로 등록", ledger=ledger)
 
     with pytest.raises(P.PreserveError):
@@ -226,7 +226,7 @@ def _register(args):
 
     _P._read_exec_class_at = _at_barrier
     try:
-        _P.record_execution_class(Path(run_dir), cls, evidence="경쟁",
+        _P._record_execution_class(Path(run_dir), cls, evidence="경쟁",
                                   ledger=Path(ledger_path))
         return f"ok:{cls}"
     except _P.PreserveError:

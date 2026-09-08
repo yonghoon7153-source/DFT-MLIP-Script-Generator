@@ -64,7 +64,7 @@ def test_a_later_sanctioned_manifest_does_not_erase_the_registered_class(
     out = tmp_path / "results" / "run"
     _grid_outputs(out)
 
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_CANONICAL,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=ledger)
     P.commit_run_outputs(cap, [out])
 
@@ -93,15 +93,19 @@ def test_the_seal_still_notices_when_a_sealed_member_is_edited(tmp_path, ledger)
     """
     out = tmp_path / "results" / "run"
     _grid_outputs(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_CANONICAL,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=ledger)
     P.commit_run_outputs(cap, [out])
 
+    cid_sealed = P.run_content_id(out)
     (out / "curves_manifest.yaml").write_text("curves_sha256: bbbb\n",
                                               encoding="utf-8")
-    with pytest.raises(P.PreserveError) as ei:
-        P.run_content_id(out)
-    assert "봉인" in str(ei.value), str(ei.value)
+    cid_now = P.run_content_id(out)
+    assert cid_now != cid_sealed, (
+        "봉인한 member 를 고쳤는데 identity 가 그대로다 — 봉인이 가용성만 주고 "
+        "무결성을 버렸다 (P0-1)")
+    assert P.read_execution_class(cid_now, ledger=ledger) is None, (
+        "고친 내용이 굳힌 class 를 그대로 물려받았다 (P0-1)")
 
 
 def test_a_stolen_seal_does_not_carry_the_class_to_other_bytes(tmp_path,
@@ -113,7 +117,7 @@ def test_a_stolen_seal_does_not_carry_the_class_to_other_bytes(tmp_path,
     """
     out = tmp_path / "results" / "run"
     _grid_outputs(out)
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_CANONICAL,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=ledger)
     P.commit_run_outputs(cap, [out])
 
@@ -125,8 +129,10 @@ def test_a_stolen_seal_does_not_carry_the_class_to_other_bytes(tmp_path,
                                                 encoding="utf-8")
     (thief / P.RUN_SEAL_NAME).write_bytes((out / P.RUN_SEAL_NAME).read_bytes())
 
-    with pytest.raises(P.PreserveError):
-        P.run_content_id(thief)
+    assert P.run_content_id(thief) != P.run_content_id(out), (
+        "봉인 파일만 훔쳤는데 같은 identity 를 받았다 (P0-1)")
+    assert P.read_execution_class(P.run_content_id(thief),
+                                  ledger=ledger) is None
 
 
 def test_the_promotion_guard_still_passes_a_canonical_run_after_report(
@@ -145,7 +151,7 @@ def test_the_promotion_guard_still_passes_a_canonical_run_after_report(
     out = tmp_path / "results" / "canonical_run"
     _grid_outputs(out)
 
-    cap = P.issue_execution_class(out, "L", "grid", P.EXEC_CLASS_CANONICAL,
+    cap = P.issue_execution_class(out, "L", "grid",
                                   ledger=ledger)
     P.commit_run_outputs(cap, [out])
 
