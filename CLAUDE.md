@@ -31,11 +31,20 @@
 - **KISTI** neuron(x3430a02): Slurm, QOS 제출 제한 — scancel 직후 재제출 금지(카운터 지연). pseudo는
   /scratch/x3430a02/kgy/manuscript_support/pseudo.
 - **kgy** (RTX3090, QE-GPU + uma env): ssh kgy@59.12.161.91.
-  ⛔ **kgy QE-GPU 는 mpirun 으로 띄우지 않는다 — `NP=1` 로 바이너리를 직접 실행한다.**
-  빌드가 NVHPC 번들 Open MPI(hpcx)라 PATH 의 conda mpirun 이 잡히면
-  `MPI_Init_thread ... NULL communicator` 로 **초기화에서 죽고 pw.x 는 한 줄도 안 찍는다**.
-  GPU 하나당 랭크 하나라 NP=1 이 원래 정상 구성이다. (3회 반복 사고 — 2026-09-08 명문화.
-  마지막 건은 죽은 잡을 watch 가 '진행' 으로 3시간 보고했다.)
+  ⛔⛔ **QE-GPU 는 NVHPC 스택을 통째로 맞춰서 띄운다.** 런처만 바꾸면 다른 자리에서 또 죽는다:
+  다른 mpirun(conda)이 잡히면 `MPI_Init_thread … NULL communicator`, mpirun 을 빼면
+  `libgomp: TODO`(NVHPC 빌드가 GNU OpenMP 를 잡음). **둘 다 같은 병이다 — 런타임 불일치.**
+  검증된 처방 (gabia 판이 `tools/ionic/watch_all.py`·`tools/neb_diffusion/li3n_uma_investigate.py`
+  에 이미 있었다. kgy 는 경로만 다르다):
+  ```
+  H=<nvhpc>/comm_libs/<cuda>/hpcx/hpcx-*/ompi
+  export OPAL_PREFIX=$H PATH=$H/bin:$PATH
+  export LD_LIBRARY_PATH=$H/lib:<nvhpc>/compilers/lib:/usr/local/cuda-12.6/lib64
+  $H/bin/mpirun --oversubscribe -np 1 <pw.x> -nk 1 -in x.in > x.out
+  ```
+  ★ `<nvhpc>/compilers/lib` 가 **NVIDIA OpenMP 런타임**이다 — 이게 빠지면 libgomp 가 이긴다.
+  `tools/doping/run_force_check_scf.sh` 가 자동 탐지해서 걸고, 못 찾으면 **시작하지 않는다**
+  (`NVHPC_ROOT` 로 지정 가능). 2026-09-08 같은 자리에서 두 번 죽고 명문화.
   · pw.x 를 던지기 전 `nvidia-smi` 로 **python3(UMA)가 GPU 를 쓰고 있는지** 본다 — kgy 도 공유다.
 - **gabia** (A6000 단일 GPU, QE-GPU + fairchem/UMA): root@121.78.116.27. **pw.x와 UMA 동시 실행 금지**
   (VRAM 47/48 GB 점유 사례) — nvidia-smi로 확인 후 실행.

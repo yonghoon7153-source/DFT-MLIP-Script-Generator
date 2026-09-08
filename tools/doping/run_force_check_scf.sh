@@ -49,22 +49,55 @@ fi
 
 # ── 사전점검: 있어야 하는 것이 다 있나 (없으면 **시작하지 않는다**) ──────────
 [ -x "$PWX" ] || { echo "⛔ pw.x 를 못 찾는다: $PWX  (PWX=... 로 지정)"; exit 2; }
+# ── NVHPC(QE-GPU) 런타임 정렬 ────────────────────────────────────────────────
+# ⛔⛔ 2026-09-08 실측, **같은 자리에서 두 번 죽었다.** 둘 다 "런타임이 빌드와 다르다" 다.
+#   ① 다른 mpirun(conda)이 잡힘 → `MPI_Init_thread ... NULL communicator` (3시간 시체)
+#   ② mpirun 을 빼니 → `libgomp: TODO` (NVHPC 로 빌드된 바이너리가 GNU OpenMP 를 잡았다)
+#   ★ 정답은 **런처를 빼는 것이 아니라 NVHPC 스택을 통째로 맞추는 것**이고, 그 처방은
+#     이미 repo 에 있었다 — tools/ionic/watch_all.py · tools/neb_diffusion/li3n_uma_investigate.py.
+#     `compilers/lib` 가 NVIDIA OpenMP 런타임을 주는 자리다. 그게 빠지면 libgomp 가 이긴다.
+#   여기서 자동으로 찾아 건다. 못 찾으면 **시작하지 않는다** (조용히 GNU 런타임으로 돌지 않게).
+_find_nvhpc() {   # → NVHPC 루트(…/Linux_x86_64/<ver>) 또는 빈 문자열
+  [ -n "${NVHPC_ROOT:-}" ] && { echo "$NVHPC_ROOT"; return; }
+  local c
+  for c in "$HOME"/apps/nvhpc/Linux_x86_64/* /data/apps/nvhpc/Linux_x86_64/* \
+           /opt/nvidia/hpc_sdk/Linux_x86_64/* /usr/local/nvhpc/Linux_x86_64/*; do
+    [ -d "$c/compilers/lib" ] && { echo "$c"; return; }
+  done
+  echo ""
+}
+_setup_nvhpc() {
+  local root; root=$(_find_nvhpc)
+  [ -n "$root" ] || return 1
+  local h; h=$(ls -d "$root"/comm_libs/*/hpcx/hpcx-*/ompi 2>/dev/null | head -1)
+  [ -n "$h" ] || return 1
+  export OPAL_PREFIX="$h"
+  export PATH="$h/bin:$PATH"
+  export LD_LIBRARY_PATH="$h/lib:$root/compilers/lib:/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH:-}"
+  echo "[$(ts)] NVHPC 정렬: root=$root"
+  echo "[$(ts)]   mpirun=$h/bin/mpirun · compilers/lib 포함(libgomp 충돌 방지)"
+  NVHPC_MPIRUN="$h/bin/mpirun"
+  return 0
+}
+NVHPC_MPIRUN=""
 MPI=""
-# ⛔ 2026-09-08 실측 — **NP=1 이면 mpirun 을 쓰지 않는다.**
-#   kgy 의 QE-GPU 는 NVHPC 번들 Open MPI(hpcx)로 빌드됐는데, PATH 에 있는 다른 mpirun
-#   (conda 쪽)이 잡히자 `MPI_Init_thread ... NULL communicator` 로 **초기화에서 죽었다**.
-#   pw.x 는 한 줄도 못 찍었고, 첫 점이 3시간 시체로 남았다.
-#   GPU 빌드는 어차피 GPU 하나당 랭크 하나라 NP=1 이 정상 구성이다 → 런처를 아예 뺀다.
-if [ "$NP" = 1 ]; then
-  echo "[$(ts)] NP=1 — mpirun 없이 직접 실행한다 (GPU 빌드 정상 구성 · 런처 불일치 회피)"
+if [[ "$PWX" == *gpu* ]] || [ "${FORCE_NVHPC:-0}" = 1 ]; then
+  if ! _setup_nvhpc; then
+    echo "⛔ GPU 빌드(pw.x=$PWX)인데 NVHPC 를 못 찾았다 — 시작하지 않는다."
+    echo '   NVHPC_ROOT=/…/nvhpc/Linux_x86_64/<ver> 로 지정하거나, CPU 빌드로 돌려라.'
+    echo "   (런타임을 안 맞추면 MPI_Init 또는 libgomp 에서 죽는다 — 2026-09-08 실측 2회)"
+    exit 2
+  fi
+  # GPU 빌드는 GPU 하나당 랭크 하나. -nk 1 도 repo 의 검증된 관례다.
+  MPI="$NVHPC_MPIRUN --oversubscribe -np $NP"
+  PW_EXTRA=${PW_EXTRA:-"-nk 1"}
 elif command -v mpirun >/dev/null 2>&1; then
-  # Open MPI 면 --oversubscribe 를 붙인다 (슬롯 계산이 빡빡한 빌드에서 즉사 방지 · gabia 관례).
   _OS=""; mpirun --version 2>&1 | grep -qi "open mpi" && _OS="--oversubscribe"
   MPI="mpirun $_OS -np $NP"
-  echo "[$(ts)] ⚠ mpirun 경로: $(command -v mpirun)"
-  echo "[$(ts)]   빌드와 다른 MPI 면 초기화에서 죽는다 — 실패하면 NP=1 로 다시 던져라."
+  echo "[$(ts)] mpirun 경로: $(command -v mpirun)"
 elif command -v mpiexec >/dev/null 2>&1; then MPI="mpiexec -n $NP"
 else echo "[$(ts)] ⚠ mpirun/mpiexec 없음 — 직렬로 돈다 (느리다)"; NP=1; fi
+PW_EXTRA=${PW_EXTRA:-}
 echo "[$(ts)] 코어: 물리 $(_phys_cores) · 논리 $(getconf _NPROCESSORS_ONLN 2>/dev/null) → 랭크 $NP"
 
 mapfile -t INS < <(find "$ROOT" -mindepth 2 -maxdepth 2 -name scf.in | sort)
@@ -106,7 +139,7 @@ for i in "${INS[@]}"; do
     echo "[$(ts)] skip $n (JOB DONE)"; skip_n=$((skip_n+1)); continue
   fi
   s=$(date +%s)
-  ( cd "$d" && $MPI "$PWX" -in scf.in > scf.out 2>&1 )
+  ( cd "$d" && $MPI "$PWX" $PW_EXTRA -in scf.in > scf.out 2>&1 )
   e=$(date +%s)
   # ⚠ grep -a — 출력에 NUL 이 섞이면 grep 이 binary 로 보고 조용히 넘어간다
   if grep -aq "JOB DONE" "$d/scf.out" && grep -aq "convergence has been achieved" "$d/scf.out" \
