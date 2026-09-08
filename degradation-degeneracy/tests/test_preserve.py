@@ -5905,17 +5905,17 @@ def test_exactly_one_attempt_enters_compute(tmp_path):
     46차 `assert_planned_leg()` 는 같은 row 로 몇 번이고 통과했고 동시 실행도
     둘 다 계산에 들어갔다.
     """
-    from tools.preserve import claim_planned_leg, PreserveError
+    from tools.preserve import open_leg_run, PreserveError
 
     led = _lifecycle_ledger(tmp_path)
     root = tmp_path / "_claims"
-    c1 = claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                           ledger=led, token=_tok())
+    c1 = open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                           ledger=led)
     assert c1.attempt_id and len(c1.attempt_id) >= 16
 
     with pytest.raises(PreserveError) as ei:
-        claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                          ledger=led, token=_tok())
+        open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                          ledger=led)
     assert "이미" in str(ei.value) or "claim" in str(ei.value), str(ei.value)
 
 
@@ -5926,14 +5926,14 @@ def test_the_claim_seals_the_exact_run_spec(tmp_path):
     `--objective A --n-restarts 1` 과 `--objective B --n-restarts 999` 를
     똑같이 승인했다.
     """
-    from tools.preserve import claim_planned_leg, PreserveError
+    from tools.preserve import open_leg_run, PreserveError
 
     led = _lifecycle_ledger(tmp_path)
     root = tmp_path / "_claims"
     other = dict(_RUN_SPEC_L, objective="pocv", n_restarts=999)
     with pytest.raises(PreserveError) as ei:
-        claim_planned_leg("L", other, "0123456789abcdef",
-                          ledger=led, token=_tok())
+        open_leg_run("L", other, "0123456789abcdef",
+                          ledger=led)
     assert "run_spec" in str(ei.value), str(ei.value)
     assert not root.exists() or not any(root.rglob("*.claim")), (
         "거부하면서 claim 을 만들었다")
@@ -5941,7 +5941,7 @@ def test_the_claim_seals_the_exact_run_spec(tmp_path):
 
 def test_the_whole_index_must_be_consistent_before_any_leg_is_claimed(tmp_path):
     """★ 47차 — target predicate 만 보면 다른 leg 때문에 깨진 원장으로도 시작한다."""
-    from tools.preserve import claim_planned_leg, PreserveError
+    from tools.preserve import open_leg_run, PreserveError
 
     body = (_LIFECYCLE_LEDGER % ("retrospective:no-preauthorization",
                                 _spec_digest(_RUN_SPEC_L))).replace(
@@ -5950,8 +5950,8 @@ def test_the_whole_index_must_be_consistent_before_any_leg_is_claimed(tmp_path):
     led = tmp_path / "LEG_PRESERVATION.yaml"
     led.write_text(body, encoding="utf-8")
     with pytest.raises(PreserveError) as ei:
-        claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                          ledger=led, token=_tok())
+        open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                          ledger=led)
     assert "실행 기록과 다르다" in str(ei.value), str(ei.value)
 
 
@@ -5961,13 +5961,13 @@ def test_a_crashed_attempt_finalizes_without_recomputing(tmp_path):
     phase receipt 를 남긴 뒤 process 가 죽어도, 같은 claim 을 재개해 남은
     phase 만 하고 executed 로 닫는다.
     """
-    from tools.preserve import (claim_planned_leg, resume_claim, finalize_leg,
+    from tools.preserve import (open_leg_run, resume_claim, finalize_leg,
                                 planned_index, PreserveError)
 
     led = _lifecycle_ledger(tmp_path)
     root = tmp_path / "_claims"
-    c = claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                          ledger=led, token=_tok())
+    c = open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                          ledger=led)
     c.phase_done("grid", {"rows": 10})
     token = c.token
     del c                                            # process 가 죽었다
@@ -5996,13 +5996,13 @@ def test_finalizing_moves_the_leg_from_prospective_to_executed_roster(tmp_path):
     """★ 47차 P0-1 — executed 전이는 roster·실행 기록까지 한 번에 옮긴다."""
     import yaml
 
-    from tools.preserve import (claim_planned_leg, finalize_leg,
+    from tools.preserve import (open_leg_run, finalize_leg,
                                 assert_planned_index_consistent)
 
     led = _lifecycle_ledger(tmp_path)
     root = tmp_path / "_claims"
-    c = claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                          ledger=led, token=_tok())
+    c = open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                          ledger=led)
     c.phase_done("grid", {})
     c.phase_done("fit", {})
     finalize_leg("L", ledger=led, token=c.token,
@@ -6019,12 +6019,12 @@ def test_finalizing_moves_the_leg_from_prospective_to_executed_roster(tmp_path):
 
 def test_an_executed_leg_cannot_be_reclaimed(tmp_path):
     """★ 47차 P0-2 — executed 기록은 다음 실행의 승인이 아니다 (46차 규칙 유지)."""
-    from tools.preserve import claim_planned_leg, PreserveError
+    from tools.preserve import open_leg_run, PreserveError
 
     led = _lifecycle_ledger(tmp_path)
     with pytest.raises(PreserveError) as ei:
-        claim_planned_leg("done", _RUN_SPEC_L, "fedcba9876543210",
-                          ledger=led, token=_tok())
+        open_leg_run("done", _RUN_SPEC_L, "fedcba9876543210",
+                          ledger=led)
     assert "executed" in str(ei.value) or "이미 실행" in str(ei.value), str(ei.value)
 
 
@@ -6260,7 +6260,7 @@ def test_a_retrospective_row_cannot_be_claimed(tmp_path):
     그대로 실행 승인으로 재사용된다 (46차가 `executed` 로 막던 것을 종류
     축에서 다시 열어 주는 셈이다).
     """
-    from tools.preserve import claim_planned_leg, PreserveError
+    from tools.preserve import open_leg_run, PreserveError
 
     body = _LIFECYCLE_LEDGER % ("retrospective:no-preauthorization",
                                _spec_digest(_RUN_SPEC_L))
@@ -6278,8 +6278,8 @@ def test_a_retrospective_row_cannot_be_claimed(tmp_path):
     led = tmp_path / "LEG_PRESERVATION.yaml"
     led.write_text(body, encoding="utf-8")
     with pytest.raises(PreserveError) as ei:
-        claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                          ledger=led, token=_tok())
+        open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                          ledger=led)
     assert "소급" in str(ei.value) or "retrospective" in str(ei.value), str(ei.value)
 
 
@@ -6291,7 +6291,7 @@ def test_a_retrospective_row_cannot_be_claimed(tmp_path):
 # 같은 public 호출 둘이 **모두** 같은 attempt 로 compute 에 들어갔다.
 # `O_EXCL` 은 파일 최초 생성만 배타적이었지 **실행권**은 배타적이지 않았다.
 #
-# 공식 회귀는 production gate 가 아니라 low-level `claim_planned_leg()` 를 두 번
+# 공식 회귀는 production gate 가 아니라 low-level `open_leg_run()` 를 두 번
 # 부르고 있었으므로 이 우회를 보지 못했다.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -6413,8 +6413,8 @@ def test_the_same_leg_finalized_twice_at_once_gets_one_answer(tmp_path):
     from tools import preserve as P
 
     led = _lifecycle_ledger(tmp_path)
-    c = P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                            ledger=led, token=_tok())
+    c = P.open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                            ledger=led)
     _finish(c)
 
     barrier = threading.Barrier(2)
@@ -6481,10 +6481,10 @@ def test_two_concurrent_finalizations_lose_no_leg(tmp_path):
                    encoding="utf-8")
 
     claims = tmp_path / "_claims"     # 54차 P0-1 — 원장이 정한다
-    cL = P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                             ledger=led, token=_tok())
-    cM = P.claim_planned_leg("M", spec_m, "0123456789abcdef",
-                             ledger=led, token=_tok())
+    cL = P.open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                             ledger=led)
+    cM = P.open_leg_run("M", spec_m, "0123456789abcdef",
+                             ledger=led)
     _finish(cL)
     _finish(cM)
 
@@ -6538,8 +6538,8 @@ def test_a_claim_marks_the_plan_running(tmp_path):
     from tools import preserve as P
 
     led = _lifecycle_ledger(tmp_path)
-    P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                        ledger=led, token=_tok())
+    P.open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                        ledger=led)
     doc = yaml.safe_load(led.read_text(encoding="utf-8"))
     row = next(e for e in doc["planned"] if e["leg_id"] == "L")
     assert row["status"] == "running", (
@@ -6570,8 +6570,8 @@ def test_two_phase_records_do_not_overwrite_each_other(tmp_path):
     from tools import preserve as P
 
     led = _lifecycle_ledger(tmp_path)
-    claim = P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                                ledger=led, token=_tok())
+    claim = P.open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                                ledger=led)
     barrier = threading.Barrier(2)
 
     def _go(ph):
@@ -6967,8 +6967,8 @@ def test_the_precheck_tells_a_new_run_from_an_owned_resume(tmp_path):
 
 def test_a_released_run_returns_the_plan_to_planned(tmp_path):
     """★ 49차 P0-3 — 되돌릴 수 있는 실행권이 있어야 한다."""
-    from tools.preserve import (open_leg_run, release_leg_run, planned_index,
-                                claim_planned_leg)
+    from tools.preserve import (open_leg_run, release_leg_run,
+                                planned_index)
 
     led = _lifecycle_ledger(tmp_path)
     claims = tmp_path / "_claims"     # 54차 P0-1 — 원장이 정한다
@@ -6984,8 +6984,8 @@ def test_a_released_run_returns_the_plan_to_planned(tmp_path):
     assert not tok.exists() and not (claims / "L.claim").exists()
 
     # 되돌린 뒤에는 **다시 딸 수 있다** — 그것이 되돌림의 유일한 증명이다
-    claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                      ledger=led, token=_tok())
+    open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef",
+                      ledger=led)
 
 
 def test_releasing_needs_the_owner_credential(tmp_path):
@@ -7482,19 +7482,19 @@ def test_a_crash_between_the_claim_and_the_token_leaves_nothing_stranded(tmp_pat
 
     led, claims, tok = _live_ledger(tmp_path)
     boom = RuntimeError("claim 을 굳힌 직후 죽었다")
-    real = P.claim_planned_leg
+    real = P._claim_planned_leg
 
     def _die(*a, **k):
         real(*a, **k)                      # claim 파일을 실제로 굳히고
         raise boom                         # 그 다음 죽는다
 
-    P.claim_planned_leg = _die
+    P._claim_planned_leg = _die
     try:
         with pytest.raises(RuntimeError):
             P.open_leg_run("L", _RUN_SPEC_L, "0123456789abcdef", 
                            ledger=led)
     finally:
-        P.claim_planned_leg = real
+        P._claim_planned_leg = real
 
     # 남은 상태가 무엇이든 **회수 가능**해야 한다: claim 이 남았다면 그 소유
     # 증명도 남아 있어야 하고, 그러면 되돌릴 수 있다.
@@ -8041,7 +8041,7 @@ def test_a_failure_while_leaving_the_ledger_lock_preserves_the_authority(tmp_pat
 
     52차는 불확실 구역을 `_atomic_write_text()` **호출 하나**로 잡았다.
     리뷰어는 그 밖을 쳤다: 값이 보이게 된 뒤 `flock(LOCK_UN)`·`close` 가
-    실패하면 평범한 `OSError` 가 새어 나가고, `claim_planned_leg(, token=_tok())` 의
+    실패하면 평범한 `OSError` 가 새어 나가고, `open_leg_run()` 의
     `except BaseException` 이 그것을 "확정 미커밋" 으로 오판해 claim 과 소유
     증명을 지웠다 (실측: ledger_status=running · claim_exists=False ·
     token_exists=False — 공개 API 어느 것으로도 회수할 수 없다).
@@ -8132,11 +8132,18 @@ def test_a_lying_write_is_caught_by_reading_the_bytes_back(tmp_path):
         P.read_token_file(tok, "L")
 
     # claim 자체도 같은 규칙이다 (소유 증명 검사가 가리지 않게 **직접** 부른다)
+    #
+    # ★ 59차 M10 — raw 발급은 이제 비공개이고, 그 앞에 "이 token 이 디스크에
+    #   굳어 있는가" 가 하나 더 있다. 그 검사가 **먼저** 걸리면 이 시험은 자기
+    #   축(write 를 읽어서 대조한다)을 한 번도 안 보게 된다. 그래서 정상
+    #   경로처럼 token 을 먼저 굳히고 그 값으로 부른다 — 전제를 맞춘 뒤에
+    #   겨누는 층만 부순다.
+    _tokval = "0" * P.TOKEN_HEX
+    P.write_token_file(P.attempt_path_for("L", ledger=led), _tokval, "L")
     with mock.patch.object(P.os, "write", liar):
         with pytest.raises(P.PreserveError):
-            P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                                ledger=led,
-                                token="0" * P.TOKEN_HEX)
+            P._claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
+                                 ledger=led, token=_tokval)
     assert P.planned_index(ledger=led)["L"]["status"] == "planned"
     assert not P._claim_path("L", claims).is_file(), "깨진 claim 이 남았다"
 
@@ -8315,7 +8322,7 @@ def test_the_finalize_recovery_branch_holds_the_claim_lock(tmp_path):
 def test_a_durable_claim_cannot_be_issued_without_a_token_file(tmp_path):
     """★ 54차 P0-6 — "불확실하면 보존한다" 가 **회수 capability 를 보존하지 않았다**.
 
-    리뷰어 반례: `claim_planned_leg(, token=_tok())` 을 직접 부르면 token 은 **지역변수로만**
+    리뷰어 반례: `open_leg_run()` 을 직접 부르면 token 은 **지역변수로만**
     만들어진다. 원장 commit 뒤 오류를 주입하면 claim 은 남고 token 은 어디에도
     없다.
 
@@ -8331,9 +8338,11 @@ def test_a_durable_claim_cannot_be_issued_without_a_token_file(tmp_path):
     led = _lifecycle_ledger(tmp_path)
     claims = tmp_path / "_claims"     # 54차 P0-1 — 원장이 정한다
 
+    # ★ 59차 M10 — raw 발급은 비공개가 됐다. 명제는 그대로다: 소유 증명 없이
+    #   부르면 거부하고 아무 상태도 안 남긴다.
     with pytest.raises((TypeError, P.PreserveError)):
-        P.claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
-                            ledger=led)
+        P._claim_planned_leg("L", _RUN_SPEC_L, "0123456789abcdef",
+                             ledger=led)
     assert P.planned_index(ledger=led)["L"]["status"] == "planned"
     assert not P._claim_path("L", claims).is_file()
 
@@ -8608,7 +8617,7 @@ def test_no_lifecycle_api_takes_a_caller_chosen_attempt_path():
     banned = ("token_file", "attempt_file", "attempt_path")
     for name in ("open_leg_run", "attach_leg_run", "release_leg_run",
                  "precheck_leg_run", "finalize_leg", "resume_claim",
-                 "claim_planned_leg"):
+                 "_claim_planned_leg"):
         fn = getattr(P, name)
         got = [p for p in inspect.signature(fn).parameters if p in banned]
         assert not got, (

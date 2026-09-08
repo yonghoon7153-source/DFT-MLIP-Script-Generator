@@ -624,8 +624,23 @@ def _target_names(node):
 #: **않지만** module 상태를 정한다. 리뷰어 실측: 그 값을 바꿔도 digest 가 같았다.
 #: "이름을 안 묶는 문" 과 "아무 것도 안 하는 문" 은 다르다 — docstring 만
 #: 지나가고 나머지 `Expr` 은 `_module_defs()` 가 fail-closed 로 멈춘다.
-_MODULE_NONBINDING = ("Pass", "Raise", "Assert", "Global", "Nonlocal",
-                      "Break", "Continue", "Return")
+#: ★ 59차 M12 — **실행하지 않음을 증명할 수 있는** 문장만 여기 있다.
+#:
+#:   58차까지 이 목록은 `Raise`·`Assert` 를 담고 있었고 `_module_defs()` 는
+#:   그것을 통째로 건너뛰었다. 그런데 둘 다 **식을 평가한다** — module scope 의
+#:   `assert sc.무엇()` 은 import 때 실제로 돌고, 아무도 그 이름을 안 읽으므로
+#:   봉인 밖에서 계산이 실행됐다 (리뷰어 반례).
+#:
+#:   그래서 목록의 뜻을 바꾼다: "이름을 안 묶는 문장" 이 아니라 **"아무것도
+#:   실행하지 않는 문장"** 이다. 아래 다섯은 식을 평가하지 않는다 (`Return` 은
+#:   module scope 에서 SyntaxError 지만 남겨 둔다 — 있으면 파서가 먼저 막는다).
+#:   나머지는 전부 실행 슬라이스 안이고, 모르는 종류는 `_module_defs()` 의
+#:   마지막 `else` 가 fail-closed 로 멈춘다.
+_MODULE_NONBINDING = ("Pass", "Global", "Nonlocal", "Break", "Continue",
+                      "Return")
+
+#: 이름을 묶지는 않지만 **식을 평가하는** 문장 (59차 M12). module 효과다.
+_MODULE_EVALUATING = ("Raise", "Assert")
 
 #: **안으로 들어가야 하는** 복합문 — 그 안의 정의도 module scope 다.
 _MODULE_COMPOUND = ("If", "Try", "TryStar", "For", "AsyncFor", "While",
@@ -712,11 +727,28 @@ def _import_time_heads(node) -> list:
       나머지 머리는 57차 규칙을 그대로 둔다. 넓히면 평범한 타입 annotation 이
       전부 걸려 게시 경로가 producer 안으로 끌려온다 (실측: `_PublishLock`·
       `_Authority`).
+
+    ★ 59차 M12 — **class 의 base 와 keyword 도 데코레이터와 같은 종류다.**
+
+      57·58차는 이 둘을 "조회" 로 보고 계산 규칙에 맡겼다. 그래서 이름 하나짜리
+      base(`class D(_Base)`)나 metaclass(`class C(metaclass=_Meta)`)가 통째로
+      빠졌다 — 남는 계산 노드가 없기 때문이다.
+
+      그러나 class 문은 base 와 metaclass 를 **조회하는 것으로 끝나지 않는다**:
+      metaclass 를 `Meta(name, bases, ns)` 로 **호출해** class 객체를 만들고,
+      그 과정에서 base 의 `__init_subclass__`·`__set_name__` 도 부른다. 즉
+      데코레이터와 같은 **치환**이며, 그 구현이 계산 의미를 정한다.
+      annotation·기본 인자만 조회로 남는다 (넓히면 57차가 실측한 경계 넘침이
+      그대로 재현되므로 그 둘은 계산 규칙을 유지한다).
     """
     import ast
 
     out = [ast.copy_location(ast.Expr(value=d), d)
            for d in (getattr(node, "decorator_list", ()) or ())]
+    out += [ast.copy_location(ast.Expr(value=b), b)
+            for b in (getattr(node, "bases", ()) or ())]
+    out += [ast.copy_location(ast.Expr(value=k.value), k.value)
+            for k in (getattr(node, "keywords", ()) or ())]
     heads = []
     args = getattr(node, "args", None)
     if args is not None:
@@ -730,8 +762,6 @@ def _import_time_heads(node) -> list:
                 heads.append(a.annotation)
     if getattr(node, "returns", None) is not None:
         heads.append(node.returns)
-    heads += list(getattr(node, "bases", ()) or ())
-    heads += [k.value for k in (getattr(node, "keywords", ()) or ())]
 
     # ★ 57차 P0-6 — **계산만 센다.** "상수가 아니면 계산" 으로 잡으면 평범한
     #   타입 annotation(`-> str`, `x: Path`, `dict[str, str]`, `Path | None`)이
@@ -742,6 +772,41 @@ def _import_time_heads(node) -> list:
         if _has_import_time_compute(h):
             out.append(ast.copy_location(ast.Expr(value=h), h))
     return out
+
+
+def _is_script_entry_guard(node) -> bool:
+    """이 문장이 `if __name__ == "__main__":` 인가 (59차 M12).
+
+    **정확히 그 모양일 때만** 참이다: `orelse` 가 없고, 조건이 `__name__` 과
+    `"__main__"` 의 단일 `==` 비교여야 한다 (양쪽 순서 다 허용). 조건이 조금
+    이라도 다르면 거짓이고, 그러면 평범한 `If` 로 처리돼 실행 슬라이스 안에
+    들어온다 — 증명이 안 서면 빼지 않는다는 뜻이다.
+
+    ★ **남는 한계를 여기 적는다.** 이 증명은 *import* 에 대한 것이다. 그런데
+      투영을 실제로 만드는 것은 이 파일을 **스크립트로 실행**하는 일이고, 그
+      실행에서는 이 분기가 돈다. 즉 producer identity 는 "import 되는 부분" 을
+      봉인하고 CLI 진입점(`main`)은 44차가 그은 게시 경로 쪽에 남긴다.
+
+      그 경계를 지우면 `--seal-frozen` 같은 운영 flag 하나가 모든 cohort 를
+      무효화한다 (실측: 닫힘 93 → 99, `argparse` 까지 들어왔다). 반대로 유지하면
+      `main` 안에 계산을 넣어 identity 밖에서 돌릴 여지가 남는다. 지금은 후자를
+      택하고 **그 사실을 요청문에 적는다** — 계산 함수는 `_COMPUTE_NAMES` 로
+      선언돼 있고 `main` 은 그것을 부르는 자리이지 계산하는 자리가 아니다.
+    """
+    import ast
+
+    if not isinstance(node, ast.If) or node.orelse:
+        return False
+    t = node.test
+    if not (isinstance(t, ast.Compare) and len(t.ops) == 1
+            and isinstance(t.ops[0], ast.Eq) and len(t.comparators) == 1):
+        return False
+    a, b = t.left, t.comparators[0]
+    def _is_name(x):
+        return isinstance(x, ast.Name) and x.id == "__name__"
+    def _is_main(x):
+        return isinstance(x, ast.Constant) and x.value == "__main__"
+    return (_is_name(a) and _is_main(b)) or (_is_main(a) and _is_name(b))
 
 
 def _expr_root_name(node):
@@ -878,6 +943,14 @@ def _module_defs(src: str) -> dict:
                 #   질문이고, 여기는 "이 이름이 무엇에 묶였나" 다.)
                 for al in node.names:
                     _bind(al.asname or al.name.split(".")[0], top or node)
+                # ★ 59차 M12 — `from __future__ import …` 는 이름을 묶는 것이
+                #   아니라 **이 module 이 어떻게 실행되는지**를 바꾸는 컴파일러
+                #   지시다. `annotations` 하나만 봐도 annotation 이 import 때
+                #   평가되는지 아닌지가 뒤집힌다 — 우리 실행 모델의 전제를
+                #   바꾸는 줄인데 58차 모델은 그 줄을 한 번도 안 봤다.
+                #   아무도 그 이름을 안 읽으므로 그냥 두면 identity 밖이다.
+                if getattr(node, "module", None) == "__future__":
+                    _bind(MODULE_EFFECTS, top or node)
             elif isinstance(node, ast.Expr):
                 # ★ 54차 P0-5 — docstring(순수 상수)은 지나가고, 값을 버리는
                 #   표현식은 **그 대상 이름에 결속**한다. `BOX.update(tol=…)` 는
@@ -899,6 +972,24 @@ def _module_defs(src: str) -> dict:
                 root = _expr_root_name(node.value)
                 if root is not None:
                     _bind(root, top or node)
+            elif _is_script_entry_guard(node):
+                # ★ 59차 M12 — `if __name__ == "__main__":` 는 **import 때 절대
+                #   안 돈다.** 그것은 언어가 보장한다 (import 는 module 이름을
+                #   `__name__` 에 넣는다). 이 라운드의 규칙은 "실행되지 않음을
+                #   **증명할 수 있는** 것만 뺀다" 이고, 이것이 그 증명이 서는
+                #   유일한 module-level 분기다.
+                #
+                #   빼지 않으면 `raise SystemExit(main())` 한 줄이 CLI 전체를
+                #   producer identity 로 끌고 온다 (실측: 닫힘 93 → 99, `main`·
+                #   `argparse`·`_cohort_dir`·`_frozen_cohort_dirs`·
+                #   `seal_frozen_cohorts` 가 들어왔다). 44차가 그은 게시 경로
+                #   경계를 그대로 넘는다.
+                continue
+            elif kind in _MODULE_EVALUATING:
+                # ★ 59차 M12 — 이름은 안 묶지만 **식을 평가한다.** 54차가 값
+                #   버리는 `Expr` 를 무조건 묶은 것과 같은 이유다: 아무도 읽는
+                #   이름이 없어도 import 때 도는 계산은 identity 안이다.
+                _bind(MODULE_EFFECTS, top or node)
             elif kind in _MODULE_NONBINDING:
                 continue
             elif kind in _MODULE_COMPOUND:
@@ -1251,10 +1342,128 @@ def _module_string_consts(src_tree) -> dict:
     return out
 
 
+def _binding_shadows(node) -> set:
+    """이 node 안에서 **호출자가 값을 주는 자리**로 묶인 이름 (59차 M17).
+
+    매개변수 · `for` 대상 · `with … as` · `except … as` · 내포 대상이다. 그
+    값은 이 module 이 정하지 않으므로 여기 이름이 능력과 철자만 같다고 능력인
+    것은 아니다.
+
+    ★ 왜 평범한 대입(`GET = getattr`)은 여기 없나. 그것은 이 module 이 **값을
+      정하는** 자리이고, 58차 L9-b 가 정확히 그 축을 닫았다. 값을 모르는
+      대입(`getattr = d['k']`)까지 면제하면 그 구멍으로 되돌아간다.
+
+    ★ 그러면 매개변수는 왜 안전한가. 호출자가 진짜 능력을 넘기려면 **자기
+      자리에서** 능력을 부르는 자리 밖에 써야 하고, 그 호출자도 닫힘 안이면
+      거기서 걸린다. 닫힘 밖 호출자는 애초에 identity 밖이다.
+    """
+    import ast
+
+    out: set = set()
+    for sub in ast.walk(node):
+        args = getattr(sub, "args", None)
+        if isinstance(args, ast.arguments):
+            for a in (list(args.args) + list(args.posonlyargs)
+                      + list(args.kwonlyargs)
+                      + [args.vararg, args.kwarg]):
+                if a is not None:
+                    out.add(a.arg)
+        if isinstance(sub, (ast.For, ast.AsyncFor)):
+            out |= set(_target_names(sub.target))
+        if isinstance(sub, ast.comprehension):
+            out |= set(_target_names(sub.target))
+        for item in (getattr(sub, "items", ()) or ()):
+            if getattr(item, "optional_vars", None) is not None:
+                out |= set(_target_names(item.optional_vars))
+        if isinstance(sub, ast.ExceptHandler) and sub.name:
+            out.add(sub.name)
+    return out
+
+
+def _imported_module_names(src: str) -> set:
+    """이 소스가 **import 로 묶은 모든 이름** (59차 M17).
+
+    속성 접근이 능력인지 아닌지를 가르는 데 쓴다: `operator.attrgetter` 는
+    능력이고 `df.vars` 는 남의 객체 속성이다. 뿌리가 import 한 이름일 때만
+    이름 공간을 여는 통로가 된다.
+    """
+    import ast
+
+    out: set = set()
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:                                   # pragma: no cover
+        return out
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            for al in node.names:
+                out.add(al.asname or al.name.split(".")[0])
+    return out
+
+
+def _namespace_targets(src: str, mods: set) -> set:
+    """이름 공간(module)을 가리키는 **이름 전부** — 별칭을 고정점까지 (59차 M11).
+
+    `_namespace_capabilities()` 가 능력에 대해 하는 일을 대상에 대해 한다.
+    `import src.scoring as sc` 다음 `M = sc` 로 옮기면 대상 검사가 못 알아보는
+    것이 같은 형태의 구멍이기 때문이다.
+    """
+    import ast
+
+    out = set(mods)
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:                                   # pragma: no cover
+        return out
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = node.value
+            if not (isinstance(value, ast.Name) and value.id in out):
+                continue
+            targets = (node.targets if isinstance(node, ast.Assign)
+                       else [node.target])
+            for t in targets:
+                for nm in _target_names(t):
+                    if nm not in out:
+                        out.add(nm)
+                        changed = True
+    return out
+
+
+def _target_is_provably_not_a_namespace(expr, targets: set) -> bool:
+    """이 식이 **이름 공간이 아님을 증명할 수 있는가** (59차 M11).
+
+    58차 대상 검사는 `isinstance(first, ast.Name) and first.id in mods` 였다 —
+    "이것이 module 이다" 를 알아보는 검사다. 그래서 한 겹만 감싸면
+    (`[sc][0]` · `(sc if True else sc)` · `{'m': sc}['m']` · `(lambda m: m)(sc)`)
+    조건이 거짓이 되고 능력은 그대로 그 이름 공간을 열었다.
+
+    종류를 세는 검사는 다음 종류를 못 센다. 그래서 방향을 뒤집는다: **아님을
+    증명할 수 있을 때만** 통과시킨다. 증명 가능한 형태는 둘뿐이다.
+
+      · 이름 공간 이름이 **아닌** 벌거벗은 이름 (`df`, `node`)
+      · 뿌리가 그런 이름인 속성 사슬 (`self.frame`, `df.columns`)
+
+    나머지는 값이 어디서 왔는지 이 자리에서 정해지지 않으므로 거부다.
+    """
+    import ast
+
+    cur = expr
+    while isinstance(cur, ast.Attribute):
+        cur = cur.value
+    return isinstance(cur, ast.Name) and cur.id not in targets
+
+
 def _assert_no_dynamic_resolution(node, where: str, mods: set,
                                   reflect: set | None = None,
                                   consts: dict | None = None,
-                                  caps: set | None = None) -> None:
+                                  caps: set | None = None,
+                                  targets: set | None = None,
+                                  modnames: set | None = None) -> None:
     """계산 경로 안에서 **module-level 이름**을 동적으로 푸는가 (49차 P0-2).
 
     `globals()[...]` · `getattr(sc, ...)` · `eval` 은 module-level 이름을 실행
@@ -1272,6 +1481,8 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
     banned = set(reflect or ()) | _source_reflection_locals(node)
     # ★ 57차 P0-7 — 능력 집합. 안 주면 seed 만 (옛 호출자 호환).
     caps = set(caps or _DYNAMIC_ON_NAMESPACE)
+    # ★ 59차 M11 — 이름 공간을 가리키는 이름 집합. 안 주면 `mods` (옛 호출자).
+    targets = set(targets if targets is not None else mods)
 
     # ★ 58차 L9-b — **능력은 부르는 자리에만 나타날 수 있다.**
     #
@@ -1287,13 +1498,32 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
     #   없다 — 값으로 흘러간 능력은 어떤 대상에 적용될지 이 자리에서 정해지지
     #   않는다. 그러므로 닫힘 안에서 능력이 호출 대상 밖에 **Load 로 나타나면**
     #   거부한다. 별칭을 몇 겹 쌓든 첫 겹에서 걸리므로 겹수와 무관하다.
+    #
+    # ★ 59차 M17 — 규칙은 옳고 **판정이 철자였다.** 리뷰어의 Q1 이 물은 대로,
+    #   능력과 철자만 같은 매개변수(`def f(vars)`)나 남의 객체 속성(`df.vars`)도
+    #   같이 걸렸다. 방어는 그대로 두고 판정만 정확하게 한다:
+    #
+    #     · 호출자가 값을 주는 자리(매개변수·`for`·`with as`·`except as`·내포)로
+    #       묶인 이름은 능력이 아니다 — 그 값은 이 module 이 정하지 않는다.
+    #       평범한 대입은 **여전히 능력이다** (58차 L9-b 가 닫은 축이다).
+    #     · 속성은 뿌리가 **import 한 module** 일 때만 능력이다
+    #       (`operator.attrgetter`). 남의 객체의 `.vars` 는 그냥 속성이다.
+    shadows = _binding_shadows(node)
+    modnames = set(modnames or ())
     callees = {id(sub.func) for sub in ast.walk(node)
                if isinstance(sub, ast.Call)}
     for sub in ast.walk(node):
         if isinstance(sub, ast.Name):
             spelling, is_load = sub.id, isinstance(sub.ctx, ast.Load)
+            if spelling in shadows:
+                continue
         elif isinstance(sub, ast.Attribute):
             spelling, is_load = sub.attr, isinstance(sub.ctx, ast.Load)
+            root = sub.value
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if not (isinstance(root, ast.Name) and root.id in modnames):
+                continue
         else:
             continue
         if spelling in caps and is_load and id(sub) not in callees:
@@ -1453,12 +1683,23 @@ def _assert_no_dynamic_resolution(node, where: str, mods: set,
             continue
         # 인자가 없으면 **현재 module 이름 공간** 전체다
         first = sub.args[0] if sub.args else None
-        if first is None or (isinstance(first, ast.Name) and first.id in mods):
-            target = "현재 module" if first is None else first.id
+        # ★ 59차 M11 — **아님을 증명할 수 있을 때만** 통과시킨다.
+        #
+        #   58차는 `isinstance(first, ast.Name) and first.id in mods` 였다 —
+        #   "이것이 module 이다" 를 알아보는 검사이므로 한 겹만 감싸면 거짓이
+        #   됐다 (리뷰어 실측: `getattr([sc][0], "…")`). 종류를 세는 검사는
+        #   다음 종류를 못 센다. `targets` 는 module 을 가리키는 이름의
+        #   **고정점**이라 `M = sc` 같은 별칭도 같이 잡는다.
+        if first is None or not _target_is_provably_not_a_namespace(first,
+                                                                   targets):
+            target = ("현재 module" if first is None
+                      else getattr(first, "id", type(first).__name__))
             raise SystemExit(
                 f"✗ producer 닫힘 안에서 이름 공간({target})을 동적으로 푼다: "
-                f"{where} 의 `{fn}(...)` — 정적 닫힘이 볼 수 없는 계산은 "
-                "producer identity 밖이다")
+                f"{where} 의 `{fn}(...)` — 대상이 이름 공간이 **아님을 증명할 "
+                "수 없다** (감싼 식은 값이 어디서 왔는지 이 자리에서 정해지지 "
+                "않는다). 정적 닫힘이 볼 수 없는 계산은 producer identity "
+                "밖이다 (fail-closed)")
 
 
 def _producer_closure(src: str, scoring_src: str | None = None) -> dict[str, str]:
@@ -1490,6 +1731,13 @@ def _producer_closure(src: str, scoring_src: str | None = None) -> dict[str, str
     # ★ 57차 P0-7 — 철자가 아니라 **능력**을 본다. `GET = getattr` 같은
     #   module-level alias 를 고정점까지 따라가 같은 규칙을 먹인다.
     caps = _namespace_capabilities(src)
+    # ★ 59차 M11 — 능력의 **대상**도 같은 대접을 한다. `M = sc` 같은 별칭을
+    #   고정점까지 따라가고, 대상이 이름 공간이 **아님을 증명할 수 있을 때만**
+    #   통과시킨다 (감싼 식은 증명할 수 없다).
+    targets = _namespace_targets(src, mods)
+    # ★ 59차 M17 — 속성이 능력인지는 **뿌리가 import 한 module 인가** 로 가른다
+    #   (`operator.attrgetter` 는 능력, `df.vars` 는 남의 속성이다).
+    modnames = _imported_module_names(src)
 
     missing = [x for x in _COMPUTE_NAMES if x not in defs]
     if missing:
@@ -1530,7 +1778,7 @@ def _producer_closure(src: str, scoring_src: str | None = None) -> dict[str, str
         # ★ 52차 P0-7 — 한 이름에 묶인 문이 여럿이면 **전부** 본다.
         for node in nodes:
             _assert_no_dynamic_resolution(node, key, mods, reflect, consts,
-                                          caps)
+                                          caps, targets, modnames)
         out[key] = "\n".join(_ast_normal_node(n) for n in nodes)
         for sub_node in [x for n in nodes for x in ast.walk(n)]:
             # ★ 49차 P0-2 — `sc.foo` (Import + Attribute). 48차는 이 문법을

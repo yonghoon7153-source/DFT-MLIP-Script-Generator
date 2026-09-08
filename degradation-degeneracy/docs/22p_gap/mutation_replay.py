@@ -474,9 +474,10 @@ MUTANTS = [
      "                    raise SystemExit(",
      "unresolved_producer_module_reference_is_fail_closed"),
     ("closure-refuses-dynamic-resolution", RP,
+     # ★ 59차 M11·M17 — 호출에 `targets`·`modnames` 가 붙어 원상이 낡았다.
      "        for node in nodes:\n"
      "            _assert_no_dynamic_resolution(node, key, mods, reflect, consts,\n"
-     "                                          caps)",
+     "                                          caps, targets, modnames)",
      "        pass",
      "dynamic_name_resolution_inside_the_closure_is_fail_closed"),
     ("interpreter-set-is-pinned", RP,
@@ -1048,11 +1049,11 @@ MUTANTS = [
      "        raise PreserveError(",
      "issuance_fails_closed_when_a_directory_cannot_be_flushed"),
     ("decorators-are-import-time-effects-g58", RP,                    # L9-a
+     # ★ 59차 M12 — 데코레이터 뒤에 base·keyword 가 같은 규칙으로 붙어
+     #   원상이 낡았다. 데코레이터 줄만 겨눈다 (이 축의 뜻 그대로).
      '    out = [ast.copy_location(ast.Expr(value=d), d)\n'
-     '           for d in (getattr(node, "decorator_list", ()) or ())]\n'
-     "    heads = []",
-     "    out = []\n"
-     '    heads = list(getattr(node, "decorator_list", ()) or ())',
+     '           for d in (getattr(node, "decorator_list", ()) or ())]\n',
+     '    out = []\n',
      "a_name_only_decorator_changes_the_identity_when_its_body_changes"),
     ("capability-can-not-leave-the-call-site-g58", RP,                # L9-b
      "        if spelling in caps and is_load and id(sub) not in callees:",
@@ -1065,10 +1066,15 @@ MUTANTS = [
      "",
      "normal_finalize_cannot_forge_the_migration_provenance or "
      "lifecycle_owned_evidence_keys_are_refused_from_callers"),
+    # ★ 59차 M15 — 영수증을 탐침이 통째로 재게 되면서 원상이 옮겨졌다.
+    #   startup 결속을 지우는 뜻은 그대로다 (탐침의 `startup` 필드를 비운다).
     ("execution-receipt-binds-the-startup-g58", MR,                   # L11
      # 선언이 자기 자신의 preimage 로 세어지지 않게 철자를 escape 한다
      # (이 파일이 자기 변이 대상이다).
-     '            \u0022startup\u0022: _ob\u0073erved_environment(),\n', "",
+     '            \u0022inputs\u0022: inputs,\n'
+     '            \u0022startup\u0022: _env_fact\u0073(NAMES)}',
+     '            \u0022inputs\u0022: inputs,\n'
+     '            \u0022startup\u0022: {}}',
      "the_execution_receipt_binds"),
     ("report-attests-the-environment-g58", MR,                        # L12
      "        if execution is not None:\n"
@@ -1323,11 +1329,10 @@ MULTI = [
     #   "정규형이 데코레이터를 본다" 를 새 층이 가린다 (실측: 변이만 rc 0).
     #   함께 되돌린다.
     ("producer-normalizes-the-node", RP, [
+        # ★ 59차 M12 — 위와 같은 이유로 데코레이터 줄만 겨눈다.
         ('    out = [ast.copy_location(ast.Expr(value=d), d)\n'
-         '           for d in (getattr(node, "decorator_list", ()) or ())]\n'
-         "    heads = []",
-         "    out = []\n"
-         '    heads = list(getattr(node, "decorator_list", ()) or ())'),
+         '           for d in (getattr(node, "decorator_list", ()) or ())]\n',
+         '    out = []\n'),
         ("def _ast_normal_node(node) -> str:",
          "def _ast_normal_node(node, _src=None) -> str:"),
         # ★ 52차 — 47차 결함(decorator 를 못 본다)을 **reflection 없이**
@@ -1439,13 +1444,19 @@ MULTI = [
     # ★ 58차 — L11 이 영수증에 `startup` 을 넣으면서 그 안의 `env` 가 환경을
     #   **대신 증언한다**. `env` 를 비워도 digest 가 움직이므로 이 변이가 안
     #   물었다 (실측: 변이만 rc 0 · 봉인과 무관). 둘을 함께 되돌린다.
+    # ★ 59차 M15 — 위와 같은 이유로 두 자리가 탐침 본문으로 옮겨졌다.
     ("evidence-binds-the-environment", MR, [
-        ("            \u0022env\u0022: replay_env(),",
-         "            \u0022env\u0022: {},"),
+        ('            \u0022packages\u0022: dict(sorted(pkgs.items())),\n'
+         '            \u0022env\u0022: {k: os.environ[k] '
+         'for k in NAMES if k in os.environ},',
+         '            \u0022packages\u0022: dict(sorted(pkgs.items())),\n'
+         '            \u0022env\u0022: {},'),
         # 선언 자신이 preimage 로 세어지지 않도록 철자를 escape 한다
         # (이 파일이 자기 자신의 변이 대상이라 생기는 문제 — 위 `env` 와 같다).
-        ("            \u0022startup\u0022: _ob\u0073erved_environment(),",
-         "            \u0022startup\u0022: {},"),
+        ('            \u0022inputs\u0022: inputs,\n'
+         '            \u0022startup\u0022: _env_fact\u0073(NAMES)}',
+         '            \u0022inputs\u0022: inputs,\n'
+         '            \u0022startup\u0022: {}}'),
      ], "evidence_binds_the_execution_environment"),
 ]
 
@@ -3584,6 +3595,14 @@ BOUND_INPUT_GLOBS = ("requirements*.txt", "configs/*.yaml", "scripts/*.sh",
 #:   전체를 재면 `python -c` 와 pytest child 가 다른 값을 내고, 그러면 증언이
 #:   서로 대조될 수 없다 (그 대조가 L12 의 핵심이다).
 _ENV_PROBE_BODY = '''
+# ★ 59차 M14 — **시작 시 올라온 module 집합을 맨 먼저 찍는다.**
+#   이 본문은 `python -c` 스크립트의 첫 줄부터 실행되므로, 이 시점의
+#   `sys.modules` 가 곧 "인터프리터가 startup 에 올린 것 전부" 다
+#   (`sitecustomize` 가 끌어온 것도, 그것이 다시 끌어온 것도 여기 있다).
+#   이름 세 개를 세던 58차 목록으로는 겹수만큼 구멍이 남았다.
+_STARTUP_MODULES = sorted(__import__("sys").modules)
+
+
 def _env_facts(NAMES):
     import hashlib, os, site, sys
 
@@ -3624,11 +3643,63 @@ def _env_facts(NAMES):
             if nm.endswith(".pth"):
                 pth.append([os.path.join(d, nm), _d(os.path.join(d, nm))])
 
+    # ★ 59차 M14 — startup 에 올라온 **모든** module 의 바이트. 이름 목록이
+    #   아니라 인터프리터가 실제로 올린 것이므로, `sitecustomize` 가 몇 겹을
+    #   끌어오든 전부 여기 들어온다.
+    loaded = {}
+    for nm in _STARTUP_MODULES:
+        m = sys.modules.get(nm)
+        f = getattr(m, "__file__", None) if m is not None else None
+        if f:
+            loaded[nm] = _d(f)
     return {"executable_sha256": _d(sys.executable),
             "customization": cust,
+            "startup_modules": loaded,
             "pth": pth,
             "version": "%d.%d.%d" % sys.version_info[:3],
             "env": {k: os.environ[k] for k in NAMES if k in os.environ}}
+
+
+def _receipt_facts(NAMES, GLOBS, ROOT):
+    """이 실행의 **영수증 전체**. 부모와 자식이 같은 규칙으로 잰다 (59차 M15).
+
+    58차는 `startup` 만 자식이 증언했고 나머지는 조각 옆에 적힌 값이었다.
+    같은 본문을 부모(`_execution_receipt()`)와 심어 놓은 증언 node 가 **둘 다**
+    쓰면 범위가 영수증 전체로 넓어지고, 규칙이 갈릴 자리도 없어진다.
+    """
+    import glob as _g
+    import hashlib, os, sys
+
+    def _fd(p):
+        try:
+            h = hashlib.sha256()
+            with open(p, "rb") as fh:
+                for c in iter(lambda: fh.read(1 << 16), b""):
+                    h.update(c)
+            return h.hexdigest()[:16]
+        except OSError:
+            return "<unreadable>"
+
+    inputs = {}
+    for pat in GLOBS:
+        for f in sorted(_g.glob(os.path.join(ROOT, pat))):
+            if os.path.isfile(f):
+                inputs[os.path.relpath(f, ROOT).replace(os.sep, "/")] = _fd(f)
+    pkgs = {}
+    try:
+        from importlib import metadata as _md
+
+        for dist in _md.distributions():
+            nm = (dist.metadata or {}).get("Name")
+            if nm:
+                pkgs[str(nm).lower()] = str(dist.version)
+    except Exception:
+        pkgs = {"<unavailable>": ""}
+    return {"interpreter": "%d.%d.%d" % sys.version_info[:3],
+            "packages": dict(sorted(pkgs.items())),
+            "env": {k: os.environ[k] for k in NAMES if k in os.environ},
+            "inputs": inputs,
+            "startup": _env_facts(NAMES)}
 '''
 
 
@@ -3657,6 +3728,26 @@ def _observed_environment() -> dict:
     return json.loads(r.stdout.strip().splitlines()[-1])
 
 
+def _observed_receipt() -> dict:
+    """탐침을 띄워 **영수증 전체**를 받아 온다 (59차 M15).
+
+    실패하면 fail-closed — 환경을 못 재면 증거를 쓸 수 없다.
+    """
+    root = _sandboxed(ROOT)
+    src = _ENV_PROBE_BODY + (
+        "\nimport json\n"
+        f"print(json.dumps(_receipt_facts({_probe_names()!r}, "
+        f"{list(BOUND_INPUT_GLOBS)!r}, {str(root)!r}), "
+        "sort_keys=True, ensure_ascii=False))\n")
+    r = subprocess.run([sys.executable, "-c", src],
+                       cwd=root, env=replay_env(),
+                       capture_output=True, text=True, timeout=600)
+    if r.returncode != 0 or not r.stdout.strip():
+        raise _ReplayError(
+            f"영수증 탐침이 실패했다 (rc={r.returncode}): {r.stderr[-300:]}")
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
 def environment_tag(execution: dict | None = None) -> str:
     """실행이 **스스로 증언할 수 있는** 환경의 내용 주소 (58차 L11·L12).
 
@@ -3670,8 +3761,9 @@ def environment_tag(execution: dict | None = None) -> str:
     프로세스에서 환경을 **다시 재서** tag 와 대조한다. checker 는 조각이 주장한
     환경에서 tag 를 유도해 report 바이트에 그 node 가 있는지 본다.
     """
+    # ★ 59차 M15 — `startup` 하나가 아니라 **영수증 전체**를 해시한다.
     e = execution if execution is not None else _execution_receipt()
-    body = json.dumps(e.get("startup"), sort_keys=True, ensure_ascii=False)
+    body = json.dumps(e, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
 
 
@@ -3693,18 +3785,42 @@ def _write_env_attestation(sandbox: pathlib.Path, tag: str) -> str:
     탐침 소스를 그대로 심으므로 부모와 자식이 같은 규칙으로 잰다 — 규칙을 두
     곳에 적으면 언젠가 어긋나고, 어긋나면 대조가 무의미해진다.
     """
-    (sandbox / "tests" / f"test_mutation_env_{tag}.py").write_text(
+    # ★ 59차 M14·M15 — node 는 **탐침을 띄워서** 잰다.
+    #
+    #   (a) startup module 집합은 pytest 가 이미 온갖 것을 올린 이 프로세스에서
+    #       잴 수 없다 — 부모와 같은 것을 재려면 같은 방식으로 재야 한다.
+    #   (b) 범위가 영수증 전체로 넓어졌으므로 `_receipt_facts()` 를 부른다.
+    #       본문은 여전히 부모와 **같은 문자열**이다 (규칙을 두 곳에 적으면
+    #       언젠가 어긋나고, 어긋나면 대조가 무의미해진다).
+    node = (
         '"""환경 증언 — 이 report 가 어떤 환경에서 나왔는지 스스로 말한다 '
-        '(58차 L12)."""\n'
-        + _ENV_PROBE_BODY +
-        "\nimport hashlib as _h, json as _j\n\n\n"
+        '(58차 L12 · 59차 M14·M15)."""\n'
+        "import hashlib as _h, json as _j, subprocess as _sp, sys as _sys\n"
+        "\n"
+        f"_BODY = {_ENV_PROBE_BODY!r}\n"
+        f"_NAMES = {_probe_names()!r}\n"
+        f"_GLOBS = {list(BOUND_INPUT_GLOBS)!r}\n"
+        f"_ROOT = {str(sandbox)!r}\n"
+        f"_TAG = {tag!r}\n"
+        "\n"
+        "\n"
         f"def test_env_{tag}():\n"
-        f"    facts = _env_facts({_probe_names()!r})\n"
+        "    src = _BODY + (\n"
+        "        \"\\nimport json\\n\"\n"
+        "        \"print(json.dumps(_receipt_facts(%r, %r, %r), \"\n"
+        "        \"sort_keys=True, ensure_ascii=False))\\n\"\n"
+        "        % (_NAMES, _GLOBS, _ROOT))\n"
+        "    r = _sp.run([_sys.executable, '-c', src], cwd=_ROOT,\n"
+        "                capture_output=True, text=True, timeout=600)\n"
+        "    assert r.returncode == 0, r.stderr[-500:]\n"
+        "    facts = _j.loads(r.stdout.strip().splitlines()[-1])\n"
         "    body = _j.dumps(facts, sort_keys=True, ensure_ascii=False)\n"
         "    got = _h.sha256(body.encode('utf-8')).hexdigest()[:16]\n"
-        f"    assert got == {tag!r}, (\n"
+        "    assert got == _TAG, (\n"
         "        '재생이 선언한 환경과 실제로 본 환경이 다르다: '\n"
-        "        + body[:400])\n", encoding="utf-8")
+        "        + body[:400])\n")
+    (sandbox / "tests" / f"test_mutation_env_{tag}.py").write_text(
+        node, encoding="utf-8")
     return tag
 
 
@@ -3720,37 +3836,14 @@ def _execution_receipt() -> dict:
     재생하지는 않는다. 다만 "같은 코드·같은 환경" 이라는 주장의 범위를 실제
     소비하는 것까지 넓힌다.
     """
-    import os
-    import sys
-
-    root = pathlib.Path(ROOT)
-    inputs = {}
-    for pat in BOUND_INPUT_GLOBS:
-        for f in sorted(root.glob(pat)):
-            if f.is_file():
-                inputs[f.relative_to(root).as_posix()] = hashlib.sha256(
-                    f.read_bytes()).hexdigest()[:16]
-    pkgs = {}
-    try:
-        from importlib import metadata as _md
-
-        for dist in _md.distributions():
-            nm = (dist.metadata or {}).get("Name")
-            if nm:
-                pkgs[str(nm).lower()] = str(dist.version)
-    except Exception:                                     # pragma: no cover
-        pkgs = {"<unavailable>": ""}
-    return {"interpreter": "%d.%d.%d" % sys.version_info[:3],
-            "packages": dict(sorted(pkgs.items())),
-            # ★ 57차 P1-2 — 고른 목록이 아니라 **run 이 실제로 본 환경 전부**.
-            #   `replay_env()` 가 그 밖을 지우므로 이 값이 곧 사실이다.
-            "env": replay_env(),
-            # ★ 58차 L11 — 변수 **이름과 값**만으로는 부족하다. 같은 PYTHONPATH
-            #   문자열 아래 `sitecustomize.py` 만 바꿔도 child 결과가 달라지는데
-            #   digest 는 그대로였다. 그래서 인터프리터를 실제로 띄워 그것이
-            #   올린 것(실행 파일·site 계열·`.pth`)의 내용 주소를 받아 온다.
-            "startup": _observed_environment(),
-            "inputs": inputs}
+    # ★ 59차 M15 — **영수증 전체를 탐침이 잰다.** 58차는 `packages`·`env`·
+    #   `inputs` 를 이 프로세스에서 계산하고 `startup` 만 자식에게 물었다.
+    #   그러면 자식이 증언하는 범위가 `startup` 하나뿐이고 나머지는 다시
+    #   "조각 옆에 적힌 값" 이다 — L12 가 닫으려던 자리로 되돌아간다.
+    #
+    #   같은 본문(`_ENV_PROBE_BODY`)을 부모와 심어 놓은 증언 node 가 **둘 다**
+    #   쓰므로 규칙이 갈릴 자리가 없다.
+    return _observed_receipt()
 
 
 def _execution_receipt_digest() -> str:

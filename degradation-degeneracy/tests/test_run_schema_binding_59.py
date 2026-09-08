@@ -142,11 +142,11 @@ def _claim(tmp_path):
       이유로** 빨갰다. 이미 있는 것을 재사용한다.
     """
     import tests.test_preserve as TP
-    from tools.preserve import claim_planned_leg
+    from tools.preserve import open_leg_run
 
     led = TP._lifecycle_ledger(tmp_path)
-    return led, claim_planned_leg("L", TP._RUN_SPEC_L, "0123456789abcdef",
-                                  ledger=led, token=TP._tok())
+    return led, open_leg_run("L", TP._RUN_SPEC_L, "0123456789abcdef",
+                                  ledger=led)
 
 
 def test_a_later_phase_can_not_close_before_its_predecessor(tmp_path):

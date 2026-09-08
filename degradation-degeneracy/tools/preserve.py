@@ -5239,7 +5239,7 @@ LEG_SPEC_SELECTION_MODES = ("full", "limit", "subset")
 def leg_run_spec(leg_id: str, grid: dict, fit: dict) -> dict:
     """한 다리 **전체**의 승인 spec — 두 phase 가 같은 값을 만든다 (48차 P0-5).
 
-    `claim_planned_leg()` 은 `run_spec_digest` 로 승인을 내용 주소화한다. 그
+    `_claim_planned_leg()` 은 `run_spec_digest` 로 승인을 내용 주소화한다. 그
     주소가 phase 마다 다르면 grid 와 fit 은 서로 다른 claim 을 갖게 되고, 그러면
     "이 다리 하나가 승인 아래 돌았다" 를 말할 수 없다. 그래서 spec 은 **다리
     단위**이고 각 phase 는 자기 몫을 채운 뒤 나머지는 계획에서 읽어 온다.
@@ -5587,7 +5587,7 @@ LOCK_ORDER = ("attempt_path", "claim", "ledger")
 _TRUST_BOUNDARY = """보존 원장(`LEG_PRESERVATION.yaml`)·실행권 디렉터리
 (`<ledger>/_claims/`)·소유 증명 파일·lifecycle journal 과 그 anchor 는
 **하나의 OS principal 이 소유**하고, 그것들을 바꾸는 모든 writer 는
-공개 lifecycle API(`open_leg_run`·`attach_leg_run`·`claim_planned_leg`·
+공개 lifecycle API(`open_leg_run`·`attach_leg_run`·
 `finalize_leg`·`release_leg_run`·`resume_claim`)를 지나 `LOCK_ORDER =
 ("attempt_path", "claim", "ledger")` 를 따른다. 비협조적 writer — 같은
 principal 로 lock 없이 원장·claim·journal 을 직접 고치는 코드 — 는 지원 범위
@@ -5900,9 +5900,16 @@ class PlanWriteUncertain(PreserveError):
         super().__init__("plan", msg)
 
 
-def claim_planned_leg(leg_id: str, run_spec: dict, source_digest: str,
-                      ledger=None, token: str | None = None) -> LegClaim:
-    """실행 권한을 **원자적으로 하나만** 발급한다 (47차 P0-1 · P0-2).
+def _claim_planned_leg(leg_id: str, run_spec: dict, source_digest: str,
+                       ledger=None, token: str | None = None) -> LegClaim:
+    """(내부) 실행 권한을 **원자적으로 하나만** 발급한다 (47차 P0-1 · P0-2).
+
+    ★ 59차 M10 — **공개 표면에서 내렸다.** 54차 P0-6 은 `token=None` 을 막았지만
+      *아무 문자열이나* 주는 길은 열려 있었고, 그러면 계획은 `running` 인데
+      소유 증명은 디스크 어디에도 없다 — 재개도 되돌림도 닫기도 불가능한 상태다
+      (53차가 없앤 바로 그 형태). 이름을 숨기는 것으로 끝내지 않고 아래에서
+      **token 이 이 다리의 자리에 이미 굳어 있는지** 확인한다. 그 불변식을
+      세우는 자리는 `open_leg_run()` 하나뿐이다.
 
     46차 `assert_planned_leg()` 는 read-only predicate 였다. 같은 row 로 몇
     번이고 통과했고 동시 실행 둘도 모두 계산에 들어갔다. 승인은 상태 전이여야
@@ -5944,6 +5951,21 @@ def claim_planned_leg(leg_id: str, run_spec: dict, source_digest: str,
             "발급은 `open_leg_run()`(token 을 먼저 파일로 굳힌다)만 한다. "
             "메모리에만 있는 소유 증명은 실패 한 번에 사라지고, 그러면 그 "
             "다리는 재개도 되돌림도 할 수 없다")
+    # ★ 59차 M10 — **비어 있지 않은 것으로는 부족하다.** 아무 문자열이나 주면
+    #   claim 은 생기고 계획은 `running` 인데 소유 증명은 디스크에 없다.
+    #   그러므로 "그 token 이 이 다리의 자리에 이미 굳어 있는가" 를 묻는다.
+    #   `open_leg_run()` 은 token 을 **먼저** 굳히고 그 값으로 여기 오므로
+    #   정상 경로는 그대로 통과한다.
+    _tokf = attempt_path_for(leg_id, ledger=ledger)
+    _ondisk = read_token_file(_tokf, leg_id) if _tokf.is_file() else None
+    if _ondisk is None or not secrets.compare_digest(str(_ondisk), str(token)):
+        raise PreserveError(
+            "plan",
+            f"{leg_id!r} 의 소유 증명이 **디스크에 굳어 있지 않다** ({_tokf}) — "
+            "이 상태로 발급하면 계획은 `running` 인데 아무도 그 실행을 이어받을 "
+            "수 없다 (재개·되돌림·닫기 전부 소유 증명을 요구한다). 발급은 "
+            "`open_leg_run()` 으로 하라 — token 을 먼저 굳히고 그 값으로 "
+            "claim 을 만든다 (59차 M10)")
     claims_root = claims_root_for_ledger(ledger)
     path = _claim_path(leg_id, claims_root)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -6314,7 +6336,7 @@ def open_leg_run(leg_id: str, run_spec: dict, source_digest: str,
                  ledger=None) -> LegClaim:
     """coordinator 가 실행권을 **한 번** 발급하고 소유 증명을 파일로 내놓는다.
 
-    발급 자체는 `claim_planned_leg()` 이다 — 계획 대조·원자적 `O_EXCL`·원장
+    발급 자체는 `_claim_planned_leg()` 이다 — 계획 대조·원자적 `O_EXCL`·원장
     `running` 전이가 전부 거기 있다. 여기서 더하는 것은 **전달 경로** 하나다.
 
     ★ 57차 P0-1 — 그 경로를 **caller 가 더 이상 고르지 않는다.** 56차까지는
@@ -6361,7 +6383,7 @@ def open_leg_run(leg_id: str, run_spec: dict, source_digest: str,
         attempt_hint = uuid.uuid4().hex
         write_token_file(token_file, token, leg_id, attempt_hint)
         try:
-            claim = claim_planned_leg(leg_id, run_spec, source_digest,
+            claim = _claim_planned_leg(leg_id, run_spec, source_digest,
                                       ledger=ledger, token=token)
             # 발급된 실제 attempt_id 로 결속을 굳힌다
             write_token_file(token_file, token, leg_id, claim.attempt_id)

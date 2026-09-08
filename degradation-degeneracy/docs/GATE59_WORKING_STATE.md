@@ -44,14 +44,14 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
 | M7 | P0 | `fit → grid` 역순이면 consumed 결속 없이 executed | `preserve.py:5033-5114` · `6532-6546` | **GREEN** |
 | M8 | P0 | bundle member symlink/bind 로 repo 밖 바이트 | `preserve.py:6185-6211` · `_verify_declared_bundle` | **GREEN** |
 | M9 | P0 | 검증한 evidence 와 봉인한 evidence 가 다르다 (caller dict TOCTOU) | `preserve.py:6427-6624` | **GREEN** |
-| M10 | P0 | 공개 `claim_planned_leg(token=…)` 가 disk token 없는 running 생성 | `preserve.py:5466-5556` | 대기 |
-| M11 | P0 | capability 의 module target 을 식으로 감싸면 closure 밖 | `row_projection.py:1290-1305` · `1454-1461` | 대기 |
-| M12 | P0 | import-time 실행 모델이 `assert`·metaclass·future flag 를 버림 | `row_projection.py:627` · `_has_import_time_compute` | 대기 |
+| M10 | P0 | 공개 `claim_planned_leg(token=…)` 가 disk token 없는 running 생성 | `preserve.py:5466-5556` | **GREEN** |
+| M11 | P0 | capability 의 module target 을 식으로 감싸면 closure 밖 | `row_projection.py:1290-1305` · `1454-1461` | **GREEN** |
+| M12 | P0 | import-time 실행 모델이 `assert`·metaclass·future flag 를 버림 | `row_projection.py:627` · `_has_import_time_compute` | **GREEN** |
 | M13 | P1 | class durability 재시도가 실패한 parent fsync 를 안 고침 | `preserve.py` 등록부 | **GREEN** |
-| M14 | P1 | startup probe 가 `sitecustomize` 의 transitive import 를 안 묶음 | `mutation_replay.py` `_ENV_PROBE_BODY` | 대기 |
-| M15 | P1 | `environment_tag()` 가 full receipt 아니라 `startup` 만 증언 | `mutation_replay.py:3588-3603` | 대기 |
+| M14 | P1 | startup probe 가 `sitecustomize` 의 transitive import 를 안 묶음 | `mutation_replay.py` `_ENV_PROBE_BODY` | **GREEN** |
+| M15 | P1 | `environment_tag()` 가 full receipt 아니라 `startup` 만 증언 | `mutation_replay.py:3588-3603` | **GREEN** |
 | M16 | P1 | 내 회귀 하나가 이 환경에서 자기 축을 실행 안 함 (`254:0` 하드코딩) | `test_frozen_coordinate_seal_58.py:192` | **GREEN** |
-| M17 | P2 | 능력 escape 규칙이 무해한 local shadow 도 거부 (Q1 의 답: 그렇다) | `_assert_no_dynamic_resolution` | 대기 |
+| M17 | P2 | 능력 escape 규칙이 무해한 local shadow 도 거부 (Q1 의 답: 그렇다) | `_assert_no_dynamic_resolution` | **GREEN** |
 
 ## 묶음 (같이 고쳐야 값이 나오는 것)
 
@@ -232,3 +232,80 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
   **이번 라운드 네 번째 죽은 변이다** (α 2 · γ 1 · β 1). 방어를 옮기면 그것을
   증명하던 변이가 조용히 무해해진다 — 매 묶음마다 `--check-preimages` 를
   돌리는 것이 이 라운드의 규율이 됐다.
+
+- 2026-09-08 — **δ·ζ·ε 닫힘. 17건이 전부 GREEN 이다.** 새 시험 24건
+  (`test_import_time_slice_59.py` 16 · `test_issuance_surface_59.py` 3 ·
+  `test_evidence_layer_59.py` 3, 그리고 M17 의 반대 방향 2건).
+
+  ### δ (M11·M12·M17) — 물음을 뒤집었다
+
+  57·58차는 **AST 종류를 하나씩 더해** 이 축을 두 번 닫으려 했고 두 번
+  거절당했다. 종류를 세는 한 다음 종류가 남는다. 그래서 기본값을 바꾼다:
+  **실행된다** 를 기본으로 두고, **실행되지 않음을 증명할 수 있는 것만** 뺀다.
+
+  - **M11** — 능력의 대상을 "module 인가" 로 알아보는 대신 **"module 이 아님을
+    증명할 수 있는가"** 로 묻는다. 증명 가능한 형태는 둘뿐이다 (이름 공간 이름이
+    아닌 벌거벗은 이름 · 뿌리가 그런 이름인 속성 사슬). 여섯 가지 감싸기
+    (`[sc][0]` · `(sc,)[0]` · `(sc if True else sc)` · `{'m': sc}['m']` ·
+    `(lambda m: m)(sc)` · `(None or sc)`)가 전부 거부된다. `M = sc` 같은 별칭도
+    고정점으로 잡는다 (`_namespace_targets()`).
+  - **M12** — module scope 의 `assert`·`raise` 가 실행 슬라이스에 들어온다
+    (`_MODULE_NONBINDING` 의 뜻을 "이름을 안 묶는다" 에서 **"아무것도 실행하지
+    않는다"** 로 바꿨다). class 의 base·keyword 를 데코레이터와 **같은 종류**로
+    다룬다 — class 문은 metaclass 를 호출해 class 객체를 만들고 base 의
+    `__init_subclass__` 를 부르므로 조회가 아니라 치환이다.
+    `from __future__ import …` 는 실행 의미를 바꾸는 컴파일러 지시이므로 묶는다.
+
+    **반대로 `if __name__ == "__main__":` 은 뺐다** — import 때 안 돈다는 것을
+    언어가 보장하므로 이 라운드 규칙("증명할 수 있는 것만 뺀다")이 서는 유일한
+    분기다. 안 빼면 `raise SystemExit(main())` 한 줄이 CLI 전체를 producer
+    identity 로 끌고 온다 (실측: 닫힘 93 → 99, `main`·`argparse`·`_cohort_dir`·
+    `seal_frozen_cohorts` 가 들어왔다 — 44차 경계를 그대로 넘는다).
+    **남는 한계**: 투영을 실제로 만드는 것은 스크립트 실행이고 거기서는 그
+    분기가 돈다. 계산 함수는 `_COMPUTE_NAMES` 로 선언돼 있고 `main` 은 그것을
+    부르는 자리라는 근거로 경계를 유지했다. 요청문에 적는다.
+  - **M17** — 판정을 **철자에서 결속으로**. 호출자가 값을 주는 자리(매개변수·
+    `for`·`with as`·`except as`·내포)로 묶인 이름은 능력이 아니고, 속성은
+    뿌리가 import 한 module 일 때만 능력이다. 평범한 대입(`GET = getattr`)은
+    **여전히 거부**한다 — 58차 L9-b 가 닫은 축이고, 값을 모르는 대입까지 열면
+    그 구멍으로 되돌아간다.
+
+  **닫힘 측정** (분석기 변경만의 효과, 같은 소스 기준): 93 → 90. 좁아졌다.
+  게시 경로 계열은 `_ledger_roster` 하나로 그대로다.
+
+  ### ζ (M10) — 발급의 공개 표면
+
+  raw 발급을 비공개로 내리고(`_claim_planned_leg`), **이름을 숨기는 것으로
+  끝내지 않았다**: token 이 이 다리의 자리에 **이미 굳어 있는지** 확인한다.
+  시험 22곳을 production 경로(`open_leg_run`)로 옮겼고, raw 발급을 일부러
+  부르던 53·54차 회귀 2건은 비공개 이름으로 되돌리되 **전제를 맞춘 뒤**
+  겨누는 층만 부수게 고쳤다 (새 검사가 먼저 걸리면 그 시험은 자기 축을 한 번도
+  안 본다 — M16 과 같은 형태다).
+
+  ### ε (M14·M15) — 증언의 범위
+
+  - **M14** — 탐침이 `sys.modules` 를 **스크립트 첫 줄에서** 찍어 startup 에
+    올라온 module 전부의 바이트를 잰다. 이름 세 개(`site`·`sitecustomize`·
+    `usercustomize`) 목록으로는 겹수만큼 구멍이 남았다.
+  - **M15** — `environment_tag()` 가 `startup` 하나가 아니라 **영수증 전체**를
+    해시한다. 그러려면 자식도 같은 범위를 재야 하므로, 영수증 계산 전체를
+    탐침 본문(`_receipt_facts()`)으로 옮기고 부모와 심어 놓은 증언 node 가
+    **같은 문자열**을 쓴다. node 는 in-process 로 재지 않고 **탐침을 띄운다** —
+    pytest 가 이미 온갖 것을 올린 프로세스에서는 startup 집합을 잴 수 없다.
+
+  ### 변이 축이 또 죽었다 — 이번 라운드 누적 **10건**
+
+  δ 에서 3건(`closure-refuses-dynamic-resolution` ·
+  `decorators-are-import-time-effects-g58` · `producer-normalizes-the-node`),
+  ε 에서 3건(`execution-receipt-binds-the-startup-g58` ·
+  `evidence-binds-the-environment` 두 자리). 전부 `--check-preimages` 가 먼저
+  잡았고, 새 원상으로 고쳐 **다시 무는 것을 확인**했다.
+
+  이것이 이 라운드에서 가장 자주 값을 한 규칙이다: **증거가 낡았다는 것은
+  사람이 알아채는 것이 아니라 기계가 거부해야 하는 것이다.**
+
+  ### webapp
+
+  `/trust` 를 59차로 갱신했다 — §3 에 재정정("목록은 버릴 수 있지만 권한은
+  버릴 수 없다"), §4 에 죽은 변이 축 10건 이야기, §6 에 현재 판정과 남은 마감.
+  세 페이지 렌더링을 확인했다 (`/` `/trust` `/gate` 전부 200).

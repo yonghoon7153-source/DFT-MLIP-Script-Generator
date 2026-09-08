@@ -176,12 +176,12 @@ def test_finalize_seals_the_evidence_it_verified(tmp_path, monkeypatch):
     스레드가 고친 것과 같은 상태를, 그 구간에서 불리는 함수로 만든다.
     """
     import tests.test_preserve as TP
-    from tools.preserve import (CLAIM_PHASES, claim_planned_leg, finalize_leg)
+    from tools.preserve import (CLAIM_PHASES, open_leg_run, finalize_leg)
     import yaml
 
     led = TP._lifecycle_ledger(tmp_path)
-    claim = claim_planned_leg("L", TP._RUN_SPEC_L, "0123456789abcdef",
-                              ledger=led, token=TP._tok())
+    claim = open_leg_run("L", TP._RUN_SPEC_L, "0123456789abcdef",
+                              ledger=led)
     for ph in CLAIM_PHASES:
         claim.phase_done(ph, {"n": ph})
 

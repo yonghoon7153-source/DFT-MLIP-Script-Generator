@@ -235,8 +235,8 @@ def test_a_dry_run_does_not_strand_the_plan_in_running(monkeypatch, tmp_path):
     assert not tok.exists(), "dry-run 이 소유 증명 파일을 남겼다"
 
     # 되돌렸으므로 **진짜 실행**이 바로 시작될 수 있다 — 되돌림의 유일한 증명
-    P.claim_planned_leg("L49", P.declared_leg_run_spec("L49", ledger=led),
-                        source_digest(), ledger=led, token=_tok())
+    P.open_leg_run("L49", P.declared_leg_run_spec("L49", ledger=led),
+                        source_digest(), ledger=led)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
