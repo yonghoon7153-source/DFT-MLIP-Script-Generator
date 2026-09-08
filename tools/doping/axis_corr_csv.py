@@ -230,11 +230,15 @@ REP_PREDICTOR = "li_mobility_score"
 def _row_identity(r):
     """대표 행을 **결정론적으로** 가르는 열쇠. 값과 무관해야 한다.
 
-    ⚠ 우선순위: 좌표 해시 → 구조 경로 → 이름. 셋 다 없으면 빈 문자열이고,
-      그때는 동점 처리가 임의가 되므로 호출부가 그 사실을 알아야 한다
+    ⚠ 우선순위의 근거: **축이 실제로 계산되는 구조**가 정체의 정본이다. 이 파이프라인에서
+      축(BVSE·탄성)은 **post-anneal** 구조에서 계산되므로 `post_relax_sha256` 이 먼저다.
+      회신 AL P0-3 이 정확히 이 지점이었다 — 옛 판은 anneal **전** 에너지로 동일성을
+      주장했고, 실측하니 anneal 후 일치는 227 삼중쌍 중 **0개**였다.
+      그다음이 일반 구조 해시 → 구조 경로 → 이름. 다 없으면 빈 문자열이고, 그때는
+      동점 처리가 임의가 되므로 호출부가 그 사실을 알아야 한다
       (`aggregate_designs` 가 info["reps_without_identity"] 로 센다).
     """
-    for k in ("coord_sha256", "struct_sha256", "post_relax_sha256",
+    for k in ("post_relax_sha256", "coord_sha256", "struct_sha256",
               "structure_hash", "post_relax_xyz", "xyz_input", "structure_path", "name"):
         v = str(r.get(k, "") or "").strip()
         if v:

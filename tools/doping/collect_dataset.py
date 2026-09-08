@@ -56,6 +56,14 @@ FEATURE_COLUMNS = [
     # Anneal
     'anneal_delta_E_meV', 'anneal_E_post_per_atom', 'anneal_dV_pct',
     'anneal_converged',
+    # ── 구조 계보 (2026-09-08 · 회신 AL 해제조건 #1·#2) ──────────────────────
+    #   ⛔ 여기가 비어 있어서 P0-1 이 났다. 설계의 대표를 **실재하는 구조**로 고르려면
+    #     행이 자기가 어느 구조인지 말할 수 있어야 하는데, 지금까지 CSV 에는 이름밖에
+    #     없었다(`design_key` docstring 이 이미 자인: "CSV 에 시작 구조 해시가 없어서").
+    #   ★ `post_relax_sha256` 이 정체의 정본이다 — **축이 실제로 계산되는 구조**가
+    #     post-anneal 이기 때문이다(P0-3: 옛 판은 anneal **전** 에너지로 동일성을 주장했다).
+    #     input 해시는 참고로만 싣는다.
+    'anneal_seed', 'post_relax_sha256', 'anneal_input_sha256', 'post_relax_xyz',
     # EOS (with fit quality)
     'eos_B0_GPa', 'eos_V0_per_atom', 'eos_Bp', 'eos_r2',
     'eos_fit_quality_ok', 'eos_fit_quality_reason',
@@ -293,6 +301,14 @@ def collect_one(cd, verbose=True):
                               / a.get('volume_pre', 1) * 100
                               if a.get('volume_pre') else None),
             'anneal_converged': a.get('converged'),
+
+            # 구조 계보 — 없으면 빈칸이다. **없는 것을 만들어내지 않는다**:
+            # 옛 산출물(seed 를 안 박던 시절)은 빈칸으로 남아야 하고, 그 빈칸이 곧
+            # "이 행은 대표로 쓸 수 없다" 는 신호다 (axis_corr_csv 의 reps_without_identity).
+            'anneal_seed': a.get('seed'),
+            'post_relax_sha256': (a.get('struct_sha256') or {}).get('post_relax'),
+            'anneal_input_sha256': (a.get('struct_sha256') or {}).get('input'),
+            'post_relax_xyz': a.get('post_relax_xyz'),
 
             'eos_B0_GPa': safe_get(e, 'eos', 'B0_GPa'),
             'eos_V0_per_atom': safe_get(e, 'eos', 'V0_per_atom'),
