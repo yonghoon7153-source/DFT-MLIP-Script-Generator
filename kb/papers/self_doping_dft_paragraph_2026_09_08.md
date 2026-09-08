@@ -12,7 +12,7 @@ verifiedAt: 2026-09-08
 verifiedBy: self
 explored: false
 authoredBy: agent
-claimType: descriptive
+claimType: empirical
 evidenceScope: multi-source-primary
 ---
 
