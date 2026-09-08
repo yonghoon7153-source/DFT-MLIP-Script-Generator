@@ -1,6 +1,6 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-08 · managed-files: 363
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-08 · managed-files: 364
 
 규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
@@ -340,7 +340,7 @@
 ## descriptors/ (1)
 - `kb/descriptors/coating_descriptor_catalog.md` — 황화물 코팅 소재 Descriptor Catalog
 
-## papers/ (21)
+## papers/ (22)
 - `kb/papers/adhesion_charts_comparison.md` — Adhesion Charts — 20 seeds vs Selected 5 seeds
 - `kb/papers/adhesion_literature_review.md` — Adhesion Interface Modeling — Literature Summary
 - `kb/papers/choi2025_adoption_guide.md` — Choi 2025 — Adoption Guide for Our Paper
@@ -358,6 +358,7 @@
 - `kb/papers/paper2_FINAL_briefing_2026_05_08.md` — Paper #2 — SE/NCM Adhesion: Final Comprehensive Briefing
 - `kb/papers/paper2_briefing_2026_05_08.md` — Paper #2 — SE/NCM Adhesion Mechanism: Briefing for First-Time Reader
 - `kb/papers/reviewer_qa_methods.md` — Reviewer Q&A Preparation — Computational Methods
+- `kb/papers/self_doping_dft_paragraph_2026_09_08.md` — 원고 자가도핑 DFT 문단 — 스핀 하나로 좁힌 5문단 (2·3·6 계열) ○미열람
 - `kb/papers/si_figures_plan.md` — SI Figures Plan — Choi 2025 Analogs
 - `kb/papers/verified_refs_2026_05.md` — Verified Literature References — Paper #1 (2026-05-05)
 - `kb/papers/vesta_adhesion_figure_settings.md` — VESTA Adhesion Figure Settings (Paper)
