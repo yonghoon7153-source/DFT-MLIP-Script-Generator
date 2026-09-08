@@ -84,12 +84,16 @@ electronic conductivity of 250 mS cm⁻¹ (Section X).
 ⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Figure S4 캡션에 반드시 넣는다.**
 빠지면 7월 값과 다른 분할(strict 79.5 · extended 91.6)이 같은 그림에 섞여 읽힌다.
 
-**Figure S3 캡션 (구조)** — *Optimized structures of the oxidized (deprotonated) oligomers: two
-repeat units, three repeat units oxidized at a terminal and at the internal ring, and six repeat
-units. The sulfonate from which the hydrogen was removed is indicated in each structure. Boxes are
-for display only; the calculations were performed on isolated molecules without periodic boundary
-conditions.*
-⚠ 마지막 문장 필수 — `.vasp`/`.vesta` 에 보기용 상자가 들어 있어 주기 계산으로 오해될 수 있다.
+**Figure S3 캡션 (확정 2026-09-08)** — *Optimized structures of the oxidized (deprotonated)
+oligomers: two repeat units, three repeat units oxidized at a terminal and at the internal ring, and
+six repeat units. The sulfonate from which the hydrogen was removed is indicated in each structure.*
+
+이 캡션은 그림에 **두 가지를 요구한다**:
+1. **상자를 끈다.** "Boxes are for display only…" 문장을 뺐으므로 렌더에 격자가 보이면 안 된다
+   (VESTA `Objects → Unit cell` 해제). 캡션으로 변명하는 것보다 그림을 고치는 쪽이 맞다.
+2. **산화 자리를 실제로 표시한다.** 세 번째 문장이 그걸 약속한다 — 표시가 없으면 거짓 캡션이다.
+   자리: n=2 A-ring · n=3 말단/내부 · **n=6 ring3**. 탈양성자된 SO₃ 는 **O–H 가 없는 유일한
+   sulfonate** 라 눈으로도 찾을 수 있다.
 
 ## Supplementary Note 2 (초안)
 
