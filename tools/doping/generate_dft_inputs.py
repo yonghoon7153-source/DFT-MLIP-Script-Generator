@@ -278,6 +278,121 @@ def snapshots_from_traj(traj, times_ps, save_fs, out_dir, label, seed,
     return man
 
 
+# ── 회수: pw.x 출력 → DFT 라벨 붙은 extxyz (2026-09-08) ────────────────────
+#   왜 여기인가 — 이 폴더 구조(<label>_<seed>_t<NN>ps/{frame.xyz,scf.in,scf.out})와
+#   SNAPSHOTS json 을 만든 것이 이 도구다. 구조를 아는 쪽이 회수도 해야 갈라지지 않는다.
+#   힘 **대조** 는 여기서 하지 않는다 — mlip_committee.py bench 가 그 일을 한다.
+RY_TO_EV = 13.605693122994
+RY_AU_TO_EV_A = RY_TO_EV / 0.529177210903        # Ry/bohr → eV/Å
+
+
+def parse_pw_out(text):
+    """pw.x scf 출력에서 (energy_eV, forces_eV_per_A, flags). 실패는 예외로 낸다.
+
+    ⛔ 못 하는 것: 수렴의 **물리적** 타당성을 보지 않는다. 문자열이 있는지만 본다.
+    ⚠ 자체 파서를 쓰는 이유 — ase 의 espresso-out 리더는 버전마다 요구 블록이 달라
+      합성 시험을 만들기 어렵다. 우리가 읽는 세 블록은 QE 출력 형식에서 안정적이다.
+    """
+    import re as _re
+    conv = "convergence has been achieved" in text
+    done = "JOB DONE" in text
+    m = _re.findall(r"^!\s+total energy\s+=\s+([-\d.]+)\s+Ry", text, _re.M)
+    if not m:
+        raise ValueError("총에너지 줄(`!    total energy`)이 없다 — scf 가 안 끝났다")
+    energy = float(m[-1]) * RY_TO_EV
+    fb = _re.search(r"Forces acting on atoms.*?\n(.*?)\n\s*\n", text, _re.S)
+    if not fb:
+        raise ValueError("힘 블록(`Forces acting on atoms`)이 없다 — tprnfor 를 확인하라")
+    F = []
+    for ln in fb.group(1).splitlines():
+        g = _re.match(r"\s*atom\s+(\d+)\s+type\s+\d+\s+force\s*=\s*"
+                      r"([-\d.Ee+]+)\s+([-\d.Ee+]+)\s+([-\d.Ee+]+)", ln)
+        if g:
+            F.append([float(g.group(2)) * RY_AU_TO_EV_A,
+                      float(g.group(3)) * RY_AU_TO_EV_A,
+                      float(g.group(4)) * RY_AU_TO_EV_A])
+    if not F:
+        raise ValueError("힘 블록은 있는데 `atom N type M force =` 줄을 하나도 못 읽었다")
+    return energy, F, {"converged": conv, "job_done": done}
+
+
+def parse_pw_in_positions(text):
+    """scf.in 의 CELL_PARAMETERS(angstrom) + ATOMIC_POSITIONS(crystal) → (cell, symbols, cart)."""
+    import re as _re
+    cm = _re.search(r"CELL_PARAMETERS angstrom\n((?:\s*[-\d.Ee+]+\s+[-\d.Ee+]+\s+[-\d.Ee+]+\n){3})", text)
+    pm = _re.search(r"ATOMIC_POSITIONS crystal\n((?:.*\n)+?)(?=K_POINTS|\Z)", text)
+    if not (cm and pm):
+        raise ValueError("scf.in 에서 CELL_PARAMETERS/ATOMIC_POSITIONS 를 못 읽었다")
+    cell = [[float(x) for x in ln.split()] for ln in cm.group(1).strip().splitlines()]
+    syms, frac = [], []
+    for ln in pm.group(1).splitlines():
+        t = ln.split()
+        if len(t) == 4:
+            syms.append(t[0]); frac.append([float(x) for x in t[1:]])
+    cart = [[sum(frac[i][k] * cell[k][j] for k in range(3)) for j in range(3)]
+            for i in range(len(frac))]
+    return cell, syms, cart
+
+
+def collect_results(out_dir, label, seed, max_dev_A=1e-6):
+    """<out_dir> 의 이 (label, seed) 점들을 회수해 DFT 라벨 extxyz + RESULTS json 을 쓴다.
+
+    ⛔ 실패한 점을 **빼고 진행하지 않는다** — 카드 §8 (19점으로 판정하지 않는다).
+      실패가 있으면 기록하고 예외를 낸다.
+    ⚠ 좌표 대조는 `frame.xyz` ↔ `scf.in` 이다. scf 는 원자를 움직이지 않으므로 이 둘이
+      맞으면 두 계산이 같은 배치를 본 것이다. 완전한 비트 동일은 xyz↔분수좌표 왕복에서
+      성립하지 않으므로 **문턱(기본 1e-6 Å)** 으로 판정하고 그 값을 기록한다.
+    """
+    from ase.io import read as _read, write as _write
+    import numpy as _np
+    out_dir = Path(out_dir)
+    man_p = out_dir / f"SNAPSHOTS_{label}_{seed}.json"
+    if not man_p.is_file():
+        raise FileNotFoundError(f"스냅샷 원장이 없다: {man_p}")
+    man = json.loads(man_p.read_text(encoding="utf-8"))
+    frames, rows, bad = [], [], []
+    for rec in man["snapshots"]:
+        w = Path(rec["path"])
+        at = _read(str(w / "frame.xyz"))
+        try:
+            if coord_digest(at) != rec["coord_sha256"]:
+                raise ValueError("frame.xyz 가 원장 기록과 다르다 (파일이 바뀌었다)")
+            _c, _s, cart = parse_pw_in_positions((w / "scf.in").read_text())
+            if _s != at.get_chemical_symbols():
+                raise ValueError("scf.in 과 frame.xyz 의 원소 순서가 다르다")
+            dev = float(_np.abs(_np.asarray(cart) - at.get_positions()).max())
+            if dev > max_dev_A:
+                raise ValueError(f"좌표가 어긋난다: 최대 {dev:.3e} Å > {max_dev_A:.0e}")
+            e, F, fl = parse_pw_out((w / "scf.out").read_text(errors="ignore"))
+            if len(F) != len(at):
+                raise ValueError(f"힘 {len(F)}개 · 원자 {len(at)}개")
+            if not (fl["converged"] and fl["job_done"]):
+                raise ValueError(f"미수렴/미완료 {fl}")
+        except Exception as exc:
+            bad.append({"tag": rec["tag"], "why": str(exc)}); continue
+        at.calc = None
+        from ase.calculators.singlepoint import SinglePointCalculator as _SPC
+        at.calc = _SPC(at, energy=e, forces=_np.asarray(F))
+        frames.append(at)
+        rows.append({"tag": rec["tag"], "time_ps": rec["time_ps"],
+                     "E_eV": e, "F_max_eVA": float(_np.abs(_np.asarray(F)).max()),
+                     "coord_max_dev_A": dev, "coord_sha256": rec["coord_sha256"]})
+    res = {"card": man["card"], "label": label, "seed": seed,
+           "n_ok": len(rows), "n_expected": len(man["snapshots"]),
+           "coord_check": {"기준": "frame.xyz ↔ scf.in 카티전 최대편차",
+                           "문턱_A": max_dev_A,
+                           "⚠": "비트 동일이 아니라 문턱 판정이다 — 분수좌표 왕복 때문."},
+           "pseudos": man["pseudos"], "points": rows, "failed": bad}
+    (out_dir / f"RESULTS_{label}_{seed}.json").write_text(
+        json.dumps(res, ensure_ascii=False, indent=1))
+    if bad:
+        raise RuntimeError(f"{label}/{seed}: {len(bad)}점 실패 — " +
+                           " · ".join(f"{b['tag']}({b['why']})" for b in bad) +
+                           "  ⛔ 카드 §8: 빠뜨린 채 판정하지 않는다")
+    _write(str(out_dir / f"labeled_{label}_{seed}.xyz"), frames, format="extxyz")
+    return res
+
+
 def _selftest():
     import tempfile, hashlib as _h
     from ase import Atoms
@@ -339,6 +454,34 @@ def _selftest():
         except IndexError as e:
             chk("범위 밖" in str(e), "\u26d4음성: 창 밖 표본 거부")
 
+        # ── 회수 경로 ──────────────────────────────────────────────────
+        e, F, fl = parse_pw_out(
+            "!    total energy              =     -10.00000000 Ry\n"
+            "     convergence has been achieved in  9 iterations\n"
+            "     Forces acting on atoms (cartesian axes, Ry/au):\n\n"
+            "     atom    1 type  1   force =     0.10000000    0.00000000    0.00000000\n"
+            "     atom    2 type  1   force =    -0.10000000    0.00000000    0.00000000\n"
+            "\n     JOB DONE.\n")
+        chk(abs(e - (-10.0 * RY_TO_EV)) < 1e-9 and fl["converged"] and fl["job_done"],
+            "pw.x 에너지·수렴·완료 파싱")
+        chk(len(F) == 2 and abs(F[0][0] - 0.1 * RY_AU_TO_EV_A) < 1e-9,
+            "힘 단위 변환 Ry/au → eV/Å")
+        try:
+            parse_pw_out("아무것도 없음"); chk(False, "\u26d4음성: 빈 출력을 통과시키면 안 된다")
+        except ValueError:
+            chk(True, "\u26d4음성: 총에너지 없는 출력 거부")
+        try:
+            parse_pw_out("!    total energy              =     -1.0 Ry\n")
+            chk(False, "\u26d4음성: 힘 없는 출력을 통과시키면 안 된다")
+        except ValueError as _x:
+            chk("힘 블록" in str(_x), "\u26d4음성: 힘 블록 없는 출력 거부 (tprnfor 안내)")
+        _pin = (d / "out" / "lbl_s2_t0ps" / "scf.in").read_text()
+        _c, _s2, _cart = parse_pw_in_positions(_pin)
+        import numpy as _np2
+        chk(_s2 == ["Li", "Li"] and
+            float(_np2.abs(_np2.asarray(_cart) - a1.get_positions()).max()) < 1e-9,
+            "scf.in 분수좌표 → 카티전이 frame 과 일치")
+
     print(f"  selftest: \u2b55 {ok} \u00b7 \u26d4 {fail}")
     return 0 if fail == 0 else 1
 
@@ -354,6 +497,8 @@ def main():
     p.add_argument('--save_fs', type=float, default=100.0)
     p.add_argument('--pseudo_dir', default='/home/kgy/work/pseudo')
     p.add_argument('--selftest', action='store_true')
+    p.add_argument('--collect', action='store_true',
+                  help='pw.x 출력을 회수해 DFT 라벨 extxyz + RESULTS json (--out --label --seed)')
     p.add_argument('--top', type=int, default=10)
     p.add_argument('--out')          # --selftest 는 out 이 필요 없다
     p.add_argument('--ecutwfc', type=float, default=52)
@@ -363,6 +508,13 @@ def main():
 
     if args.selftest:
         sys.exit(_selftest())
+    if args.collect:
+        if not (args.out and args.label and args.seed):
+            p.error('--collect 는 --out --label --seed 가 필요하다')
+        r = collect_results(args.out, args.label, args.seed)
+        print(f"✓ {args.label}/{args.seed}: {r['n_ok']}/{r['n_expected']}점 회수 "
+              f"· 좌표 최대편차 {max(x['coord_max_dev_A'] for x in r['points']):.2e} Å")
+        return
     if args.from_traj:
         if not args.out:
             p.error('--from_traj 는 --out 이 필요하다')

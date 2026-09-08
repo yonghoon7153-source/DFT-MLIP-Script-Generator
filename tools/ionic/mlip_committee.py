@@ -58,7 +58,7 @@ D-optimality** 로 정의된다 (원전 = Podryabinkin & Shapeev 2017, Comput. M
   # 3) 합의 분석
   python3 tools/ionic/mlip_committee.py analyze --dir <workdir>
 """
-import argparse
+import argparse, re
 import json
 import sys
 from pathlib import Path
@@ -617,6 +617,98 @@ def _detect_layers(names):
     return (max(cands.values()) if cands else None), cands
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# force_contrast — 두 계의 **골격 힘 오차 비** R (b2o3 UMA-vs-DFT 힘 대조 카드)
+#   카드: db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json (ratified 2판)
+#
+#   왜 여기인가 — `get_calc`(엔진 로딩의 함정 셋)와 `force_stats`(성분 정의·softening
+#   기울기)가 이미 여기 있다. 새 파일로 빼면 힘 통계 정의가 두 곳으로 갈라진다.
+#
+#   ⛔ 이 명령이 **못 하는 것**
+#     · 문턱을 스스로 정하지 않는다 — **카드에서 읽는다.** 카드가 ratified 가 아니면 거부한다.
+#       (결과를 보고 문턱을 조이는 경로를 원천 차단한다.)
+#     · 힘 오차에서 동역학을 유도하지 않는다 (카드 §7).
+#     · DFT 가 옳다고 증명하지 않는다 — 기준으로 **가정**할 뿐이다.
+def contrast_from_forces(ref, pred, symbols, exclude=("Li",)):
+    """한 계의 골격 통계. ref/pred = [(natoms,3)…] 프레임 목록, symbols = 원소열.
+
+    골격 = `exclude` 에 없는 원자. 성분 MAE 로 재고(force_stats 와 같은 정의),
+    원자 단위 방향일치 cos θ 도 같이 낸다 — 크기는 맞는데 방향이 틀리는 경우를
+    크기 지표가 놓치기 때문이다 (카드 §2 보조 보고량).
+    """
+    mask = np.array([sy not in set(exclude) for sy in symbols])
+    if not mask.any():
+        raise ValueError(f"골격 원자가 없다 (exclude={exclude}, symbols={sorted(set(symbols))})")
+    R = np.concatenate([np.asarray(f)[mask] for f in ref])
+    P = np.concatenate([np.asarray(f)[mask] for f in pred])
+    st = force_stats(R, P)
+    dv = P - R
+    # 원자 단위 |ΔF| 평균 — 카드의 dF_frame 정의(벡터 크기의 평균)
+    dF = float(np.linalg.norm(dv, axis=1).mean())
+    nr, npd = np.linalg.norm(R, axis=1), np.linalg.norm(P, axis=1)
+    good = (nr > 1e-8) & (npd > 1e-8)
+    cos = float(((R[good] * P[good]).sum(1) / (nr[good] * npd[good])).mean()) if good.any() else None
+    per_el = {}
+    for el in sorted(set(np.asarray(symbols)[mask])):
+        m2 = np.array([sy == el for sy in symbols])[mask]
+        per_el[el] = float(np.linalg.norm(dv[m2], axis=1).mean())
+    return {"dF_frame_eVA": dF, "n_atoms_frame": int(mask.sum()),
+            "F_ref_rms_eVA": st["rms_ref_eVA"],
+            "dF_over_Fref": dF / st["rms_ref_eVA"] if st["rms_ref_eVA"] else None,
+            "cos_theta_frame": cos, "dF_by_element": per_el,
+            "component_stats": st}
+
+
+def _card_thresholds(card_path):
+    """카드에서 문턱·판정문구를 읽는다. ratified 가 아니면 **거부**한다."""
+    c = json.loads(Path(card_path).read_text(encoding="utf-8"))
+    if c.get("status") != "ratified":
+        sys.exit(f"⛔ 카드가 ratified 가 아니다 (status={c.get('status')!r}) — 판정하지 않는다")
+    th = c["5_문턱_결과_보기_전에"]
+    hi = float(re.search(r"\*\*≥\s*([\d.]+)\*\*", th["UMA_결함_지지"]).group(1))
+    lo = float(re.search(r"\*\*≤\s*([\d.]+)\*\*", th["실물리_쪽_지지"]).group(1))
+    return c, hi, lo, c["6_판정_문구_봉인"]
+
+
+def cmd_force_contrast(a):
+    from ase.io import read as _read
+    card, hi, lo, verdicts = _card_thresholds(a.card)
+    calc = get_calc(a.engine, a.device)
+    groups = {}
+    for name, paths in (("test", a.test), ("control", a.control)):
+        ref, pred, syms = [], [], None
+        for fp in paths:
+            for at in _read(str(fp), index=":"):
+                f_ref = np.asarray(at.get_forces(), dtype=float)   # DFT 라벨
+                syms = syms or at.get_chemical_symbols()
+                if at.get_chemical_symbols() != syms:
+                    sys.exit(f"⛔ {fp}: 프레임마다 원소열이 다르다")
+                at2 = at.copy(); at2.calc = calc
+                pred.append(np.asarray(at2.get_forces(), dtype=float)); ref.append(f_ref)
+        if not ref:
+            sys.exit(f"⛔ {name}: 프레임을 하나도 못 읽었다")
+        groups[name] = contrast_from_forces(ref, pred, syms, tuple(a.exclude))
+        groups[name]["n_frames"] = len(ref)
+        print(f"  {name}: {len(ref)}프레임 · dF_frame {groups[name]['dF_frame_eVA']:.4f} eV/Å "
+              f"· 상대 {groups[name]['dF_over_Fref']:.3f} · cos {groups[name]['cos_theta_frame']:.4f}")
+    R = groups["test"]["dF_frame_eVA"] / groups["control"]["dF_frame_eVA"]
+    Rrel = (groups["test"]["dF_over_Fref"] / groups["control"]["dF_over_Fref"]
+            if groups["control"]["dF_over_Fref"] else None)
+    if R >= hi and (Rrel is None or Rrel > 1.0):
+        key, txt = "R_큼", verdicts["R_큼"]
+    elif R <= lo:
+        key, txt = "R_작음", verdicts["R_작음"]
+    else:
+        key, txt = "회색", verdicts["회색"]
+    res = {"card": str(a.card), "engine": a.engine, "exclude": list(a.exclude),
+           "R": R, "R_relative": Rrel, "thresholds": {"UMA_결함_지지_≥": hi, "실물리_지지_≤": lo},
+           "verdict_key": key, "verdict_sealed_text": txt, "groups": groups,
+           "⛔": "문턱·판정문구는 카드에서 읽었다 — 이 도구가 정하지 않는다"}
+    Path(a.out).write_text(json.dumps(res, ensure_ascii=False, indent=1))
+    print(f"\n★ R = {R:.3f}" + (f" (상대 {Rrel:.3f})" if Rrel else "")
+          + f"  · 문턱 ≥{hi} / ≤{lo}\n판정: {txt}\n→ {a.out}")
+
+
 def cmd_selftest(a=None):
     bad = []
     def chk(c, msg):
@@ -687,7 +779,29 @@ def cmd_selftest(a=None):
         chk(len([1 for _ in stream_labeled(fp, 100)]) == 1,
             "★ stride 가 총수보다 커도 최소 1프레임 (0 프레임으로 조용히 끝나지 않는다)")
 
-    print(f"selftest {'PASS' if not bad else 'FAIL'} — {8 + 3 + 8 + 3 - len(bad)} ok, {len(bad)} bad")
+    # ── force_contrast 수학 (엔진 없이) ──────────────────────────────────
+    sym = ["Li", "Li", "P", "S", "S"]
+    r1 = np.array([[1., 0, 0], [0, 1., 0], [0, 0, 1.], [1., 1, 0], [0, 1., 1]])
+    g = contrast_from_forces([r1], [r1], sym)
+    chk(g["dF_frame_eVA"] == 0.0 and g["n_atoms_frame"] == 3,
+        "★ 같은 힘이면 dF=0 · 골격 3원자(Li 2개 제외)")
+    chk(abs(g["cos_theta_frame"] - 1.0) < 1e-12, "같은 힘이면 cos θ = 1")
+    p1 = r1.copy(); p1[2] += np.array([0.3, 0, 0])          # P 원자만 틀리게
+    g2 = contrast_from_forces([r1], [p1], sym)
+    chk(abs(g2["dF_frame_eVA"] - 0.1) < 1e-12, "골격 3원자 중 하나가 0.3 → 평균 0.1")
+    chk(abs(g2["dF_by_element"]["P"] - 0.3) < 1e-12 and g2["dF_by_element"]["S"] == 0.0,
+        "원소별 분해가 맞는 원자에만 붙는다")
+    p2 = r1.copy(); p2[0] += np.array([9., 0, 0])           # Li 만 크게 틀리게
+    g3 = contrast_from_forces([r1], [p2], sym)
+    chk(g3["dF_frame_eVA"] == 0.0,
+        "⛔음성: 제외 원소(Li)의 오차는 골격 지표에 들어가면 안 된다")
+    try:
+        contrast_from_forces([r1], [r1], ["Li"] * 5)
+        chk(False, "⛔음성: 골격 원자가 하나도 없으면 0 을 내면 안 된다")
+    except ValueError:
+        chk(True, "⛔음성: 골격 원자 0개면 거부")
+
+    print(f"selftest {'PASS' if not bad else 'FAIL'} — {8 + 3 + 8 + 3 + 6 - len(bad)} ok, {len(bad)} bad")
     return 1 if bad else 0
 
 
@@ -711,6 +825,14 @@ def main():
     b.add_argument("--device", default="cuda"); b.add_argument("--out", required=True)
     b.set_defaults(fn=cmd_bench)
     t = sub.add_parser("selftest"); t.set_defaults(fn=cmd_selftest)
+    fc = sub.add_parser("force_contrast",
+                        help="두 계의 골격 힘 오차 비 R (문턱·판정문구는 카드에서 읽는다)")
+    fc.add_argument("--test", nargs="+", required=True, help="DFT 라벨 extxyz (b2o3)")
+    fc.add_argument("--control", nargs="+", required=True, help="DFT 라벨 extxyz (modelc)")
+    fc.add_argument("--engine", default="uma"); fc.add_argument("--device", default="cpu")
+    fc.add_argument("--exclude", nargs="+", default=["Li"], help="골격에서 뺄 원소")
+    fc.add_argument("--card", default="db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json")
+    fc.add_argument("--out", required=True); fc.set_defaults(fn=cmd_force_contrast)
     i = sub.add_parser("info", help="엔진 배선(cutoff·층 수·유효 수용영역)")
     i.add_argument("--engines", nargs="+", default=["uma"],
                    choices=["uma", "mace", "sevennet"])
