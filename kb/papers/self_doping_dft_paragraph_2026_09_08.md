@@ -82,6 +82,54 @@ inter-chain transfer. The measured electronic conductivity is given in Section X
 ⚠ `Counted over ring atoms only` 는 본문에서 뺐다 — **Table Sx 의 각주에 반드시 넣는다.**
 빠지면 7월 값과 다른 분할이 한 표에 섞일 수 있다.
 
+## Supplementary Note 2 (초안)
+
+> **Supplementary Note 2. Oligomer models of the oxidized, deprotonated chain**
+>
+> *Models.* Oligomers of two, three, and six repeat units were constructed from the repeat unit
+> defined in Figure 1, each carrying a sulfonate-terminated side chain. For three repeat units, two
+> oxidation sites were treated separately: a terminal ring and the internal ring.
+>
+> *Oxidized state.* A neutral hydrogen atom — one proton and one electron — was removed from a
+> sulfonic acid group. The resulting species is charge-neutral with one unpaired electron (charge 0,
+> multiplicity 2). This represents self-doping, in which the proton is taken up by a base and the
+> electron by an oxidant, leaving a hole on the chain and a sulfonate counter-anion.
+>
+> *Calculations.* All structures were optimized with ORCA 6.1.1 at the r²SCAN-3c level, which
+> combines the r²SCAN meta-GGA functional with a def2-mTZVPP basis set, D4 dispersion, and a
+> geometrical counterpoise correction. Optimizations used the program's default convergence
+> thresholds: energy change 5 × 10⁻⁶ Eh, maximum and RMS gradient 3 × 10⁻⁴ and 1 × 10⁻⁴ Eh bohr⁻¹,
+> and maximum and RMS displacement 4 × 10⁻³ and 2 × 10⁻³ bohr. No solvent model or symmetry
+> constraint was applied. The same protocol was used for every chain length, and the two- and
+> three-unit values are from the same campaign.
+>
+> *Spin partition.* Löwdin populations were taken from the final SCF of each optimized structure.
+> For six repeat units the total spin population is 1.000, as expected for a doublet. Two groups are
+> quoted in the main text: the sulfonate (SO₃ atoms) and the backbone (ring atoms only). Table Sx
+> additionally reports two reference partitions, one including the ring hydrogens and one further
+> including the side-chain ether oxygens.
+>
+> *Limits.* Each structure is a single self-consistent solution; no search over spin isomers or
+> side-chain conformers was performed. Spin density is reported as such and is not equated with the
+> hole charge density. The models are isolated and gas-phase, without solvent, counterions, or chain
+> packing.
+
+**Table Sx 각주 (필수)** — *Backbone denotes ring atoms only; ring hydrogens and side-chain ether
+oxygens are excluded. The same partition is used for every chain length.*
+⚠ 본문에서 `Counted over ring atoms only` 를 뺐으므로 이 각주가 그 역할을 대신한다. 빠지면 7월
+값과 다른 분할(strict 79.5 · extended 91.6)이 한 표에 섞일 수 있다.
+
+### 채운 값 · 남은 빈칸
+
+- ✅ ORCA **6.1.1** · 수렴 기준은 **프로그램 기본값**(NormalOpt): TolE 5e-6 Eh · TolMAXG 3e-4 ·
+  TolRMSG 1e-4 Eh/bohr · TolMAXD 4e-3 · TolRMSD 2e-3 bohr (`n6_doped.out` 실측 2026-09-08).
+  ⚠ `Strict Convergence = False` 이므로 "tight" 라고 쓰지 않는다.
+- ⏳ **반복단위의 화학 표기** — 지금은 "the repeat unit defined in Figure 1" 로 가리킨다.
+  Figure 1 이 그 구조를 실제로 정의하지 않으면 여기서 한 번 풀어 써야 한다.
+- ⏳ **n=6 도핑 자리** — 확인 전에는 n=3 만 자리를 명시한다. 확인되면 한 문장 추가하고,
+  본문 [3]의 `rather than localized at the oxidation site` 가 더 강해진다 (자리와 스핀 최대가
+  다른 고리면 "자리에서 밀렸다" 가 된다).
+
 ## SI 연결
 
 - **Table Sx** = `db/properties/sdcp_nseries_spin_2026_09_08.csv` (Origin-ready · 열 이름 명시).
