@@ -309,3 +309,37 @@ L1 줄("조기 return 자리가 반드시 그것을 거치게")은 gate 시점�
   `/trust` 를 59차로 갱신했다 — §3 에 재정정("목록은 버릴 수 있지만 권한은
   버릴 수 없다"), §4 에 죽은 변이 축 10건 이야기, §6 에 현재 판정과 남은 마감.
   세 페이지 렌더링을 확인했다 (`/` `/trust` `/gate` 전부 200).
+
+---
+
+## 마감 (2026-09-08) — 여기서부터는 증거를 만드는 단계다
+
+| 단계 | 결과 | 커밋 |
+|---|---|---|
+| 등록부에 새 축 18개 | `--emit-expect` 로 **관측한 값**을 EXPECT 에 넣음 | `2b0673da` · `0b74fa76` |
+| g13 freeze → g14 | 투영 재생성 · 영수증 갱신 · 행 바이트 `ad598fe77e75afec` 열 세대째 동일 | `cffafc0f` |
+| 자체 발견 ②(봉인이 시험을 막았다) | `tests/conftest.py` bootstrap + 회귀 1건 | `0c3afaf3` |
+| 죽은 축 3건(조각 3·7·10) | 죽은 함수 삭제 + 축 재조준 + MULTI 승격 2건 | `7e03cb19` |
+| 12조각 전수 재생 | 조각 1..12 rc 0 · 등록부 204 = 관측 204 · 합집합이 정확히 덮음 | `32f7424e` |
+| 전체 회귀 | **1534 passed, 1 xfailed** (0:28:07) rc 0 @`7e03cb19` | — |
+| strict smoke | **✅ pipeline smoke 통과** rc 0 @`32f7424e` · 뒤에 트리 clean | — |
+| 요청문 | `docs/22p_gap/GATE59_REQUEST.md` (대상 코드 `7e03cb19` · `source_digest 4fe8d27269ca9ca2`) | — |
+
+### 마감에서 바뀐 identity
+
+```
+source_digest             920cfd31c22ebe06 → 5472a8b94520a5ec → 4fe8d27269ca9ca2
+                          (마지막 이동은 죽은 함수 `note_smoke_exemption()` 삭제)
+영수증 core sha           82f1e652… → d38ed5b9… → c9b41978002d46fb…
+compute_sha256            0d3e1355383dda14 → c02b963e5d65bb55
+row_projection_py_sha256  f55f5ddd6fb7bd2f → c9bdaa2b33ad6ed4
+producer_semantic_sha256  13def6a32e8d9536 → 1c768c143c35e43c
+```
+
+### 마감이 남긴 규칙 하나
+
+**죽은 축은 죽은 코드를 가리킨다.** 12조각 전수 재생의 "안 물었다" 는 세 가지
+중 하나를 뜻한다: (a) 방어가 옮겨갔다 · (b) 더 바깥 층이 먼저 문다 ·
+(c) **그 코드에 아무도 안 온다.** (c) 는 등록부가 아니면 아무도 안 알려 준다 —
+시험은 통과하고 lint 는 조용하다. 이번 라운드에 처음으로 (c) 를 만났고,
+공개 함수 하나를 지웠다.
