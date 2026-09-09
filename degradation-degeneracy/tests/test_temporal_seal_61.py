@@ -189,3 +189,35 @@ def test_the_derived_manifest_is_still_a_declared_name(tmp_path, ledger):
     assert set(P.RUN_MANIFEST_SCHEMA) == (set(P.RUN_IDENTITY_MANIFESTS)
                                           | set(P.RUN_DERIVED_MANIFESTS))
     assert not (set(P.RUN_IDENTITY_MANIFESTS) & set(P.RUN_DERIVED_MANIFESTS))
+
+
+def test_an_execution_manifest_written_after_the_commit_keeps_the_class(
+        tmp_path, ledger):
+    """★ 봉인이 **아직도 하는 일** — 61차 α 뒤에 남은 몫.
+
+    60차 P0-1 의 축은 "굳힌 뒤 `analysis_manifest.yaml` 을 더해도 class 가
+    안 사라진다" 를 증인으로 썼다. 그런데 61차 α 가 파생 manifest 를 identity
+    **선언 밖**으로 뺐으므로, 이제 그 경우는 봉인이 없어도 흔들리지 않는다 —
+    즉 그 시험은 더 이상 **봉인의** 증인이 아니다 (마감 전수 재생이 잡았다:
+    변이 rc 0).
+
+    봉인이 지금 지키는 것은 다른 자리다: **실행 manifest 가 굳힌 뒤에 하나 더
+    생기는** 정상 순서다. `run.sh` 에서 grid 가 굳힌 뒤 fit 이 같은 자리에
+    `manifest_start.yaml`·`manifest.yaml` 을 쓴다. 봉인이 없으면 그 순간
+    identity 가 갈리고, 갈린 키에는 class 가 없다.
+    """
+    out = tmp_path / "results" / "run"
+    _grid_outputs(out)
+    _commit(out, ledger, "grid")                 # grid 가 굳힌다
+    cid_before = P.run_content_id(out)
+    assert P.read_execution_class(cid_before, ledger=ledger) is not None
+
+    # fit 이 **같은 자리**에 실행 manifest 를 더한다 (아직 안 굳혔다)
+    _fit_outputs(out, "first")
+
+    assert P.run_content_id(out) == cid_before, (
+        "굳힌 뒤에 생긴 실행 manifest 가 내용 identity 를 갈아 치웠다 — "
+        "봉인이 그 순간의 목록을 안 얼렸다 (60차 P0-1)")
+    assert P.read_execution_class(P.run_content_id(out),
+                                  ledger=ledger) is not None, (
+        "grid 가 굳힌 class 가 fit 의 첫 쓰기에 사라졌다 (60차 P0-1)")

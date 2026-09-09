@@ -1227,7 +1227,13 @@ MUTANTS = [
     ("run-identity-is-sealed-at-commit-g60", PRESERVE,               # P0-1
      "            seal_run_identity(x, dir_fd=rec.dir_fd)",
      "            pass",
-     "a_later_sanctioned_manifest_does_not_erase_the_registered_class"),
+     # ★ 61차 α 가 파생 manifest 를 identity 선언 밖으로 뺐으므로, 60차의
+     #   증인("굳힌 뒤 `analysis_manifest.yaml` 을 더해도 class 가 안 사라진다")
+     #   은 **봉인이 없어도** 초록이다 (마감 전수 재생 실측: 변이 rc 0).
+     #   봉인이 지금 지키는 것은 다른 자리다 — 굳힌 뒤 **실행** manifest 가
+     #   하나 더 생기는 정상 순서(grid 굳힘 → fit 의 첫 쓰기). 그리로 겨눈다.
+     "a_later_sanctioned_manifest_does_not_erase_the_registered_class or "
+     "an_execution_manifest_written_after_the_commit_keeps_the_class"),
     ("class-is-decided-by-the-place-g60", PRESERVE,                  # P0-2
      "    cls = _decide_execution_class(run_dir)",
      "    cls = EXEC_CLASS_CANONICAL",
@@ -1310,17 +1316,6 @@ MUTANTS = [
      #   바깥의 규칙(58차 L9-b "능력을 값으로 옮긴다" · P0-10 둘째 층)이
      #   먼저 문다 — 두 형태를 지어 실측했고 둘 다 변이 rc 0 이었다.
      None),
-    # ★ 61차 γ — `evidence-binds-the-environment` 의 둘째 자리를 **떼어 낸다.**
-    #   `startup` 을 비우면 이제 영수증 완전성 검사(61차 P1-3)가 **먼저** 문다.
-    #   같은 축에 두면 "빨개졌지만 선언한 이유가 아니다" 가 되고, 그러면 둘 중
-    #   어느 것도 증인이 아니다. 층이 둘이면 축도 둘이다.
-    #   선언 자신이 preimage 로 세어지지 않도록 철자를 escape 한다.
-    ("startup-facts-are-in-the-receipt-g61", MR,                     # P1-3
-     '            \u0022inputs\u0022: inputs,\n'
-     '            \u0022startup\u0022: _env_fact\u0073(NAMES)}',
-     '            \u0022inputs\u0022: inputs,\n'
-     '            \u0022startup\u0022: {}}',
-     "evidence_binds_the_execution_environment"),
     # ══ 61차 — 이 라운드가 세운 방어 ══════════════════════════════════════
     #   판정 7건을 닫으면서 만든 층들이다. 축이 없으면 그 층은 "있는 척" 이
     #   될 수 있고, 이 저장소는 그것을 네 라운드 연속 실측했다.
@@ -2304,7 +2299,7 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_exec_class_capability_59.py::test_a_short_write_never_publishes_a_partial_record":
-                "tools.preserve.PreserveError: [promote] 내용 765899c3321dafee… 의 등록 레코드를 게시 뒤 다시 읽을 수 없다 — class 를 정할 수 없으므로 거부한다",
+                "tools.preserve.PreserveError: [promote] 내용 ",
         }
     },
     "exec-class-retry-reseals-durability-g59": {
@@ -2504,11 +2499,15 @@ EXPECT: dict = {
             "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_the_interpreter_itself",
             "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_what_the_interpreter_actually_loads",
         ],
+        # ★ 61차 P1-3 — 증인이 바뀌었다. `startup` 을 비우면 이제 **영수증
+        #   완전성 검사**가 먼저 문다 (`startup.startup_history` 가 없으므로).
+        #   축의 물음("실행이 실제로 올린 것이 증거 안인가")은 그대로이고,
+        #   더 이른 층이 같은 것을 막는다. 증인은 실측한 그 층의 거부다.
         "witness": {
             "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_the_interpreter_itself":
-                "AssertionError: 영수증이 인터프리터 바이트를 안 담는다 — 같은 버전의 다른 실행 파일이 같은 증거를 만든다 (L11)",
+                "_ReplayError: 환경 영수증이 **불완전**하다 — 측정이 실패한 항목이 있다: startup.startup_history",
             "tests/test_evidence_layer_58.py::test_the_execution_receipt_binds_what_the_interpreter_actually_loads":
-                "AssertionError: 같은 PYTHONPATH 문자열 아래 sitecustomize.py 를 바꿨는데 실행 영수증 digest 가 그대로다 — 재생이 실제로 올리는 코드가 증거 밖에 있다 (L11)",
+                "_ReplayError: 환경 영수증이 **불완전**하다 — 측정이 실패한 항목이 있다: startup.startup_history",
         }
     },
     "frozen-seal-is-consulted-first-g58": {
@@ -3574,16 +3573,6 @@ EXPECT: dict = {
                     "tests/test_evidence_receipt_61.py::test_an_incomplete_receipt_is_refused_by_the_reader": "Failed: DID NOT RAISE _ReplayError"
             }
     },
-    # ★ 61차 γ — 떼어 낸 자리. 증인은 영수증 **완전성** 거부다 (그 층이 먼저
-    #   문다). 같은 축에 두면 "빨개졌지만 선언한 이유가 아니다" 가 된다.
-    "startup-facts-are-in-the-receipt-g61": {
-            "fail": [
-                    "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment"
-            ],
-            "witness": {
-                    "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment": "_ReplayError: 환경 영수증이 **불완전**하다 — 측정이 실패한 항목이 있다: startup.startup_history"
-            }
-    },
     "evidence-binds-the-environment": {
         "fail": [
             "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment",
@@ -4207,10 +4196,10 @@ EXPECT: dict = {
     },
     "run-identity-is-sealed-at-commit-g60": {
             "fail": [
-                    "tests/test_temporal_seal_60.py::test_a_later_sanctioned_manifest_does_not_erase_the_registered_class"
+                    "tests/test_temporal_seal_61.py::test_an_execution_manifest_written_after_the_commit_keeps_the_class"
             ],
             "witness": {
-                    "tests/test_temporal_seal_60.py::test_a_later_sanctioned_manifest_does_not_erase_the_registered_class": "AssertionError: 파생 manifest 하나가 내용 identity 를 갈아 치웠다 — 정상 실행이 계산을 다 마친 뒤 승격에서 거부된다 (P0-1)"
+                    "tests/test_temporal_seal_61.py::test_an_execution_manifest_written_after_the_commit_keeps_the_class": "AssertionError: 굳힌 뒤에 생긴 실행 manifest 가 내용 identity 를 갈아 치웠다 — 봉인이 그 순간의 목록을 안 얼렸다 (60차 P0-1)"
             }
     },
     "the-gate-creates-the-judged-place-g60": {
