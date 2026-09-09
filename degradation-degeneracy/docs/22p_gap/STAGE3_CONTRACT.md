@@ -65,9 +65,9 @@ for k in range(n_max):
 
 | # | 교란 | 근거 |
 |---|---|---|
-| 1 | `warm_start` 하나가 **원점과 조건 fitting 을 동시에** 바꾼다 | `src/fitting.py:1364` 가 조건 task 를 그대로 물려받는다. 404 half-cell `p_ini(34p)` `[1.509716,…] → [1.518503,…]` |
+| 1 | `warm_start` 하나가 **원점과 조건 fitting 을 동시에** 바꾼다 | `src/fitting.py:1396` 가 조건 task 를 그대로 물려받는다. 404 half-cell `p_ini(34p)` `[1.509716,…] → [1.518503,…]` |
 | 2 | `--n-restarts` 는 실행 횟수가 아니라 **예산 상한** | adaptive 조기 종료. 2회 종료 행 223 → 238 |
-| 3 | **noise 층을 바꾸면 restart 난수가 통째로 갈린다** | `cond_id = sha1(asdict(Condition))[:12]` 가 `noise`·`seed` 포함 (`src/grid.py:99`) → `task["seed"] = int(sha1(cond_id)[:8],16)` (`src/fitting.py:1319`) |
+| 3 | **noise 층을 바꾸면 restart 난수가 통째로 갈린다** | `cond_id = sha1(asdict(Condition))[:12]` 가 `noise`·`seed` 포함 (`src/grid.py:99`) → `task["seed"] = int(sha1(cond_id)[:8],16)` (`src/fitting.py:1351`) |
 | 4 | **warm 은 slot 을 교체한다** (§0) | 투영 `restart_sources` |
 | 5 | **예산을 바꾸면 warm 후보 자체가 바뀐다** | 연쇄 구조 (`src/fitting.py:392-406`) — 33p 예산 ↑ → 33p 해 변화 → 34p 가 받는 warm 좌표 변화. 22차 발견 2 |
 
@@ -1068,7 +1068,16 @@ digest 를 담을 곳이 없다). 그래서 끝 digest 를 `.head` 에 따로 �
   (46차 `compute_sha256` 은 `build()` 가 뿌리라 publisher 전체를 빨아들였고,
   그래서 게시 코드를 고칠 때마다 움직였다. 그것이 "봉인하면 라운드마다 새
   cohort" 의 진짜 원인이었다.)
-- 각 정의를 **AST 정규형**으로 접는다 (주석·docstring·서식이 사라진다).
+- 각 정의를 **AST 정규형**으로 접는다 (주석·서식이 사라진다).
+
+  ★ 61차 P2 정정 — **docstring 은 사라지지 않는다.** 이 줄은 50차의 상태를
+    적은 것이고, 51차 P0-I 가 그 뒤에 방향을 뒤집었다: "철자를 막는 것은 종결
+    조건이 아니다 (alias 의 alias 로 이어진다) — **버리는 것을 없애면** 그 축
+    자체가 사라진다." 그래서 지금 정규형은 function·class 의 docstring 을
+    보존하고(`row_projection.py` 의 `_canon_*`), 60차 P0-13 이 module 의 첫
+    문자열도 `__doc__` 라는 이름으로 묶는다(`_module_defs()`). 계산이 읽는
+    문자열은 identity 안이다. 계약 문구가 코드와 **반대**였고, 그 상태로
+    열한 라운드를 지났다 — 문서도 실측 대상이라는 뜻이다.
 - 절단면 이름이 사라지면 fail-closed 로 거부한다 — 닫힘이 조용히 넓어지거나
   좁아질 수 없다.
 
