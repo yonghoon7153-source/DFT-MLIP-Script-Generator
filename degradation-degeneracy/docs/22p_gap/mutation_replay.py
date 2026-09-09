@@ -1141,12 +1141,15 @@ MUTANTS = [
      "                     and n not in RUN_MANIFEST_SCHEMA)",
      "    unknown = []",
      "an_undeclared_manifest_in_a_run_dir_is_refused"),
+    # ★ 61차 α 가 선언을 둘로 갈랐다 (identity / derived). 축의 물음은 그대로다
+    #   — **시작 manifest 가 내용 identity 안에 있는가.** 원상을 identity 선언
+    #   으로 다시 겨눈다 (죽은 축을 지우는 게 아니라 옮긴다).
     ("run-manifest-schema-is-production-wide-g59", PRESERVE,          # M2
-     'RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",\n'
-     '                       "curves_manifest_start.yaml", "manifest.yaml",\n'
-     '                       "manifest_grid.yaml", "manifest_start.yaml")',
-     'RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",\n'
-     '                       "manifest.yaml", "manifest_grid.yaml")',
+     'RUN_IDENTITY_MANIFESTS = ("curves_manifest.yaml", "curves_manifest_start.yaml",\n'
+     '                          "manifest.yaml", "manifest_grid.yaml",\n'
+     '                          "manifest_start.yaml")',
+     'RUN_IDENTITY_MANIFESTS = ("curves_manifest.yaml", "manifest.yaml",\n'
+     '                          "manifest_grid.yaml")',
      "the_start_manifest_takes_part_in_the_content_identity"),
     ("phase-order-is-enforced-g59", PRESERVE,                         # M7
      "                if _open:",
@@ -1307,6 +1310,33 @@ MUTANTS = [
      #   바깥의 규칙(58차 L9-b "능력을 값으로 옮긴다" · P0-10 둘째 층)이
      #   먼저 문다 — 두 형태를 지어 실측했고 둘 다 변이 rc 0 이었다.
      None),
+    # ★ 61차 γ — `evidence-binds-the-environment` 의 둘째 자리를 **떼어 낸다.**
+    #   `startup` 을 비우면 이제 영수증 완전성 검사(61차 P1-3)가 **먼저** 문다.
+    #   같은 축에 두면 "빨개졌지만 선언한 이유가 아니다" 가 되고, 그러면 둘 중
+    #   어느 것도 증인이 아니다. 층이 둘이면 축도 둘이다.
+    #   선언 자신이 preimage 로 세어지지 않도록 철자를 escape 한다.
+    ("startup-facts-are-in-the-receipt-g61", MR,                     # P1-3
+     '            \u0022inputs\u0022: inputs,\n'
+     '            \u0022startup\u0022: _env_fact\u0073(NAMES)}',
+     '            \u0022inputs\u0022: inputs,\n'
+     '            \u0022startup\u0022: {}}',
+     "evidence_binds_the_execution_environment"),
+    # γ (61차 P1-2·P1-3) — 이번 라운드가 세운 층.
+    #   선언 자신이 preimage 로 세어지지 않게 철자를 escape 한다.
+    ("importable-roots-keep-the-search-order-g61", MR,               # P1-2
+     '                reachable[\u0022%d/%s\u0022 % (_i, nm)] = _d(f)',
+     '                reachable[nm] = _d(f)',
+     "same_named_modules_in_two_roots_are_both_recorded or "
+     "the_receipt_says_which_root_python_would_import_from"),
+    ("history_failure_is_not_a_success-g61", MR,                     # P1-3
+     '        if _r.returncod\u0065 != 0:',
+     '        if False:',
+     "a_nonzero_history_child_is_a_failure"),
+    ("incomplete_receipt_is_refused-g61", MR,                        # P1-3
+     "    _assert_receipt_is_complet\u0065(got)",
+     "    pass",
+     "an_incomplete_receipt_is_refused_by_the_reader or "
+     "a_failed_package_listing_is_also_refused"),
     # θ — 실행이 실제로 올린 byte 의 closure (P1-3·P1-4).
     #   ★ 선언이 자기 자신의 preimage 로 세어지지 않게 철자를 escape 한다
     #     (이 파일이 자기 변이 대상이다 — `startup-binds-every-loaded-module`
@@ -1706,18 +1736,21 @@ MULTI = [
          '                      "Break", "Continue", "Return")'),
      ], "the_import_time_slice_contains_everything_that_runs"),
     # ★ 59차 M15 — 위와 같은 이유로 두 자리가 탐침 본문으로 옮겨졌다.
+    # ★ 61차 γ 가 두 가지를 드러냈다.
+    #   ① `packages` 가 typed 로 바뀌어 원상이 죽었다 → 새 문장으로 옮긴다.
+    #   ② 축을 쪼개 보니 receipt 의 `env` 하나만 비워서는 **안 빨개진다** —
+    #      `_env_facts()` 안에도 같은 결속이 있어 두 층이 같은 성질을 지킨다.
+    #      그러면 그 한 자리는 이 성질의 증인이 아니다. 방어를 지우는 변이는
+    #      **두 자리를 함께** 되돌려야 한다 (59차 `module-assert-…` 와 같은 형태).
     ("evidence-binds-the-environment", MR, [
-        ('            \u0022packages\u0022: dict(sorted(pkgs.items())),\n'
+        ('            \u0022packages\u0022: packages,\n'
          '            \u0022env\u0022: {k: os.environ[k] '
          'for k in NAMES if k in os.environ},',
-         '            \u0022packages\u0022: dict(sorted(pkgs.items())),\n'
+         '            \u0022packages\u0022: packages,\n'
          '            \u0022env\u0022: {},'),
-        # 선언 자신이 preimage 로 세어지지 않도록 철자를 escape 한다
-        # (이 파일이 자기 자신의 변이 대상이라 생기는 문제 — 위 `env` 와 같다).
-        ('            \u0022inputs\u0022: inputs,\n'
-         '            \u0022startup\u0022: _env_fact\u0073(NAMES)}',
-         '            \u0022inputs\u0022: inputs,\n'
-         '            \u0022startup\u0022: {}}'),
+        ('            \u0022env\u0022: {k: os.environ[k] '
+         'for k in NAMES if k in os.environ}}',
+         '            \u0022env\u0022: {}}'),
      ], "evidence_binds_the_execution_environment"),
 ]
 
@@ -3405,6 +3438,46 @@ EXPECT: dict = {
             "tests/test_docs_lint.py::test_the_evidence_tree_digest_does_not_depend_on_the_checkout_path": "같은 바이트를 다른 경로로 읽었더니 digest 가 달라졌다"
         }
     },
+    # γ (61차 P1-2·P1-3) — `--emit-expect` 관측값. 실행마다 달라지는 꼬리는
+    #   손으로 잘라 안정한 접두만 남긴다 (이 저장소의 규칙).
+    "importable-roots-keep-the-search-order-g61": {
+            "fail": [
+                    "tests/test_evidence_receipt_61.py::test_same_named_modules_in_two_roots_are_both_recorded",
+                    "tests/test_evidence_receipt_61.py::test_the_receipt_says_which_root_python_would_import_from"
+            ],
+            "witness": {
+                    "tests/test_evidence_receipt_61.py::test_same_named_modules_in_two_roots_are_both_recorded": "AssertionError: 두 root 의 동명 module 이 1개로 접혔다",
+                    "tests/test_evidence_receipt_61.py::test_the_receipt_says_which_root_python_would_import_from": "AssertionError: 검색 첫 자리의 항목을 못 찾겠다"
+            }
+    },
+    "history_failure_is_not_a_success-g61": {
+            "fail": [
+                    "tests/test_evidence_receipt_61.py::test_a_nonzero_history_child_is_a_failure"
+            ],
+            "witness": {
+                    "tests/test_evidence_receipt_61.py::test_a_nonzero_history_child_is_a_failure": "AssertionError: 손자가 nonzero 로 끝났는데 성공으로 적었다"
+            }
+    },
+    "incomplete_receipt_is_refused-g61": {
+            "fail": [
+                    "tests/test_evidence_receipt_61.py::test_a_failed_package_listing_is_also_refused",
+                    "tests/test_evidence_receipt_61.py::test_an_incomplete_receipt_is_refused_by_the_reader"
+            ],
+            "witness": {
+                    "tests/test_evidence_receipt_61.py::test_a_failed_package_listing_is_also_refused": "Failed: DID NOT RAISE _ReplayError",
+                    "tests/test_evidence_receipt_61.py::test_an_incomplete_receipt_is_refused_by_the_reader": "Failed: DID NOT RAISE _ReplayError"
+            }
+    },
+    # ★ 61차 γ — 떼어 낸 자리. 증인은 영수증 **완전성** 거부다 (그 층이 먼저
+    #   문다). 같은 축에 두면 "빨개졌지만 선언한 이유가 아니다" 가 된다.
+    "startup-facts-are-in-the-receipt-g61": {
+            "fail": [
+                    "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment"
+            ],
+            "witness": {
+                    "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment": "_ReplayError: 환경 영수증이 **불완전**하다 — 측정이 실패한 항목이 있다: startup.startup_history"
+            }
+    },
     "evidence-binds-the-environment": {
         "fail": [
             "tests/test_docs_lint.py::test_the_evidence_binds_the_execution_environment",
@@ -4288,28 +4361,58 @@ def _env_facts(NAMES):
     #   `-X importtime` 은 인터프리터가 startup 에 **실제로 import 한** module 을
     #   전부 stderr 로 찍는다 — 그 뒤 지워도 로그에는 남는다. 그래서 손자
     #   프로세스를 하나 띄워 그 이력을 받고, 이름마다 파일을 찾아 해시한다.
-    history = {}
-    try:
-        import subprocess as _sp
+    # ★ 61차 P1-3 — 측정 결과를 **typed** 로 만든다. 예전 판은 손자의 return
+    #   code 를 안 보고, 해석 실패를 안 세고, 예외를 `{"<unmeasured>": "1"}`
+    #   이라는 **정상 dict** 로 바꿨다. 그러면 "쟀다" 와 "재려다 실패했다" 가
+    #   형식이 같아서 읽는 쪽이 구별할 수 없다 — 그것은 fail-closed 가 아니다
+    #   (리뷰어 실측: `history_probe_failure_child_rc: 0`).
+    #
+    #   파일이 없는 builtin/frozen 은 **실패가 아니다.** 그것을 실패로 세면
+    #   영수증이 언제나 실패가 되어 층이 마비된다. 따로 센다(`unfiled`).
+    def _measure_history():
+        try:
+            import subprocess as _sp
 
-        _r = _sp.run([sys.executable, "-X", "importtime", "-c", "pass"],
-                     capture_output=True, text=True, timeout=120)
+            _py = os.environ.get("DD_HISTORY_PROBE_PYTHON") or sys.executable
+            _extra = [x for x in
+                      os.environ.get("DD_HISTORY_PROBE_ARGS", "").split() if x]
+            _r = _sp.run([_py, "-X", "importtime", *_extra, "-c", "pass"],
+                         capture_output=True, text=True, timeout=120)
+        except Exception as _exc:                        # noqa: BLE001
+            return {"status": "failed", "reason": f"손자를 못 띄웠다: {_exc!r}"}
+        if _r.returncode != 0:
+            return {"status": "failed",
+                    "reason": f"손자가 rc={_r.returncode} 로 끝났다: "
+                              f"{(_r.stderr or '')[-200:]}"}
         _names = set()
         for _ln in (_r.stderr or "").splitlines():
             if "|" in _ln:
                 _names.add(_ln.rsplit("|", 1)[-1].strip())
+        _names = {n for n in _names if n and not n.startswith("import ")}
+        if not _names:
+            return {"status": "failed",
+                    "reason": "importtime 로그에서 module 이름을 하나도 "
+                              "해석하지 못했다"}
         from importlib import util as _u
 
-        for _nm in sorted(n for n in _names if n and not n.startswith("import ")):
+        _mods, _unfiled = {}, 0
+        for _nm in sorted(_names):
             try:
                 _sp_ = _u.find_spec(_nm)
             except (ImportError, ValueError, AttributeError):
+                _unfiled += 1
                 continue
             _o = getattr(_sp_, "origin", None) if _sp_ is not None else None
             if _o and os.path.isfile(_o):
-                history[_nm] = _d(_o)
-    except Exception:                                    # pragma: no cover
-        history = {"<unmeasured>": "1"}
+                _mods[_nm] = _d(_o)
+            else:
+                _unfiled += 1           # builtin·frozen·namespace — 정상이다
+        if not _mods:
+            return {"status": "failed",
+                    "reason": "이름은 받았는데 해시한 파일이 하나도 없다"}
+        return {"status": "measured", "modules": _mods, "unfiled": _unfiled}
+
+    history = _measure_history()
 
     # ★ 60차 P1-4 — **문자열이 가리키는 바이트를 담는다.** 59차 영수증은
     #   `PYTHONPATH` 를 문자열로만 담았고, 같은 문자열 아래 module 내용을 바꾸면
@@ -4318,8 +4421,18 @@ def _env_facts(NAMES):
     #   담는 범위는 그 자리의 **최상위 module** 이다 — startup 뒤에 import 되는
     #   것을 이력으로는 못 보므로, "무엇이 import 될 수 있는가" 를 바이트로
     #   답한다. 더 깊은 package 는 실제로 import 될 때 위 이력이 잡는다.
+    # ★ 61차 P1-2 — 키에 **검색 순서**를 담는다. 예전 판은 basename 하나를
+    #   키로 썼고, 그래서 두 root 에 같은 이름이 있으면 **뒤 root 가 앞 root 를
+    #   덮었다.** Python 의 import 는 앞 root 가 이기므로, 증언이 실제로
+    #   import 될 바이트의 **반대**를 적고 있었다. 그리고 순서가 사라져
+    #   순서만 다른 두 환경이 같은 값을 냈다 (리뷰어 실측:
+    #   `same_name_entry_count: 1`).
+    #
+    #   root 문자열 자체는 영수증의 `env.PYTHONPATH` 에 이미 있으므로 여기서
+    #   두 번 담지 않는다. 여기 필요한 것은 **어느 자리의 무엇인가** 다.
     reachable = {}
-    for d in [x for x in os.environ.get("PYTHONPATH", "").split(os.pathsep) if x]:
+    for _i, d in enumerate(
+            [x for x in os.environ.get("PYTHONPATH", "").split(os.pathsep) if x]):
         try:
             names = sorted(os.listdir(d))
         except OSError:
@@ -4327,9 +4440,10 @@ def _env_facts(NAMES):
         for nm in names:
             f = os.path.join(d, nm)
             if nm.endswith(".py") and os.path.isfile(f):
-                reachable[nm] = _d(f)
+                reachable["%d/%s" % (_i, nm)] = _d(f)
             elif os.path.isfile(os.path.join(f, "__init__.py")):
-                reachable[nm + "/__init__.py"] = _d(os.path.join(f, "__init__.py"))
+                reachable["%d/%s/__init__.py" % (_i, nm)] = _d(
+                    os.path.join(f, "__init__.py"))
 
     return {"executable_sha256": _d(sys.executable),
             "customization": cust,
@@ -4366,18 +4480,25 @@ def _receipt_facts(NAMES, GLOBS, ROOT):
         for f in sorted(_g.glob(os.path.join(ROOT, pat))):
             if os.path.isfile(f):
                 inputs[os.path.relpath(f, ROOT).replace(os.sep, "/")] = _fd(f)
-    pkgs = {}
+    # ★ 61차 P1-3 — `startup_history` 와 **같은 형태**의 결함이 여기에도 있었다:
+    #   실패를 `{"<unavailable>": ""}` 라는 정상 dict 로 바꾼다. 리뷰어는
+    #   history 만 짚었지만 규칙이 한 자리에 있지 않으면 남은 중복이 곧 다음
+    #   반례다. 그래서 같이 typed 로 만든다.
+    packages = {"status": "measured", "dists": {}}
     try:
         from importlib import metadata as _md
 
+        pkgs = {}
         for dist in _md.distributions():
             nm = (dist.metadata or {}).get("Name")
             if nm:
                 pkgs[str(nm).lower()] = str(dist.version)
-    except Exception:
-        pkgs = {"<unavailable>": ""}
+        packages = {"status": "measured", "dists": dict(sorted(pkgs.items()))}
+    except Exception as _exc:                            # noqa: BLE001
+        packages = {"status": "failed",
+                    "reason": f"설치 목록을 못 읽었다: {_exc!r}"}
     return {"interpreter": "%d.%d.%d" % sys.version_info[:3],
-            "packages": dict(sorted(pkgs.items())),
+            "packages": packages,
             "env": {k: os.environ[k] for k in NAMES if k in os.environ},
             "inputs": inputs,
             "startup": _env_facts(NAMES)}
@@ -4524,7 +4645,35 @@ def _execution_receipt() -> dict:
     #
     #   같은 본문(`_ENV_PROBE_BODY`)을 부모와 심어 놓은 증언 node 가 **둘 다**
     #   쓰므로 규칙이 갈릴 자리가 없다.
-    return _observed_receipt()
+    got = _observed_receipt()
+    # ★ 61차 P1-3 — **불완전한 측정으로는 증거를 못 만든다.** 영수증에 실패가
+    #   적혀도 읽는 쪽이 그냥 받으면 층이 없는 것과 같다.
+    _assert_receipt_is_complete(got)
+    return got
+
+
+#: 영수증 안에서 **측정 성패를 스스로 말하는** 자리 (61차 P1-3). 경로로 적는다 —
+#: 영수증은 중첩돼 있고, 위치를 틀리면 검사가 조용히 아무것도 안 본다.
+#: 하나 늘 때마다 여기 적는다.
+_TYPED_MEASUREMENTS = (("startup", "startup_history"), ("packages",))
+
+
+def _assert_receipt_is_complete(receipt: dict) -> None:
+    """측정이 끝난 영수증인가 — 아니면 거부한다 (61차 P1-3)."""
+    bad = []
+    for path in _TYPED_MEASUREMENTS:
+        got = receipt
+        for key in path:
+            got = got.get(key) if isinstance(got, dict) else None
+        where = ".".join(path)
+        if not isinstance(got, dict) or got.get("status") != "measured":
+            reason = got.get("reason") if isinstance(got, dict) else got
+            bad.append(f"{where}: {reason!r}")
+    if bad:
+        raise _ReplayError(
+            "환경 영수증이 **불완전**하다 — 측정이 실패한 항목이 있다: "
+            + " · ".join(bad)
+            + " . 못 잰 환경으로 만든 증거는 '같은 환경' 을 주장할 수 없다.")
 
 
 def _execution_receipt_digest() -> str:
