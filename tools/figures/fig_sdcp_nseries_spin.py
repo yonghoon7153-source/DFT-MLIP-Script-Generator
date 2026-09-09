@@ -7,7 +7,8 @@
       "두 칸만 더하면 87.4" 가 왜 정상인지 한눈에 보이게 하는 것이 목적이다.
   (b) n = 1 · 2 · 3(end) · 3(mid) · 6 의 같은 분할 (7월 값은 SO₃·백본 두 칸만 있어
       나머지를 **가르지 못한다** → 빗금 한 칸 'unresolved remainder').
-  (c) n=6 고리별 프로파일 (ring0–ring5 · 7월 정의 = 고리 원자만 · 합 = backbone_july).
+  ⛔ (c) 고리별 프로파일은 **2026-09-09 에 원고에서 뺐다** (1저자 결정) — 그림은 (a)(b) 둘이다.
+     데이터·CSV 는 남는다(`ring_profile()` · CSV_RING). 사유는 원고 문서의 결정 블록 참조.
 
 데이터 원본: db/properties/sdcp_nseries_spin_2026_09_08.json — 숫자는 여기서만 읽는다.
   그림 옆에 Origin-ready CSV 두 개를 db/properties/ 에 같이 쓴다.
@@ -17,7 +18,7 @@
   · 전역 최소 스핀 상태를 보증하지 않는다 (fresh SCF 한 번, 7월과 같은 한계).
   · n=1–3 의 나머지를 에테르 O 와 H 로 가르지 못한다 — 7월 표에 그 분해가 없다.
     빗금 칸은 "모른다" 는 표시지 "기타" 가 아니다.
-  · (c) 는 고리 **원자만**(7월 정의)의 값이다 — 말단 α-H 의 −0.2 는 CSV 의 참고 열에만 있다.
+  · CSV_RING 의 값은 고리 **원자만**(7월 정의)이다 — 말단 α-H 의 −0.2 는 참고 열에만 있다.
     도핑 자리가 어느 고리인지는 이 그림이 말하지 않는다 (JSON site 필드가 비어 있다) — 그래서
     "자리 근방에 국재" 같은 해석 라벨을 붙이지 않는다.
   · 고리별 합이 backbone_july 와 0.1 %p 넘게 다르면 그리지 않는다 (정의가 바뀌었는데 라벨이 그대로인 사고 방지).
@@ -154,12 +155,17 @@ def draw(db, out, repo=REPO):
     r6 = [r for r in rws if r["n"] == 6][0]
 
     fig = plt.figure(figsize=(11.5, 7.6))
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.0, 1.55], width_ratios=[1.35, 1.0],
-                          hspace=0.62, wspace=0.30, left=0.10, right=0.985, top=0.93,
+    # ⛔ 2026-09-09 (1저자 결정) — 패널 (c) 고리별 프로파일을 **원고에서 뺐다**.
+    #   남기는 주장은 (a)(b) 하나뿐이다: 홀이 술폰산 → 백본 π (SO₃ 7.7 % · 백본 79.7 %).
+    #   뺀 이유는 kb/papers/self_doping_dft_paragraph_2026_09_08.md 의 결정 블록에 있다 —
+    #   고리별 값으로 말하려면 "왜 산화 자리가 최대가 아닌가" 에 답해야 하는데
+    #   대조가 없고(n=6 1점·자리 1개) fresh SCF 한 번이며 오차막대가 없다.
+    #   ⚠ 데이터(`ring_profile`)와 CSV 출력은 **남긴다** — 실측이라 지우지 않는다.
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.0, 1.55],
+                          hspace=0.62, left=0.10, right=0.985, top=0.93,
                           bottom=0.235)
-    axA = fig.add_subplot(gs[0, :])
+    axA = fig.add_subplot(gs[0, 0])
     axB = fig.add_subplot(gs[1, 0])
-    axC = fig.add_subplot(gs[1, 1])
 
     # ── (a) n=6, one bar to 100 % ─────────────────────────────────────────────
     x = 0.0
@@ -233,22 +239,6 @@ def draw(db, out, repo=REPO):
                      label="balance not resolved in July data")]
     axB.legend(handles=handles, fontsize=8.2, frameon=False, loc="upper left",
                bbox_to_anchor=(-0.02, -0.17), ncol=3, handlelength=1.4, columnspacing=1.2)
-
-    # ── (c) ring profile, n = 6 ──────────────────────────────────────────────
-    xs = list(range(len(keys)))
-    bars = axC.bar(xs, vals, color=COL["ring"], width=0.62, zorder=3)
-    imax = max(range(len(vals)), key=lambda i: vals[i])
-    bars[imax].set_edgecolor(INK); bars[imax].set_linewidth(1.2)
-    for xi, v in zip(xs, vals):
-        axC.text(xi, v + 0.5, f"{v:.1f}", ha="center", va="bottom", fontsize=9, color=INK)
-    axC.set_xticks(xs)
-    axC.set_xticklabels([f"ring {i}" for i in xs], fontsize=9.5, color=INK)
-    axC.set_ylim(0, max(vals) * 1.22)
-    apply_axes(axC, "thiophene ring along the chain", "spin on ring (%)",
-               f"(c)  n = 6, ring by ring  (sum {sum(vals):.1f} %)", fontsize=11)
-    axC.title.set_ha("left"); axC.title.set_position((0.0, 1.0))
-    axC.text(0.03, 0.97, "ring atoms only (same definition as the\nJuly table); terminal α-H excluded",
-             transform=axC.transAxes, ha="left", va="top", fontsize=8, color=MUT)
 
     import textwrap
     note = ("ORCA r2SCAN-3c, optimized geometry, doublet (H-removed doped model D\u2022), "

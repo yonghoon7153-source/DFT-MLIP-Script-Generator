@@ -44,8 +44,8 @@ of two, three, and six repeat units (Figure S3). The resulting doublets were opt
 the material follows from the infrared spectra above. Löwdin spin populations show the unpaired spin
 migrating from the sulfonate onto the conjugated backbone as the chain grows. The backbone share
 rises from one-third in the dimer to 79.7% at six repeat units, while the sulfonate share falls to
-7.7% (Figure S4). At six units the spin is distributed over three adjacent rings (15.9%, 23.3%, and
-20.0%) rather than localized at the oxidation site.
+7.7% (Figure S4); the spin therefore resides on the conjugated backbone rather than on the
+oxidation site itself.
 
 The carrier is therefore a backbone polaron delocalized over several repeat units, with the
 deprotonated sulfonate as its fixed counter-anion. This is the molecular signature of self-doping:
@@ -186,8 +186,8 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 > structure; for six repeat units the total spin population is 1.000, as expected for one unpaired
 > electron. The backbone share quoted in the main text counts ring atoms only, and is 79.7% at six
 > repeat units; counting the side-chain ether oxygens as well raises it to 91.6%, whereas counting
-> the ring hydrogens instead gives 79.5%. Rings are numbered from one chain end as in Figure S4, and
-> for six repeat units the hydrogen was removed from the sulfonate on ring 4. Each structure is a
+> the ring hydrogens instead gives 79.5%. For six repeat units the hydrogen was removed from the
+> sulfonate on the fourth thiophene ring counted from one chain end. Each structure is a
 > single self-consistent solution; no search for alternative spin-localized solutions or side-chain
 > conformers was performed, and the spin densities are reported directly rather than interpreted as
 > hole charge densities. The models are isolated gas-phase molecules, without solvent, external
@@ -223,14 +223,18 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 > ⛔ 종전 Note 2 는 `on ring 3` 이라고만 써서, 1-기준으로 읽으면 산화 자리가 스핀이 몰린
 > 세 고리(4·5·6번)를 **비껴가는** 그림이 됐다. 실제로는 그 셋 중 하나다.
 
-> ⛔ **"고리 5가 왜 최대인가" 는 안 쓴다 (1저자 결정 2026-09-09).**
-> 물음 자체는 정당한데 **우리 데이터로 답이 안 된다**: ① n=6 계산이 한 번뿐이고 산화 자리도
-> 하나라 "자리에서 한 칸 밀린다" 가 이 계의 성질인지 이 배치의 우연인지 못 가른다 ·
-> ② `fresh SCF 한 번` 이라 다른 스핀 해가 없다는 보증이 없다(원장 금지_서술) ·
-> ③ **오차막대가 없어 23.3 vs 20.0 이 유의한지 모른다.**
-> ⇒ 본문은 *"세 고리에 퍼져 있고 산화 자리가 아니다"* 까지만 말한다. 최대 고리는 안 댄다 —
->   방어가 안 되고, 하려는 주장(폴라론이지 국재 라디칼이 아니다)에 필요도 없다.
-> 답하려면 **같은 사슬에서 산화 자리를 다른 고리에 놓은 대조 2점**이 필요하다(미실행 · 보고량 카드 선행).
+> ⛔ **고리별 프로파일(옛 Figure S4b · 패널 (c))을 원고에서 뺀다 (1저자 결정 2026-09-09).**
+> 남기는 주장은 **S4a 하나** — *홀이 술폰산에서 백본 π 로 옮겨간다*(백본 79.7 % · SO₃ 7.7 %).
+> 뺀 이유: 고리별 값으로 뭔가를 말하려면 *"왜 산화 자리가 최대가 아닌가"* 에 답해야 하는데
+> **우리 데이터로 답이 안 된다** — ① n=6 계산이 한 번뿐이고 산화 자리도 하나라 대조가 없다
+> ② `fresh SCF 한 번`(원장 금지_서술) ③ **오차막대가 없어 23.3 vs 20.0 이 유의한지 모른다**.
+> 그리고 하려는 주장(폴라론이지 국재 라디칼이 아니다)에 **고리 분해가 필요하지 않다** —
+> SO₃ 가 7.7 % 뿐이라는 것만으로 *"산화 자리에 국재하지 않는다"* 가 성립한다.
+> ⚠ `db/properties/figure_S4b_ring_profile.csv` 는 **실측이라 지우지 않는다** — 원고 미사용으로 표시한다.
+> ⚠ 그래서 본문의 `delocalized over several repeat units` 는 이제 **고리 분해가 아니라 n-추세**
+>   (백본 35 → 79.7 % as n grows)가 근거다. 한 반복단위에 갇혀 있다면 n 을 늘려도 지분이
+>   안 올라간다 — 약해진 근거지만 성립한다. 문구를 더 좁히려면 `delocalized over the
+>   conjugated backbone` 으로 바꾼다.
 
 ## SI 연결
 
