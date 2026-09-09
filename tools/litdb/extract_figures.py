@@ -73,7 +73,13 @@ CAP_RE = re.compile(
 VERBS = re.compile(
     r"^(shows?|displays?|presents?|illustrates?|summari[sz]es?|gives?|depicts?|compares?|"
     r"plots?|reports?|indicates?|reveals?|lists?|contains?|provides?|demonstrates?|"
-    r"and|in|of|for|to|is|are|was|were|we|it|this|which|shown|show|see|from|the)\b", re.I)
+    r"and|in|of|for|to|is|are|was|were|we|it|this|which|shown|show|see|from)\b", re.I)
+# ⛔⛔ 2026-09-09 실측 — 여기 `the` 가 있어서 **관사로 시작하는 캡션이 통째로 탈락**했다.
+#   `Fig. 6 The self-part of the van Hove correlation function …` (jang2025) 가 본문으로
+#   오판돼 그림이 아예 안 나왔고, 하필 그 논문의 기전 근거 그림이었다.
+#   RSC·Nature 계열에 `Fig. N The …` 는 흔한 형식이라 **다른 논문에서도 샜을 가능성이 크다.**
+#   소문자 `the` 는 바로 위 `rest[:1].islower()` 가 이미 잡으므로, VERBS 에서 빼도
+#   본문 오판이 늘지 않는다 (아래 --selftest 가 그 음성 경로를 지킨다).
 
 
 def is_caption(text):
@@ -1202,7 +1208,12 @@ def selftest():
     """dup_groups/dedupe 자체 점검 — **음성 경로 포함**.
 
     dup_groups 는 바이트만 보므로 진짜 PNG 가 필요 없다.  임시 폴더에 바이트를 써서 검사한다.
-    이 selftest 가 못 하는 것: 추출 본체(캡션 탐지·영역 산정)는 PDF 가 있어야 하므로 여기서 안 본다.
+
+    ⛔⛔ 2026-09-09 — 여기 *"캡션 탐지는 PDF 가 있어야 하므로 안 본다"* 라고 적혀 있었고,
+      **그 문장이 틀렸다.** `is_caption()` 은 순수 문자열 함수라 PDF 가 필요 없다.
+      그 면제 때문에 `VERBS` 의 `the` 가 **관사로 시작하는 캡션을 전부 탈락**시키는 버그가
+      살아남았다(jang2025 `Fig. 6` 이 통째로 안 나왔다). 이제 여기서 본다.
+      ⚠ **영역 산정**은 여전히 PDF 가 필요해서 못 본다 — 그건 `--audit` 이 맡는다.
     """
     import tempfile
     global OUT_ROOT
@@ -1318,6 +1329,27 @@ def selftest():
                 len(list((root / "deck_test").glob("*.png"))) == 2)
         finally:
             OUT_ROOT = keep_root
+
+    # ── 캡션 탐지 (PDF 불필요 — 순수 문자열) ────────────────────────────────
+    #   ⛔ 2026-09-09 이전에는 이 절이 통째로 없었고, 그래서 `VERBS` 의 `the` 가
+    #     관사로 시작하는 캡션을 전부 탈락시키는 버그가 살아남았다.
+    for txt, want, why in (
+        ("Fig. 6 The self-part of the van Hove correlation function for Li",
+         True, "★관사 캡션 (jang2025 실측 — 종전에 탈락했다)"),
+        ("Figure 2 The crystal structure of argyrodite", True, "관사 캡션"),
+        ("Figure S3 A parity plot of forces", True, "관사(A) SI 캡션"),
+        ("Fig. 1. Schematic of the workflow", True, "마침표 구분"),
+        ("Figure 5 | Conductivity versus inversion", True, "파이프 구분 (Nature 계열)"),
+        ("Figure 3 shows the trajectory of Li ions in the cell",
+         False, "⛔음성: 본문 (shows)"),
+        ("Figure 3 the results are summarized below in this section",
+         False, "⛔음성: 본문 (소문자 the)"),
+        ("Figure 4 and Figure 5 are discussed together in the text",
+         False, "⛔음성: 본문 (and)"),
+        ("Figure 2 is shown in the appendix of this manuscript",
+         False, "⛔음성: 본문 (is)"),
+    ):
+        chk(f"캡션판정 {why}", (is_caption(txt) is not None) == want)
 
     print(f"\nselftest: {ok} 통과 / {fail} 실패")
     return 1 if fail else 0
