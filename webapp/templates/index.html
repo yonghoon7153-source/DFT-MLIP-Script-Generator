@@ -1,29 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · DFT Infrastructure{% endblock %}
 {% block content %}
+{% from "_legend.html" import mark_legend %}
 <div class="page-header">
   <div>
-    {# v2 (2026-08-26) — 심포지엄 판독 T·Q 원장 + β 문턱 폐기 + T1b 힘 벤치가 들어간 판.
-       ⚠ 판 번호를 올릴 때는 **화면에 실제로 뭐가 늘었는지** 확인하고 올린다 —
-         v2 라고 써 놓고 대시보드가 그대로였던 적이 있다 (2026-08-26 오전). #}
-    <h1>DFT Knowledge Infrastructure <span class="badge" style="vertical-align:middle;
-      font-size:.62rem;font-weight:600;letter-spacing:.04em;color:#2563eb;
-      background:#eff6ff;border:1px solid #bfdbfe;padding:2px 7px;border-radius:5px">v2</span></h1>
-    <div class="sub">황화물 SE 전고체전지 · 조성 × 물성 지식 매트릭스 · <code>db/</code> 실시간 동기화
-      <span class="muted"> · v2: <a href="/ledger">T·Q 원장</a> · <a href="/benchmarks">T1b 힘 벤치</a> ·
-      <a href="/glossary#beta-gate">β 문턱 폐기</a></span></div>
+    {# ⛔ 손으로 쓰던 `v2` 배지와 "v2: T·Q 원장 · T1b · β 문턱" 부제를 **폐기했다**
+       (2026-09-09, v3 묶음 B). 그 셋은 전부 2026-08-26 산출인데 그 뒤 09-03·09-07·09-08
+       비준·회수분이 광고도 링크도 못 됐다 — 두 번 낡았다. 판 번호 대신 아래
+       "이번 주 바뀐 것" 이 카드 최신순에서 **파생**된다. 다시 손으로 쓰지 말 것. #}
+    <h1>DFT Knowledge Infrastructure</h1>
+    {# ⚠ "db/ 실시간 동기화" 는 절반만 맞았다 — 카드·값은 요청마다 db 를 읽지만
+       커버리지 매트릭스는 db/_index.json **스냅샷**이다(조성 페이지는 이미 밝히고 있다). #}
+    <div class="sub">황화물 SE 전고체전지 · 조성 × 물성 지식 매트릭스
+      <span class="muted"> · 카드·값은 요청마다 <code>db/</code> 에서 읽고,
+        커버리지 매트릭스만 <code>db/_index.json</code>
+        스냅샷({{ b.built[:10] if b.built else '날짜 미상' }})이다</span></div>
   </div>
   <div class="page-actions">
     <a class="btn" href="/methods">▤ Canonical Methods</a>
-    <a class="btn primary" href="/compare">⇄ 비교</a>
+    <a class="btn" href="/compare">⇄ 비교</a>
+    <a class="btn primary" href="/explorer">▦ 정본 값</a>
   </div>
 </div>
 
-<div class="section-title" style="margin-top:0">핵심 발견 <span class="muted">— Key Findings</span></div>
+{% if recent and recent["items"] %}
+{# 이번 주 바뀐 것 — highlights 최신 3장에서 자동 생성(제목 + 날짜 + 그 카드 앵커).
+   week_n 은 실제로 7일 안에 들어온 카드 수다. 0 이면 0 이라고 말한다. #}
+<div class="section-title" style="margin-top:0">이번 주 바뀐 것
+  <span class="muted">— 최근 {{ recent["days"] }}일 안 {{ recent["week_n"] }}건 ·
+    아래는 최신 {{ recent["items"]|length }}장 (기준 {{ recent["asof"] }} · 카드 날짜 기준)</span></div>
 <div class="grid grid-3">
-{% for h in highlights %}
-{# 회신 BG ② — 철회값·보류주장을 인용하는 카드는 **어느 주장인지 이름을 댄다** (근접 표지 대신 구조 결속) #}
-<div class="card find-card"{% if h.claims %} data-claim="{{ h.claims|join(' ') }}"{% endif %}>
+{% for r in recent["items"] %}
+<a class="card find-card" href="#{{ r.aid }}" style="text-decoration:none;display:block">
+  <div class="fc-t">{{ r.t|mdlite }}</div>
+  <div class="fc-n">{{ r.d }} · {{ r.age_days }}일 전 · {{ r.axis_label }} 축 → 카드로</div>
+</a>
+{% endfor %}
+</div>
+{% endif %}
+
+{# ── 카드 한 장. 축 묶음의 대표에도 이력에도 같은 걸 쓴다 ──
+   ⚠ `data-claim` 은 반드시 카드 요소에 남는다(회신 BG ②) — 접어도 claim 스캐너는
+     details 안 텍스트를 그대로 읽으므로(canonical.py SKIP 은 script/style 뿐) 안전하다. #}
+{% macro find_card(h) %}
+<div class="card find-card" id="{{ h.aid }}"{% if h.claims %} data-claim="{{ h.claims|join(' ') }}"{% endif %}>
   {# ⚠ 카드 본문은 db/JSON·data.py 에서 오는 **마크다운 섞인 평문**이다. 그냥 찍으면
      별표가 그대로 보인다(2026-08-07 1저자 신고). mdlite = escape 후 **굵게**·`코드`만 승격. #}
   {# 날짜 배지 (2026-08-20) — 카드가 **최신순**으로 정렬되므로 언제 것인지 보여야
@@ -33,11 +53,31 @@
   <div class="fc-v">{{ h.v|mdlite }}</div>
   <div class="fc-n">{{ h.n|mdlite }}</div>
 </div>
+{% endmacro %}
+
+<div class="section-title">핵심 발견 <span class="muted">— Key Findings ·
+  카드 {{ highlights|length }}장을 축 {{ groups|length }}개로 묶었다 ·
+  축마다 <b>최신 1장만</b> 펼침</span></div>
+{{ mark_legend(NAVMOD) }}
+{# ⛔ 삭제가 아니라 접기다 — 카드 본문에 금지 서술·철회 이력이 들어 있다.
+   축 안 정렬은 최신순 그대로(1저자 요청 2026-08-20), 축 사이도 그 축 최신 카드 날짜순. #}
+{% for g in groups %}
+<div class="section-title" style="font-size:.82rem;margin-top:16px">{{ g.icon }} {{ g.label }}
+  <span class="muted">— {{ g.n }}장</span></div>
+<div class="grid grid-3">{{ find_card(g.latest) }}</div>
+{% if g.rest %}
+<details class="v3-fold">
+  <summary>이 축의 이력 {{ g.rest|length }}건 — {{ g.rest[-1].d or '날짜 없음' }} ~ {{ g.rest[0].d or '' }}</summary>
+  <div class="grid grid-3">{% for h in g.rest %}{{ find_card(h) }}{% endfor %}</div>
+</details>
+{% endif %}
 {% endfor %}
-</div>
 
 {% if oi and oi.total %}
-<div class="section-title">📋 미결 리스트 <span class="muted">— 판정·트리거 대기 {{ oi.total }}건 · <a href="/todo">전체 보기</a></span></div>
+{# ⚠ 2026-09-09 — 종전엔 `## ` 절 단위 완료만 걸러서 이미 닫힌 `### ` 항목까지 대기로 셌다
+   (47 로 광고, 실제 대기는 그보다 8 적었다). 닫힌 항목은 **버리지 않고** 아래 접기로. #}
+<div class="section-title">📋 미결 리스트 <span class="muted">— 판정·트리거 대기 {{ oi.total }}건{% if oi.closed %} ·
+  이미 닫힌 항목 {{ oi.closed }}건은 대기에서 뺐다{% endif %} · <a href="/todo">전체 보기</a></span></div>
 <div class="grid grid-3">
 {% for s in oi.sections %}
 <div class="card find-card">
@@ -46,6 +86,17 @@
 </div>
 {% endfor %}
 </div>
+{% if oi.closed_items %}
+<details class="v3-fold">
+  <summary>닫힘 {{ oi.closed }}건 — 원장이 제목에 <code>~~취소선~~</code>·✅ 로 닫았다고 적은 항목</summary>
+  <div class="card">
+    {% for it in oi.closed_items %}<div class="fc-n" style="margin-top:4px">· {{ it|mdlite }}</div>{% endfor %}
+    <div class="muted" style="font-size:.72rem;margin-top:8px">
+      화면은 <b>제목의 표식만</b> 읽는다 — 본문에만 "완료" 라고 적힌 항목은 여전히 대기로 센다.
+      원장 원문: <code>kb/open_items.md</code></div>
+  </div>
+</details>
+{% endif %}
 {% endif %}
 
 {% if sei and sei.unreadable %}
@@ -88,7 +139,15 @@
     <tbody>
     {% for r in sei.rows %}
       <tr>
-        <td><b>{{ r.name }}</b> <span class="muted mono" style="font-size:.7rem">{{ r.mp }}</span></td>
+        {# ⚠ 2026-09-09 — Nd 3종은 **frozen-4f** 실행본이다. 행 이름에 그걸 병기하지 않으면
+           같은 상의 철회본(4f-in-valence, 아래 '제외' 줄)과 눈으로 안 갈린다.
+           그리고 `mp` 는 tag 에서 잘라 만든 값이라 꼬리가 붙으면 **없는 MP id**
+           (`mp-2763_frozen4f`)가 찍힌다 — 화면에서는 앞 토막만 쓴다. #}
+        {% set frozen = 'frozen4f' in (r.tag or '') %}
+        <td><b>{{ r.name }}</b>{% if frozen %} <span class="badge"
+              style="color:#0369a1;background:#e0f2fe;font-size:.62rem"
+              title="4f 를 core 에 둔 PP 로 계산한 값 — 4f-in-valence 시도 3건은 철회됐다">frozen-4f</span>{% endif %}
+          <span class="muted mono" style="font-size:.7rem">{{ r.mp.split('_')[0] }}</span></td>
         <td class="num"{% if r.gap and r.gap < 2 %} style="color:#b91c1c;font-weight:700"{% endif %}>{{ '%.3f'|format(r.gap) }}</td>
         {# 🔴 2026-09-04 — NEB Ea. 전건 셀 수렴 미시험이라 값 옆에 상태를 **항상** 붙인다.
            숫자만 보여주면 인용 가능한 값으로 읽힌다 (sei_neb.json 은 citable=false 다). #}
@@ -113,9 +172,15 @@
   <div class="muted" style="font-size:.76rem;margin-top:10px;line-height:1.6">
     ⛔ <b>제외 {{ sei.rejected|length }}종</b>:
     {% for r in sei.rejected %}{{ r.name }}{{ ' · ' if not loop.last }}{% endfor %}
-    — 4f 를 원자가에 두는 PBE/PBE+U 로는 갭이 정의되지 않는다(두 번 시도, 서로 다른 방식으로 실패).
-    <b>MP frozen-4f 값을 인용할 것.</b>
-    <span class="mono" style="font-size:.92em">kb/projects/sei_products_2026_08_06.md §최종 판정</span>
+    — 4f 를 <b>원자가에</b> 두는 PBE/PBE+U 로는 갭이 정의되지 않는다(두 번 시도, 서로 다른 방식으로 실패).
+    {# 🔴 2026-09-09 — 종전 문구 "MP frozen-4f 값을 인용할 것" 은 27일 낡은 지시였다.
+       2026-08-12 에 우리 frozen-4f 로 직접 재서 마감했고 MP 우회는 폐기됐다
+       (kb/open_items.md §O). 숫자는 여기 적지 않고 위 표에서 온다 — 또 낡지 않게. #}
+    → <b>우리 frozen-4f 값을 쓴다</b> (위 표의 <span class="badge"
+        style="color:#0369a1;background:#e0f2fe;font-size:.62rem">frozen-4f</span> 행).
+    <b>MP 인용 우회는 2026-08-12 에 폐기</b>했고, 여기 제외된 4f-in-valence 3건은 철회(retracted)다.
+    <span class="mono" style="font-size:.92em">kb/projects/sei_products_2026_08_06.md §최종 판정 ·
+      kb/open_items.md §O</span>
   </div>
   {% endif %}
   {% if sei.neb_extra %}
@@ -143,13 +208,22 @@
 </div>
 {% endif %}
 
+{# ⚠ 2026-09-09 — 네 칸이 전부 클릭이 안 됐고 "188 post-processing 파일" 은 처음 온 사람에게
+   아무 뜻이 없었다. **갈 데가 있는 숫자**로 바꾼다. 숫자는 온보딩 패널과 같은 출처
+   (nav.onboard_stats → canonical_registry · citation_hazards)를 쓴다 — 두 군데서 따로 세면
+   또 갈린다. 커버리지 %는 매트릭스의 요약이라 매트릭스 제목줄로 옮겼다. #}
 <div class="stat-grid" style="margin-top:20px">
-  <div class="stat"><div class="num">{{ COMPS|length }}</div><div class="lbl">조성 / 프로젝트</div></div>
-  <div class="stat"><div class="num">{{ b.properties|length }}</div><div class="lbl">post-processing 파일</div></div>
-  <div class="stat"><div class="num">{{ b.literature_count }}</div><div class="lbl">litdb 문헌</div></div>
-  <div class="stat" title="해당 없음(N/A) 칸은 분모에서 제외 — 성립하지 않거나 규율상 금지된 조합">
-    <div class="num accent">{{ covstat.pct }}%</div>
-    <div class="lbl">커버리지 · {{ covstat.done }}/{{ covstat.total }} (해당되는 물성 기준{% if covstat.na %} · N/A {{ covstat.na }}칸 제외{% endif %})</div></div>
+  {% for c in ONBOARD.cards %}{% if c.key in ('canonical', 'hazard') %}
+  <a class="stat" href="{{ c.url }}" title="출처: {{ c.src }}" style="text-decoration:none">
+    <div class="num{{ ' accent' if c.key == 'canonical' }}">{% if c.n is none %}?{% else %}{{ c.n }}{% endif %}</div>
+    <div class="lbl">{{ c.label }} — {{ c.why }}</div></a>
+  {% endif %}{% endfor %}
+  <a class="stat" href="/todo" style="text-decoration:none">
+    <div class="num">{{ oi.total if oi else '?' }}</div>
+    <div class="lbl">미결 — 판정·트리거 대기{% if oi and oi.closed %} (닫힘 {{ oi.closed }}건 제외){% endif %}</div></a>
+  <a class="stat" href="/literature" style="text-decoration:none">
+    <div class="num">{{ b.literature_count }}</div>
+    <div class="lbl">litdb 문헌 — digest 본체 (동반 발표대본 제외)</div></a>
 </div>
 
 <div class="section-title">Pipeline</div>
@@ -161,8 +235,16 @@
   <div class="flow-box"><div class="fb-t">PROPERTIES</div><div class="fb-b">canonical db → 이 사이트 (자동 동기화)</div></div>
 </div>
 
-<div class="section-title">Coverage Matrix <span class="muted">— ✓ 데이터 있음 · · = TODO(미계산) · — = N/A(성립 안 함/규율상 금지)</span></div>
+<div class="section-title">Coverage Matrix <span class="muted">— ✓ 데이터 있음 · · = TODO(미계산) · — = N/A(성립 안 함/규율상 금지) ·
+  커버리지 {{ covstat.pct }}% ({{ covstat.done }}/{{ covstat.total }}{% if covstat.na %} · N/A {{ covstat.na }}칸 분모 제외{% endif %})</span></div>
 <div class="card" style="overflow-x:auto;padding:14px 16px">
+{# ⚠ 이 표의 출처는 `db/_index.json` **스냅샷**이다 — 조성 페이지는 이미 이 사실을 밝히고
+   있는데 대시보드만 안 밝히고 "실시간 동기화" 라고 썼다 (2026-09-09 정정). #}
+<div class="muted" style="font-size:.74rem;margin-bottom:8px">
+  ⚠ 출처 = <code>db/_index.json</code> 스냅샷 ({{ b.built[:10] if b.built else '생성일 미상' }} 생성) —
+  그 뒤 들어온 파일은 이 표에 없다. ·
+  도핑 스크리닝은 조성별 물성이 아니라 별도 축이라 <b>열에서 뺐다</b> →
+  <a href="/cascade">/cascade</a> (승인된 current ranking 0종)</div>
 <table class="matrix">
 <thead><tr><th style="text-align:left">Composition</th>
 {% for c in CATS %}<th>{{ c.icon }}<br>{{ c.label }}</th>{% endfor %}</tr></thead>
@@ -213,4 +295,24 @@
 </div>
 {% endif %}
 {% endfor %}
+
+<script>
+// ── 접힌 축 이력 안으로 들어오는 앵커 (v3 묶음 B) ─────────────────────────
+//   "이번 주 바뀐 것" 이 가리키는 카드가 그 축의 최신이 아니면 `<details>` 안에 있다.
+//   브라우저는 접힌 details 안 요소로는 안 데려다준다 — 링크가 조용히 아무 일도
+//   안 하는 게 제일 나쁘다. 조상 details 를 열고 그 자리로 보낸다.
+//   ⛔ 못 하는 것: 뒤로 가기로 원래 접힘 상태를 되돌리지 않는다 (열린 채 남는다).
+function v3OpenHash() {
+  var id = decodeURIComponent((location.hash || "").slice(1));
+  if (!id) return;
+  var el = document.getElementById(id);
+  if (!el) return;
+  for (var p = el.parentElement; p; p = p.parentElement) {
+    if (p.tagName === "DETAILS") p.open = true;
+  }
+  el.scrollIntoView({ block: "start" });
+}
+addEventListener("hashchange", v3OpenHash);
+addEventListener("DOMContentLoaded", v3OpenHash);
+</script>
 {% endblock %}

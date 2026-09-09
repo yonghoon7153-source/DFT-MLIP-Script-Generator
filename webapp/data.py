@@ -7,7 +7,7 @@ canonical 방법 메타(kb/methodology/computational_methods_canonical.md)와 �
 각 값에 pseudo/k/cell·비교가능성·stale 배지를 붙일 수 있게 한다.
 """
 from __future__ import annotations
-import json, csv, re, os
+import json, csv, re, os, hashlib
 import datetime as _dt
 from urllib.parse import quote as _urlquote
 from pathlib import Path
@@ -356,25 +356,50 @@ def requests_ledger() -> list:
 
 
 def open_items_summary() -> dict:
-    """kb/open_items.md → 대시보드 카드용 요약. mtime 캐시(실시간 동기)."""
+    """kb/open_items.md → 대시보드 카드용 요약. mtime 캐시(실시간 동기).
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 항목이 실제로 닫혔는지 판정하지 않는다. 원장이 **자기 제목에** 닫혔다고
+        적어 둔 표식(`~~취소선~~` · `✅`)만 읽는다. 본문에만 "완료" 라고 적고
+        제목은 그대로인 항목은 여전히 대기로 센다 — 원장을 고치는 게 답이지
+        화면이 추측할 일이 아니다.
+      · 닫힌 항목을 **버리지 않는다.** `closed_items` 로 따로 담아 화면이 접어
+        보여줄 수 있게 한다 (v3 전역 규칙: 접기는 되고 삭제는 안 된다).
+    """
     return _open_items_c(_mtime_ns(OPEN_ITEMS_MD))
+
+
+def _oi_is_closed(title: str) -> bool:
+    """`## ` 절 단위로만 거르던 종전 규칙은 `### ` 항목 완료를 못 봐서 대기 수를
+    8건 부풀렸다 (2026-09-08 실측: 47 → 39).
+    """
+    """항목 제목이 닫힘을 선언하는가. `~~취소선~~` 으로 시작하거나 `✅` 를 담으면 닫힘."""
+    t = (title or "").lstrip("*_ ")
+    return t.startswith("~~") or ("✅" in t)
 
 
 @lru_cache(maxsize=4)
 def _open_items_c(_mt) -> dict:
     txt = load_open_items_md()
-    secs, cur = [], None
+    secs, cur, closed = [], None, []
     for line in txt.splitlines():
         if line.startswith("## "):
             title = line[3:].strip()
             cur = None
-            if not title.startswith("✅"):          # 닫힌 항목은 카드에서 제외
-                cur = {"title": title, "items": []}
+            if not title.startswith("✅"):          # 닫힌 **절**은 카드에서 제외
+                cur = {"title": title, "items": [], "closed": []}
                 secs.append(cur)
         elif line.startswith("### ") and cur is not None:
-            cur["items"].append(line[4:].strip())
-    secs = [s for s in secs if s["items"]]
-    return {"sections": secs, "total": sum(len(s["items"]) for s in secs)}
+            it = line[4:].strip()
+            if _oi_is_closed(it):                   # 닫힌 **항목**은 대기에서 뺀다
+                cur["closed"].append(it)
+                closed.append(it)
+            else:
+                cur["items"].append(it)
+    secs = [s for s in secs if s["items"] or s["closed"]]
+    return {"sections": [s for s in secs if s["items"]],
+            "closed_items": closed, "closed": len(closed),
+            "total": sum(len(s["items"]) for s in secs)}
 
 # ─────────────────────────────────────────────────────────────
 # 조성 노드 정의 (표시 메타)
@@ -779,12 +804,48 @@ _METRIC_LABEL = {
 }
 
 
+#: 원시 키 → 사람 말. **손 목록을 11줄 늘리는 대신 규칙으로 판다** (v3 묶음 C).
+#:   `SDCP_Eads_eV__ptfe_c10_Nitop` → ("E_ads · ptfe c10 Nitop", "eV", "Eads·ptfe c10 Nitop")
+#: ⛔ 이 규칙이 못 하는 것: 조각 이름이 무슨 뜻인지 모른다 — 원장 키를 읽기 좋게
+#:   끊어 줄 뿐이다. 뜻은 조성 페이지·마감 카드에 있다.
+_METRIC_HEAD = {"SDCP_Eads_eV": "E_ads", "SDCP_dE_site_meV": "자리 ΔE",
+                "MD_sigma_ratio": "σ 비"}
+
+
+def _derive_metric_label(m: str, unit: str) -> tuple:
+    """레지스트리 키에서 (label, unit, short) 를 판다. 규칙 밖이면 키를 그대로 돌려준다."""
+    mt = re.match(r"^MD_sigma_ratio_(\d+)K$", m)
+    if mt:
+        return (f"σ 비 ({mt.group(1)} K)", unit, f"σ비{mt.group(1)}K")
+    head, sep, frag = m.partition("__")
+    base = _METRIC_HEAD.get(head)
+    if base is None or not sep:
+        return (m, unit, m)
+    pretty = frag.replace("_", " ").strip()
+    return (f"{base} · {pretty}", unit, f"{base}·{pretty}")
+
+
 def metric_meta() -> dict:
-    """레지스트리에 있는 **모든** metric 의 (label, unit, short). 없으면 metric 이름 그대로."""
+    """레지스트리에 있는 **모든** metric 의 (label, unit, short).
+
+    ⚠ 단위는 **원장이 들고 있는 것**을 쓴다. 종전에는 손목록(`_METRIC_LABEL`)에 없는
+      metric 의 단위가 빈칸이었고, `/explorer` 헤더 11칸이 라벨도 단위도 없는 원시
+      키였다 — 원장 항목마다 `unit` 이 이미 있는데 화면이 안 읽은 것뿐이다.
+    ⛔ 못 하는 것: 같은 metric 이 계마다 다른 단위를 쓰면 **첫 항목의 단위**를 쓴다
+      (실측 0건이라 경보만 두지 않고 그냥 첫 값으로 간다).
+    """
+    units = {}
+    for e in _C.registry()["entries"]:
+        m = e.get("metric")
+        if m and e.get("unit") and m not in units:
+            units[m] = str(e["unit"])
     out = {}
     for m in sorted({e.get("metric") for e in _C.registry()["entries"] if e.get("metric")}):
-        lab, unit, short = _METRIC_LABEL.get(m, (m, "", m))
-        out[m] = {"label": lab, "unit": unit, "short": short}
+        if m in _METRIC_LABEL:
+            lab, unit, short = _METRIC_LABEL[m]
+        else:
+            lab, unit, short = _derive_metric_label(m, units.get(m, ""))
+        out[m] = {"label": lab, "unit": unit or units.get(m, ""), "short": short}
     return out
 
 
@@ -2333,6 +2394,16 @@ def elf_curves_for(cid: str):
             "bonds": bonds}
 
 
+def _is_digest_stem(stem: str) -> bool:
+    """litdb/papers 의 파일 stem 이 **digest 본체**인가 (대시보드 문헌 수 정의).
+
+    · `_` 로 시작 = 템플릿·부속 문서
+    · `__seminar` = digest 의 **동반 발표대본** (2026-08-28 규약) — 본체에서 링크된다
+    ⛔ 못 하는 것: 파일 안을 안 본다. 이름만 본다 (list_papers 와 같은 규칙).
+    """
+    return not stem.startswith("_") and "__seminar" not in stem
+
+
 def build_matrix() -> dict:
     """사이트 전역 데이터 번들."""
     idx = load_index()
@@ -2351,9 +2422,12 @@ def build_matrix() -> dict:
         "canonical_meta": CANONICAL_META,
         "built": idx.get("built"),
         # ⚠ list_papers() 와 같은 정의를 써야 대시보드 카운트와 /literature 목록이 안 어긋난다
-        #   (예전엔 _TEMPLATE.md 를 세서 106 vs 105 로 갈렸음).
+        #   (예전엔 _TEMPLATE.md 를 세서 106 vs 105 로 갈렸고, 2026-09-08 에는
+        #    `__seminar` 동반 대본을 세서 218 vs 215 로 또 갈렸다).
+        #   두 곳이 손으로 맞춘 목록이라 **또 갈라진다** — 시험이 그걸 잡는다
+        #   (test_v3_dashboard.py::test_literature_count_matches_literature_page).
         "literature_count": (sum(1 for f in (LITDB / "papers").glob("*.md")
-                                 if not f.stem.startswith("_"))
+                                 if _is_digest_stem(f.stem))
                              if (LITDB / "papers").exists() else idx.get("literature_count", 0)),
     }
 
@@ -4151,8 +4225,11 @@ def dashboard_highlights() -> list:
     # SEI 분해상 갭 (2026-08-07 gabia) — 협업 요청 3종 중 "band gap" 축.
     # ⚠ 값은 **fixed-occ nscf 고유값**(CLAUDE.md 규율: DOS 문턱 판독 금지). PBE 라 절대값은
     #   넓은갭 절연체에서 30–50% 과소 — 실험값과 나란히 놓지 말고 **순위**로만 쓴다.
-    # ⚠ Nd 계 3종은 4f 를 원자가에 넣은 PBE 라 갭이 −0.02 eV 로 닫힌다. 이건 물리가 아니라
-    #   방법의 한계다(진단용). Nd 상의 갭은 MP 의 frozen-4f 값을 인용한다.
+    # ⚠ Nd 계 3종을 **4f-in-valence** 로 돌린 3건은 갭이 −0.02 eV 로 닫힌다. 이건 물리가
+    #   아니라 방법의 한계다(진단용) → status=retracted.
+    # ★ 2026-08-12 — 그 우회로("MP frozen-4f 를 인용한다")는 **폐기됐다.** frozen-4f PP 로
+    #   우리가 직접 쟀고 kb/open_items.md §O 가 그걸로 마감했다. 숫자는 여기 적지 않고
+    #   갭 원장에서 읽는다(_nd_frozen4f_txt) — 손으로 적으면 또 27일 낡는다.
     hi.append({"d": "2026-08-11", "t": "SEI 분해상 밴드갭 — **전자 절연의 약한 고리는 Li₃P**",
                "v": "LiCl 6.26 ▸ Li₃PO₄ 5.91/5.82 ▸ Li₂O 4.99 ▸ Li₂S 3.44 ▸ **Li₃P 0.71 eV**",
                "n": "협업 요청(Li₂O·Li₃PO₄·LiNdO₂·LiCl·Li₂S·Li₃P) 중 갭 축을 gabia 에서 완주했다 "
@@ -4166,8 +4243,10 @@ def dashboard_highlights() -> list:
                     "— 두 번 시도해 둘 다 실패했다(2026-08-07). 스핀 없이는 4f³ 가 분수 점유가 되어 "
                     "갭이 닫히고(−0.02 eV), 스핀+U 로는 5원자 셀만 수렴했는데 그마저 VBM>CBM "
                     "(−6.460 eV, 물리적으로 불가능)이고 16·20원자는 전자 SCF 가 200 iteration 안에 "
-                    "수렴하지 않았다. 표준 해법인 frozen-4f 를 우리 pseudo 가 안 쓴다. "
-                    "→ **Nd 상 갭은 MP frozen-4f 인용.** 우리 숫자는 인용 금지. "
+                    "수렴하지 않았다 — 그 3건은 **철회(retracted)** 다. "
+                    "→ ★ 2026-08-12 에 **frozen-4f PP 로 우리가 직접 쟀고**, MP 인용 우회는 "
+                    "**폐기했다**: " + (_nd_frozen4f_txt() or "(갭 원장을 못 읽어 값을 못 붙인다)")
+                    + ". 표에서는 행 이름 뒤 `(frozen-4f)` 로 철회본과 갈린다. "
                     "⚠ PBE 갭은 절대값 과소 → **순위로만** 쓴다. "
                     "형성전위(대분배 phase diagram)는 별도 축으로 완료, Li⁺ 확산장벽은 BVSE 가 "
                     "화학계를 넘나드는 비교에 못 쓰인다는 게 확인돼 **NEB 3종**(Li₂S·Li₃P·Li₃PO₄)으로 간다. "
@@ -4719,7 +4798,147 @@ def dashboard_highlights() -> list:
     #   맨 뒤로 보내되 서로의 상대 순서는 유지한다(안정 정렬) — 임의로 섞이면
     #   "왜 이 순서지" 를 매번 다시 물어야 한다.
     hi.sort(key=lambda c: c.get("d") or "", reverse=True)
+    # 축 태그·앵커는 **파생**이다 — 카드마다 손으로 달면 새 카드가 조용히 빠진다.
+    for c in hi:
+        c.setdefault("axis", highlight_axis(c))
+        c["aid"] = highlight_anchor(c)
     return hi
+
+
+# ─────────────────────────────────────────────────────────────
+# 대시보드 카드 — 축 묶기 · 최근 변화 (v3 묶음 B, 2026-09-09)
+# ─────────────────────────────────────────────────────────────
+#: 카드가 어느 **논쟁**에 속하는가. 날짜 하나로만 정렬하면 같은 논쟁이 화면 여기저기
+#: 흩어져(NEB 12장 · β 9장 · 유한크기 10장) "어느 게 지금 판정인지" 를 화면이 말하지
+#: 않는다. 축마다 최신 1장만 펼치고 나머지는 접어 이력으로 보인다.
+#: ⚠ **순서가 곧 우선순위다** — 위에서 처음 걸리는 축이 그 카드의 축이다.
+#:   (예: "LPSOCl 3×3×1 닫힘 조건" 은 3×3×1 이 들어 있어도 closure 다.)
+#: ⚠ **제목을 먼저** 본다. 본문은 남의 축을 인용하느라 낱말이 섞여 있어서
+#:   ("b2o3 아레니우스가 굽는다" 본문에 '마감' 이 나온다) 본문부터 보면 오분류한다.
+#: ⛔ 이 사전이 **못 하는 것**: 카드가 그 축에 옳게 속하는지 판정하지 못한다.
+#:   낱말로 고를 뿐이다. 틀리면 카드 dict 에 `"axis": "<축>"` 을 직접 박으면
+#:   그게 이긴다(setdefault).
+HIGHLIGHT_AXES = [
+    ("closure", "마감 · 계약", "🔒",
+     r"마감|닫힘\s*조건|보고량|사전등록|재개\s*조건|봉인|estimand|prereg"),
+    ("screening", "스크리닝 · 순위", "🎯",
+     r"스크리닝|챔피언|Pareto|cascade|캐스케이드|랭킹|ranking|3,615|후보를 몇 개|10만 종"),
+    ("method", "방법 · 정확도", "🧰",
+     r"UMA 힘|힘 정확도|softening|훈련셋|판독 하루치|T·Q|벤치"),
+    ("structure", "구조 · 조성 준비", "🧱",
+     r"어닐|anneal|Rietveld|disorder ensemble|앙상블|모티프"),
+    ("gap", "밴드갭 · 전자구조", "🔌",
+     r"밴드갭|[Bb]and gap|갭|절연|VBM|CBM|ICOHP|ICOBI"),
+    ("finite-size", "유한크기 · 셀", "📦",
+     r"유한크기|상자\s*크기|셀\s*크기|슈퍼셀|작은 셀|2×2×2|셀이 장벽"),
+    ("neb", "NEB · 장벽", "⛰",
+     r"NEB|장벽|barrier|Broyden|안장점|--restart|변위장|공공 농도"),
+    ("beta", "β · 확산 진단", "📈",
+     r"β|Fickian|van Hove|MSD|고원|확산 지수|D 를 1\.65|Ea|궤적"),
+]
+_AXIS_RE = [(k, lbl, ico, re.compile(pat)) for k, lbl, ico, pat in HIGHLIGHT_AXES]
+#: 어느 축에도 안 걸린 카드. **버리지 않고** 자기 묶음으로 모은다.
+AXIS_OTHER = ("other", "그 밖", "•")
+
+
+def _nd_frozen4f_txt() -> str:
+    """Nd 계 frozen-4f 갭을 **갭 원장에서** 한 줄로 (2026-08-12 마감값).
+
+    화면 두 곳(index.html 제외 캡션 · SEI 갭 카드)이 "MP frozen-4f 를 인용하라" 로
+    27일 낡아 있었다. 숫자를 코드에 박으면 같은 일이 또 난다 — 원장에서 읽는다.
+    ⛔ 못 하는 것: 값이 맞는지 안 본다. 원장이 없거나 못 읽으면 **빈 문자열**을
+      돌려준다 (0 이나 가짜 숫자를 만들지 않는다).
+    """
+    try:
+        rows = sei_summary().get("rows") or []
+    except Exception:                                    # noqa: BLE001
+        return ""
+    got = [(r["name"], r["gap"]) for r in rows
+           if "frozen4f" in str(r.get("tag", "")) and r.get("gap") is not None]
+    return " · ".join(f"{n} {g:.3f} eV" for n, g in got)
+
+
+def highlight_axis(card: dict) -> str:
+    """카드 → 축 키. 제목 → 값 → 본문 순으로 보고, 못 고르면 'other'.
+
+    ⛔ 못 하는 것: 한 카드가 두 축에 걸치는 걸 표현하지 못한다 — 하나만 고른다.
+      (실제로 "NEB 셀 크기" 는 neb 이면서 finite-size 다. 위 표 순서가 그 결정이다.)
+    """
+    for field in ("t", "v", "n"):
+        txt = str(card.get(field) or "")
+        if not txt:
+            continue
+        for key, _lbl, _ico, rx in _AXIS_RE:
+            if rx.search(txt):
+                return key
+    return AXIS_OTHER[0]
+
+
+def highlight_anchor(card: dict) -> str:
+    """카드 앵커 id. `key` 가 있으면 그걸 쓰고, 없으면 제목의 안정 해시.
+
+    ⛔ 못 하는 것: 제목이 바뀌면 앵커도 바뀐다 (그래서 시험이 집는 3장은 `key` 를 쓴다).
+    """
+    k = card.get("key")
+    if k:
+        return f"hl-{k}"
+    h = hashlib.sha1(str(card.get("t") or "").encode("utf-8")).hexdigest()[:8]
+    return f"hl-{h}"
+
+
+def highlight_groups(cards=None) -> list:
+    """카드를 축으로 묶는다 → [{axis,label,icon,n,latest,rest}] (묶음도 최신순).
+
+    묶음 **안** 정렬은 최신순 그대로다 (1저자 요청 2026-08-20). 묶음 **사이** 순서도
+    그 축의 최신 카드 날짜순이라, 새로 안 것이 위에 있다는 규칙이 안 깨진다.
+    ⛔ 못 하는 것: 카드를 빼지 않는다. `latest` + `rest` 를 합치면 입력과 같은 수다.
+    """
+    cards = dashboard_highlights() if cards is None else cards
+    meta = {k: (lbl, ico) for k, lbl, ico, _ in HIGHLIGHT_AXES}
+    meta[AXIS_OTHER[0]] = (AXIS_OTHER[1], AXIS_OTHER[2])
+    buckets: dict = {}
+    for c in cards:
+        buckets.setdefault(c.get("axis") or AXIS_OTHER[0], []).append(c)
+    out = []
+    for key, items in buckets.items():
+        lbl, ico = meta.get(key, (key, "•"))
+        out.append({"axis": key, "label": lbl, "icon": ico, "n": len(items),
+                    "latest": items[0], "rest": items[1:]})
+    # 묶음 사이도 최신순. 날짜 없는 축은 뒤로.
+    out.sort(key=lambda g: g["latest"].get("d") or "", reverse=True)
+    return out
+
+
+def recent_changes(cards=None, n: int = 3, days: int = 7) -> dict:
+    """'이번 주 바뀐 것' — 손으로 쓰는 판 번호(v2 배지)를 대신한다.
+
+    손으로 쓴 요약은 반드시 낡는다. 여기서는 카드 최신 n 장을 그대로 쓰고,
+    **며칠 된 것인지도 같이** 내보내 화면이 낡음을 감추지 못하게 한다.
+
+    ⛔ 못 하는 것
+      · '바뀐 것' 을 git 에서 읽지 않는다. 카드 날짜(`d`)가 근거다 — 날짜가 없는
+        카드는 후보에서 빠진다(0 으로 세지 않고 아예 안 센다).
+      · `week_n` 이 0 이면 이번 주에 아무것도 안 들어온 것이다. 그때도 최신 n 장을
+        보이되 화면이 '이번 주 0건' 이라고 말해야 한다.
+    """
+    cards = dashboard_highlights() if cards is None else cards
+    today = _dt.date.today()
+    dated = [c for c in cards if c.get("d")]
+    out, week_n = [], 0
+    for c in dated:
+        try:
+            age = (today - _dt.date.fromisoformat(str(c["d"])[:10])).days
+        except ValueError:
+            continue
+        if age <= days:
+            week_n += 1
+        if len(out) < n:
+            lbl = next((x[1] for x in HIGHLIGHT_AXES if x[0] == c.get("axis")),
+                       AXIS_OTHER[1])
+            out.append({"t": c.get("t"), "d": c.get("d"), "aid": c.get("aid"),
+                        "axis": c.get("axis"), "axis_label": lbl, "age_days": age})
+    return {"items": out, "week_n": week_n, "days": days,
+            "asof": today.isoformat(), "n_dated": len(dated)}
 
 
 def _bold_heads(items) -> str:

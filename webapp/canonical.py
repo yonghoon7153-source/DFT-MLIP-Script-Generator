@@ -285,10 +285,19 @@ def gate_outcome(e: dict, root=None):
     우선순위:
       ① required_assessment_refs → sidecar 의 state=active 레코드 (권위)
       ② gate_detail.lineage.gate_outcome (레거시 경로 — 아직 이관 안 된 항목)
-      ③ 둘 다 없으면 fail (보수적)
+      ③ gate_detail.verdict (항목이 **자기 말로** 적어 둔 판정)
+      ④ 아무 데도 없으면 fail (보수적)
 
     ⛔ 2026-08-20 (codex 동결감사) — 판정을 canonical claim 안에 두면 consumer 마다
       '현재 판정' 을 다르게 고를 수 있다. ①이 있으면 ②는 **보지 않는다**.
+
+    ⛔⛔ 2026-09-09 (v3 P0-17) — ③이 없었다. σ 비 3항목은 `gate_detail.verdict` 에
+      `not_assessed` 라고 **이미 적혀 있었는데** 기계가 읽는 자리가 lineage 하나뿐이라
+      화면이 '게이트 미통과'(fail)로 그렸다. D-2026-08-20-no-retro-gate-without-artifact
+      ("미평가는 pending 이 아니다")와 정면으로 어긋난다. 판정 자체는 안 바꾼다 —
+      not_assessed 는 여전히 정본을 막는다(`gate_blocks_canonical`). **문구만** 달라진다:
+      "평가해 봤더니 떨어졌다" 와 "평가한 적이 없다" 는 다른 말이다.
+      ⚠ 그렇다고 ③이 fail-open 은 아니다 — verdict 가 어휘 밖이면 그대로 ④(fail)로 간다.
     ⛔ 못 하는 것: 게이트를 평가하지 않는다. 기록된 판정을 읽을 뿐이다.
     """
     if not e.get("blocking_gate"):
@@ -306,10 +315,13 @@ def gate_outcome(e: dict, root=None):
                                f"{len(active)}개다 (1개여야 한다): {refs}")
         out = active[0].get("result")
         return out if out in GATE_OUTCOMES else "fail"
-    lin = (e.get("gate_detail") or {}).get("lineage") or {}
+    gd = e.get("gate_detail") or {}
+    lin = gd.get("lineage") or {}
     out = lin.get("gate_outcome") or (lin.get("current_assessment") or {}).get("result")
     if out in GATE_OUTCOMES:
         return out
+    if gd.get("verdict") in GATE_OUTCOMES:      # ③ 항목이 자기 말로 적어 둔 판정
+        return gd["verdict"]
     return "fail"       # 게이트는 걸렸는데 판정 기록이 없다 → 보수적으로 실패
 
 
@@ -432,6 +444,48 @@ def bound_claims(reg=None, root=None) -> list:
                     "unit": e.get("unit"), "system_tokens": system_tokens(e.get("system")),
                     "why": r.get("why", "") or e.get("why_non_citable", ""),
                     "instead": r.get("usable_instead", "")})
+    return out
+
+
+def noncitable_metrics(reg=None, root=None) -> dict:
+    """**축 전체가 비인용**인 metric → `{"why", "systems", "group", "allowed"}`.
+
+    왜 필요한가 (v3 묶음 C · 2026-09-09) — `/explorer` 가 σ 비 3열을 14행 전부
+    `TODO` 로 그렸다. 값이 없는 게 아니라 **원자료가 인용을 금지**한 축인데,
+    "아직 안 했다"(TODO)와 "했는데 못 쓴다"(비인용)를 같은 기호로 쓰면 화면이
+    거짓말을 한다. 그래서 이런 축은 본 표에서 빼고 사유와 함께 따로 보인다.
+
+    판정: 그 metric 의 레지스트리 항목이 **전부** `citable is False` 일 때만 든다.
+      하나라도 인용 가능한 항목이 있으면 축을 통째로 접으면 안 된다 (그 값이 사라진다).
+
+    ⛔ 못 하는 것
+      · 언제 인용 가능해지는지 말하지 않는다. 지금 원장이 금지했다는 사실만 낸다.
+      · 개별 칸의 금지(`bound_claims`)를 대신하지 않는다 — 이건 **열** 단위 판정이다.
+      · `status=retracted` 는 여기 안 든다. 철회는 값이 있었던 것이고, 화면에서
+        취소선·결속으로 보여야 한다(숨기면 이력이 사라진다).
+    """
+    reg = reg if reg is not None else registry(root=root)
+    by: dict = {}
+    for e in reg.get("entries", []):
+        m = e.get("metric")
+        if not m:
+            continue
+        by.setdefault(m, []).append(e)
+    out = {}
+    for m, es in by.items():
+        if not all(e.get("citable") is False for e in es):
+            continue
+        why = next((e.get("why_non_citable") for e in es if e.get("why_non_citable")), "")
+        out[m] = {"why": str(why),
+                  "systems": sorted({str(e.get("system")) for e in es}),
+                  "group": next((e.get("comparison_group") for e in es
+                                 if e.get("comparison_group")), None),
+                  "allowed": next((e.get("allowed_sentence") for e in es
+                                   if e.get("allowed_sentence")), ""),
+                  "gate": next((e.get("blocking_gate") for e in es
+                                if e.get("blocking_gate")), None),
+                  "gate_outcome": next((gate_outcome(e) for e in es
+                                        if e.get("blocking_gate")), None)}
     return out
 
 

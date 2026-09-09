@@ -365,15 +365,33 @@ def _inject():
 
 
 # ── 페이지 ──────────────────────────────────────────────
+#: 홈 커버리지 매트릭스에서 빼는 열 (v3 묶음 B, 2026-09-09). 스크리닝 캠페인은
+#: `/cascade` 가 자기 화면을 갖고 있고, 여기서는 조성 × 물성만 센다.
+HOME_MATRIX_DROP = ("cascade",)
+
+
 @app.route("/")
 def index():
     b = D.build_matrix()
     cov = D.build_coverage(b["properties"], b["prop_category"], b["index_metrics"])
+    # ⚠ v3 묶음 B — 홈 매트릭스에서 **cascade 열을 뺀다.** cascade 는 조성별 물성이 아니라
+    #   47종 스크리닝 캠페인이고, 14칸 중 12칸이 N/A 였다(전체 N/A 18칸 중 12칸이 이 열 하나).
+    #   ⛔ NOT_APPLICABLE 사전 자체는 **안 건드린다** — 다른 조합이 거기 걸려 있고, 그 사전의
+    #     존재 이유가 "금지된 계산을 TODO 로 광고하지 않기" 다.
+    #   여기서 cov 를 걸러 covstat·매트릭스·family 칩이 **같은 열 집합**을 보게 한다
+    #   (열은 뺐는데 %는 안 뺀 상태로 두면 화면 안에서 분모가 갈린다).
+    cats = [c for c in D.CATEGORIES if c["id"] not in HOME_MATRIX_DROP]
+    cov = {cid: {k: v for k, v in row.items() if k not in HOME_MATRIX_DROP}
+           for cid, row in cov.items()}
     # N/A(성립 안 함/규율상 금지) 칸은 TODO 와 구분해서 렌더 — 튜플 키는 Jinja 에서 못 쓰니 평탄화
     na = {f"{c}|{k}": r for (c, k), r in D.NOT_APPLICABLE.items()}
-    return render_template("index.html", active="home", b=b, cov=cov, NA=na,
+    # ⚠ v3 묶음 B — 카드는 **축으로 묶어** 내려보낸다(축마다 최신 1장만 펼침). 같은 목록을
+    #   두 번 세지 않게 highlights 를 한 번만 만들어 groups·recent 둘 다에 먹인다.
+    hl = D.dashboard_highlights()
+    return render_template("index.html", active="home", b=b, cov=cov, NA=na, CATS=cats,
                            oi=D.open_items_summary(),
-                           covstat=D.coverage_stats(cov), highlights=D.dashboard_highlights(),
+                           covstat=D.coverage_stats(cov), highlights=hl,
+                           groups=D.highlight_groups(hl), recent=D.recent_changes(hl),
                            sei=D.sei_summary(), sei_axes=D.sei_axes())
 
 
@@ -430,9 +448,31 @@ def compare():
                          "gate_text": _C.gate_prefix(e),
                          "note": e.get("note")}
             for (k, c), e in D.CANONICAL_ENTRY.items() if k and c}
+    # ⛔⛔ v3 P0 (Codex 회신에 우리가 적어 둔 사각) — 이 표의 셀은 `<script>` 안 JSON 에서
+    #   **브라우저가 조립**한다. 스캐너는 script 를 건너뛰므로 서버 스캔에 안 잡히고,
+    #   만들어진 td 에 `data-claim` 이 없으면 철회값이 이름 없이 화면에 뜬다.
+    #   ⇒ 결속 이름을 **서버에서** 판다 (손 목록 없음 — 레지스트리 (metric, system) 쌍).
+    #   ⚠ 레지스트리에 없는 쌍에는 붙이지 않는다 — 없는 id 를 대면 유령 결속(dangling)이다.
+    bind = {f"{k}|{c}": _C.claim_id(k, c) for (k, c) in D.CANONICAL_ENTRY if k and c}
+    # 인용을 **막아야 하는** 칸 (철회·비인용) — explorer 와 같은 출처(D.claim_map()).
+    blocked = {f"{k}|{c}": {"state": v.get("state"), "why": (v.get("why") or "")[:400],
+                            "instead": _C.instead_text(v.get("instead"))}
+               for (k, c), v in D.claim_map().items()}
+    # MSD 카드가 손으로 쓴 처방·판번호를 들고 있으면 **반드시 낡는다** (실측: '200 ps
+    #   헤드라인' 과 '30런 처방' 이 둘 다 09-04/09-08 결정으로 대체됐는데 화면만 몰랐다).
+    #   ⇒ 지위·날짜·문구를 원장에서 읽는다. 못 읽으면 카드가 "말할 수 없다" 고 말한다.
+    try:
+        _dec = {i: {"state": _C.decision_state(d),
+                    "date": d.get("date") or (d.get("ratification") or {}).get("date"),
+                    "statement": d.get("statement") or ""}
+                for i, d in _C.decisions().items() if "lpsocl-box331" in i}
+        _dec = {i: v for i, v in _dec.items() if v["state"] == "active"}
+    except Exception:                                     # noqa: BLE001
+        _dec = {}
     return render_template("compare.html", bvse=bvse, active="compare", b=b,
                            canonical=D.canonical_table(), canonical_provisional=prov,
                            canonical_meta=meta, metric_meta=D.metric_meta(),
+                           claim_bind=bind, claim_blocked=blocked, decisions=_dec,
                            canonical_prov={f'{k}|{c}': v for (k, c), v in
                                            D.canonical_provenance_flags().items()})
 
@@ -509,8 +549,12 @@ def elements():
 def explorer():
     # 세부 분석 열 — canonical 앵커(5개)와 **구분해서** 넘긴다 (빈칸이 TODO 가 아니다)
     extra = {"ELF_PS": D.elf_central_min(), "BADER_P": D.bader_charge("P")}
+    # 축 전체가 비인용인 metric — **본 표에서 빼고** 사유와 함께 따로 보인다 (v3 C).
+    #   TODO(아직 안 함)와 비인용(했는데 못 씀)을 같은 기호로 쓰면 화면이 거짓말을 한다.
+    import canonical as _C
     # 방법 검증 앵커 — 조성 물성 표와 **다른 그룹**이라 따로 넘긴다 (2026-08-20)
     return render_template("explorer.html", active="explorer", anchors=D.method_anchors(),
+                           noncite=_C.noncitable_metrics(),
                            canonical=D.canonical_table(), canonical_meta=D.CANONICAL_META,
                            canonical_provisional=D.CANONICAL_PROVISIONAL,
                            canonical_status=D.canonical_status_all(), MM=D.metric_meta(),
@@ -541,11 +585,47 @@ def api_compute_preview():
     return jsonify(D.compute_preview(cid, calc))
 
 
+#: `/cascade` 가 `?archive=1` 없이는 DOM 에 안 싣는 필드. **`/api/element` 도 같은
+#: 게이트를 쓴다** (v3 P0-02 · 2026-09-09).
+#: ⛔ 종전에는 이 경로만 열려 있었다 — `_cascade_by_element` 가 게이트 **앞** 원본을
+#:   읽고 `/api/element` 에는 게이트가 아예 없어서, 사이트가 "승인된 랭킹 0종" 이라고
+#:   쓰면서 47종 rank·score·ox_V 를 그대로 내보내고 주기율표 33칸을 그 순위로
+#:   강조하고 있었다. 자기모순이다.
+#: ⚠ 이건 게이트 **확장**이지 완화가 아니다. 값을 지우지 않고 이 응답에서만 뺀다 —
+#:   `?archive=1` 을 주면 그대로 나간다(/cascade 와 같은 열쇠).
+CASCADE_ARCHIVE_FIELDS = ("rank", "score", "ox_V", "E_GPa", "pugh")
+
+
+def _gate_cascade_rows(rows, archive):
+    """스크리닝 행에서 순위·점수축을 가린다 (`archive=False` 일 때).
+
+    ⛔ 못 하는 것: 도펀트 **이름**은 가리지 않는다. `/cascade` 기본 화면도 이름까지는
+      막지 않고(후보명은 `?view=diagnostic` 게이트 소관이다), 이름을 지우면
+      "이 원소가 스크리닝에 나왔다" 는 사실 자체가 사라져 주기율표 강조가 근거를 잃는다.
+    ⛔ 또 못 하는 것: 가려진 자리를 0 으로 메우지 않는다. `archive_gated: true` 를
+      달아 화면이 '가려짐' 이라고 말하게 한다 — 없는 것과 가린 것은 다르다.
+    """
+    if archive:
+        return [dict(r) for r in (rows or [])]
+    out = []
+    for r in (rows or []):
+        row = {k: v for k, v in dict(r).items() if k not in CASCADE_ARCHIVE_FIELDS}
+        row["archive_gated"] = True
+        out.append(row)
+    return out
+
+
 @app.route("/api/element")
 def api_element():
+    """원소 브리핑 JSON. **캐스케이드 칸은 `/cascade` 와 같은 archive 게이트를 탄다.**"""
     from flask import request
     syms = [s.strip() for s in request.args.get("syms", "").split(",") if s.strip()]
-    return jsonify(D.element_briefing(syms))
+    archive = request.args.get("archive") == "1"
+    d = D.element_briefing(syms)
+    for e in d.get("elements", []):
+        e["cascade"] = _gate_cascade_rows(e.get("cascade"), archive)
+    d["cascade_archive_gated"] = not archive
+    return jsonify(d)
 
 
 @app.route("/methods")
