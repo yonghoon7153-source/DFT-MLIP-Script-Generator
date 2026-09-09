@@ -30,7 +30,8 @@ evidenceScope: multi-source-primary
 
 | | |
 |---|---|
-| **지금 유효** | **0 K DFT 축만** — gap 1.9671 eV · ICOHP · convex hull(+37.5 meV/atom) · phonon(허수모드 0) · ELF, 그리고 **BVSE 정적 기하**(채널 +45 %) |
+| **지금 유효** | 마감 카드가 **열거한 셋뿐** — **gap 1.9671 eV** · **탄성 +13 %**(modelc 대비) · **ELF/ICOHP**(B–S 최강 · P–O 신규 motif). ⚠ 방향이 MD 와 반대(강화·보존)이고 **그 모순은 미해결**이다 |
+| **범위 밖이지만 열거되지 않음** | convex hull(+37.5 meV/atom) · phonon 안정성 — **둘 다 UMA(MLIP) 산출물이지 DFT 가 아니다** · BVSE 채널(+45 %)은 정적 결합원자가 기하. 인용하려면 각자의 근거로 따로 서야 한다 |
 | **마감 근거** | `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` (`D-2026-09-07-b2o3-md-closure-retrospective`, active) · 인용위험 `HZ-b2o3-md-ea` **BLOCKED** · 재개용 전향 카드 `b2o3_cell_expansion_prereg_2026_09_07.json` |
 | **접힌 역사** | MD 6장 — `b2o3_champion_status_2026_07_03` · `b2o3_SEMIFINAL_report_2026_07_09` · `b2o3_md_600K_multiseed_2026_07_02` · `b2o3_vs_lpscl16_md_2026_07_02` · `b2o3_bvse_channel_2026_07_02` · `b2o3_anode_interface_MD_dynamics_2026_07_06` (2026-09-09 에 전부 마감 배너를 달았다) |
 
@@ -44,7 +45,7 @@ evidenceScope: multi-source-primary
 
 | | |
 |---|---|
-| **지금 유효** | 0 K DFT 축 — gap **2.066 / 2.099 eV**(fixed-occ nscf) · B0 · E_VRH · ICOHP · BVSE 기하. 구조 관측(anti-site Cl · Li 공공 · Voronoi) |
+| **지금 유효** | 0 K DFT 축 — gap **2.066 / 2.099 eV**(fixed-occ nscf) · `B0_GPa` · `E_VRH_GPa` · `ICOHP_PS` (넷 다 레지스트리 `canonical`). 그리고 DFT 가 아닌 정적 축: **BVSE 기하** · 구조 관측(anti-site Cl · Li 공공 · Voronoi) |
 | **금지** | **σ 절대값**(3.35 / 13.96 mS/cm) · **"σ 4배"** · 조성 간 Ea 대조(`HZ-cross-system-Ea` **BLOCKED**) · "실험과 일치" 서술. `MD_Ea_eV_singleseed@comp1` 은 단일시드 `provisional` + `cross_composition_ranking` 금지 |
 | **접힌 역사** | σ 5장 — `MASTER_structure_property_logic_2026_06_21` · `ionic_conductivity_full_explained_2026_06_21` · `ionic_conductivity_synthesis_comp1_modelc` · `deck_ionic_section_additions` · `lpscl_vs_lpscl16_v3_comparison` (2026-09-09 배너) |
 
@@ -54,7 +55,7 @@ evidenceScope: multi-source-primary
 
 | | |
 |---|---|
-| **지금 유효** | 0 K DFT 축(gap 2.2309 · ICOHP P–O −8.413 · E_VRH) · COHP 곡선 원자료(⚠ 곡선 면적 ≠ ICOHP, 창 커버리지 표기 필수) |
+| **지금 유효** | 0 K DFT 축 — gap **2.2309**(canonical) · `E_VRH_GPa` 35.04(canonical) · `ICOHP_PS` −6.04(canonical). P–O −8.413 은 `kb/methodology/computational_methods_canonical.md` §5 기록이고 **레지스트리 항목은 아니다**. COHP 곡선 원자료는 ⚠ **곡선 면적 ≠ ICOHP**(창 커버리지 표기 필수) |
 | **진행/조건** | 3×3×1 400 ps 9런 — **닫힘 조건이 결과 보기 전에 확정됨**(`D-2026-09-08-lpsocl-box331-closure-conditions`, active · `lpsocl_box331_closure_conditions_2026_09_07.json`). 62원자 Ea 0.2867 은 **셀 조건부**이고 3×3×1 은 **다른 보고량**이다 |
 | **접힌 역사** | `lpsocl_box_size_600K_2026_08_18`(셀로 D 1.65×) · `mlip_md_diffusive_gate_2026_08_01`(⚠ β 0.8 문턱은 폐기 — 결론은 유효) |
 

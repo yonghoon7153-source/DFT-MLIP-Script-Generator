@@ -303,18 +303,18 @@
     "σ 를 깎지 않는"
    ],
    "binding_scope": "partial",
-   "binding_scope_why": "`claim` 은 600 K 항목 하나만 가리킨다 — 같은 금지가 걸린 800/1000 K (MD_sigma_ratio_800K@b2o3_vs_modelc · MD_sigma_ratio_1000K@b2o3_vs_modelc) 는 이 필드에 못 담는다. 문구 9개는 **오탐 0 을 확인하고 고른 것**이라 실제로 새는 표기 ('동등'·'보존'·'σ 비' 단독)는 일부러 빼 놓았다 — 아래 pending_forbidden_phrases 참조.",
-   "pending_forbidden_phrases": {
-    "why": "지금 넣으면 결속 시험(test_retracted_claims_are_id_bound_on_every_surface, 무관용)이 깨진다 — 아래 화면이 이 문구를 쓰면서 data-claim 을 안 단다. 화면 쪽이 선언을 달면 forbidden_phrases 로 옮긴다.",
-    "phrases": {
-     "동등": "전 표면 미결속 25건 (2026-09-09 실측)",
-     "보존": "전 표면 미결속 32건",
-     "σ 비": "미결속 4건 — / · /glossary · /requests · /todo",
-     "σ300": "미결속 1건 — /glossary (comp2 σ300, 다른 계라 오탐)"
-    }
-   },
+   "binding_scope_why": "`claim` 은 600 K 항목 하나만 가리킨다 — 같은 금지가 걸린 800/1000 K (MD_sigma_ratio_800K@b2o3_vs_modelc · MD_sigma_ratio_1000K@b2o3_vs_modelc) 는 이 필드에 못 담는다. 문구 9개는 32개 표면 실측 **오탐 0** 을 확인하고 고른 것이다. 정작 실제 원고가 쓸 법한 짧은 표기('동등'·'보존'·'σ 비'·'σ300')는 오탐이 커서 **거부**했다 — rejected_phrases 참조. ⇒ 산문 새는 구멍이 남아 있다.",
    "added": "2026-09-09",
-   "근거": "db/properties/canonical_registry.json (MD_sigma_ratio_* 3항목 citable:false) · Codex BH P0-1 (2026-09-07)"
+   "근거": "db/properties/canonical_registry.json (MD_sigma_ratio_* 3항목 citable:false) · Codex BH P0-1 (2026-09-07)",
+   "rejected_phrases": {
+    "why": "⛔ **거부** — 켤 수 없다. 32개 표면 실측(문구를 원장에 넣고 재렌더)에서 걸린 4건 중 3건이 다른 계이거나 원장 자신이었다. 오탐이 분모를 부풀리면 '미결속 0' 이 더 그럴듯하게 틀린 수가 된다.",
+    "phrases": {
+     "σ 비": "미결속 4건 — /glossary ×2(**comp2 vs comp1** σ 비율이다, 다른 계 = 오탐) · / ×1(마감 카드가 금지 서술을 **열거**하는 자리) · /governance ×1(이 원장의 다른 위험 행 본문. 행마다 자기 id 로만 결속되므로 남의 문구는 미결속으로 뜬다)",
+     "σ300": "미결속 1건 — /glossary(comp2 σ300 중앙 0.41× comp1). 다른 계라 오탐이다",
+     "동등": "미결속 25건 · \"보존\" 32건 (넣기 전 캐시 실측). 흔한 낱말이라 전 화면이 빨개진다"
+    },
+    "대신": "레지스트리 금지어 토큰(statistically_equivalent_transport · conductivity_preserved)과 계를 특정한 한국어 표기 7개만 켰다 — 실측 오탐 0."
+   }
   },
   {
    "file": "db/properties/b2o3_vs_lpscl16_conductivity.csv",
@@ -330,14 +330,16 @@
     "1.33× 더 빠"
    ],
    "binding_scope": "partial",
-   "binding_scope_why": "덮는 것은 **주장형 표기 4개**뿐이다. 정작 표면에 있는 것은 전부 *철회를 가르치는* 문장이라(‘단일시드 1.33× 철회 사례’) 문구로 가르면 그 교훈까지 빨개진다 — 아래 pending_forbidden_phrases 에 실측 건수를 적어 둔다. 레지스트리에 1.33 항목이 없어 숫자 결속도 없다.",
+   "binding_scope_why": "덮는 것은 **주장형 표기 4개**(‘1.33× 빠르’ 류)뿐이다. 정작 표면에 있는 것은 전부 *철회를 가르치는* 문장이라 문구로 가르면 그 교훈까지 미결속으로 뜬다 — 실측 4건, pending_forbidden_phrases 참조. 레지스트리에 1.33 항목이 없어 숫자 결속도 없다.",
    "pending_forbidden_phrases": {
-    "why": "이 문구들은 **진짜로 걸린다** — 다만 걸리는 자리가 전부 '이 주장은 철회됐다' 는 교육 문장이라, 화면이 data-claim=\"HZ-singleseed-sigma-1p33x\" 로 이름을 댄 뒤에 켜야 한다. 지금 켜면 무관용 결속 시험이 8건으로 깨진다.",
+    "why": "이 문구들은 **진짜로 걸린다**(오탐 아님). 걸리는 자리가 전부 '이 주장은 철회됐다' 는 교육 문장이라 지우면 안 되고, 그 요소가 data-claim=\"HZ-singleseed-sigma-1p33x\" 로 이름을 대면 그 순간 결속이 성립한다. 지금 켜면 무관용 결속 시험이 4건으로 깨진다. ⚠ 마크다운 경로(/concept · /requests · /todo)는 _bind_claims 가 자동 결속해 이미 빠졌다 — 남은 넷은 자동 결속을 안 타는 화면이다.",
+    "measured": "2026-09-09 · 문구를 원장에 넣고 32개 표면 재렌더 후 scan_claim_bindings",
     "phrases": {
-     "1.33×": "미결속 6건 — /concept/ordered_vs_disordered · /api/concept/… · /glossary · /log · /requests · /seminar (2026-09-09 실측)",
+     "1.33×": "미결속 2건 — /glossary ×1 · /seminar ×1",
      "1.33배": "미결속 1건 — /seminar",
      "σ비율 1.33×": "미결속 1건 — /log"
-    }
+    },
+    "누가": "화면 소유 묶음(A 온보딩·G 원장·H 기록·I 문헌)에 넘긴다. /seminar 는 md_to_html 이 _bind_claims 를 안 타는 유일한 경로라 그 배선을 고치면 2건이 자동으로 해소된다."
    },
    "added": "2026-09-09",
    "근거": "kb/results/b2o3_SEMIFINAL_report_2026_07_09.md · db/properties/b2o3_md_closed_retrospective_2026_08_25.json (철회 목록) · CLAUDE.md"
@@ -354,14 +356,15 @@
     "distributed 가 가장 안정"
    ],
    "binding_scope": "partial",
-   "binding_scope_why": "레지스트리에 이 캠페인 항목이 0건이라 숫자 결속이 없다. 실제 표면 표기인 'distributed < free_s < bo4' 는 오탐이 아니라 **진짜 미결속**인데(/ ×1, /log ×1) 지금 켜면 결속 시험이 깨져서 pending 으로 미뤘다.",
+   "binding_scope_why": "레지스트리에 이 캠페인 항목이 0건이라 숫자 결속이 없다. 실제 표면 표기 'distributed < free_s < bo4' 는 오탐이 아니라 **진짜 미결속 4건**인데(/ ×3 · /log ×1) 지금 켜면 결속 시험이 깨져서 pending 으로 미뤘다 — 이 위험은 **화면이 선언만 달면 complete 에 가장 가까워진다**.",
    "pending_forbidden_phrases": {
-    "why": "대시보드 Nd 어닐 카드와 /log 가 이 순위를 그대로 찍는다 — 그 요소가 data-claim=\"HZ-nd-anneal-uma-rank\" 를 달면 켠다.",
+    "why": "**가장 값어치 있는 미결속**이다 — 오탐이 하나도 없고, 걸리는 자리가 전부 DFT 재채점 전 UMA 순위를 그대로 찍는 곳이다. 지금 켜면 결속 시험이 4건으로 깨진다.",
+    "measured": "2026-09-09 · 문구를 원장에 넣고 32개 표면 재렌더 후 scan_claim_bindings",
     "phrases": {
-     "distributed < free_s < bo4": "미결속 2건 — / · /log (2026-09-09 실측)",
-     "free_s < bo4": "미결속 2건 — / · /log",
-     "distributed < free_s": "미결속 4건 — / ×3 · /log ×1 (간격 표기 포함)"
-    }
+     "distributed < free_s < bo4": "미결속 2건 — / (대시보드 Nd 어닐 카드) · /log",
+     "distributed < free_s": "미결속 2건 더 — / 의 간격 표기 '(+34) < bo4 (+52)' · '(+29) < bo4 (+39)'"
+    },
+    "누가": "대시보드 카드는 묶음 B, /log 는 묶음 H 소유다. 그 두 요소에 data-claim=\"HZ-nd-anneal-uma-rank\" 만 달면 4건이 한 번에 결속된다."
    },
    "added": "2026-09-09",
    "근거": "db/properties/cascade_seal_v2_2026_09_08.json (MLIP 순위 서술 규약) · kb/methodology/cascade_lessons_transfer_2026_09_08.md"
@@ -398,14 +401,14 @@
   },
   {
    "at": "2026-09-09",
-   "note": "묶음 J — 25행 전부에 영구 id(HZ-…)와 binding_scope 부여, 새 위험 4건 등재 (σ 비 non_citable · 단일시드 1.33× 철회 · Nd 어닐 UMA 순위 · UMA-Li₃N 금지). complete 는 0건이다 — 오늘 그 자격이 있는 행이 없다. 새 forbidden_phrases 는 전 표면 스캔에서 미결속 0 을 확인한 것만 켰고, 진짜로 걸리는 문구는 pending_forbidden_phrases 에 건수와 함께 남겼다."
+   "note": "묶음 J — 25행 전부에 영구 id(HZ-…)와 binding_scope 부여, 새 위험 4건 등재 (σ 비 non_citable · 단일시드 1.33× 철회 · Nd 어닐 UMA 순위 · UMA-Li₃N 금지). complete 는 0건이다 — 오늘 그 자격이 있는 행이 없다. 새 forbidden_phrases 는 전 표면 스캔에서 미결속 0 을 확인한 것만 켰고, 진짜로 걸리는 문구는 pending_forbidden_phrases 에 건수와 함께 남겼다. 미결속 실측(문구를 넣고 32개 표면 재렌더): 1.33× 4건 · Nd 순위 4건 — 둘 다 오탐이 아니라 화면이 선언을 안 단 것이다. σ 짧은 표기 4건은 오탐이라 거부했다."
   }
  ],
  "updated": "2026-09-09",
  "_schema_note": {
   "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②).",
   "id": "안정 hazard 식별자. 화면·handoff 가 `data-claim=\"<id>\"` 로 이 위험을 선언한다 (회신 BG ②).",
-  "forbidden_phrases": "이 위험에 걸리는 **비수치 주장**을 기계가 찾기 위한 문자열. 숫자 결속(canonical_registry 파생)이 못 잡는 산문을 여기서 잡는다. ⛔ 문구를 지우는 것으로 검사를 통과시키지 않는다 — 위험이 풀리면 level 을 RESOLVED 로 올린다.",
+  "forbidden_phrases": "이 위험에 걸리는 **비수치 주장**을 기계가 찾기 위한 문자열. 숫자 결속(canonical_registry 파생)이 못 잡는 산문을 여기서 잡는다. ⛔ 문구를 지우는 것으로 검사를 통과시키지 않는다 — 위험이 풀리면 level 을 RESOLVED 로 올린다. ⚠ **교차행 누출**: /governance 는 위험 행 하나를 `data-claim=\"<claim> <id>\"` 가 달린 <tr> 로 그린다 — 그래서 그 행의 what/why/fix 는 자기 id 로 결속되지만, **다른 행의** forbidden_phrase 가 우연히 들어 있으면 미결속으로 뜬다. 문구를 새로 켤 때는 이 원장 **자신의 다른 25행 본문**도 같이 훑어라. ⚠ **측정 방법**: 넣기 전 캐시로 세면 과대추정이다 — 마크다운 표면은 `_bind_claims` 가 자동 결속하므로, 문구를 실제로 원장에 넣고 표면을 **다시 렌더한 뒤** 세야 맞는 수가 나온다.",
   "binding_scope": "이 행의 금지가 **기계 결속으로 얼마나 덮이는가**. complete = 이 위험이 화면에 나올 수 있는 모든 형태(수치·산문)가 claim 또는 forbidden_phrases 로 덮인다 / partial = id 로 이름은 댈 수 있으나 안 덮이는 형태가 남아 있다(사유에 무엇이 안 덮이는지 적는다) / not_applicable = 살아 있는 금지가 아니다(level 이 RESOLVED·SUPERSEDED 라 hazard_claims 가 제외한다). ⛔ 2026-09-09 첫 판에 complete 는 **0건**이다 — 결속 가능성을 낙관해서 적는 칸이 아니다.",
   "pending_forbidden_phrases": "⚠ **집행되지 않는다.** 실제로 걸리지만 지금 forbidden_phrases 에 넣으면 무관용 결속 시험이 깨지는 문구를, 실측 건수와 함께 적어 둔다(화면이 아직 data-claim 을 안 단다). hazard_claims() 는 이 키를 읽지 않는다 — 화면 쪽이 선언을 달면 forbidden_phrases 로 옮긴다."
  }

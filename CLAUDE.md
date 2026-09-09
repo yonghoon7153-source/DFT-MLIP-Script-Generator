@@ -23,8 +23,18 @@
 - 원격 서버 작업은 "붙여넣기 블록 제공 → 사용자가 실행 → 출력 회수" 워크플로.
 
 ## 데이터 규율 (어기면 안 되는 것)
+
+> **값을 인용하기 전 30초**: `canonical_registry.json`(값·status·`comparison_group`·`prohibitions`)
+> → `citation_hazards.json`(BLOCKED/HOLD/CONDITIONAL/SUPERSEDED) → `db/governance/decisions.json`.
+> 검증은 `python3 tools/db/validate_canonical.py`. **아래 규율은 그 원장의 사람용 요약이고,
+> 충돌하면 원장이 이긴다.**
+
 - **Band gap**: fixed-occupations nscf의 VBM/CBM 고유값만 인정. DOS-threshold 판독 금지 (~0.3 eV 과소).
-  Canonical (db/properties/electronic.json): comp1 2.066 / modelc(LPSCl1.6) 2.099 / +B2O3 1.9671 / LPSOCl(+O) 2.2309 eV.
+  Canonical: comp1 2.066 / modelc(LPSCl1.6) 2.099 / +B2O3 1.9671 / LPSOCl(+O) 2.2309 eV
+  (계별 `source_path` 는 `db/properties/canonical_registry.json` — lpsocl 만 `lpsocl_dos_gap.json` 이다).
+  ⚠ **네 값을 한 표에 놓을 때**: comp1 은 2026-08-24 재계산으로 해소됐고(2.0656 재현),
+  **modelc 는 실행본이 영구 미해소**다(레지스트리 `method_integrity_flag` = *"⛔ 방법 불일치 의심"*).
+  그 단서를 밝히고 쓴다 — 네 값이 같은 등급인 것처럼 나란히 쓰지 않는다.
 - **BVSE** (tools/comp1_v3/): softBV Li–X R0 = S 2.105 / Cl 2.249 / O 1.466, b=0.37; BVSE=(BVS−1)²;
   ~0.25 Å voxel; 채널% = above-min ≤ iso. **정량·순위는 원본 주기셀 값만** 인용(큐빅 박스는 표시용, ±1.3%p 표본 편차).
 - **MLIP-MD** (tools/modelc_v3/, tools/ionic/): UMA-s-1p1(omat), Langevin NVT, dt 2 fs, friction 0.02,
@@ -41,7 +51,7 @@
 - 데이터 그림은 **Origin-ready CSV를 동시 출력**해 db/properties/에 등록 (열 이름 명시적).
 - .opju 자동화는 클라우드에선 불가 — 로컬 Windows Claude Code + originpro로 (CSV가 우리 쪽 절반).
 
-## 계산 자원 (2026-07 기준)
+## 계산 자원 (최종 갱신 2026-09-08)
 - **KISTI** neuron(x3430a02): Slurm, QOS 제출 제한 — scancel 직후 재제출 금지(카운터 지연). pseudo는
   /scratch/x3430a02/kgy/manuscript_support/pseudo.
 - **kgy** (RTX3090, QE-GPU + uma env): ssh kgy@59.12.161.91.

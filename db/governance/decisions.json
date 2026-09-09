@@ -835,6 +835,8 @@
    "scope": "sdcp.h_removed_radical.spin_localization",
    "slot": "carrier_localization_estimand",
    "status": "proposed",
+   "decision_state": "proposed",
+   "⚠_2026_09_09_스키마_정합": "`decision_state` 를 채웠다 — 22건 중 이 결정만 이 키가 없어서, `decision_state` 만 읽는 검사·화면에서 상태가 통째로 사라지고 있었다. 값은 기존 `status` 와 **같은 문자열**이라 지위는 바뀌지 않는다(여전히 proposed·미비준). ⚠ 남은 불일치는 그대로다: 이 결정을 `depends_on` 하는 D-2026-08-31-sdcp-polaron-S0-four-layer 는 `active` 인데 이것은 `proposed` 다 — active 가 proposed 에 얹혀 있는 셈이고, 그 정합은 아무도 검사하지 않는다(`depends_on` 검사 부재). 해소는 Fbb 비준이거나 S0 강등이고, **둘 다 1저자 판단**이다.",
    "applies_to": {
     "systems": [
      "sdcp_dp6_neutral_radical"
