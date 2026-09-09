@@ -1563,9 +1563,13 @@ def files_gallery():
     used = request.args.get("used", "").strip()
     folder = request.args.get("folder", "").strip()
     cmt = request.args.get("cmt", "").strip()
-    fs = D.gallery_files(q, kind, used, folder, cmt)
+    old = request.args.get("old", "").strip()
+    fs = D.gallery_files(q, kind, used, folder, cmt, old)
+    # 옛 판(SUPERSEDED/RETRACT) 개수를 탭에 찍는다 — 접혀 있다는 사실이 보여야 한다.
+    n_old = len(D.gallery_files(q, kind, used, folder, cmt, "yes")) if old != "yes" else len(fs)
     return render_template("files.html", active="files", files=fs, q=q, kind=kind,
-                           used=used, folder=folder, cmt=cmt, days=D.gallery_days(fs),
+                           used=used, folder=folder, cmt=cmt, old=old, n_old=n_old,
+                           days=D.gallery_days(fs),
                            folders=D.gallery_folders(), ccounts=D.comment_counts())
 
 

@@ -388,12 +388,28 @@ def handoff_cards(paths, first_line=None) -> list:
     return out
 
 
+_FIRST_CACHE: dict = {}
+
+
 def first_sentence(path, limit=140) -> str:
-    """md 첫 문장 한 줄 — 제목·인용·빈 줄은 건너뛴다. 못 읽으면 빈 문자열."""
+    """md 첫 문장 한 줄 — 제목·인용·빈 줄은 건너뛴다. 못 읽으면 빈 문자열.
+
+    ⚠ mtime 으로 캐시한다 — /log 한 번에 kb/results 94개를 열기 때문이다.
+    ⛔ 못 하는 것: 요약이 아니다. **첫 문장을 그대로** 자를 뿐이라 그 문서의 결론이
+      아닐 수 있다 (카드가 판정을 대신 말하지 않게 하려는 것이기도 하다).
+    """
+    p = Path(path)
     try:
-        txt = Path(path).read_text(encoding="utf-8", errors="ignore")
+        key = (str(p), p.stat().st_mtime_ns, limit)
     except OSError:
         return ""
+    if key in _FIRST_CACHE:
+        return _FIRST_CACHE[key]
+    try:
+        txt = p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+    out = ""
     for ln in txt.splitlines():
         t = ln.strip()
         if not t or t.startswith(("#", ">", "---", "|", "```", "!")):
@@ -401,8 +417,10 @@ def first_sentence(path, limit=140) -> str:
         t = re.sub(r"[*`_~]+", "", t).strip()
         if len(t) < 8:
             continue
-        return t[:limit] + ("…" if len(t) > limit else "")
-    return ""
+        out = t[:limit] + ("…" if len(t) > limit else "")
+        break
+    _FIRST_CACHE[key] = out
+    return out
 
 
 def _selftest() -> int:

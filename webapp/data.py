@@ -5738,14 +5738,84 @@ def save_concept_upload(cid: str, files) -> dict:
 _GAL_DIRS = [("docs/figures", "그림"), ("db/properties", "데이터"),
              ("db/structures", "구조"), ("docs/uploads", "업로드")]
 
+#: 파일명이 스스로 "옛 판" 이라고 말하는 표식. 기본 목록에서 접고 '옛 판' 탭으로 뺀다.
+_OLD_MARK = ("SUPERSEDED", "RETRACT", "DEPRECATED", "_OLD_")
+
+_GITDAY_CACHE: dict = {"key": None, "map": None}
+
+
+def _git_commit_days() -> dict[str, str]:
+    """repo 상대경로 → **마지막 커밋 날짜**(YYYY-MM-DD). 못 얻으면 빈 dict.
+
+    왜 (조사 mtime-is-checkout-date): 갤러리 날짜가 `st_mtime` 이었는데, 이 컨테이너에서
+    그건 **체크아웃한 날**이다 — 1122개 중 917개가 같은 날로 뭉쳤고 화면은 그걸
+    `오늘 / 어제 / N일 전` 로 출처인 양 보여줬다. Render 는 배포마다 새로 clone 하므로
+    배포판에서는 전체가 배포일 한 덩어리가 된다.
+
+    ⛔ 못 하는 것
+      · 커밋 이력 밖 파일(미추적·새로 만든 것)은 모른다 → 부르는 쪽이 '날짜 미상'.
+      · 이름이 바뀐 파일의 **원래** 생성일은 못 준다 (`--follow` 를 쓰지 않는다).
+      · git 이 없거나 실패하면 조용히 빈 dict — 날짜를 mtime 으로 되돌리지 않는다
+        (없는 것을 오늘로 채우지 않는다는 규율).
+    """
+    import subprocess
+    head = ROOT / ".git" / "HEAD"
+    try:
+        key = head.stat().st_mtime_ns
+    except OSError:
+        return {}
+    if _GITDAY_CACHE["key"] == key:
+        return _GITDAY_CACHE["map"]
+    out = {}
+    try:
+        r = subprocess.run(["git", "log", "--format=%x00%cI", "--name-only",
+                            "--", "db", "docs"],
+                           capture_output=True, text=True, cwd=str(ROOT), timeout=60)
+        cur = None
+        for ln in r.stdout.split("\n"):
+            if ln.startswith("\x00"):
+                cur = ln[1:11]
+            elif ln.strip() and cur:
+                out.setdefault(ln.strip(), cur)      # 최신 커밋이 먼저 나온다
+    except Exception:                                # noqa: BLE001
+        return {}
+    _GITDAY_CACHE.update(key=key, map=out)
+    return out
+
+
+def _gallery_hazards() -> dict[str, dict]:
+    """파일 경로 → 인용위험 행. `db/properties/citation_hazards.json` 이 정본이다."""
+    import canonical as _C
+    try:
+        rows = _C._hazard_rows()
+    except Exception:                                # noqa: BLE001
+        return {}
+    out = {}
+    for z in rows:
+        f = str(z.get("file") or "").strip()
+        if f and f not in out:                       # 같은 파일에 두 행이면 심각한 쪽이 먼저
+            out[f] = z
+    return out
+
 
 def gallery_files(q: str = "", kind: str = "", used: str = "",
-                  folder: str = "", cmt: str = "") -> list[dict]:
+                  folder: str = "", cmt: str = "", old: str = "") -> list[dict]:
     """repo 의 그림·데이터·구조 파일 전수 목록 (webapp 갤러리용).
 
     개념 문서 첨부는 '본문이 언급한 것'만 보여준다 — 그래서 나머지를 볼 길이 없어
     사용자가 받은 파일을 다시 끌어올리는 일이 생겼다(2026-08-05). 이 목록이 그 구멍을 메운다.
+
+    각 항목에 **지위 세 축**을 같이 싣는다 (v3 묶음 H · 2026-09-09):
+      · `hazard` — 인용위험 원장 행(레벨·what·why·fix). 25건 중 23건이 이 갤러리에
+        아무 표시 없이 카드로 있었다.
+      · `policy` — `artifact_policy.resolve` 판정. 132개가 `/api/file` 에서 403 인데
+        화면은 그걸 몰라서 깨진 썸네일로 놓여 있었다.
+      · `old`    — 파일명이 스스로 SUPERSEDED/RETRACTED 라고 말하는 것.
+
+    ⛔ 이 함수가 **못 하는 것**: 값의 타당성을 판정하지 않는다. 원장이 뭐라 했는지만 옮긴다.
     """
+    import artifact_policy as _AP
+    haz, pol_days = _gallery_hazards(), _git_commit_days()
     cidx = _file_concept_index()
     # 코멘트도 검색 대상 (1저자 요청 2026-08-06) — 파일명엔 없는 말로도 걸리게
     cmts, ccnt = comment_index(), comment_counts()
@@ -5774,33 +5844,63 @@ def gallery_files(q: str = "", kind: str = "", used: str = "",
                 continue
             if cmt == "yes" and not ccnt.get(rel):
                 continue
+            is_old = any(m in f.name.upper() for m in _OLD_MARK)
+            # 옛 판은 **기본 목록에서 접는다.** 지우는 게 아니다 — `?old=yes` 로 본다.
+            if old == "yes" and not is_old:
+                continue
+            if old != "yes" and is_old:
+                continue
             st = f.stat()
             cons = cidx.get(rel, [])
             if used == "yes" and not cons:
                 continue
             if used == "no" and cons:
                 continue
+            z = haz.get(rel)
+            v = _AP.resolve(rel, None)
             out.append({"rel": rel, "name": f.name, "kind": k, "group": group,
                         "dir": f.parent.relative_to(ROOT).as_posix(), "concepts": cons,
                         "comments": ccnt.get(rel, 0), "cmt_hit": cmt_hit,
                         "size_kb": round(st.st_size / 1024, 1), "mtime": int(st.st_mtime),
-                        "day": _dt.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d")})
-    out.sort(key=lambda x: -x["mtime"])          # 날짜 그룹 기본 = 최근순
+                        "old": is_old,
+                        "hazard": ({"level": z.get("level"), "what": z.get("what"),
+                                    "why": z.get("why"), "fix": z.get("fix"),
+                                    "id": z.get("id")} if z else None),
+                        "policy": (None if v.get("allowed") else
+                                   {"reason": v.get("reason"), "needs": v.get("needs"),
+                                    "scope": v.get("use_scope")}),
+                        # ⚠ 날짜 출처는 **git 커밋일**이다. 못 얻으면 빈 문자열 = '날짜 미상'.
+                        #   mtime 은 이 컨테이너의 체크아웃일이라 날짜가 아니다.
+                        "day": pol_days.get(rel, "")})
+    # 커밋일 역순. 날짜 미상은 뒤로 보내되 **버리지 않는다**.
+    out.sort(key=lambda x: (x["day"] or "0000-00-00", x["rel"]), reverse=True)
     return out
 
 
 def gallery_days(files: list[dict]) -> list[dict]:
-    """날짜별 묶음 (최근 날짜부터). 템플릿에서 구분선 헤더로 쓴다."""
+    """날짜별 묶음 (최근 날짜부터). 템플릿에서 구분선 헤더로 쓴다.
+
+    ⚠ 날짜가 빈 항목은 **'날짜 미상' 묶음으로 맨 뒤에** 모은다. 오늘로 채우지 않는다.
+    ⛔ 날짜의 **출처**는 부르는 쪽이 정한다 — 갤러리는 git 커밋일, 개념 첨부는 mtime.
+      여기서 둘을 같은 것인 양 라벨하지 않는다 (`src` 를 그대로 넘긴다).
+    """
     days: dict[str, list[dict]] = {}
     for f in files:
-        days.setdefault(f["day"], []).append(f)
+        days.setdefault(f.get("day") or "", []).append(f)
     today = _dt.date.today()
     out = []
-    for d in sorted(days, reverse=True):
-        dd = _dt.date.fromisoformat(d)
+    for d in sorted((x for x in days if x), reverse=True):
+        try:
+            dd = _dt.date.fromisoformat(d)
+        except ValueError:
+            out.append({"day": d, "label": "", "files": days[d], "n": len(days[d])})
+            continue
         delta = (today - dd).days
         label = "오늘" if delta == 0 else ("어제" if delta == 1 else f"{delta}일 전")
         out.append({"day": d, "label": label, "files": days[d], "n": len(days[d])})
+    if "" in days:
+        out.append({"day": "날짜 미상", "label": "커밋 이력에 없음",
+                    "files": days[""], "n": len(days[""])})
     return out
 
 

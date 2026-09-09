@@ -802,6 +802,8 @@ DYNAMIC_FIXTURES = {
     "/api/structure/<path:fn>":   ["sei_li3nd_mp-976264.vasp"],
     "/composition/<cid>":         ["comp1", "modelc"],
     "/concept/<cid>":             ["ordered_vs_disordered", "beta-gate"],
+    # v3 묶음 I (2026-09-09) — /talk 과 대칭인 논문 정독 페이지. papers/ stem 과 1:1 이다.
+    "/paper/<slug>":              ["deng2026_polysulfate_layer_moisture_oxidation_lpsc"],
     # ⛔ 2026-09-08 (Codex BI 회신) — EXEMPT 사유가 **또 사실오류였다**: "kb/seminars 파일명과
     #   1:1 이 아니다" 라고 적혀 있었지만 app.py:1108 은 `litdb/talks/<slug>.md` 를 연다.
     #   stem 과 1:1 이고 8개 전부 200 이다. handoff 에서 같은 종류의 거짓 사유를 한 번
@@ -2492,21 +2494,34 @@ def test_governance_missing_results_seen_is_unstated_not_prereg():
         "없는 필드를 기본값으로 메우고 있지 않은지 봐라")
 
 
-def test_governance_state_reads_status_alias():
+def test_governance_state_reads_status_alias(monkeypatch):
     """⛔음성: `status` 만 든 결정이 상태 칸에 `None` 으로 찍히면 안 된다.
 
     실측(2026-09-08): D-2026-08-31-sdcp-polaron-Fbb 는 `decision_state` 없이
     `status: proposed` 만 갖는다. 검사(_dstate)는 별칭을 읽는데 화면만 안 읽어서
     상태 칸에 문자열 `None` 이 그려지고 있었다 — 같은 원장을 두 규칙으로 읽은 것이다.
+
+    ⚠ 2026-09-09 개정: 원장이 정규화돼 **별칭만 든 행이 0개가 됐다**. 원래 이 검사는
+    그 행이 실재하는 것을 전제로 삼았는데, 그러면 원장이 좋아진 순간 검사가 죽는다 —
+    회귀는 그대로 살아 있는데. 그래서 전제를 **합성 레코드 주입**으로 바꿨다.
+    원장의 현재 모양에 의존하지 않으므로, 나중에 별칭 행이 다시 생겨도 같은 검사가 돈다.
     """
     import canonical as C
     A.app.config["TESTING"] = True
-    alias = [d for d in C.decisions().values()
-             if "decision_state" not in d and d.get("status")]
-    assert alias, "전제: status 별칭만 든 결정이 원장에 있다 (없어졌으면 이 검사를 옮겨라)"
-    for d in alias:
-        assert C.decision_state(d) == d["status"], "공개 접근자가 별칭을 안 읽는다"
+
+    # ① 접근자: 합성 별칭 레코드 — 원장과 무관하게 별칭 규칙 자체를 잰다.
+    synth = {"id": "D-TEST-alias-only", "status": "proposed",
+             "statement": "합성 레코드 (검사 전용)"}
+    assert "decision_state" not in synth
+    assert C.decision_state(synth) == "proposed", "공개 접근자가 별칭을 안 읽는다"
+
+    # ② 화면: 그 레코드를 원장에 얹어 렌더한다. app.py 는 `_C.decisions()` 를
+    #    요청마다 부르므로 모듈 속성 교체로 주입된다 (디스크 원장은 안 건드린다).
+    real = C.decisions
+    monkeypatch.setattr(C, "decisions",
+                        lambda root=None: {**real(root), synth["id"]: synth})
     h = A.app.test_client().get("/governance").get_data(as_text=True)
+    assert synth["id"] in h, "주입한 합성 결정이 화면에 안 나온다 — 주입이 안 먹었다"
     assert ">None<" not in h, "상태 칸에 None 이 그려진다 — 별칭을 안 읽고 있다"
     assert "상태 미기재" not in h, "별칭이 있는데 '상태 미기재' 로 그린다"
 
