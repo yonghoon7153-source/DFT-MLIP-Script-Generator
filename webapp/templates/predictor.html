@@ -635,6 +635,9 @@
     .input-grid { grid-template-columns: 1fr; }
     .results-grid { grid-template-columns: 1fr; }
   }
+  .cond-flag { font-size: .62rem; color: var(--yellow); border: 1px solid rgba(251,191,36,.45);
+               border-radius: 999px; padding: 0 5px; margin-left: 5px; vertical-align: middle;
+               font-weight: 500; cursor: help; }
 </style>
 
 <script>
@@ -788,21 +791,25 @@ function renderResults(data) {
         <span class="cond-std">\u00b1${cond.sigma_ionic_std.toFixed(4)}</span>
       </div>
     </div>
-    <div class="cond-card cond-electronic">
-      <div class="cond-label">\u03c3<sub>electronic</sub></div>
+    <div class="cond-card cond-electronic" title="⚠ 스크리닝 추정이다 — 프로덕션 σ_e 폼이 아니다. 프로덕션 = Stage 22.5 ((σ_S·NCM_S)^(1-p)·(σ_P·NCM_P)^p, σ_S=10·σ_P=5 LOCKED 코퍼스-적합 endpoint, LOOCV 0.9531). 이 카드는 2026-05-29 체크포인트의 2-regime 식이고 전역 앵커 50 mS/cm 를 쓴다 — 그 값은 문헌 물성이 아니며 A1(2026-06-30)에서 Trevisanello 귀속이 철회됐다.">
+      <div class="cond-label">\u03c3<sub>electronic</sub> <span class="cond-flag">⚠스크리닝</span></div>
       <div>
         <span class="cond-value">${cond.sigma_electronic.toFixed(4)}</span>
         <span class="cond-unit">mS/cm</span>
       </div>
     </div>
-    <div class="cond-card cond-thermal">
-      <div class="cond-label">\u03c3<sub>thermal</sub></div>
+    <div class="cond-card cond-thermal" title="⚠ 정본이 명시적으로 거부한 폼이다 — CLAUDE.md §σ_thermal Stage T1: 'DO NOT try to simplify to compact analytic form'. 이 카드는 순수 멱법칙(286·σ_ion^0.75·φ_AM²/CN)이고 실측 LOOCV 천장은 0.59 다. 프로덕션은 14-특징 Ridge(α=0.05, LOOCV 0.90) — 그룹 비교의 thermal_fit_final 계열에서 본다.">
+      <div class="cond-label">\u03c3<sub>thermal</sub> <span class="cond-flag">⚠스크리닝</span></div>
       <div>
         <span class="cond-value">${cond.sigma_thermal.toFixed(4)}</span>
         <span class="cond-unit">mS/cm</span>
       </div>
     </div>
   `;
+  // ★ v3 (2026-09-09) — 두 카드는 **스크리닝 추정**이고 프로덕션 폼이 아니다.
+  //   σ_ionic 만 프로덕션 폼(v12-clean/T1)을 쓴다.  감사 지적: 같은 페이지에서
+  //   `structure_predictor`(중첩 CV·모범)와 `predictor_engine` Stage-2(2026-04-24 이후
+  //   미변경)가 나란히 있는데 화면이 둘을 구분하지 않았다.
 
   // Rate limiting
   const rateBox = document.getElementById('rate-limiting');

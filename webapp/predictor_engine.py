@@ -39,7 +39,17 @@ except Exception:                                          # noqa: BLE001
 # ★ 2026-07-28: σ_grain now shared with the solvers via se_material (value unchanged, 3.0 mS/cm,
 # declared at T_ref = 25 °C).  docs/temp_pressure_capability.md §3-4 / T1-b / T1-e.
 SIGMA_GRAIN = se_material.SIGMA_GRAIN_MS_CM_25C   # mS/cm (SE grain interior, @25 °C)
-SIGMA_AM = 50.0         # mS/cm (NCM811)
+SIGMA_AM = 50.0
+#: ⚠⚠ **문헌 물성값이 아니다** (라벨 정정 2026-09-09, v3 감사).  옛 주석은 `# mS/cm (NCM811)`
+#:   이라 적어 물성처럼 보였지만, 이 값은 2026-05-29 **스크리닝 체크포인트**의 전역 앵커이고
+#:   **프로덕션 σ_e 폼은 이것을 쓰지 않는다.**
+#:     프로덕션 = Stage 22.5 (`scripts/generate_comparison_plots.py`)
+#:                (σ_S·NCM_S)^(1-p) · (σ_P·NCM_P)^p,  **σ_S = 10 · σ_P = 5 LOCKED**
+#:                (코퍼스-적합 endpoint 9.1/4.1 을 반올림한 것 — A1 CLOSED 2026-06-30)
+#:   ★ 그리고 **50 을 폼에 넣는 것을 막으려고** UI-분리 수정(commit f4b5a27)이 존재한다:
+#:     예전엔 UI 값이 `--sigma-S/--sigma-P` 로 흘러들어 폼 앵커를 사용자 입력으로 덮었다.
+#:   ⇒ 아래 2-regime 식은 **스크리닝 추정**이고 프로덕션 폼이 아니다.  값은 적합된 전치계수
+#:     (0.79 · 5.0)와 얽혀 있어 **단독으로 바꾸면 안 된다** — 갈아타려면 폼째 교체다.
 
 # ═══ Temperature convention — UNIFIED WITH THE SOLVER (audit T1-e, 2026-07-28) ═══
 # BEFORE: this file used σ(T)=σ(298)·exp(−Ea/k_B·(1/T−1/298)) (the "σ form") with
@@ -794,7 +804,9 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     if phi_am > 0 and am_cn > 0 and d_am > 0 and thickness > 0:
         ratio = thickness / d_am
         if ratio >= 10:
-            # THICK: φ⁴ × CN^(3/2) × cov × √τ (R²=0.97)
+            # THICK: φ⁴ × CN^(3/2) × cov × √τ  ⚠ **스크리닝 폼** (2026-05-29 체크포인트).
+            #   R²=0.97 은 **그 시점 그 코퍼스**의 값이다 — 프로덕션 Stage 22.5 의
+            #   LOOCV 0.9531(n_fit=76) 과 **같은 척도가 아니고 나란히 비교하면 안 된다**.
             sigma_electronic = 0.79 * SIGMA_AM * phi_am**4 * am_cn**1.5 * coverage_frac * np.sqrt(max(tau, 0.1))
         elif ratio > 0:
             # THIN: hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
@@ -878,6 +890,13 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_ionic_final *= 0.99  # ~1% ionic (dry process, no solvent damage)
 
     # Thermal conductivity (use 298K σ_ion — formula was fitted at 298K)
+    # ⚠⚠ **정본이 명시적으로 거부한 폼이다** (라벨 정정 2026-09-09, v3 감사).
+    #   CLAUDE.md §σ_thermal Stage T1: *"DO NOT try to simplify to compact analytic form"*.
+    #   A/B/C 폼 스크린 실측 — **순수 멱법칙 LOOCV 천장 0.59** vs 프로덕션 **Ridge 0.90**
+    #   (14 특징, α=0.05, n_fit=82).  아래 식이 바로 그 멱법칙이다.
+    #   ⇒ 이것은 **스크리닝 추정**이고, 열전도 결론은 `thermal_fit_final` 계열에서 낸다.
+    #   ⚠ 그 격차의 **설명**(다중경로 k_weight)은 CL-12 로 철회됐다 — 관측은 유효,
+    #     인과 서술만 무효 (`run_decomposition` 이 mode= 를 안 넘겨 전 간선 k_weight=1.0).
     sigma_thermal = 0
     if sigma_ionic_298 > 0 and phi_am > 0 and cn > 0:
         sigma_thermal = 286 * sigma_ionic_298 ** 0.75 * phi_am ** 2 / cn
