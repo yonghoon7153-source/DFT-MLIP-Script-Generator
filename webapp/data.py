@@ -586,7 +586,9 @@ def structure_groups(cid: str) -> dict:
     groups = []
     for folder in sorted(by_folder, key=lambda f: (f != "", f.lower())):
         rows = sorted(by_folder[folder], key=lambda g: g["stem"].lower())
-        groups.append({"folder": folder, "n": len(rows), "items": rows})
+        # ⚠ 키 이름을 `items` 로 쓰지 않는다 — Jinja 에서 `g.items` 가 dict.items
+        #   메서드에 먹혀 `'builtin_function_or_method' object is not iterable` 로 죽는다.
+        groups.append({"folder": folder, "n": len(rows), "rows": rows})
     return {"total": sum(g["n"] for g in groups),          # 묶음(=구조) 수
             "n_files": sum(len(v["files"]) + len(v["vesta"]) for v in items.values()),
             "n_vesta": sum(len(v["vesta"]) for v in items.values()),

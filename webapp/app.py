@@ -489,9 +489,22 @@ def composition(cid):
         abort(404)
     b = D.build_matrix()
     dop = D.CASCADE_DOPANT.get(cid)
+    # ── 원장 파생 (v3 묶음 D) — 화면·복사·타일이 **같은 출처**를 쓴다 ──────────
+    import decisions_view as V
+    vals = D.canonical_values(cid)
+    fams = {k: v.get("family") for k, v in D.COMPOSITIONS.items()}
     return render_template(
         "composition.html", active="", cid=cid, cid_active=cid,
         comp=D.COMPOSITIONS[cid], structures=D.structures_for(cid),
+        struct_groups=D.structure_groups(cid),
+        # 이 조성을 지배하는 판정·마감 카드·인용 위험 (손으로 쓴 요약 아님)
+        decisions=V.decisions_for(cid),
+        cards=V.closure_cards_for(cid, D._PREFIX.get(cid, [cid])),
+        hazards=V.hazards_for(cid),
+        notices=V.metric_notices(cid),
+        # 이 계열에 등록된 적 없는 축 — TODO 로 광고하지 않고 접는다 (P0-09)
+        other_family=V.other_family_axes(cid, fams, vals, set(
+            k for (k, c) in D.CANONICAL_NA if c == cid)),
         index_built=b.get("built"),   # Raw 탭 스냅샷 배너 (전체 b 번들은 템플릿에 불필요)
         datafiles=D.datafiles_for(cid), metrics=b["index_metrics"].get(cid, []),
         rollup=b["comp_data"].get(cid), icohp=D.icohp_for(cid),
@@ -500,7 +513,7 @@ def composition(cid):
         cascade_dopant=dop, cascade_meta=D.CASCADE_META,
         cascade_join=D.CASCADE_JOIN_STATUS.get(cid),
         cascade_rows=D.cascade_rows_for(dop) if dop else None,
-        canonical=D.canonical_values(cid),
+        canonical=vals,
         canonical_status=D.canonical_status_for(cid), MM=D.metric_meta(),
         # 값 타일의 결속 이름 (원장 파생) — Codex BI P0 · 2026-09-08
         canonical_claim=D.canonical_claim_for(cid),

@@ -187,6 +187,36 @@ def metric_notices(cid: str, root=None) -> dict:
     return out
 
 
+def other_family_axes(cid: str, families: dict, values: dict, na_keys=(), root=None) -> set:
+    """이 조성의 **계열에 등록된 적이 없는** metric 집합 — 타일이 아니라 접힘 줄로 보낸다.
+
+    ⛔ P0-09 (2026-09-09) — `metric_meta()` 가 레지스트리의 모든 metric 을 내보내고
+      템플릿이 그걸 전수 렌더해서, SDCP 분자 metric 11개가 **14개 조성 전부**에 TODO 로
+      찍혔다. `/composition/comp1`(LPSCl) 이 PTFE 흡착에너지를 "미계산" 으로 광고했고,
+      그건 애초에 보류(HOLD)된 양이다. TODO 는 "하면 되는데 안 했다" 라는 약속이라
+      아무 데나 찍으면 안 된다.
+
+    판정: metric 의 레지스트리 항목들이 사는 **계열 집합**에 이 조성의 계열이 없으면 접는다.
+      값이 있거나 N/A 사유가 적힌 축은 **언제나 보인다**(접기 대상이 아니다).
+
+    ⛔ 못 하는 것
+      · "이 계열엔 원리적으로 성립하지 않는다" 고 말하지 않는다. 그건 `CANONICAL_NA` 의
+        사유 문장이 하는 일이고, 여기 판정은 *"원장에 전례가 없다"* 까지다.
+      · 계열이 없는 계(`b2o3_vs_modelc` 같은 쌍 이름)는 `None` 계열로 묶인다 — 어느 조성
+        계열과도 같지 않으므로 그 축은 접힌다.
+    """
+    reg = C.registry(root=root)
+    fam = families.get(cid)
+    scope: dict = {}
+    for e in reg.get("entries", []):
+        m = e.get("metric")
+        if m:
+            scope.setdefault(m, set()).add(families.get(e.get("system")))
+    na = set(na_keys)
+    return {m for m, v in values.items()
+            if v is None and m not in na and fam not in scope.get(m, set())}
+
+
 def copy_lines(cid: str, values: dict, labels: dict, units: dict, root=None) -> list:
     """`📋 값 복사` 가 클립보드에 넣을 줄 — **지위가 값과 한 몸으로** 나간다.
 

@@ -16,22 +16,93 @@
   </div>
 </div>
 
+{# ── 이 조성의 살아 있는 결정 ────────────────────────────────────────────────
+   ⛔ 2026-09-09 (v3 D) — 1저자가 2026-09-08 에 비준한 LPSOCl 닫힘 조건이 decisions.json
+      에 active 로 있는데 /composition/lpsocl 렌더 결과엔 '닫힘'·'400 ps'·'보고량' 이
+      **0회**였다. 화면이 자기 캠페인의 지위를 모르는 상태였다.
+   ★ 숫자·제목·상태는 전부 원장 파생(decisions_view) — 여기에 손으로 쓰지 않는다. #}
+{% if decisions and (decisions.live or decisions.folded or cards) %}
+<div class="v3-band{% if hazards and hazards[0].level == 'BLOCKED' %} is-blocked{% elif hazards %} is-hold{% endif %}"
+     style="display:block">
+  <div class="v3-band-t">이 조성의 살아 있는 결정 · 마감 카드</div>
+  {% for d in decisions.live %}
+  <div class="v3-band-v" style="margin-top:6px">
+    <a href="/governance#{{ d.id }}" class="mono" style="font-size:.72rem">{{ d.id }}</a>
+    <span class="badge {% if d.state == 'active' %}b-canon{% else %}b-prov{% endif %}">{{ d.state }}</span>
+    {% if d.kind %}<span class="badge b-fam">{{ d.kind }}</span>{% endif %}
+    {{ d.title }}
+    {% if d.statement %}<div class="muted" style="font-weight:400;font-size:.78rem;line-height:1.6;margin-top:2px">{{ d.statement|claimbind }}</div>{% endif %}
+    {% if d.reopen %}<div class="muted" style="font-weight:400;font-size:.75rem;margin-top:2px">재개 조건: {{ d.reopen }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  {% if cards %}
+  <div class="v3-band-v" style="margin-top:8px;font-weight:400">
+    {% for c in cards %}<a class="btn sm" href="/files?q={{ c.file.rsplit('/',1)[-1] }}"
+      title="{{ c.title }}">📄 {{ c.kind }}{% if c.date %} · {{ c.date }}{% endif %}</a> {% endfor %}
+  </div>
+  {% endif %}
+  {% if decisions.folded %}
+  <details class="v3-fold" style="margin-top:6px"><summary>철회된 옛 판정 {{ decisions.folded|length }}건</summary>
+    {% for d in decisions.folded %}<div class="muted" style="font-size:.78rem;line-height:1.6">
+      <a href="/governance#{{ d.id }}" class="mono">{{ d.id }}</a> · {{ d.state }} — {{ d.title }}</div>{% endfor %}
+  </details>{% endif %}
+  <div class="muted" style="font-size:.72rem;margin-top:6px">
+    출처 <span class="mono">db/governance/decisions.json</span>
+    {%- if decisions.n_global %} · 전 계 공통 정책 {{ decisions.n_global }}건은
+    <a href="/governance">판정 원장</a>에 있어요{% endif %}</div>
+</div>
+{% endif %}
+
+{# ── 이 조성의 원자료에 걸린 인용 위험 ──────────────────────────────────────
+   ⚠ 원장이 **파일 단위**로 적은 위험은 파일 단위로만 낸다 — 값마다 금지 여부를
+     여기서 판정하지 않는다(같은 파일 안에서도 영향 없는 축이 있다고 원장이 명시했다). #}
+{% if hazards %}
+<details class="v3-fold card" style="margin-bottom:14px">
+  <summary><b style="color:var(--red)">⛔ 이 조성의 원자료에 걸린 인용 위험 {{ hazards|length }}건</b>
+    <span class="muted" style="font-weight:400">— 값보다 먼저 읽어요</span></summary>
+  {% for h in hazards %}
+  <div data-claim="{{ h.id }}" style="margin-top:8px;font-size:.8rem;line-height:1.65">
+    <span class="badge" style="color:#b91c1c;background:#fee2e2">{{ h.level }}</span>
+    <span class="mono" style="font-size:.72rem">{{ h.id }}</span> — <b>{{ h.what }}</b>
+    <div class="muted">{{ h.why }}</div>
+    {% if h.fix %}<div>→ {{ h.fix|claimbind }}</div>{% endif %}
+    <div class="muted mono" style="font-size:.68rem">{{ h.file }}
+      · 연결 근거 {{ '판정(claim)' if h.how == 'claim' else '원자료 경로' }}</div>
+  </div>
+  {% endfor %}
+</details>
+{% endif %}
+
 <!-- canonical metric badges -->
 {# ⚠ 하드코딩하면 레지스트리에 metric 이 늘어도 label·unit 이 빈칸으로 렌더된다
    (2026-08-07 Codex 5라운드 실측). data.metric_meta() 에서 만든다. #}
 {% set units = {} %}{% set labels = {} %}
 {% for k, mm in MM.items() %}{% set _ = units.update({k: mm.unit}) %}{% set _ = labels.update({k: mm.label}) %}{% endfor %}
+{% set todo_keys = [] %}{% set other_keys = [] %}
 <div class="metrics-row">
 {% for key, val in canonical.items() %}
   {% set prov = canonical_provisional.get(key) %}
-  {% if val is not none %}
+  {% set nt = notices.get(key, {}) %}
+  {% if val is none and key in other_family %}{% set _ = other_keys.append(key) %}
+  {% elif val is not none %}
   {#- ⛔ Codex BI P0 (2026-09-08) — 값 타일에 `data-claim` 이 없어서 /composition/b2o3 이
       철회값 0.199 를 **이름 없이** 찍고 있었다. 배지는 결속이 아니다(스캐너는 조상
       data-claim 만 본다). 원장 파생이므로 status 를 되돌리면 결속도 같이 풀린다. -#}
   {%- set _cl = canonical_claim.get(key) %}
+  {%- set st = canonical_status.get(key) %}
+  {#- ⛔ P0 (2026-09-09) — 철회값이 정본과 **같은** 1.28rem·800·navy 로 찍혔다. 구분은
+      옆의 작은 배지뿐이었는데, 같은 페이지 Raw 탭은 폐기 항목에 취소선을 긋고 있었다
+      (한 페이지 안에 규칙이 둘). 값 자체가 죽은 값으로 보여야 한다. -#}
+  {%- set dead = st and st.status in ('retracted','superseded','non_citable') %}
   <div class="metric"{% if _cl %} data-claim="{{ _cl }}"{% endif %} title="{{ canonical_meta[key] }}{% if prov %}&#10;⚠ {{ prov }}{% endif %}">
-    <div class="mv">{{ val }}<span style="font-size:.55em;color:var(--dim)"> {{ units[key] }}</span></div>
-    {%- set st = canonical_status.get(key) %}
+    <div class="mv"{% if dead %} style="text-decoration:line-through;color:var(--muted)"{% endif %}>{{ val }}<span style="font-size:.55em;color:var(--dim)"> {{ units[key] }}</span></div>
+    {#- ★ 대체값은 **툴팁이 아니라 본문**에 — 복사·인쇄·텍스트추출에서 살아남아야 한다. -#}
+    {%- if dead or nt.hold %}
+    <div class="mm" style="color:var(--red);font-weight:600">
+      {% if nt.instead %}대신 쓸 값: {{ nt.instead }}
+      {% elif dead %}대신 쓸 값: 원장에 등록된 대체값이 없다
+      {% else %}⏸ 조건부 보류 — 절대값을 그대로 인용하지 않아요{% endif %}</div>
+    {%- endif %}
     {#- ★ 상태 배지는 **하나만** (2026-08-07 Codex 4라운드). 레지스트리 status 와 옛
         CANONICAL_PROVISIONAL 이 겹쳐 '잠정' 이 두 번 찍혔다. 레지스트리가 단일 진실
         원천이므로 그쪽 우선, 없을 때만 PROV. -#}
@@ -47,24 +118,71 @@
           이건 '어느 시절 규칙으로 만들어졌는가'. gen0 이라고 틀린 값이 아니다. -#}
       {%- set gb = canonical_gen.get(key) %}
       {%- if gb %} <span class="badge" style="color:{{ gb.fg }};background:{{ gb.bg }}"
-        title="{{ gb.why }}">{{ gb.label }}</span>{% endif %}</div>
+        title="{{ gb.why }}">{{ gb.label }}</span>{% endif %}
+      {#- ★ 보류는 status 와 또 다른 축이다 — 값은 등록됐고 status 도 안 내려갔는데
+          **절대값만** 못 쓴다(기준 비대칭 δ_m·δ_LREAL). 원장 prohibitions 파생. -#}
+      {%- if nt.hold %} <span class="badge" style="color:#b45309;background:#fef3c7"
+        title="조건부 보류 — {{ nt.hold_why }}">보류</span>{% endif %}</div>
     {# 회신 BG ② — 방법·출처 주석은 **다른 계의 정본값을 자주 인용한다**(여기선 b2o3 0.199).
        그 값이 나중에 철회돼도 이 문장은 그대로 남으므로, 렌더할 때 결속을 붙인다. #}
-    <div class="mm" title="{{ canonical_meta[key] }}">{{ canonical_meta[key]|claimbind }}</div>
+    {#- ⚠ 빈 상자를 그리지 않는다 — CANONICAL_META 에 없는 축(SDCP_*)이 빈 회색 줄로 떴다. -#}
+    {%- if canonical_meta[key] %}<div class="mm" title="{{ canonical_meta[key] }}">{{ canonical_meta[key]|claimbind }}</div>{% endif %}
     {%- if prov %}<div class="mm mm-prov" title="{{ prov }}">⚠ {{ prov|claimbind }}</div>{% endif %}
+    {#- ★ **이 값이 어느 파일에서 왔나** — 종전엔 화면 어디에도 없었다. -#}
+    {%- if nt.source_path %}
+    <div class="mm mono" style="font-size:.62rem;opacity:.8"><a href="/files?q={{ nt.source_path.rsplit('/',1)[-1] }}"
+      title="원자료 파일">{{ nt.source_path }}</a>{% if nt.updated %} · {{ nt.updated }}{% endif %}</div>
+    {%- endif %}
   </div>
   {% elif canonical_na.get(key) %}
-  {# '하면 안 되거나 정의되지 않는' 축은 TODO 로 광고하면 안 된다 (예: li3n × UMA MD) #}
-  <div class="metric todo" title="{{ canonical_na.get(key) }}">
-    <div class="mv" style="font-size:.95rem">N/A</div>
+  {# '하면 안 되거나 정의되지 않는' 축은 TODO 로 광고하면 안 된다 (예: li3n × UMA MD).
+     ⚠ TODO(안 했다) 와 N/A(성립하지 않는다) 를 같은 회색 점선으로 뭉치지 않는다 — .metric.na #}
+  <div class="metric na" title="{{ canonical_na.get(key) }}">
+    <div class="mv">N/A</div>
     <div class="ml">{{ labels[key] }}</div>
-    <div class="mm">{{ canonical_na.get(key) }}</div>
+    <div class="mm">{{ canonical_na.get(key)|claimbind }}</div>
   </div>
-  {% else %}
-  <div class="metric todo"><div class="mv">TODO</div><div class="ml">{{ labels[key] }}</div></div>
+  {% else %}{% set _ = todo_keys.append(key) %}
   {% endif %}
 {% endfor %}
 </div>
+{#- ── TODO·다른 계열 축은 **타일 벽이 아니라 한 줄** ────────────────────────────
+    ⛔ P0-09 (2026-09-09) — metric_meta 곱집합 때문에 SDCP 분자 metric 11개가 **전 조성
+       페이지**에 TODO 로 찍혔다. LPSCl 페이지가 PTFE 흡착에너지를 '미계산' 으로 광고했고
+       그건 애초에 보류(HOLD)된 양이다. 지우지 않고 접는다 — 캠페인 범위 선언이라서. -#}
+{% if todo_keys or other_keys %}
+<div style="margin:-6px 0 18px">
+  {% if todo_keys %}
+  <details class="v3-fold"><summary>아직 계산 안 한 축 {{ todo_keys|length }}개 <span class="badge b-todo">TODO</span></summary>
+    <div class="muted" style="font-size:.78rem;line-height:1.8">
+      {% for k in todo_keys %}<span class="badge b-todo">{{ labels[k] }}</span> {% endfor %}
+      <div style="margin-top:4px">TODO = 아직 안 했다. (성립하지 않는 축은 위에 <b>N/A</b> 로,
+        했는데 못 쓰는 값은 <b>철회·인용불가</b> 배지로 따로 표시해요.)</div>
+    </div>
+  </details>
+  {% endif %}
+  {% if other_keys %}
+  <details class="v3-fold"><summary>다른 계열의 축 {{ other_keys|length }}개</summary>
+    <div class="muted" style="font-size:.78rem;line-height:1.8">
+      {% for k in other_keys %}<span class="badge b-fam">{{ labels[k] }}</span> {% endfor %}
+      <div style="margin-top:4px">이 축들은 <b>{{ comp.family }}</b> 계열에 등록된 항목이 원장에 하나도 없어요 —
+        TODO 로 광고하면 "하면 되는데 안 했다"로 읽혀서 접어 둡니다. 판정은 레지스트리
+        <span class="mono">system</span> 계열에서 파생돼요(손 목록 아님).</div>
+    </div>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
+{% if canonical.values()|select('ne', None)|list|length == 0 %}
+<div class="card" style="margin-bottom:16px">
+  <b>이 조성은 아직 계산 전이에요.</b>
+  <div class="muted" style="font-size:.82rem;line-height:1.7;margin-top:4px">
+    등록된 정본 값이 0건입니다. 그래도 목록에 남겨 두는 이유는 <b>캠페인 범위 선언</b>이기
+    때문이에요 — "이 조성은 보기로 했다"는 기록을 지우면 무엇을 안 했는지가 사라져요.
+    아래 Structure·Charts 탭에 원자료가 있으면 그건 계산 중이라는 뜻이고요.
+  </div>
+</div>
+{% endif %}
 
 {% if cascade_dopant and cascade_rows and cascade_rows.ranked %}
 {% set cr = cascade_rows.ranked[0] %}
@@ -130,13 +248,44 @@
   <div class="card">
     <h3>3D 구조 <span class="muted" style="font-weight:400">— 드래그 회전 / 스크롤 확대 (VESTA 대체)</span></h3>
     {% set sv = (structures|selectattr('viewable')|list|first) %}
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-      {% for s in structures %}
-      <button class="btn sm {% if sv and s.name == sv.name %}primary{% endif %}"
-              onclick="loadStruct('{{ s.name }}','{{ s.fmt }}',this)"
-              {% if not s.fmt %}title="3D 파서 없음 — 다운로드해서 VESTA로 보세요"{% endif %}>{{ s.name }}</button>
-      {% endfor %}
+    {#- ── 구조 목록: 폴더 → 같은 stem 두 단계로 접는다 (v3 D) ────────────────────
+        실측 버튼 수 sdcp 95 · vgcf_hbn 64 · li3n 60 이고 그 안에 같은 구조의
+        .xyz/.vasp/.vesta 3종 세트가 섞여 있어 **사람이 고를 수 없었다**.
+        .vesta 는 3Dmol 파서가 없다 — 3D 줄에서 빼고 다운로드로만 준다. -#}
+    <div class="muted" style="font-size:.74rem;margin-bottom:8px">
+      구조 {{ struct_groups.total }}개 · 파일 {{ struct_groups.n_files }}개
+      {%- if struct_groups.n_vesta %} (그중 .vesta {{ struct_groups.n_vesta }}개는 다운로드 전용){% endif %}
+      — 같은 이름의 여러 형식은 한 항목으로 묶었어요.
     </div>
+    {% for g in struct_groups.groups %}
+    <details class="v3-fold" {% if loop.first %}open{% endif %} style="margin-bottom:8px">
+      <summary><b>{{ g.folder if g.folder else '(db/structures 바로 아래)' }}</b>
+        <span class="muted" style="font-weight:400">{{ g.n }}개</span></summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px">
+        {% for it in g.rows %}
+        {% if it.view %}
+        <span class="mono" style="display:inline-flex;gap:2px;align-items:center">
+          <button class="btn sm {% if sv and it.view.name == sv.name %}primary{% endif %}"
+                  onclick="loadStruct('{{ it.view.name }}','{{ it.view.fmt }}',this)"
+                  title="{{ it.view.name }}">{{ it.stem }}</button>
+          {% for f in it.files %}<a class="btn sm" style="padding:2px 5px;font-size:.65rem"
+             href="/api/structure/{{ f.name|urlencode }}" download title="{{ f.name }} 내려받기">{{ f.ext }}</a>{% endfor %}
+          {% for f in it.vesta %}<a class="btn sm" style="padding:2px 5px;font-size:.65rem"
+             href="/api/structure/{{ f.name|urlencode }}" download
+             title="VESTA 전용 — 3D 파서가 없어요">vesta</a>{% endfor %}
+        </span>
+        {% else %}
+        <span class="mono" style="display:inline-flex;gap:2px;align-items:center">
+          <span class="btn sm" style="opacity:.6;cursor:default"
+                title="3D 파서 없음 — 다운로드해서 VESTA로 보세요">{{ it.stem }}</span>
+          {% for f in it.files + it.vesta %}<a class="btn sm" style="padding:2px 5px;font-size:.65rem"
+             href="/api/structure/{{ f.name|urlencode }}" download title="{{ f.name }}">{{ f.ext }}</a>{% endfor %}
+        </span>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
     {# 보기 조작 — VESTA 에서 늘 하는 것들(다면체·타일링·정면) 을 버튼으로 #}
     <div id="v3d-ctrls" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
       <span class="muted" style="font-size:.72rem">보기</span>
@@ -167,7 +316,11 @@
 <div class="tab-panel" id="tab-charts">
   {% if datafiles %}
   <div class="chip-bar">
-    {% for d in datafiles %}<button class="chip {% if loop.first %}active{% endif %}" onclick="plotCsv('{{ d.rel }}','{{ d.kind }}',this)">{{ d.kind }}</button>{% endfor %}
+    {#- ⚠ 칩 라벨을 kind 로만 쓰면 sdcp 15칩 중 11개가 전부 'data' 라 눌러 보기 전에는
+        무엇인지 알 수 없다(실측). 파일 stem 축약을 앞에 두고 kind 는 배지로. -#}
+    {% for d in datafiles %}<button class="chip {% if loop.first %}active{% endif %}"
+      title="db/{{ d.rel }}" onclick="plotCsv('{{ d.rel }}','{{ d.kind }}',this)">{{ d.short }}
+      <span class="badge b-fam" style="font-size:.6rem">{{ d.kind }}</span></button>{% endfor %}
   </div>
   <div class="card">
     <div class="chart-ctrls" id="chart-ctrls"></div>
@@ -204,6 +357,17 @@
 <div class="tab-panel" id="tab-bonding">
   {% if icohp %}<div class="card">
     <h3>결합 강도 — LOBSTER ICOHP <span class="muted" style="font-weight:400;font-size:.8rem">음수 클수록 강한 결합</span></h3>
+    {#- ⛔ P0-05 (2026-09-09) — 이 표가 CUTOFF ARTIFACT 로 정정된 Li-S −2.493 / Li-Cl −2.265
+        를 경고 없이 찍고 있었다. 같은 페이지 아래 '계 간 비교' 카드는 정정본 −1.647/−2.132
+        를 쓰고 있어서 **한 화면이 자기를 부정했다**. 이제 icohp_for 가 정정본을 표의
+        정본으로 올리고, 옛 표는 아래 접힘에 취소선으로 남는다(삭제 아님 — 이력이다). -#}
+    {% if icohp._promoted_from %}
+    <div style="border:2px solid var(--red);border-radius:6px;padding:8px 10px;margin:6px 0 10px">
+      <div style="color:var(--red);font-weight:700">⛔ 아래 표는 <b>정정본</b>이에요 —
+        원장의 정정 기록에 따라 <span class="mono">{{ icohp._promoted_from }}</span> 를 올렸습니다.</div>
+      <div style="font-size:.82rem;margin-top:4px;line-height:1.6">{{ icohp._promoted_why }}</div>
+    </div>
+    {% endif %}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px">
       {# ⚠ per_bond_json 스키마엔 spilling 키가 **둘 다 없다** — `is defined` 사슬만으로는
    두 번째에서 UndefinedError 가 난다(실제로 comp1/modelc 가 500). .get() 으로 방어. #}
@@ -235,6 +399,22 @@
     </div>{% endif %}
     {% if icohp.bonds.values()|selectattr('d_mean_A','defined')|list|length == 0 %}
     <div class="muted" style="font-size:.72rem;margin-top:6px">※ d̄ 열은 이 계산에 원자료가 없어 비어 있어요 (LOBSTER 재파싱 대기).</div>{% endif %}
+    {% if icohp.bonds_superseded %}
+    <details class="v3-fold" style="margin-top:10px">
+      <summary style="color:var(--red)">CUTOFF ARTIFACT 로 정정되기 전의 옛 표 {{ icohp.bonds_superseded|length }}행
+        <span class="muted" style="font-weight:400">— 인용 금지, 이력으로만 남깁니다</span></summary>
+      <div style="overflow-x:auto;margin-top:6px">
+      <table class="data-table"><thead><tr><th>Bond</th><th class="num">N</th>
+        <th class="num">d̄ (Å)</th><th class="num">ICOHP (eV/bond)</th></tr></thead><tbody>
+      {% for bond, v in icohp.bonds_superseded.items() %}
+      <tr style="text-decoration:line-through;opacity:.62"><td><b>{{ bond }}</b></td>
+        <td class="num">{{ v.N if v.N is defined else '—' }}</td>
+        <td class="num">{{ '%.3f'|format(v.d_mean_A) if v.d_mean_A is defined else '—' }}</td>
+        <td class="num">{{ '%.3f'|format(v.ICOHP_total_eV_per_bond)
+           if v.ICOHP_total_eV_per_bond is defined else '—' }}</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+    </details>{% endif %}
     <div class="muted mono" style="font-size:.68rem;margin-top:6px">{{ icohp.method }}</div>
   </div>{% endif %}
 
@@ -406,7 +586,11 @@
       <td class="num">{% if cb and cb[c] is defined %}{{ '%+.3f'|format(cb[c]|float) }}{% else %}—{% endif %}</td>
       {% endfor %}{% endif %}
       <td class="muted" style="font-size:.78rem">
-        {%- if icohp._comparison_bader.get(el) %}{{ icohp._comparison_bader[el].note or '' }}{% endif -%}
+        {#- ⚠ `_comparison_bader` 는 비교표가 있는 계에만 있다. `icohp.` 로 바로 타면
+            bader 만 있는 JSON 이 하나 들어오는 순간 UndefinedError 로 이 페이지가 500 이
+            된다(같은 패턴으로 comp1/modelc 가 500 났던 전례가 위 205줄 주석에 있다).
+            `.get()` 이 아니라 **위 가드와 같은 조건**을 다시 걸어 방어한다. -#}
+        {%- if icohp._comparison_bader and icohp._comparison_bader.get(el) %}{{ icohp._comparison_bader[el].note or '' }}{% endif -%}
         {%- if icohp.bader[el ~ '_std'] is defined %} <span class="mono">std {{ '%.3f'|format(icohp.bader[el ~ '_std']) }}</span>{% endif -%}
       </td></tr>
     {% endif %}{% endfor %}
@@ -432,6 +616,22 @@
   </div>
 </div>
 {% endif %}
+
+{# ── 더 보기 ────────────────────────────────────────────────────────────────
+   실측(2026-09-09): /composition/lpsocl <main> 안의 실링크가 **/compare 하나**였다.
+   방법·판정·원자료·미결로 나가는 길이 본문에 없었다. #}
+<div class="card" style="margin-top:18px">
+  <b style="font-size:.86rem">더 보기</b>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <a class="btn sm" href="/methods">🧪 어떻게 쟀나 (방법)</a>
+    <a class="btn sm" href="/governance">⚖ 판정 원장</a>
+    <a class="btn sm" href="/explorer">▤ 정본 값 진입점</a>
+    <a class="btn sm" href="/compare">⇄ 두 계 비교</a>
+    <a class="btn sm" href="/files?q={{ cid }}">🗂 원자료 파일</a>
+    <a class="btn sm" href="/glossary">📖 용어</a>
+    <a class="btn sm" href="/todo">📋 미결</a>
+  </div>
+</div>
 
 <script>
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
@@ -802,14 +1002,35 @@ function _renderChart(){
 }
 window.addEventListener('themechange',function(){if(window._CH&&window._CH.d)_renderChart();});
 {% if datafiles %}window._firstCsv=function(){plotCsv('{{ datafiles[0].rel }}','{{ datafiles[0].kind }}',document.querySelector('#tab-charts .chip'));};{% endif %}
-// 값이 사이트 맥락 밖으로 나가는 유일한 경로 — explorer 의 citeVal 과 같은 포맷으로 통일해서
-// method provenance 와 잠정 사유를 함께 싣는다 (CLAUDE.md: MD Ea 등은 절대값 인용 금지 대상).
+/* 값이 사이트 맥락 밖으로 나가는 유일한 경로.
+ * ⛔⛔ P0-04 (2026-09-09) — 종전 이 함수는 canonical/labels/units/meta 만 읽고
+ *   **canonical_status 를 안 읽었다.** 그래서 /composition/b2o3 의 '📋 값 복사' 가
+ *   철회값 `MD Ea: 0.199 eV` 를 내보내면서 마지막 줄에 `(canonical, 방법 표기 포함)`
+ *   꼬리표까지 붙였다 — 철회값이 **정본을 자칭하며** 클립보드로 나간 것이다.
+ *   같은 줄이 '잠정' 도 떨어뜨렸다.
+ * ★ 지금은 지위가 라벨 뒤에 **강제로** 들어가고(서버 파생 · decisions_view.metric_notices),
+ *   대체값도 같이 실린다. 지위가 붙은 줄이 하나라도 있으면 꼬리말에서 'canonical' 을 뺀다.
+ *   ⚠ 표식을 JS 조건문으로 다시 만들지 말 것 — 그러면 원장과 화면이 또 갈라진다. */
 function copyComp(){
   let t="{{ comp.label }} ({{ comp.formula }})\n";
+  {%- set unclean = [] %}
   {% for k,v in canonical.items() %}{% if v is not none %}
-  t+="{{ labels.get(k,k) }}: {{ v }} {{ units.get(k,'') }}  [{{ canonical_meta.get(k,'')|replace('"','\'') }}]{% if canonical_provisional.get(k) %}  ⚠ 잠정 — {{ canonical_provisional.get(k)|replace('"','\'') }}{% endif %}\n";
+  {%- set n = notices.get(k, {}) %}{% set mark = n.mark or '' %}
+  {%- if mark %}{% set _ = unclean.append(k) %}{% endif %}
+  t+={{ (labels.get(k,k) ~ (' [' ~ mark ~ ']' if mark else '') ~ ': ' ~ v ~ ' ' ~ units.get(k,'')) | tojson }}
+    +{{ ('  [' ~ canonical_meta.get(k,'') ~ ']') | tojson }}
+    {%- if canonical_provisional.get(k) %}+{{ ('  ⚠ 잠정 — ' ~ canonical_provisional.get(k)) | tojson }}{% endif %}
+    {%- if n.instead %}+{{ ('\n    ↳ 대신 쓸 값: ' ~ n.instead) | tojson }}
+    {%- elif mark.startswith('⛔') %}+{{ '\n    ↳ 대신 쓸 값: 원장에 등록된 대체값이 없다' | tojson }}{% endif %}
+    {%- if n.hold and not n.instead %}+{{ ('\n    ↳ 보류 사유: ' ~ n.hold_why) | tojson }}{% endif %}
+    +"\n";
   {% endif %}{% endfor %}
+  {%- if unclean %}
+  t+="⛔ 위 목록에 철회·인용불가·보류 항목이 {{ unclean|length }}건 있어요 — 그대로 인용하면 안 됩니다.\n";
+  t+="— 출처: {{ request.host_url if request else '' }}composition/{{ cid }} (지위 표기 포함 · canonical 아닌 값이 섞여 있음)\n";
+  {%- else %}
   t+="— 출처: {{ request.host_url if request else '' }}composition/{{ cid }} (canonical, 방법 표기 포함)\n";
+  {%- endif %}
   copyText(t);
 }
 </script>
