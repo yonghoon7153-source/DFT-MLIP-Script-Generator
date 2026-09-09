@@ -76,7 +76,7 @@ electronic conductivity of 250 mS cm⁻¹ (Section X).
 | `The oxidized state is imposed by this construction` | DFT 로 **자발성**을 주장한다는 오독. H 를 손으로 뗀 계산이다 |
 | `follows from the infrared spectra above` | 자발성은 FT-IR 몫 — 역할 분담을 한 절로 |
 | `Counted over ring atoms only` → **Figure S4 캡션으로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
-| `rather than localized at the oxidation site` | ring4(=고리 5번) 23.3 을 "국재" 로 읽는 것. **자리는 ring3 = 고리 4번 확정**(2026-09-08) — 최대와 다른 고리라 이 구절이 데이터로 받쳐진다 |
+| `rather than localized at the oxidation site` | 세 고리 중 하나에 "국재" 로 읽는 것. **자리는 고리 4번**(1-기준 · 2026-09-09 번호 정정)이고 그 고리가 셋 중 **가장 작다**(15.9 < 20.0 < 23.3) — 산화 자리가 최소 지분이라 이 구절이 데이터로 받쳐진다. ⚠ 어느 고리가 최대인지는 **쓰지 않는다**(아래 참조) |
 | `expected to be at least this delocalized` | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
 | `identify the carrier but not its mobility` | 전도도를 계산으로 주장하는 것 차단 |
 | `That transport was measured directly` | 계산이 못 하는 것을 **측정이 답한다** — 회피가 아니라 역할 분담임을 보인다 |
@@ -222,6 +222,15 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 > 의 `ring0..ring5`)는 **0-기준**이다. **ring3 = 고리 4번**이고 그 자리가 산화 자리다.
 > ⛔ 종전 Note 2 는 `on ring 3` 이라고만 써서, 1-기준으로 읽으면 산화 자리가 스핀이 몰린
 > 세 고리(4·5·6번)를 **비껴가는** 그림이 됐다. 실제로는 그 셋 중 하나다.
+
+> ⛔ **"고리 5가 왜 최대인가" 는 안 쓴다 (1저자 결정 2026-09-09).**
+> 물음 자체는 정당한데 **우리 데이터로 답이 안 된다**: ① n=6 계산이 한 번뿐이고 산화 자리도
+> 하나라 "자리에서 한 칸 밀린다" 가 이 계의 성질인지 이 배치의 우연인지 못 가른다 ·
+> ② `fresh SCF 한 번` 이라 다른 스핀 해가 없다는 보증이 없다(원장 금지_서술) ·
+> ③ **오차막대가 없어 23.3 vs 20.0 이 유의한지 모른다.**
+> ⇒ 본문은 *"세 고리에 퍼져 있고 산화 자리가 아니다"* 까지만 말한다. 최대 고리는 안 댄다 —
+>   방어가 안 되고, 하려는 주장(폴라론이지 국재 라디칼이 아니다)에 필요도 없다.
+> 답하려면 **같은 사슬에서 산화 자리를 다른 고리에 놓은 대조 2점**이 필요하다(미실행 · 보고량 카드 선행).
 
 ## SI 연결
 
