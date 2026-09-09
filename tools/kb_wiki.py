@@ -56,8 +56,13 @@ RQ_SECTIONS = ["왜 중요한가", "Evidence For", "Evidence Against", "결정 �
 SY_SECTIONS = ["Thesis", "Counter-arguments", "Gap"]
 
 #: repo-상대경로로 취급하는 접두 (서버 절대경로 /data/... 는 자동 제외)
+#: ⚠ 확장자 대안은 **긴 것부터** 쓰고 끝에 `(?![\w])` 를 단다.
+#   2026-09-09 실측: 이게 없어서 `…_90.jsonl` 이 `…_90.json` 으로 잘려 나가
+#   **실재하는 파일을 "깨진 경로" 로 error 를 냈다.** 검사기가 틀린 답을 확신 있게
+#   말한 것이라, 오탐 1건이 아니라 부류다 (`.mdx`·`.inp`·`.csvz` 도 같은 자리).
 PATH_RE = re.compile(
-    r"(?<![\w/])((?:db|tools|kb|docs|litdb|webapp|runs)/[\w][\w./-]*\.(?:py|json|md|csv|sh|vasp|xyz|cif|png|txt|yaml|yml|tsv|in|UPF|upf))")
+    r"(?<![\w/])((?:db|tools|kb|docs|litdb|webapp|runs)/[\w][\w./-]*"
+    r"\.(?:py|jsonl|json|md|csv|sh|vasp|xyz|cif|png|txt|yaml|yml|tsv|in|UPF|upf))(?![\w])")
 #: 스킵: 글롭·플레이스홀더가 섞인 토큰
 SKIP_TOKEN = re.compile(r"[*{}<>]")
 STALE_STATUS = re.compile(r"대기|HOLD|진행|보류|pending", re.I)
