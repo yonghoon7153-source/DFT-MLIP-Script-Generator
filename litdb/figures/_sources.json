@@ -68,7 +68,7 @@
   ]
  },
  "basu2026_multifidelity_bandit_dopant_screening_funnel": {
-  "figures": 29,
+  "figures": 31,
   "generated": "2026-09-09",
   "pdfs": [
    "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf"
@@ -338,6 +338,13 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/25. Operando analysis of electronic band structure in an all-solid-state thin-film battery.pdf"
+  ]
+ },
+ "hu2026_foundation_model_surrogates_active_learning": {
+  "figures": 11,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "a6a95804-97._Foundationmodel_surrogates_enable_dataefficient_active_learning_for_materials_discovery.pdf"
   ]
  },
  "huang2022_li2sis3_anomalous_conductivity_bvse": {
@@ -758,6 +765,14 @@
   "pdfs": [
    "DEM 논문/32. Small - 2025 - Liu - Dry Processing Technique for High‐Energy Density Lithium Batteries.pdf",
    "DEM 논문/54. Small - 2025 - Liu - Dry Processing Technique for High‐Energy Density Lithium Batteries.pdf"
+  ]
+ },
+ "liu2026_ab_site_substitution_high_entropy_perovskite_al": {
+  "figures": 6,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "SI docx (본문 PDF 미확보)",
+   "github.com/IMPDGroup/HEP-Explorer @e1003f2"
   ]
  },
  "liu2026_ai_ready_finetuning_solid_solid_interfaces": {
@@ -1344,6 +1359,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/10. Ultraviolet photoelectron spectroscopy Practical aspects and best practices.pdf"
+  ]
+ },
+ "wilson2022_batch_active_learning_interatomic_potentials": {
+  "figures": 13,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "f4f7edc6-98._Batch_active_learning_for_accelerating_the_development_of_interatomic_potentials.pdf",
+   "0b34a0f3-98._Sup_Batch_active_learning_for_accelerating_the_development_of_interatomic_potentials.pdf"
   ]
  },
  "wu2026_dilute_electrolyte_zn_calendar_aging": {
