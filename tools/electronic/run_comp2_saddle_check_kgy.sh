@@ -81,17 +81,25 @@ while pgrep -f 'pw\.x|neb\.x|comp_phonon_uma' >/dev/null 2>&1; do
 done
 PW=${PW:-$(find "$HOME/apps" -maxdepth 4 -name pw.x -path "*qe*gpu*bin*" 2>/dev/null | head -1)}
 [ -n "$PW" ] || { echo "ERROR: pw.x 못찾음"; exit 1; }
-NV="$HOME/apps/nvhpc/Linux_x86_64/24.11"
-HPCX="$(ls -d "$NV"/comm_libs/*/hpcx/hpcx-*/ompi 2>/dev/null | sort | tail -1)"
-export OPAL_PREFIX="$HPCX" OMP_NUM_THREADS=1
-export LD_LIBRARY_PATH="$NV/compilers/lib:$NV/cuda/12.6/lib64:$NV/math_libs/lib64:$HPCX/lib:${LD_LIBRARY_PATH:-}"
-MPIRUN="$HPCX/bin/mpirun"
+
+# ⛔⛔ 2026-09-08 — 여기 있던 블록은 hpcx 를 **자동탐지**했다:
+#     NV=$HOME/apps/nvhpc/…/24.11 · HPCX=$(ls -d "$NV"/comm_libs/*/hpcx/hpcx-*/ompi | tail -1)
+#     export OPAL_PREFIX="$HPCX" · MPIRUN="$HPCX/bin/mpirun"
+#   그게 kgy 에서 **세 번째로 틀린** 답이다. kgy 의 pw.x 는 hpcx 가 아니라
+#   `~/apps/openmpi-4.1.6` 로 빌드돼 있었고(hpcx 에서 오는 건 scalapack 뿐),
+#   파일 이름이 `_kgy` 인 러너가 정확히 그 오진을 하고 있었다.
+#   ★ 규칙이 아니라 **링크가 근거다** — 공용 함수가 ldd 로 바이너리에게 묻고,
+#     못 읽으면 시작하지 않는다. (CLAUDE.md 계산 자원 절)
+# shellcheck source=../lib/qe_gpu_runtime.sh
+. "$(cd "$(dirname "$0")/../lib" && pwd)/qe_gpu_runtime.sh"
+qe_gpu_require "$PW"
+MPIRUN="$QE_GPU_MPIRUN"
 
 cd "$WORK"
 for tag in V0 followmin; do
   grep -aq "JOB DONE" "scf_${tag}.out" 2>/dev/null && { echo "[$tag] done skip"; continue; }
   echo "[$(date +%H:%M:%S)] pw.x scf_${tag}"
-  "$MPIRUN" -np 1 "$PW" -in "scf_${tag}.in" > "scf_${tag}.out" 2>&1
+  "$MPIRUN" --oversubscribe -np 1 "$PW" -nk 1 -in "scf_${tag}.in" > "scf_${tag}.out" 2>&1
   grep -aq "JOB DONE" "scf_${tag}.out" || { echo "[$tag] FAIL:"; tail -12 "scf_${tag}.out"; exit 1; }
 done
 

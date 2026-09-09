@@ -11,6 +11,24 @@
 >
 > 마지막 갱신: 2026-05-18 (압축 후 drift 사건으로 작성)
 
+> # ⛔ 2026-09-09 후주 — **이 문서는 2026-05 판이다. 네 군데가 지금 사실과 반대다.**
+>
+> 원문은 **그대로 둔다**(당시 판단의 이력이다). 다만 "첫 5분 안에 무조건 읽기" 문서라
+> 틀린 채로 읽히면 그게 제일 비싸다. 상세는 이 파일 맨 아래 **§9 후주(2026-09-09)**.
+>
+> 1. **§3 의 "Nd2O3 narrative 강화 = 안티패턴" 은 더 이상 유효하지 않다.**
+>    2026-09-03 그룹미팅 교수 지침이 **Nd/O 공치환을 1차 지침**으로 지정했다
+>    (`kb/seminars/group_meeting_2026_09_03_nd_professor_directives.md`).
+> 2. **§5 의 "gabia 진행 중 (~7/273)" 은 끝난 캠페인이다** — 273 중 270 완주(2026-07~08).
+> 3. **§4 의 `run_md_sigma.py` "✅ verified (paper-grade σ_300K)" 는 틀렸다** —
+>    σ 절대값은 인용 금지이고, 300 K σ 는 2026-09-08 cascade 보고량에서도 삭제됐다.
+> 4. **§7 이 가리키는 `CODE_INVENTORY.md` 와 §4 의 `필독/adhesion/v30u_ensemble/` 는 없다.**
+>
+> **지금의 north star 역할**은 이 문서가 아니라 아래 셋이 나눠 갖는다:
+> · 지금 무엇이 도는가 → `kb/projects/restart_runbook_2026_09_07.md`
+> · 지금 무엇을 쓰라는가 → `kb/seminars/group_meeting_2026_09_03_nd_professor_directives.md`
+> · 무엇을 인용해도 되는가 → `db/properties/canonical_registry.json` · `citation_hazards.json`
+
 ---
 
 ## 1. 이 프로젝트가 진짜로 무엇인가
@@ -58,8 +76,10 @@
 
 다음 발언이 나오면 **즉시 이 문서로 돌아오세요**:
 
-- ❌ *"Nd2O3 narrative 강화하자"* — Nd는 1개 datapoint. 다른 compound 더 돌려야
-- ❌ *"왜 Nd인가 cherry-pick 해명"* — Layer 2 학습되면 자동 답변 됨
+- ~~❌ *"Nd2O3 narrative 강화하자"* — Nd는 1개 datapoint. 다른 compound 더 돌려야~~
+  ⛔ **폐기 (2026-09-03 교수 지침)** — Nd/O 공치환이 **1차 지침**이다. §9 후주 ①
+- ~~❌ *"왜 Nd인가 cherry-pick 해명"* — Layer 2 학습되면 자동 답변 됨~~
+  ⛔ **반대다** — 교수 지침이 *"왜 하필 Nd냐"* 를 8회 되물었다. 그 답을 **직접** 써야 한다
 - ❌ *"Stage 11 v6 area mismatch fix 필수"* — Layer 2 v1엔 Wad target 안 써도 됨
 - ❌ *"paper #2 mechanism deep dive"* — paper #1 mechanism (R=0.989) 이미 있음
 - ❌ *"4f³ chemistry 강조"* — case study일 뿐
@@ -178,3 +198,39 @@
 **마지막 한 줄**:
 > Nd2O3는 1개 datapoint. Digital Twin Platform 구축이 본체.
 > 코드 새로 짜지 말고 검증된 도구 사용. 사용자께 먼저 묻기.
+
+---
+
+## 9. 후주 — 2026-09-09 정정 (원문 보존, 여기에만 적는다)
+
+> 이 절만 나중에 쓴 것이다. **위 본문은 2026-05-18 판 그대로**이고 지우지 않았다
+> (kb/SCHEMA.md Update Policy: 철회는 원문 보존 + 반증 병기).
+
+### ① Nd 안티패턴 → **1차 지침으로 뒤집혔다** (§3)
+2026-09-03 그룹미팅에서 교수님이 **Nd/O 공치환 논문 방향**을 지정했고, 그 기록이
+`kb/seminars/group_meeting_2026_09_03_nd_professor_directives.md` 이며 스스로
+*"앞으로 Nd 논문·연구세미나·원고를 쓸 때의 **1차 지침**"* 이라고 적는다.
+그리고 이 문서가 *"Layer 2 학습되면 자동 답변 됨"* 이라고 미뤄 둔 **"왜 하필 Nd냐"** 는
+그 미팅 48분에서 **최소 8번** 되풀이된 최대 미해결 질문이다 — 미루는 것이 아니라
+**물리적 근거를 직접 써야 하는** 항목이다.
+실행 흔적: 커밋 `83c868a97`(Nd₂O₃-LPSCl1.6 어닐 6셀 회수) · `51b5dec21`(UMA 순위 DFT 재채점).
+
+### ② 273 캠페인 진행률 (§5)
+*"gabia 진행 중 (2026-05-25 기준 ~7/273)"* → **끝났다.** 2026-08 cascade 대본들이
+*"273 슬롯 가운데 270 완료"* 로 적는다. ⚠ 다만 그 결과의 **순위·front 는 인용 금지**다 —
+cascade 축은 회신 AL(2026-08-30) **NO-GO hold** 이고, v1 결과는 무효 사유와 함께 보존만 한다
+(`db/properties/cascade_d_rel_estimand_2026_09_08.json` §5).
+
+### ③ `run_md_sigma.py` "✅ verified (paper-grade σ_300K)" (§4 표)
+CLAUDE.md 데이터 규율: **σ 절대값 인용 금지**(Nernst–Einstein Haven=1 은 상한).
+2026-09-07 1저자 결정으로 σ(300 K) 재계산도 **하지 않는다**(`md_axis_status_2026_09_07.md` §6-②),
+2026-09-08 cascade 보고량에서도 300 K σ 는 **삭제**됐다. ⇒ 이 표의 ✅ 는 **paper-grade 가 아니다**.
+
+### ④ 없는 경로 둘
+`CODE_INVENTORY.md`(§7) · `필독/adhesion/v30u_ensemble/`(§4) — 둘 다 실물이 없다(ls 확인).
+도구 목록의 현행 대체는 `tools/` 직접 grep 과 `kb/methodology/computational_methods_canonical.md` 다.
+(위 두 이름은 **'없다' 를 기록하려고** 일부러 남긴다 — 지우면 다음 세션이 또 찾는다.)
+
+### 이 후주가 하지 않는 것
+- 본문의 3-layer 비전 자체를 폐기하지 않는다 — **아직 유효한지 아닌지는 1저자 판단**이다.
+- 이 문서를 삭제·이동하지 않는다. 다만 **north star 역할은 §맨 위 후주의 세 문서**로 넘어갔다.

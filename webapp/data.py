@@ -3380,7 +3380,7 @@ def search_index() -> list:
     #   빠져 있었다(2026-09-08 v3 조사). 정본은 **webapp/nav.py** 하나다.
     #   짝 검사: webapp/tests/test_v3_nav.py
     import nav as NAV                      # 지연 import — nav.py 도 data 를 쓴다
-    pages = NAV.search_pages()
+    pages = [t for t in NAV.search_pages() if t[3] != '/governance']
     _navkw = NAV.search_keywords()
     for t, label, sub, url in pages + talks:
         idx.append({"t": t, "label": label, "sub": sub, "url": url,

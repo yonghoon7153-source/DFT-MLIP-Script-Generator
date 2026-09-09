@@ -1,5 +1,6 @@
 {
   "id": "li3n",
+  "⛔_UMA_금지_2026_09_09": "이 계에서 **UMA 로 만든 수치는 인용하지 않는다** (CLAUDE.md, 2026-06 결정론적 편향 판정). 이 파일 안의 UMA 유래 값 두 곳은 `_RETRACTED_` 접두사로 격리했다 — _RETRACTED_pathD_bridge_bridge (0.054 / 0.049 eV) · _RETRACTED_bridge_uma (−0.032 eV). Li₃N 확산의 정본은 db/properties/diffusion.json 하나다(full-DFT-NEB). ⚠ 금지의 **범위**(장벽 절대값만인가 · 구속 PES 도인가 · 기하 정찰(path-finder)은 허용인가)는 아직 1저자 확정 전이다 — kb 카드 2026-07-09 UPDATE 가 구속 PES 0.156 eV 에 합격 도장을 찍은 이력이 있어 문서끼리 갈라져 있다. 인용위험 원장: HZ-uma-li3n-banned.",
   "category": "anode_side_interphase",
   "formula": "Li3N",
   "formula_html": "Li<sub>3</sub>N",
@@ -30,13 +31,15 @@
     "pathA": "N → adjacent N along a-axis, distance 3.65 Å — symmetric, paper-equivalent",
     "pathB": "N → adjacent N along 60° rotated axis — symmetry-equivalent",
     "pathC": "N → adjacent N along other 60° axis — symmetry-equivalent",
-    "pathD_bridge_bridge": "bridge → bridge direct — diverged with both LBFGS and FIRE, deduced arithmetically as TS−bridge = 0.054 eV (UMA) / 0.049 eV (DFT SCF)"
+    "_RETRACTED_pathD_bridge_bridge": "bridge → bridge direct — diverged with both LBFGS and FIRE, deduced arithmetically as TS−bridge = 0.054 eV (UMA) / 0.049 eV (DFT SCF)",
+    "_retraction_note": "⛔ 철회 (CAVEAT_2026-06-06). 이 경로의 0.054 / 0.049 eV 는 **thin 4-layer 슬랩 UMA 인공물**이다 — db/properties/diffusion.json 이 같은 값을 철회했고 db/_index.json 도 관련 헤드라인을 _RETRACTED_ 접두사로 격리했다. 이 파일에만 표시가 없어 3개월간 살아 있는 값으로 읽혔다. 값은 이력으로 남기되 **인용하지 않는다.** 인용은 항상 diffusion.json 기준 (kb/projects/li_neb_anode_free.md). 인용위험 원장: HZ-uma-li3n-banned."
   },
   "li_adatom_binding_eV": {
     "on_top_N_uma": "computed via NEB endpoint relax",
-    "bridge_uma": -0.032,
+    "_RETRACTED_bridge_uma": -0.032,
     "ref_cui_2023": -3.44,
-    "note": "Cui paper binding energy is relative to atomic Li reference; our values are relative to UMA-relaxed endpoint."
+    "note": "Cui paper binding energy is relative to atomic Li reference; our values are relative to UMA-relaxed endpoint.",
+    "_retraction_note": "⛔ bridge_uma −0.032 는 UMA 산출값이다. CLAUDE.md: 'UMA 는 Li₃N 에 사용 금지 (2026-06 결정론적 편향 판정)' — UMA 가 이 계에서 위상을 뒤집는다(proper-slab UMA 는 0.237 eV hollow, wrong topology). on_top_N_uma 도 같은 계보라 수치로 인용하지 않는다. 인용위험 원장: HZ-uma-li3n-banned."
   },
   "endpoint_relax_correction_2026_06_16": {
     "_status": "FIXED — on_N_right endpoint properly relaxed (was a rigid-shift artifact); fresh NEB now valid.",

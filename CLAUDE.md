@@ -2,6 +2,20 @@
 
 전고체전지(황화물 SE) 계산 캠페인 repo. 아래 규칙은 세션이 바뀌어도 유지되는 표준이다.
 
+## 여기서 시작 (새 세션·압축 후 6줄)
+
+| 묻는 것 | 정본 |
+|---|---|
+| **지금 상태** — 뭘 이어서 하나 | `kb/open_items.md` 의 **⏭ 절**(머리에 최종 갱신일). 통째로 읽지 말고 grep |
+| **판정** — 결정됐나 | `db/governance/decisions.json` (`decision_state: active` 만 유효. proposed 는 아직 아니다) |
+| **값** — 숫자가 뭔가 | `db/properties/canonical_registry.json` (값·status·`comparison_group`·`prohibitions`) |
+| **금지** — 인용해도 되나 | `db/properties/citation_hazards.json` (BLOCKED / HOLD / CONDITIONAL / SUPERSEDED) |
+| **리뷰** — 회신 어디 있나 | `kb/reviews/INDEX.md` (회신 letter A→BI, prompt/reply 짝) |
+| **화면** — 남이 보는 표면 | `webapp/` (아래 §화면 규율) |
+
+- 원격 기계가 지금 뭘 돌리는지는 **최신 런북**: `kb/projects/restart_runbook_2026_09_07.md`.
+- 세션을 닫을 때 **`kb/open_items.md` ⏭ 절을 갱신한다** — 지금까지 아무도 안 시켜서 8일 낡았었다.
+
 ## 소통
 - 한국어 대화체로 답한다. 문어체/번역체("-했다") 금지. 짧고 구체적으로.
 - 그림 라벨·캡션은 영어만 (사용자 뷰어에서 한글 폰트 깨짐).
@@ -72,6 +86,33 @@
   보고 답하지 않기). 어느 그림인지는 그 폴더의 figures.json caption 으로 찾고, 없으면
   `tools/litdb/extract_figures.py --inbox` 로 먼저 만든다. **본 그림/안 본 그림을 구분해 말한다.**
   그림에서만 읽은 값은 `figure-read ≈` 표기. 표(tab_*.png)는 PDF 텍스트가 더 정확하다.
+
+## 화면(webapp)·claim 결속 규율 (2026-09-08 도입 · 2026-09-09 문서화)
+
+> 규율이 원장에만 있고 **화면에 안 실리면** 사람은 화면을 인용한다. 그래서 결속(binding)이다.
+> 대상은 `webapp/` 전체와, 화면이 읽어 가는 문서다.
+
+- **철회·비인용 값은 자기 claim id 를 단 요소 *안*에 있어야 한다** (`data-claim`).
+  근처에 ⛔ 표지를 두는 것은 **결속이 아니다** — 값이 복사·발췌될 때 표지가 따라가지 않는다.
+  우연 일치는 면제가 아니라 **부인을 선언**한다 (`data-claim-not`, id 를 이름으로 대서 · 셀 단위로).
+- **표식은 텍스트 노드다** (`.claim-mark`). CSS `content:` 로 그리면 **복사·인쇄·텍스트 추출·
+  보조기기에 안 나간다** — 화면에만 있는 경고는 경고가 아니다.
+- **매처는 숫자를 값으로 본다** (`0.199 ≡ 0.1990`). 문자열 일치가 아니다.
+  조건 셋을 같이 본다: **부호 · 단위 · 출처**(`origin="external"`).
+- **litdb 는 남의 문서다** → `origin="external"`. 우리 계 이름이 없으면 `suspect` 로 두고
+  **목록에는 남긴다** (조용히 버리지 않는다).
+- **철회에는 "대체값 없음" 을 적을 자리가 있다** — `retracted.instead_kind`
+  (`sentinel_none` | `claim_ref` | `prose`). 이 자리가 없으면 사람이 아무 문장이나 채운다
+  (2026-09-08 실측 사고: 죽은 키 `FINAL_for_paper.Ea_eV_PAPER` 를 3주간 "이것만 인용하라" 고 가리켰다).
+- **`validate_hazards()` — 인용위험 원장도 검사 대상이다**: level 어휘 · claim 실재 ·
+  **점표기 키 실재** · id 중복.
+- ⛔ **`unbound == 0` 은 지표가 아니다.** 자동 결속 경로가 지나가면 구조적으로 0 이 된다.
+  지표는 **표면별 음성시험**이다 — 렌더된 HTML 에서 선언만 지우고 다시 스캔해서 잡히는지 본다.
+  래칫(`_LEGACY_UNBOUND`)을 **다시 채우는 것이 완화다** (시험이 `== {}` 를 강제한다).
+- **브라우저에서 마크다운을 다시 파싱하지 않는다** (`marked.parse` 금지 린트).
+  판정은 **서버 한 곳**에서 한다 — 두 곳에서 파싱하면 두 판정이 갈린다.
+- 새 화면·새 숫자를 올릴 때: 숫자는 레지스트리에서만 오고(화면이 자체 보관 금지),
+  표면을 추가하면 **음성시험 표면 목록에도 추가**한다.
 
 ## 원고 작성
 - kb/templates/manuscript_prompts.md 의 템플릿 사용 (figure 단위 요청, Wiley 스타일 R&D, 학술 5문장 재번역,
@@ -159,46 +200,9 @@
 - 마무리: `python3 tools/kb_wiki.py index` 재생성 + `lint` **0 errors** (kb/index.md 손편집 금지).
 - 채택 배경: kb/methodology/llm_wiki_adoption_2026_08_11.md.
 
-
----
-
-## research-agent (논문 자동비서)
-
-이 폴더는 **논문 에이전트**다. (연구자가 무엇을 하는지는 `config/research_profile.md` 가 유일한 근거다 — 코드나 프롬프트에 연구 내용을 추측해서 적지 말 것.) Google Scholar alert → triage(IF 우선) → 심층 분석 → SQLite/JSONL DB + Obsidian vault + litdb → 매일 디제스트 메일.
-당신(Claude Code)의 역할은 세 가지: (1) `config/research_profile.md` 를 브랜치 실제 내용으로 채우고 최신으로 유지, (2) 코드·설정 유지보수, (3) `ra`가 만든 **분석 큐를 채우는 논문 분석가**(헤드리스 `claude -p` 또는 `/paper-noon`).
-
-## 절대 규칙
-- 사실을 지어내지 않는다. 초록/전문이 없으면 `evidence_level`을 `snippet`/`title`로 적고 `follow_up`에 "전문 확보" 를 남긴다.
-- 문체는 `prompts/style_guide.md` — 번역투 금지, 고유명사·재료명·저널명은 영어, Obsidian 문법(frontmatter, `[[wikilink]]`, callout).
-- 파일명·경로 규칙은 `research_agent/vault.py`가 정한다. 노트를 손으로 만들지 말고 `ra vault`로 생성한다.
-- DB(`data/papers.sqlite`)는 `ra`로만 수정한다. `data/papers.jsonl`은 미러(자동 생성)라 직접 편집 금지.
-- 설정 변경은 `config/agent.yaml`, `config/journal_if.yaml`, `config/research_profile.md` 세 파일로 끝나야 한다. 코드에 상수를 박지 말 것.
-- 버전: 동작이 바뀌면 `VERSION`·`research_agent/__init__.py`·`CHANGELOG.md`를 함께 올린다(semver).
-
-## 자주 쓰는 명령
-```bash
-pip install -e ".[dev,llm]" && python -m pytest -q     # 설치·테스트
-ra status                                              # DB/큐 상태
-ra noon --no-imap                                      # 메일 없이 수동 JSON만 처리 (테스트)
-ra analyze --queue                                     # 큐 생성 → data/analysis/pending/*.json
-ra analyze --import-dir data/analysis/pending          # 채운 큐 가져오기
-ra vault && ra litdb                                   # 노트·MOC·litdb 재생성
-ra morning --dry-run                                   # 디제스트 미리보기 (vault/Digests/<date>.md)
-ra sync                                                # [RA-HANDOFF] 메일(클라우드 Cowork 결과) 병합
-```
-
-## 큐 채우기 (논문 분석) 프로토콜
-1. `data/analysis/pending/<id>.json` 을 연다. `prompt_system`(스키마+문체+연구 프로필)과 `prompt_user`(논문 정보)를 읽는다.
-2. `analysis` 필드에 JSON 객체를 채운다. 필수 키: `one_liner`, `selection_reason`, `key_findings`. 나머지는 `prompts/deep_analysis.md` 스키마.
-3. `ra analyze --import-dir data/analysis/pending` → 검증 실패 시 메시지대로 보완.
-4. `ra vault && ra litdb` → `git add -A data vault && git commit -m "ra: analyses <date>"`.
-서브에이전트 `.claude/agents/paper-analyst.md`가 이 프로토콜을 그대로 수행한다. 큐가 5편 이상이면 논문별로 병렬 서브에이전트를 띄운다.
-
-## Cowork(클라우드)와의 분업
-- Cowork 세션은 Gmail을 직접 읽고 쓴다. 12:00/09:00 클라우드 작업이 분석 결과와 디제스트를 `[RA-HANDOFF]` 메일로 이 계정에 보낸다.
-- 이쪽(로컬/Claude Code/Hermes)은 `ra sync`로 그 메일을 DB·vault·litdb에 병합하고 commit/push 한다. 사용자는 아무것도 하지 않아도 된다.
-- 로컬만 할 수 있는 일: 교내망 전문 PDF 확보 → `evidence_level: fulltext` 재분석, litdb 적재, git push.
-- 충돌 규칙: 같은 논문에 분석이 둘이면 `evidence_level`이 높은 쪽(fulltext > abstract > snippet > title)을 남긴다.
-
-## 브랜치 통합 시 할 일 (최초 1회)
-`SETUP_CLAUDE_CODE.md` 체크리스트를 따른다. 기존 논문에이전트/litdb 코드가 있으면 `research_agent/exporters/litdb.py`의 `field_map`을 실제 스키마에 맞춘 뒤 `ra litdb`로 검증한다.
+## 하위 폴더 지침
+- **`research-agent/`** (논문 자동비서 — Scholar alert → triage → 분석 큐 → vault/litdb → 디제스트 메일):
+  규칙은 **`research-agent/CLAUDE.md`** 다. 2026-09-09 에 이 파일에서 분리했다 —
+  여기 있는 동안 상대경로 10개가 repo 루트에서 안 풀렸고 "이 폴더는 논문 에이전트다" 가
+  이 계산 캠페인 repo 를 가리켰다.
+  ⚠ 위 §litdb 의 *"논문 에이전트 요청 = litdb-curator"* 와 **이름만 같고 다른 것**이다.

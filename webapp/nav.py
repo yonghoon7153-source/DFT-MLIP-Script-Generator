@@ -195,7 +195,7 @@ def composition_groups(D=None) -> dict:
     """사이드바 Compositions — 대시보드와 **같은** FAMILY_ORDER 로 묶는다.
 
     반환 {"groups": [{"family", "items": [...]}, ...], "planned": [...]}
-      · groups  : family 순서대로, 각 family 안은 자료 많은 순(=활성 먼저)
+      · groups  : family 순서대로, 각 family 안(links)은 자료 많은 순(=활성 먼저)
       · planned : 자료가 PLANNED_EVIDENCE_MAX 이하인 조성 — 접힘 묶음
 
     인자 없이 부르면 db 트리 지문(mtime)으로 캐시한다 — `structures_for` 가 조성마다
@@ -238,7 +238,8 @@ def _composition_groups(D) -> dict:
             (planned if ev[cid] <= PLANNED_EVIDENCE_MAX else rows).append(row)
         if rows:
             rows.sort(key=lambda r: (-r["n"], order[r["cid"]]))
-            groups.append({"family": fam, "items": rows})
+            # "items" 가 아니라 "links" — Jinja 에서 dict.items 와 부딪힌다(위 주석 참조)
+            groups.append({"family": fam, "links": rows})
     planned.sort(key=lambda r: order[r["cid"]])
     return {"groups": groups, "planned": planned}
 
@@ -298,9 +299,11 @@ def sidebar(D=None, root=None) -> list:
                                       "db/governance/decisions.json · db/properties/") if bits else None
             out_it = row
             items.append(out_it)
+        # ⚠ 키 이름이 "items" 면 안 된다 — Jinja 에서 `sec.items` 가 **dict.items 메서드**로
+        #   먼저 잡혀 `'builtin_function_or_method' object is not iterable` 로 죽는다.
         out.append({"id": sec["id"], "label": sec.get("label"),
                     "fold": bool(sec.get("fold")), "comps": bool(sec.get("comps")),
-                    "items": items})
+                    "links": items})
     return out
 
 
@@ -505,6 +508,7 @@ def _selftest() -> int:
     # ③ search_pages 모양 — data.py 가 4-튜플로 언팩한다
     sp = search_pages()
     ck(all(isinstance(t, tuple) and len(t) == 4 for t in sp), "search_pages 가 4-튜플이 아니다")
+    ck(all("items" not in s_ for s_ in sidebar()[0]), "사이드바 키에 'items' 가 있다 — Jinja 가 dict.items 로 잡는다")
     ck({t[3] for t in sp} == set(urls), "search_pages url 이 nav url 과 다르다")
 
     # ④ 범례가 _STATUS_BADGE 에서 나오는지 — 손으로 쓰면 여기서 걸린다
@@ -524,12 +528,12 @@ def _selftest() -> int:
 
     # ⑤ 조성 묶음 — 자료 없는 것이 접히고, **지워지지 않는다**
     cg = composition_groups(D)
-    shown = {r["cid"] for g in cg["groups"] for r in g["items"]} | {r["cid"] for r in cg["planned"]}
+    shown = {r["cid"] for g in cg["groups"] for r in g["links"]} | {r["cid"] for r in cg["planned"]}
     ck(shown == set(D.COMPOSITIONS),
        f"조성이 사라졌다: {sorted(set(D.COMPOSITIONS) - shown)}")
     ck(all(r["n"] <= PLANNED_EVIDENCE_MAX for r in cg["planned"]), "planned 에 자료 있는 조성이 들어갔다")
     for g in cg["groups"]:
-        ns = [r["n"] for r in g["items"]]
+        ns = [r["n"] for r in g["links"]]
         ck(ns == sorted(ns, reverse=True), f"{g['family']} 묶음이 활성 순이 아니다")
 
     # ⑥ 온보딩 — 못 읽으면 None (0 아님)
