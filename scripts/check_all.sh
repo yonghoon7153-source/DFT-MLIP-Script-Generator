@@ -135,8 +135,13 @@ run 'webapp: ledger_view'         python3 webapp/test_ledger_view.py
 #    옛 스니펫은 디렉터리 항목을 **현재** 파일 집합으로 펼쳐 감사 이후 생긴 파일까지 셌고
 #    `.lstrip('./')` 가 dotfile 경로를 망가뜨렸다.  selftest 가 두 반례를 고정한다.
 run 'audit_coverage      --selftest' python3 scripts/audit_coverage.py --selftest
+#  ★ 2026-09-09 (Codex Q2-3 · 원장 AUD-07) — 감사 원시 finding 에 **판정 상태**를 붙인다.
+#    원본에는 status 가 한 건도 없어 `severity=P1` 만 골라 읽으면 후보와 확정이 합쳐진다.
+#    원본은 박제라 안 고치고(해시로 못박는다) 별도 판정 원장에만 상태를 단다.
+run 'audit_adjudication  --selftest' python3 scripts/check_audit_adjudication.py --selftest
 run 'check_doc_refs          --selftest' python3 scripts/check_doc_refs.py --selftest
 run 'check_cohort_packages  (커밋된 패키지 ↔ 원장)' python3 scripts/check_cohort_packages.py
+run 'audit_adjudication   (원시 감사 ↔ 판정 원장)' python3 scripts/check_audit_adjudication.py
 #  ★★ 2026-08-31 — 문서가 **없는 파일·없는 커밋**을 가리키는 자리를 잡는다.
 #    깨진 참조는 조용하다: 열어 보기 전에는 안 보이고, 열어 봤을 때는 이미 그 문서를
 #    믿고 판단한 뒤다.  예외는 `docs/reviews/doc_refs_allowlist.tsv` 에 **이유와 함께**

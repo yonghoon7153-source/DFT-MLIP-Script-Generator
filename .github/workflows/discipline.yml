@@ -146,6 +146,13 @@ jobs:
       - name: 감사 커버리지 도구 (스냅샷 고정 · dotfile)
         run: python scripts/audit_coverage.py --selftest
 
+      #  ★ 2026-09-09 (Codex Q2-3 · AUD-07) — 원시 감사 finding 에 판정 상태가 없어
+      #    후속 집계자가 후보와 확정을 합쳐 읽는다.  원본은 박제로 두고 별도 원장에 단다.
+      - name: 감사 판정 원장 (후보 ↔ 확정 분리)
+        run: |
+          python scripts/check_audit_adjudication.py --selftest
+          python scripts/check_audit_adjudication.py
+
       #  ★★ 2026-09-01 (Codex R19 Q6) — 어디에서도 안 돌던 검사기 72개.
       #    손목록을 여기 72줄 적으면 또 낡으므로, 드라이버가 등재를 읽고 돈다.
       - name: 자기검사 등재 (분류 · 레인 · CI 의존 폐포)
