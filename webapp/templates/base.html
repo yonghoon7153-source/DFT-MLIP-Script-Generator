@@ -34,6 +34,7 @@
   <symbol id="i-flow" viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="6" height="7" rx="1.5"/><rect x="15.5" y="8.5" width="6" height="7" rx="1.5"/><path d="M8.5 12h7M13 9.7l2.5 2.3-2.5 2.3"/></symbol>
   <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4.5h9l5 5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19z"/><path d="M14 4.5V10h5M8.5 13.5h7M8.5 16.5h4.5"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></symbol>
 </svg>
 
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -53,6 +54,14 @@
     <span>바로 가기…</span>
     <kbd class="kbd" id="cmdkhint">⌘K</kbd>
   </button>
+
+  {# 방향 — 위키보다 **위**에 둔다. 이 화면은 "무엇을 알고 있나" 가 아니라
+     "다음에 무엇을 할 것인가" 이고, 지금 이 저장소에서 가장 앞에 놓고
+     고민해야 하는 자리다 (2026-09-09 BMS 논의). #}
+  <div class="nav-section" id="nav-dir">방향</div>
+  <ul class="nav-links" aria-labelledby="nav-dir">
+    <li><a href="/handover"{% if active=='handover' %} class="active" aria-current="page"{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-compass"></use></svg>BMS 협업 방향<span class="nav-tag">지금 최우선</span></a></li>
+  </ul>
 
   <div class="nav-section" id="nav-wiki">위키</div>
   <ul class="nav-links" aria-labelledby="nav-wiki">

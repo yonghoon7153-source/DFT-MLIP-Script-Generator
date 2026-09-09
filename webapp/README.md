@@ -18,6 +18,10 @@
 | `/doc/<kind>/<slug>` | `wiki/guides/` `queries/` `syntheses/` `comparisons/` `raw/transcripts/` `raw/articles/` `raw/repositories/` | 나머지 위키 문서 (wikilink 가 닿는 곳을 비우지 않기 위해) |
 | `/results` | `mode-observability/docs/*.md` + `results/**/*.csv` | Phase 노트 + CSV. 200행 이하는 표 전체, 넘으면 **앞 15행 + 전체 기준 요약 통계**(n·min·median·mean·max) |
 | `/gate` | `degradation-degeneracy/docs/08_REVIEW_RESPONSE.md` | 게이트 라운드 색인 + **최근 절만** 렌더 (`?n=1..10`) |
+| `/pipeline` | (템플릿 안에 서술) | 연구 파이프라인 대표 화면 — 처음 온 사람용. 결과 수치는 `docs/RESULTS_PAIRED_FIXED5.md` 의 **사본**이고 화면에도 그렇게 적는다 |
+| `/trust` | 실물 계수 (`content.trust_numbers()`) | 검증층 대표 화면. 숫자를 상수로 적지 않고 **세어서** 만든다 |
+| `/handover` | (템플릿 안에 서술) | BMS 협업 **방향** — 2026-09-09 논의에서 나온 문제를 이 저장소 실측에 붙인 화면. 수치는 `docs/RESULTS*.md` 의 사본이며 **모집단·protocol 경고를 붙인 채로만** 옮긴다 |
+| `/notes` | (서버는 메모를 모른다) | 브라우저 localStorage 의 메모·하이라이트 모아보기. 서버는 slug → 제목 이름표만 준다 |
 | `/search?q=` | 위 전부 | 단순 부분 문자열 전문 검색 (파일별 히트 수 + 스니펫 3개) |
 | `/api/figures/<slug>.json` | `figures.json` | 그림 색인 (figref.js 가 쓴다) |
 | `/api/palette.json` | 위 전부 | 커맨드 팔레트(⌘K)가 훑을 목적지 목록 |

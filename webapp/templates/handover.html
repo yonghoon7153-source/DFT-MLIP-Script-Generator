@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}BMS 열화모드 정량화 — 협업 방향{% endblock %}
+{% block content %}
+{# 2026-09-09 BMS 논의(음성 329, 23분)에서 나온 문제를 이 저장소의 실측에 붙여
+   방향으로 정리한 화면.
+
+   ⚠ 규율 셋
+   1. **숫자는 사본이다.** 아래 실측값은 `degradation-degeneracy/docs/RESULTS.md`
+      에서 옮긴 것이고, 정본은 artifact + 그 문서다 (하드룰 4). 인용 금지 배너를
+      맨 아래 둔다.
+   2. **경고를 떼지 않는다.** RESULTS.md 의 숫자에는 모집단·임계 의존 경고가
+      붙어 있다. 그 경고를 뗀 채 옮기면 22p 때와 같은 종류의 주장이 된다.
+   3. **상대의 말을 그대로 옮긴다.** 요약해서 반박하면 반박이 아니라 허수아비다. #}
+<header class="phead phead-pipe">
+  <p class="eyebrow">2026-09-09 · BMS 논의에서 나온 문제</p>
+  <h1>손으로 두드리는 α·β 를 어떻게 넘길 것인가</h1>
+  <p class="lead">half-cell 곡선을 조합해 <b>가상 full-cell</b> 을 만들고, α·β 를
+    움직여 실제 full-cell 과 맞춘 뒤 그 값으로 LAM<sub>PE</sub>·LAM<sub>NE</sub>·LLI
+    를 낸다. 지금은 그 맞추기를 <b>사이클마다 사람이 손으로</b> 한다. 자동화를
+    시도했으나 “얼추 되는데 안 맞는다”. 이 화면은 그 문제를 이 저장소의
+    <b>정답을 아는 격자 실측</b>에 붙여 방향을 잡는다.</p>
+</header>
+
+<!-- ══ 1 ══════════════════════════════════════════════════════════════ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">1</span> 문제의 이름은 “자동화”가 아니다</h2>
+
+  <div class="pipe-quote pipe-quote-plain">
+    <p><b>논의에서 나온 말 그대로.</b></p>
+    <p class="tw-mini">“열화모드 정량화라는 것 자체는 지금 <b>계산기나 다름이 없기
+      때문에</b> 이미 완성이 돼 있는 상태고, 단지 편하기 위해서 자동 피팅을
+      개발하고 있었던 것”</p>
+  </div>
+
+  <p class="pipe-p"><b>절반은 맞다.</b> α·β <b>→</b> LAM/LLI <b>환산</b>은 계산기가
+    맞다 — 수식이 정해져 있다. 그런데 그 앞 단계, <b>곡선에서 α·β 를 되찾는 것</b>은
+    역문제이고 계산기가 아니다. 계산기였다면 자동 피팅이 됐어야 한다.</p>
+
+  <div class="tw tw-3">
+    <div class="tw-easy">
+      <span class="tw-tag tw-tag-e">계산기 맞음</span>
+      <p><b>α·β → LAM/LLI</b><br>수식이 닫혀 있다. 옮기면 끝난다.
+        빠르고, 골든 벡터로 고정할 수 있다.</p>
+    </div>
+    <div class="tw-exact">
+      <span class="tw-tag tw-tag-x">계산기 아님</span>
+      <p><b>곡선 → α·β</b><br>역문제다. 답이 여러 개일 수 있고,
+        실제로 여러 개다 (아래 실측).</p>
+    </div>
+    <div class="tw-exact">
+      <span class="tw-tag tw-tag-x">그래서</span>
+      <p><b>“얼추 되는데 안 맞는다”</b><br>자동화 실패가 아니라
+        <b>문제가 degenerate 하다는 신호</b>다.</p>
+    </div>
+  </div>
+
+  <h3 class="tw-h3">이 저장소가 이미 잰 것</h3>
+  <p class="pipe-p">정답을 아는 PyBaMM 합성 격자에서 같은 α·β fitting 을 채점했다
+    (복원가능군 1476조건).</p>
+
+  <div class="tw-nums">
+    <div class="tw-num"><span class="tw-num-v">62.2 %</span>
+      <span class="tw-num-k">recovery failure (33p)</span>
+      <span class="tw-num-d">918/1476. 정답을 못 되찾은 비율</span></div>
+    <div class="tw-num"><span class="tw-num-v">+0.5 %p</span>
+      <span class="tw-num-k">dQ/dV 를 더하면 (RESULTS.md)</span>
+      <span class="tw-num-d">62.2 → 62.7 %. 안 좋아진다</span></div>
+    <div class="tw-num"><span class="tw-num-v">+25 %p</span>
+      <span class="tw-num-k">같은 항, 공정 protocol (paired)</span>
+      <span class="tw-num-d">61.9 → 87.2 %. 오히려 나빠진다</span></div>
+  </div>
+
+  <p class="pipe-p">가운데 둘을 <b>함께</b> 읽어야 한다 — 이것이 §2 의 경고를 우리
+    자신에게 먼저 적용한 자리다. 두 값의 차이는 격자가 달라서가 아니라
+    <b>optimizer protocol 이 달라서</b> 난다(warm start 연쇄·adaptive 조기 종료).
+    같은 seed·같은 restart budget·early stop off 로 다시 돌린 공정 비교
+    (<code class="mono">RESULTS_PAIRED_FIXED5.md</code>)에서는 dQ/dV 를 더하면
+    <b>확실히 나빠진다</b>. 어느 쪽이든 결론의 방향은 하나다: <b>피크를 더 본다고
+    문제가 풀리지 않는다.</b> 이것은 가영이 dQ/dV 피크로 자동 피팅을 시도해서 안
+    됐던 것과 <b>같은 방향의 관측</b>이다.</p>
+
+  <p class="pipe-p"><b>그리고 셋째 숫자를 빼먹으면 안 된다</b>: 생성성공 격자의
+    <b>52 %</b> 는 현재 α-window 자격 판정을 아예 통과하지 못한다. 위 1476조건은
+    <b>그 안쪽</b>에서만 센 값이다 — 자격 밖까지 섞으면 목적함수 간 차이가 묻힌다.</p>
+
+  <p class="pipe-p"><b>그러므로</b> 손 피팅이 느린 이유는 사람이 서툴러서가 아니다.
+    사람은 곡선 <b>밖의 정보</b>를 쓴다 — 어느 피크가 어느 상인지, 사이클 간 궤적이
+    매끄러워야 한다는 사전지식. 목적함수에 그 정보가 없으면 optimizer 는 같은
+    골짜기의 <b>다른 점</b>에 앉는다. 그래서 자동 피팅이 손 피팅을 재현하지 못한다.</p>
+</section>
+
+<!-- ══ 2 ══════════════════════════════════════════════════════════════ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">2</span> 방향 셋 — “더 잘 맞추기”가 아니다</h2>
+
+  <ul class="tw-cost">
+    <li><b>① 사람이 쓰던 정보를 목적함수에 명시적으로 넣는다.</b>
+      사이클 간 단조·평활 prior, 피크 라벨 제약. 지금 그것은 사람 머릿속에만 있고,
+      머릿속에 있는 한 자동화될 수 없다.</li>
+    <li><b>② 답을 점이 아니라 구간으로 낸다.</b> 이 저장소는 Σ → 모드 좌표 전파로
+      22p 삼중항의 <b>오차막대</b>를 이미 낸다. 손으로 4인자를 두드려 <b>하나의
+      답</b>을 내는 행위 자체가, 사실은 여러 답 중 하나를 고른 것이다 — 오차막대가
+      없으면 그 선택이 안 보인다.</li>
+    <li><b>③ 피크가 아니라 곡선을 맞춘다.</b> 논의에서 나온 “차수·창을 어떻게 하느냐에
+      따라 피크 위치가 그냥 알아서 바뀌어버린다”는 정확하고, 이것은 잡음이 아니라
+      <b>1급 결함</b>이다 — 피크 위치로 피팅하면 <b>전처리의 부산물에 피팅하는
+      것</b>이 된다. 피크 위치는 곡선의 손실적 투영이다.</li>
+  </ul>
+
+  <div class="pipe-quote pipe-quote-bad">
+    <p><b>③ 을 실행할 때 우리 자신의 경고를 그대로 옮긴다.</b>
+      목적함수 비교는 <b>optimizer protocol 이 같아야</b> 뜻이 있다. 이 저장소도
+      warm start 연쇄와 adaptive 조기 종료 때문에 비대칭이 생겨서, 공정 paired
+      보고서(<code class="mono">docs/RESULTS_PAIRED_FIXED5.md</code>)를 따로 정본으로
+      뒀다. 같은 seed·같은 restart budget·early stop off 로 다시 돌리지 않은 비교는
+      “목적함수의 정보량 비교”가 아니라 “현재 pipeline 에서 관측된 값”이다.</p>
+  </div>
+</section>
+
+<!-- ══ 3 ══════════════════════════════════════════════════════════════ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">3</span> 진짜 막힌 곳 — 신뢰의 이전</h2>
+
+  <div class="pipe-quote pipe-quote-plain">
+    <p class="tw-mini">“저희 자신을 불신하기 때문에 … 저랑 가영이가 <b>설명을
+      못하면</b> 말짱 도루묵”</p>
+  </div>
+
+  <p class="pipe-p">이것은 코드 불신이 아니다. 그러므로 <b>리뷰를 더 받아서는 안
+    풀린다.</b> 풀리는 방법은 하나다 — <b>설명 없이도 방어되는 산출물.</b>
+    이 저장소가 61라운드 동안 만들어 온 것이 정확히 그것이다.</p>
+
+  <div class="tw tw-3">
+    <div class="tw-easy">
+      <span class="tw-tag tw-tag-e">1</span>
+      <p><b>골든 벡터</b><br>손으로 푼 사이클 3~5개의
+        <b>(입력, α·β 답)</b>을 받아 회귀로 고정한다. 그러면 논리를 설명할 필요 없이
+        <b>“같은 입력에 같은 답”</b>을 가리키면 된다.</p>
+    </div>
+    <div class="tw-easy">
+      <span class="tw-tag tw-tag-e">2</span>
+      <p><b>검증 영수증</b><br>이 저장소의
+        <code class="mono">make_receipt.py</code> 는 34개 검사와 <b>복원본 재채점</b>을
+        담은 영수증을 만든다. “믿어줘”가 아니라 <b>“돌려봐”</b> 다.</p>
+    </div>
+    <div class="tw-exact">
+      <span class="tw-tag tw-tag-x">3</span>
+      <p><b>희소 자원을 아낀다</b><br>그러면 시원 선배의 시간은
+        <b>그만이 답할 수 있는 것 하나</b>에만 쓴다 — 논문 → α·β → LAM/LLI 매핑의
+        물리 전개가 옳게 옮겨졌는가. <b>코드 리뷰가 아니라 유도 노트 리뷰</b>다.</p>
+    </div>
+  </div>
+
+  <p class="pipe-p"><b>지금 받아야 할 것 중 가장 중요하고, 가장 안 받는 것</b>이
+    골든 벡터다. 코드와 논문은 나중에도 받을 수 있지만 <b>손으로 푼 답은 그 사람이
+    나가면 사라진다.</b></p>
+</section>
+
+<!-- ══ 4 ══════════════════════════════════════════════════════════════ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">4</span> 실행 순서 (2~3개월 안에)</h2>
+
+  <div class="prose">
+    <table>
+      <thead><tr><th>순서</th><th>할 일</th><th>시원 선배 필요?</th></tr></thead>
+      <tbody>
+        <tr><td>1</td>
+            <td>MATLAB 코드 + 기저 논문 + <b>손으로 푼 사이클 3~5개의 입출력</b></td>
+            <td>확보만</td></tr>
+        <tr><td>2</td>
+            <td>α·β → LAM/LLI <b>환산만</b> 먼저 이식 → 골든 벡터로 고정</td>
+            <td>✗ (계산기라 빠르다)</td></tr>
+        <tr><td>3</td>
+            <td>같은 입력에 <b>degeneracy 진단</b> — Hessian/nullspace 로
+                “이 사이클에서 4인자 중 실제로 몇 개가 구별되는가”</td>
+            <td>✗</td></tr>
+        <tr><td>4</td>
+            <td>(2)의 골든 벡터 통과 + (3)의 진단을 들고 <b>검증 요청</b></td>
+            <td>✓ 여기 한 번</td></tr>
+        <tr><td>5</td>
+            <td>그 뒤에 자동 피팅</td>
+            <td>✗</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="pipe-p"><b>자동 피팅을 마지막에 두는 것이 요점이다.</b> 3번이 손 피팅이
+    오래 걸리는 이유를 <b>수치로</b> 설명해 주고, 그것이 있어야 4번의 대화가
+    “내 코드 봐줘”에서 <b>“네 답을 재현했고, 네가 손으로 고른 이유를 수치로 봤다”</b>
+    로 바뀐다. 이 저장소가 Birkl 식 (7)–(12) 를 이식할 때 정확히 이 순서로 했고,
+    그 과정에서 Phase 1f 를 정정했다.</p>
+</section>
+
+<!-- ══ 5 ══════════════════════════════════════════════════════════════ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">5</span> 조심할 것 — 우리 쪽 정직성</h2>
+
+  <ul class="tw-cost">
+    <li><b>이 저장소의 결과는 아직 GO 를 못 받았다.</b> 직전 판정은 61차
+      <b>NO-GO</b> 이고 지금도 마감 중이다. 인용 정본은 artifact 와
+      <code class="mono">docs/RESULTS*.md</code> 이며, 이 화면의 숫자는 <b>사본</b>이다.</li>
+    <li><b>숫자에 붙은 경고를 떼면 안 된다.</b> 같은 지표가 복원가능군에서는
+      사건률 비 <b>89.1</b>, 전체 격자에서는 <b>3.45</b> 다. 어느 모집단인지 없이
+      인용하는 순간 22p 때와 <b>같은 종류의 주장</b>이 된다.</li>
+    <li><b>우리 격자는 PyBaMM 합성이다.</b> 실셀 검증이 아직 없다 — 외적타당도 항목이
+      그래서 미결로 남아 있다.</li>
+  </ul>
+
+  <div class="pipe-quote pipe-quote-plain">
+    <p><b>마지막 항목이 이 협업을 일방적 제공이 아니라 교환으로 만든다.</b>
+      이쪽은 <b>정답을 아는 격자</b>에서 degeneracy 를 쟀고, BMS 는 <b>정답을 모르는
+      실셀 데이터</b>와 그것을 읽어 온 사람의 판단을 갖고 있다. 시원 선배가 손으로
+      고른 답들은 우리 합성 격자가 갖지 못한 <b>실셀 라벨</b>이다. 그 둘을 맞춰 보는
+      것이 <b>양쪽 모두에게 지금 없는 증거</b>다.</p>
+  </div>
+
+  <h3 class="tw-h3">한 문장으로</h3>
+  <div class="pipe-quote pipe-quote-plain">
+    <p>가져갈 것은 “자동화해 드릴게요”가 아니라 —<br>
+      <b>“이 문제는 답이 여러 개고, 선배는 그중 하나를 곡선 밖의 지식으로 고르고
+      계셨다. 그 지식을 수식으로 옮기고 싶다. 손으로 푼 답 몇 개만 주시면 그게
+      맞는지 우리가 기계로 확인할 수 있다.”</b></p>
+  </div>
+
+  <p class="pipe-caveat"><b>인용 금지.</b> 이 화면의 수치는 사본이다. 정본은
+    artifact 와 <code class="mono">degradation-degeneracy/docs/RESULTS.md</code> ·
+    <code class="mono">RESULTS_PAIRED_FIXED5.md</code> 이고, 그 문서에 붙은
+    모집단·임계 경고를 함께 읽어야 한다.</p>
+</section>
+{% endblock %}

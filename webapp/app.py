@@ -334,6 +334,23 @@ def pipeline():
 #
 # 숫자는 `C.trust_numbers()` 가 **실물을 세어** 만든다 — 화면에 상수를 적으면
 # 그 순간 사본이 되고 낡는다 (하드룰 4).
+@app.route("/handover")
+def handover():
+    """BMS 협업 방향 — 2026-09-09 논의에서 나온 문제를 이 저장소 실측에 붙인 화면.
+
+    ⚠ `/pipeline`·`/trust` 와 같은 규율이다: **여기서 숫자를 새로 만들지
+      않는다.** 화면에 적힌 실측값은 `docs/RESULTS*.md` 의 사본이고 화면에도
+      그렇게 적는다 (하드룰 4). 사본에 붙어 있던 모집단·임계 경고를 떼지
+      않는 것이 이 화면의 핵심이다 — 경고를 뗀 숫자를 남에게 넘기면 그게
+      22p 때와 같은 종류의 주장이 된다.
+
+    `C.trust_numbers()` 같은 실물 계수를 쓰지 않는 이유: 이 화면의 숫자는
+    검증층 규모가 아니라 **연구 결과**이고, 그 정본은 artifact 다. 세어서
+    만들 수 있는 것이 아니라 인용해서는 안 되는 것이다.
+    """
+    return render_template("handover.html", active="handover")
+
+
 @app.route("/trust")
 def trust():
     return render_template("trust.html", active="trust",
