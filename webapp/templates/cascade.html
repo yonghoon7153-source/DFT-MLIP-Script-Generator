@@ -16,7 +16,7 @@
 {% macro gtable(t, cols, mo_col=None, modb={}, not_map={}) %}
 <div class="tbl-scroll"><table class="data-table sortable"><thead><tr>
 {% for c in cols %}<th onclick="sortT(this,{{ loop.index0 }})" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">{{ c }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}" data-claim-not-src="{{ cols[0] }}={{ row[cols[0]] }}|{{ c }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
 </tbody></table></div>{% endmacro %}
 
 {# 값 충돌 레코드 → 사람이 읽는 한 줄. 원장은 str 인 것도 dict 인 것도 있어서

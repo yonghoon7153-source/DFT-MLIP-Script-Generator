@@ -88,6 +88,27 @@
    "blank": 0.926
   },
   {
+   "key": "f5",
+   "kind": "figure",
+   "label": "5",
+   "page": 12,
+   "file": "fig_5.png",
+   "caption": "FIG. 5. Sequences of snapshots illustrating the emergence of problems in the first two MD trajectories represented in Fig. 4 when using a potential trained only on the original EAN dataset. Gray, red, blue, and white spheres represent carbon, oxygen, nitrogen, and hydrogen atoms, respectively.",
+   "rotated_deg": 0,
+   "bbox": [
+    36.0,
+    80.0,
+    562.0,
+    258.0
+   ],
+   "w": 2192,
+   "h": 742,
+   "dpi": 300,
+   "src": "66caeb45-79DEEP1.PDF",
+   "blank": 0.0,
+   "note": "caption sits to the RIGHT of the artwork; auto-anchor missed it -> rendered manually 2026-09-09"
+  },
+  {
    "key": "f6",
    "kind": "figure",
    "label": "6",
@@ -166,6 +187,48 @@
    "dpi": 300,
    "src": "66caeb45-79DEEP1.PDF",
    "blank": 0.94
+  },
+  {
+   "key": "f10",
+   "kind": "figure",
+   "label": "10",
+   "page": 14,
+   "file": "fig_10.png",
+   "caption": "FIG. 10. Split violin plot (right) showing the frequency density of the logarithm of the error (top) and the logarithm of the uncertainty (bottom) resolved by layer for the SrTiO3 bulk potential evaluated on the 4 x 1 surface data and for the first and second refinements on that potential based on active learning. A side view of a SrTiO3(110) 4 x 1 slab is shown on the left, indicating the layers.",
+   "rotated_deg": 0,
+   "bbox": [
+    36.0,
+    545.0,
+    562.0,
+    700.0
+   ],
+   "w": 2192,
+   "h": 647,
+   "dpi": 300,
+   "src": "66caeb45-79DEEP1.PDF",
+   "blank": 0.0,
+   "note": "caption sits to the RIGHT of the artwork; auto-anchor missed it -> rendered manually 2026-09-09"
+  },
+  {
+   "key": "f11",
+   "kind": "figure",
+   "label": "11",
+   "page": 15,
+   "file": "fig_11.png",
+   "caption": "FIG. 11. Details of the uncertainty estimate for the atomic forces of the SrTiO3 bulk potential when evaluated at the global minimum found in a structure search for 4 x 1 surface data. The error is shown overlaid on a ball-and-stick model background as a guide to the eye.",
+   "rotated_deg": 0,
+   "bbox": [
+    36.0,
+    80.0,
+    562.0,
+    208.0
+   ],
+   "w": 2192,
+   "h": 534,
+   "dpi": 300,
+   "src": "66caeb45-79DEEP1.PDF",
+   "blank": 0.0,
+   "note": "caption sits to the RIGHT of the artwork; auto-anchor missed it -> rendered manually 2026-09-09"
   },
   {
    "key": "f12",

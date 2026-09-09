@@ -888,7 +888,7 @@ class _ClaimScanner(_HTMLParser):
         self._skip = 0
         self._code = 0
         self._ctx = ""                 # 태그 밖 텍스트의 러닝 버퍼 (출처 조건의 문맥 창)
-        self.hits = []                 # [(claim, 상태, context)] 상태: bound|disclaimed|
+        self.hits = []                 # [(claim, 상태, context, not_src)] 상태: bound|disclaimed|
                                        #   suspect|skipped|None(=unbound)
         self.declared = []             # 화면이 선언한 data-claim / data-claim-not 값 전부
 
@@ -900,11 +900,15 @@ class _ClaimScanner(_HTMLParser):
             self._code += 1
         d = dict(attrs)
         cid, nid = d.get("data-claim"), d.get("data-claim-not")
+        # ⛔ BI-3 P0-2: 부인은 **어디의 무엇인지**를 같이 선언해야 한다. 건수만 맞으면
+        #   그 자리의 의미가 바뀌어도 통과했다 (Codex 반례: 셀 하나를 철회값으로 갈아도
+        #   disclaimed 1 · unbound 0 으로 초록). `data-claim-not-src` 가 그 자리의 계보다.
+        nsrc = d.get("data-claim-not-src")
         for x in (cid, nid):
             if x:
                 self.declared.append(x)
         if tag not in self.VOID:
-            self._stack.append((tag, cid, nid))
+            self._stack.append((tag, cid, nid, nsrc))
 
     def handle_startendtag(self, tag, attrs):
         d = dict(attrs)
@@ -926,8 +930,10 @@ class _ClaimScanner(_HTMLParser):
     def handle_data(self, data):
         if self._skip or not data.strip():
             return
-        yes = {x for _t, c, _n in self._stack if c for x in c.split()}
-        no = {x for _t, _c, n in self._stack if n for x in n.split()}
+        yes = {x for _t, c, _n, _s in self._stack if c for x in c.split()}
+        no = {x for _t, _c, n, _s in self._stack if n for x in n.split()}
+        # 가장 안쪽(=가장 구체적인) 부인 자리의 출처를 쓴다
+        nsrc = next((s for _t, _c, n, s in reversed(self._stack) if n and s), None)
         prev, self._ctx = self._ctx, (self._ctx + data)[-CTX_BEFORE:]
         for a, b, cl, q in find_claim_hits(data, self._claims, self._origin, prev):
             ctx = " ".join(data[max(0, a - 90): b + 90].split())
@@ -941,7 +947,7 @@ class _ClaimScanner(_HTMLParser):
                 st = "suspect"
             else:
                 st = None
-            self.hits.append((cl, st, ctx))
+            self.hits.append((cl, st, ctx, nsrc if st == "disclaimed" else None))
 
 
 def scan_claim_bindings(html: str, claims=None, reg=None, root=None,
@@ -982,8 +988,11 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None,
     known |= hazard_ids(root=root)
     sc = _ClaimScanner(usable, origin=origin)
     sc.feed(html)
-    pick = lambda w: [(c, ctx) for c, s, ctx in sc.hits if s == w]     # noqa: E731
-    return {"bound": pick("bound"), "disclaimed": pick("disclaimed"), "unbound": pick(None),
+    pick = lambda w: [(c, ctx) for c, s, ctx, _n in sc.hits if s == w]   # noqa: E731
+    # ⚠ `disclaimed` 만 3-튜플 `(claim, ctx, src)` 다 — 부인은 **어디의 무엇인지**를
+    #   같이 내야 검사가 양방향으로 대조할 수 있다 (BI-3 P0-2).
+    disc = [(c, ctx, nsrc) for c, s, ctx, nsrc in sc.hits if s == "disclaimed"]
+    return {"bound": pick("bound"), "disclaimed": disc, "unbound": pick(None),
             "suspect": pick("suspect"), "skipped": pick("skipped"),
             "declared": sc.declared,
             "dangling": sorted({x for d in sc.declared for x in d.split() if x not in known})}

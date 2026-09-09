@@ -2919,12 +2919,19 @@ _LEGACY_UNBOUND: dict = {}
 #:     진짜 철회 인용을 심어도(자유텍스트·숫자만 둘 다 재현) 시험이 초록이었다.
 #:     ⇒ 사유에 **건수(n)와 문맥(where)** 을 같이 선언한다. 건수가 달라지면 실패한다 —
 #:       "이 자리 하나가 우연 일치다" 는 검증 가능한 주장이고, "이 표는 봐주세요" 는 아니다.
+#: ⛔⛔ BI-3 P0-2 (2026-09-09) — `where` 는 **기계가 대조하는 좌표**여야 한다.
+#:   종전에는 산문이었고 검사가 **한 번도 읽지 않았다**. 그래서 Codex 가 `/cascade` 의
+#:   부인된 셀 하나를 `b2o3 MD Ea = 0.199 eV` 로 바꿔도 disclaimed 1 · unbound 0 으로
+#:   **초록**이었다 — 건수는 그 자리의 **의미**를 보증하지 못한다.
+#:   이제 화면이 `data-claim-not-src="<키열>=<값>|<열>"` 을 같이 내고, 아래 `where` 가
+#:   그 좌표의 **집합**이다. 검사는 선언↔실측을 **양방향**으로 맞춘다.
 _DISCLAIMED = {
     ("/cascade", "MD_Ea_eV@b2o3"): {
         "why": "codoping_ml_v2 스크리닝 표의 `window_gain 0.199`(V)다. b2o3 MD Ea 0.199(eV)와 "
                "글자만 같고 양·단위·출처가 전부 다르다 — 결속하면 거짓 선언이 된다.",
         "n": 1,
-        "where": "codoping_ml_v2 상위 40행 · window_gain 열 (rank 25, pairA=B2O3/pairB=Gd2O3)",
+        "where": ["rank=25.0|window_gain"],
+        "where_prose": "codoping_ml_v2 상위 40행 · window_gain 열 (rank 25, pairA=B2O3/pairB=Gd2O3)",
         "⚠": "원자료 1081행에는 같은 글자가 13칸 더 있다(window_gain 5 · uncertainty 4 · "
              "ad_eps 1 · ml_score 1 …). 표를 늘리거나 정렬을 바꾸면 n 이 는다 — 그때 "
              "n 을 올리기 전에 **그 칸들이 정말 다른 양인지** 확인해라.",
@@ -2998,18 +3005,44 @@ def test_retracted_claims_are_id_bound_on_every_surface():
             grew.append((url, n, cap))
         if sc["dangling"]:
             dangling.append((url, sc["dangling"]))
-        # 부인은 **원장에 사유 + 건수**가 적혀 있어야 한다 — 조용한 억제도, 담요도 금지
-        seen_dis = {}
-        for cl, _x in sc["disclaimed"]:
-            dec = _DISCLAIMED.get((url, cl["id"]))
-            if not (dec or {}).get("why", "").strip():
-                undeclared.append((url, cl["id"], "사유 없음"))
-            seen_dis[cl["id"]] = seen_dis.get(cl["id"], 0) + 1
-        for cid, n_seen in seen_dis.items():
-            want = (_DISCLAIMED.get((url, cid)) or {}).get("n")
-            if want is not None and n_seen != want:
-                undeclared.append((url, cid, f"부인 건수가 선언과 다르다: {n_seen} ≠ {want} "
-                                             f"— 담요가 넓어졌거나 진짜 인용이 들어왔다"))
+        # ── 부인 검사: **사유 + 건수 + 좌표**를 원장이 대고, 선언↔실측을 양방향으로 맞춘다.
+        #    (BI-3 P0-2. 종전에는 `where` 를 안 읽고 발견된 것만 순회해서, 그 자리의
+        #     의미가 바뀌어도 건수만 같으면 통과했다.)
+        found = {}
+        for cl, _x, nsrc in sc["disclaimed"]:
+            found.setdefault(cl["id"], []).append(nsrc)
+        for cid, srcs in found.items():
+            dec = _DISCLAIMED.get((url, cid))
+            if not dec:
+                undeclared.append((url, cid, "선언되지 않은 부인이 화면에 있다"))
+                continue
+            if not str(dec.get("why", "")).strip():
+                undeclared.append((url, cid, "사유 없음"))
+            want_n, want_w = dec.get("n"), dec.get("where")
+            if not isinstance(want_n, int):
+                undeclared.append((url, cid, "`n` 이 정수로 선언돼 있지 않다 — "
+                                             "건수 미선언은 담요와 구별되지 않는다"))
+            elif len(srcs) != want_n:
+                undeclared.append((url, cid, f"부인 건수가 선언과 다르다: {len(srcs)} ≠ {want_n}"))
+            if not isinstance(want_w, list) or not want_w:
+                undeclared.append((url, cid, "`where` 가 좌표 목록이 아니다 — 산문은 "
+                                             "기계가 못 읽는다 (BI-3 P0-2)"))
+                continue
+            if any(s is None for s in srcs):
+                undeclared.append((url, cid, "화면이 `data-claim-not-src` 를 안 냈다 — "
+                                             "어느 자리를 부인하는지 알 수 없다"))
+                continue
+            extra = sorted(set(srcs) - set(want_w))
+            missing = sorted(set(want_w) - set(srcs))
+            if extra:
+                undeclared.append((url, cid, f"⛔ 선언에 없는 자리에서 부인이 났다: {extra} "
+                                             f"— 그 칸의 **의미가 바뀌었거나** 새 칸이다"))
+            if missing:
+                undeclared.append((url, cid, f"⛔ 선언한 자리에서 부인이 사라졌다: {missing} "
+                                             f"— 부인이 옮겨갔거나 화면이 바뀌었다"))
+        for (u, cid), dec in _DISCLAIMED.items():                 # ← 반대 방향
+            if u == url and cid not in found:
+                undeclared.append((url, cid, "선언한 부인이 화면에 없다 — 원장이 낡았다"))
     assert not fresh, "결속 없는 철회·금지 주장이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
         "\n".join(f"  {u} · {i}\n      …{x[:140]}…" for u, i, x in fresh)
     assert not grew, "레거시 미결속 건수가 늘었다 (래칫은 줄어들기만 한다): " + str(grew)
@@ -3543,24 +3576,50 @@ def test_disclaim_cannot_hide_a_real_citation():
       ② 부인 subtree 안에 숫자만 넣기 (1 → 4)
     `_DISCLAIMED` 가 `(url, claim_id)` 쌍의 **사유 유무만** 보고 건수도 문맥도 안 봤다.
     """
+    import re as _re
     c, cl = A.app.test_client(), C.all_claims()
     tgt = next(x for x in cl if x["id"] == "MD_Ea_eV@b2o3")
     h = c.get("/cascade").get_data(as_text=True)
+    dec = _DISCLAIMED[("/cascade", "MD_Ea_eV@b2o3")]
     base = C.scan_claim_bindings(h, cl)
-    n0 = len(base["disclaimed"])
-    want = _DISCLAIMED[("/cascade", "MD_Ea_eV@b2o3")]["n"]
+    n0, want = len(base["disclaimed"]), dec["n"]
     assert n0 == want, f"기준선이 선언과 다르다: {n0} ≠ {want}"
+    # 기준선의 좌표도 선언과 같아야 한다 (여기가 아래 ③의 전제다)
+    assert sorted(s for _c, _x, s in base["disclaimed"]) == sorted(dec["where"]), \
+        "기준선 좌표가 선언과 다르다"
+
+    # 부인 여는 태그의 **닫는 꺾쇠 뒤**에 심는다 — 속성이 늘어도 안 깨지게 정규식으로.
+    OPEN = _re.compile(r'(data-claim-not="MD_Ea_eV@b2o3"[^>]*>)')
+    def inject(txt):
+        return OPEN.sub(lambda m: m.group(1) + txt, h, count=1)
+
     # ① 자유텍스트 주입 — 부인 영역 안에 진짜 인용을 심는다
-    poison = h.replace('data-claim-not="MD_Ea_eV@b2o3">',
-                       'data-claim-not="MD_Ea_eV@b2o3">'
-                       f'b2o3 의 MD Ea 는 {tgt["text"]} eV 다. ', 1)
-    assert len(C.scan_claim_bindings(poison, cl)["disclaimed"]) != want, (
+    p1 = inject(f'b2o3 의 MD Ea 는 {tgt["text"]} eV 다. ')
+    assert p1 != h, "주입이 안 됐다 — 마크업이 바뀌었으면 이 시험부터 고쳐라"
+    assert len(C.scan_claim_bindings(p1, cl)["disclaimed"]) != want, (
         "⛔ 부인 안에 진짜 인용을 심었는데 건수가 그대로다 — 검사가 죽었다")
     # ② 숫자만 주입
-    poison2 = h.replace('data-claim-not="MD_Ea_eV@b2o3">',
-                        f'data-claim-not="MD_Ea_eV@b2o3">{tgt["text"]} ', 1)
-    assert len(C.scan_claim_bindings(poison2, cl)["disclaimed"]) != want, (
+    p2 = inject(f'{tgt["text"]} ')
+    assert len(C.scan_claim_bindings(p2, cl)["disclaimed"]) != want, (
         "⛔ 숫자만 심어도 안 걸린다 — 부인이 여전히 담요다")
+
+    # ③ ★ Codex BI-3 P0-2 의 실제 반례 — **건수는 그대로 두고 그 자리의 의미만 바꾼다.**
+    #    종전 검사는 이걸 통과시켰다(disclaimed 1 · unbound 0 · dangling 0 으로 초록).
+    #    이제 `data-claim-not-src` 가 달라져 선언과 안 맞아야 한다.
+    #    ⚠ 표에는 `data-claim-not` 셀이 여러 개인데 0.199 를 담은 것은 하나다.
+    #      첫 번째를 바꾸면 엉뚱한 셀이라 아무 효과가 없다 — **선언된 좌표를 콕 집는다.**
+    only = dec["where"][0]
+    assert h.count(f'data-claim-not-src="{only}"') == 1, \
+        f"전제: 선언 좌표 {only} 가 화면에 정확히 한 번 있어야 한다"
+    p3 = h.replace(f'data-claim-not-src="{only}"',
+                   'data-claim-not-src="rank=99.0|Ea_MD"', 1)
+    assert p3 != h, "src 속성이 없다 — 화면이 부인 자리의 계보를 안 낸다"
+    sc3 = C.scan_binding_or_none(p3, cl) if hasattr(C, "scan_binding_or_none") else \
+        C.scan_claim_bindings(p3, cl)
+    got3 = sorted(s for _c, _x, s in sc3["disclaimed"])
+    assert len(sc3["disclaimed"]) == want, "전제: 건수는 그대로여야 이 반례가 성립한다"
+    assert got3 != sorted(dec["where"]), (
+        "⛔ 그 자리의 의미가 바뀌었는데 좌표가 같다 — 건수만 보는 검사로 되돌아갔다")
 
 
 def test_disclaim_is_not_a_blanket_over_a_whole_table():

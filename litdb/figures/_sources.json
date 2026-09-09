@@ -781,11 +781,26 @@
    "e5b5751a-76._Active_learning_accelerates_electrolyte_solvent_screening_for_anodefree_lithium_metal_batteries.pdf"
   ]
  },
+ "maginn2019_best_practices_transport_selfdiffusivity_viscosity": {
+  "figures": 14,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "2a48d75b-82._Best_practices_for_computing_transport_properties_1._Selfdiffusivity_and_viscosity_from_equilibrium_MD.pdf"
+  ]
+ },
  "matthews2024_ptfe_nanofibril_network": {
   "figures": 9,
   "generated": "2026-09-04",
   "pdfs": [
    "18480bfb-fenrg111336344.pdf"
+  ]
+ },
+ "mccluskey2025_accurate_diffusion_coefficients_uncertainties": {
+  "figures": 12,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "a21a6645-84._Accurate_Estimation_of_Diffusion_Coefficients_and_their_Uncertainties_from_Computer_Simulation.pdf",
+   "2219d416-84._Sup_Accurate_Estimation_of_Diffusion_Coefficients_and_their_Uncertainties_from_Computer_Simulation.pdf"
   ]
  },
  "mesarovicfleck2000_dissimilar_elastoplastic_indentation": {
@@ -1315,6 +1330,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "★ 랩실 논문/10. Deciphering the critical degradation factors of solid composite electrodes with halide electrolytes Interfacial reaction versus ionic transport.pdf"
+  ]
+ },
+ "zaby2026_reliable_conductivity_estimates_md": {
+  "figures": 47,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "5e9d5f12-85._Lessons_Learned_on_Obtaining_Reliable_Conductivity_Estimates_From_Molecular_Dynamics_Simulations.pdf",
+   "ea0a0cb8-85._Sup_Lessons_Learned_on_Obtaining_Reliable_Conductivity_Estimates_From_Molecular_Dynamics_Simulations.pdf"
   ]
  },
  "zhang2023_pfib_multiscale_imaging_4d_thick_cathode": {
