@@ -303,6 +303,47 @@ def test_hazard_row_without_id_is_marked_as_unbindable():
         D.citation_hazards = orig
 
 
+# ── /ledger — '오늘' 이 언제인지 화면이 말한다 ─────────────────────────────
+def test_ledger_says_how_old_it_is():
+    """화면의 '오늘/내일' 은 **원장 날짜** 기준이다 — 간격을 계산해서 박는다."""
+    A.app.config["TESTING"] = True
+    r = A.app.test_client().get("/ledger")
+    assert r.status_code == 200
+    h = r.get_data(as_text=True)
+    leds = [x for x in D.load_tq_ledger() if not x.get("_error")]
+    if not leds:
+        pytest.skip("원장 파일이 없다")
+    from datetime import date
+    y, m, dd = (int(x) for x in str(leds[0]["date"]).split("-")[:3])
+    age = (date.today() - date(y, m, dd)).days
+    if age > 0:
+        assert f"{age}일 전 원장" in h, "원장 나이를 화면이 말하지 않는다"
+        assert f"'오늘' 은 {leds[0]['date']}" in h
+    else:
+        assert "오늘 원장" in h
+
+
+def test_ledger_closed_rows_are_not_value_pending():
+    """[음성] 끝난 행(✅·⛔)에 '내일 채워진다' 배지를 붙이면 안 된다."""
+    A.app.config["TESTING"] = True
+    h = A.app.test_client().get("/ledger").get_data(as_text=True)
+    leds = [x for x in D.load_tq_ledger() if not x.get("_error")]
+    if not leds:
+        pytest.skip("원장 파일이 없다")
+    closed_pending = [t for t in (leds[0].get("T") or [])
+                      if str(t.get("상태") or "")[:1] in ("✅", "⛔")
+                      and str(t.get("오늘") or "").strip() in ("", "-")]
+    if not closed_pending:
+        pytest.skip("종료·미기입 행이 원장에 없다 (생기면 이 시험이 켜진다)")
+    assert "– 해당 없음(종료)" in h, "종료 행 표시가 없다"
+    # 요약 타일의 '값 대기' 수에서도 빠져야 한다
+    live = [t for t in (leds[0].get("T") or [])
+            if str(t.get("오늘") or "").strip() in ("", "-")
+            and str(t.get("상태") or "")[:1] not in ("✅", "⛔")]
+    assert re.search(r'<div class="st-v">%d</div>\s*<div class="st-l">.{0,40}값 대기'
+                     % len(live), h, re.S), "값 대기 타일이 종료 행을 아직 세고 있다"
+
+
 # ── 규율 유지 확인 (문구를 다듬으려면 시험을 같은 커밋에서 옮긴다) ──────────
 def test_five_literal_phrases_survive(gov_html):
     """시험이 **글자 그대로** 집는 문구 다섯이 재편 뒤에도 살아 있다."""

@@ -30,6 +30,19 @@
     {% if led and led.get("코드가_뭔지") %}
     <div class="sub" style="margin-top:2px">{{ led.get("코드가_뭔지") }}</div>
     {% endif %}
+    {# ⚠ 이 화면의 '오늘/내일' 은 **원장 날짜** 기준이다. 간격을 계산해 박는다 —
+       그러지 않으면 13일 전 스냅샷이 현재형으로 읽힌다 (실측 2026-09-08). #}
+    {% if led %}
+    <div class="sub" style="margin-top:4px">
+      {%- if age_days is none %}<span class="badge b-todo">원장 날짜 미기재</span>
+        이 화면의 '오늘' 이 언제인지 알 수 없다
+      {%- elif age_days <= 0 %}<b>오늘 원장</b> ({{ led.get("date") }})
+      {%- else %}<span class="badge b-todo">{{ age_days }}일 전 원장</span>
+        이 화면의 <b>'오늘' 은 {{ led.get("date") }}</b> 이고, 그 뒤로 이 원장은 갱신되지 않았다 —
+        '내일 채운다' 는 {{ age_days }}일째 안 왔다. 그 사이 판정은
+        <a href="/governance">⚖ 판정 원장</a>에서 본다{% endif %}
+    </div>
+    {% endif %}
   </div>
   <div class="page-actions">
     <a class="btn" href="/todo">📋 미결 리스트</a>
@@ -121,7 +134,10 @@
         <td><code>{{ r.id }}</code></td>
         <td style="white-space:nowrap"><b>{{ r.what }}</b></td>
         <td><span class="tq-st" style="color:{{ r.color }}">{{ r.status or "?" }}</span></td>
-        <td>{% if r.pending %}<span class="badge b-todo">값 대기</span>
+        {# 끝난 행(✅ 완료 · ⛔ 폐기)에는 '값 대기' 가 아니라 '해당 없음(종료)' —
+           한 달 반 전에 끝난 항목에 '내일 채워진다' 를 붙이지 않는다. #}
+        <td>{% if r.pending and r.closed %}<span class="sub">– 해당 없음(종료)</span>
+            {% elif r.pending %}<span class="badge b-todo">값 대기</span>
             {% else %}<div class="tq-md">{{ r.today_html|safe }}</div>{% endif %}</td>
         <td>{% if not r.tool %}–
             {% elif r.tool_link %}<a href="/api/file/{{ r.tool_path }}"><code>{{ r.tool }}</code></a>
@@ -133,7 +149,8 @@
   </div>
   <p class="sub" style="margin-top:8px">
     <span class="badge b-todo">값 대기</span> = 원장의 '오늘' 칸이 <code>-</code> —
-    내일 원장이 채운다 (완료·폐기 항목은 채울 것이 없을 수 있다).
+    다음 원장이 채운다. <b>– 해당 없음(종료)</b> = 상태 접두가 ✅·⛔ 라 채울 것이 없는 행이다
+    (상태를 해석하지 않고 접두 이모지만 본다).
     † = repo 경로 문자열 — 파일 열기 API 허용 뿌리(docs·db·litdb/figures) 밖이라 링크가 없다.</p>
   {% endif %}
 </div>

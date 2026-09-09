@@ -1095,7 +1095,12 @@ def ledger_page():
         t_counts[skey or "기타"] = t_counts.get(skey or "기타", 0) + 1
         today = str(t.get("오늘") or "").strip()
         pending = today in ("", "-")
-        n_pending += pending
+        # ⚠ 끝난 행에 '내일 채워진다' 를 붙이지 않는다 (v3 G · 2026-09-09).
+        #   실측: 상태가 "✅ 완료(2026-07-28)" · "⛔ 폐기(2026-07-28)" 인 행에도 '값 대기'
+        #   가 붙어 있었다 — 한 달 반 전에 끝난 항목이 대기 중으로 보인다.
+        #   ⛔ 상태를 **해석하지 않는다**: 접두 이모지만 본다(이 화면의 원칙 그대로).
+        closed = skey in ("✅", "⛔")
+        n_pending += pending and not closed
         tool = str(t.get("도구") or "").strip()
         path = tool.split()[0] if tool else ""
         if "/" not in path:
@@ -1103,7 +1108,7 @@ def ledger_page():
         t_rows.append({"id": t.get("id", "?"), "what": t.get("무엇", ""),
                        "status": status,
                        "color": _TQ_STATUS_COLOR.get(skey, "var(--text2)"),
-                       "pending": pending,
+                       "pending": pending, "closed": closed,
                        "today_html": "" if pending else md_html(today),
                        "tool": tool, "tool_path": path,
                        "tool_link": bool(path and D.safe_repo_path(path))})
@@ -1143,9 +1148,21 @@ def ledger_page():
                   for k, v in raw_in.items()]
     corr_raw = led.get("오늘_정정한_우리_기록")
     tools_raw = led.get("오늘_만든_도구")
+    # ── '오늘' 이 언제인가 (v3 G · 2026-09-09) ────────────────────────────
+    #   화면이 "오늘 들어온 것" · "내일 원장이 채운다" 를 12번 넘게 쓰는데 그 '오늘' 은
+    #   원장 파일의 날짜다. 실측 2026-09-08 에 그 '내일' 이 13일째 안 왔다.
+    #   ⛔ 날짜를 하드코딩하지 않는다 — 원장 날짜와 오늘의 **간격을 계산**한다.
+    #     원장에 date 가 없으면 None 이고, 화면은 "날짜 미기재" 라고 말한다(0 이 아니다).
+    age_days = None
+    try:
+        from datetime import date as _date
+        y, m, dd = (int(x) for x in str(led.get("date") or "").split("-")[:3])
+        age_days = (_date.today() - _date(y, m, dd)).days
+    except Exception:                                       # noqa: BLE001
+        age_days = None
     return render_template(
         "ledger.html", active="ledger", led=led, broken=broken,
-        older=[l["_file"] for l in good[1:]],
+        older=[l["_file"] for l in good[1:]], age_days=age_days,
         t_rows=t_rows, t_counts=t_counts, t_missing=t_raw is None,
         n_pending=n_pending, qsec=qsec, intake=intake,
         corrections=None if corr_raw is None else [md_html(str(s)) for s in corr_raw],
