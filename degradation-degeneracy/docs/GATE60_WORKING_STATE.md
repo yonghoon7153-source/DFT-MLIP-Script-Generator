@@ -373,3 +373,20 @@ mutation_replay.py -k shadows-are-scoped              → 신고 1건 · ran 0
 mutation_replay.py --check-preimages                  → 모든 변이 지점이 정확히 한 번
 등록부  MUTANTS 193 · MULTI 30 · EXPECT 214 · DECLARED_MASKED 10 · 60차 축 19
 ```
+
+## 마감 완료 (2026-09-09)
+
+| 단계 | 결과 |
+|---|---|
+| 변이 등록부 | MUTANTS 193 · MULTI 30 · EXPECT 214 · DECLARED_MASKED 10 · 60차 축 19 |
+| g14 freeze → g15 · 투영 · 영수증 | 완료 (`f79840bc`) — 행 바이트 `ad598fe77e75afec` 열한 세대째 동일 |
+| 12조각 전수 재생 | **네 번째에 통과** — 12조각 rc=0 · 합집합이 등록부 223 축(executable 213 · declared 10)을 정확히 덮음 (`02197c84`) |
+| 전체 회귀 | **1585 passed, 1 xfailed** (39분 07초) |
+| strict smoke | **pipeline smoke 통과** (clean 커밋) |
+| 요청문 | `docs/22p_gap/GATE60_REQUEST.md` — 자기완결 lint 통과 |
+| webapp · 원장 | `/trust` §4·§6 갱신 · 원장 §72 완성 |
+
+전수 재생을 네 번 돌린 이유는 앞의 세 번이 **재생 자신의 발견** 때문이다
+(fixture 가 P0-8 이후 의미와 어긋남 · `Raise` 규칙의 증인 소실 ·
+`startup_modules` 의 증인 소실). 조각마다 다른 코드에서 난 coverage 는 합집합의
+근거가 못 되므로 매번 1조각부터 다시 돌렸다.
