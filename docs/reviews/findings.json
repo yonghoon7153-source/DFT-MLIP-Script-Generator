@@ -1790,15 +1790,17 @@
   {
    "id": "AUD-07",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
    "title": "감사 finding 에 **기계 판독 가능한 검증 상태가 없다**",
-   "note": "Codex 리뷰 Q2-3.  `residual_buckets.json` 의 finding 135 건 중 `status`/`verification_status` 를 가진 것이 **0 건**이다.  P0/P1 44 건과 독립검증 생존 3 건이 서로 다른 배열·산문으로 분리돼 있고, 저자가 직접 확인한 두 건도 기계적 연결이 없다 (`step3_sdcp1500.json` 은 그 항목으로 서술되는데 해당 경로의 finding object 자체가 없다).  ⇒ 후속 집계자가 `severity=P1` 만 골라 읽으면 **후보와 확정이 합쳐진다**.\n★ 단, 이 원시 후보 135 건이 정본 `findings.json` 에 확정으로 유입되지는 않았다.\n⬜ 원본 감사 출력은 보존하고, 별도 adjudication 원장에 안정 ID + `candidate/self_confirmed/independently_verified/rejected/incomplete` + 검증 근거·주체·커밋을 붙일 것.",
+   "note": "Codex 리뷰 Q2-3.  `residual_buckets.json` 의 finding 135 건 중 `status`/`verification_status` 를 가진 것이 **0 건**이다.  P0/P1 44 건과 독립검증 생존 3 건이 서로 다른 배열·산문으로 분리돼 있고, 저자가 직접 확인한 두 건도 기계적 연결이 없다 (`step3_sdcp1500.json` 은 그 항목으로 서술되는데 해당 경로의 finding object 자체가 없다).  ⇒ 후속 집계자가 `severity=P1` 만 골라 읽으면 **후보와 확정이 합쳐진다**.\n★ 단, 이 원시 후보 135 건이 정본 `findings.json` 에 확정으로 유입되지는 않았다.\n⬜ 원본 감사 출력은 보존하고, 별도 adjudication 원장에 안정 ID + `candidate/self_confirmed/independently_verified/rejected/incomplete` + 검증 근거·주체·커밋을 붙일 것.\n★ 2026-09-09 고침 — 원본은 **한 바이트도 안 고쳤다** (감사 출력의 박제다). sha256 으로 못박고, 별도 판정 원장 `docs/reviews/audit_adjudication_20260909.json` 에만 상태를 단다.  안정 ID 는 `AUDR-<sha1(bucket|file|kind|claim)[:8]>` = 내용 주소라 재정렬·항목 추가에 흔들리지 않는다 (일련번호는 한 건만 늘어도 전부 밀린다).  상태는 candidate / self_confirmed / independently_verified / rejected / incomplete 다.\n★★ **검증을 지어내지 않았다** — 원본이 실제로 말하는 것만 옮겼다.  `surviving_p0p1` 3 건은 그 감사 **자신의** 적대 패스를 통과한 것이라 `self_confirmed` 이고, 나머지 132 건은 전부 `candidate` 다.  지금 상태가 문제를 그대로 드러낸다: **P0+P1 44 건 중 self_confirmed 는 3 건이고 41 건이 아직 후보다** — 옛 방식으로 읽었으면 그 둘이 한 숫자가 됐다.\n검사기 `scripts/check_audit_adjudication.py` (selftest 14/14, 실물 135/135) 를 check_all · CI · 자기검사 등재에 배선했다.  음성 대조 9개: 원본 해시 불일치 · 빠진 판정 · 유령 판정 행 · 미등록 상태값 · candidate 가 검증 필드 보유 · 감사 주체가 자기 독립 검증자 · 근거 없는 상태 주장 · 없는 finding 으로의 승격 · 원본과 다른 심각도.\n⬜ 남은 것 둘: ⓐ `step3_sdcp1500.json` 처럼 **산문에만 있고 finding object 가 없는** 항목은 이 원장이 덮지 못한다 (없는 것을 지어내지 않는다) — 원시 감사에 항목을 만들어야 덮인다. ⓑ `audit1_scopes.json`(1차 감사, 별도 파일)에는 판정이 finding 에 붙어 있다고 기록돼 있으나 같은 5-상태 어휘는 아니다 — 통합할지는 별도 판단이다.",
    "evidence_tests": [
-    "scripts/check_review_findings.py --selftest"
-   ]
+    "scripts/check_audit_adjudication.py --selftest",
+    "scripts/check_audit_adjudication.py"
+   ],
+   "claimed_fixed_sha": "0dee4f33"
   }
  ]
 }
