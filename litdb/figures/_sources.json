@@ -277,7 +277,7 @@
   ]
  },
  "fang2022_argyrodite_transport_beyond_paddlewheel": {
-  "figures": 22,
+  "figures": 40,
   "generated": "2026-09-09",
   "pdfs": [
    "e5c9115c-87._Argyroditetype_advanced_lithium_conductors_and_transport_mechanisms_beyond_paddlewheel_effect.pdf",
@@ -375,6 +375,14 @@
   "pdfs": [
    "386c01ae-77._Machine_learning_pipelines_for_the_design_of_solidstate_electrolytes.pdf",
    "4b4d549e-77._Sup_Machine_learning_pipelines_for_the_design_of_solidstate_electrolytes.pdf"
+  ]
+ },
+ "jeon2026_concerted_li_motion_argyrodite_assi": {
+  "figures": 35,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "89._Unraveling_the_concerted_motion_of_Li_ions_in_argyrodite_Li6xAs1_xSixS5I_solid_electrolytes.pdf",
+   "89._Sup_Unraveling_the_concerted_motion_of_Li_ions_in_argyrodite_Li6xAs1_xSixS5I_solid_electrolytes.pdf"
   ]
  },
  "jun2022_argyrodite_ion_cage_size_descriptor": {
@@ -914,7 +922,7 @@
   ]
  },
  "ou2026_microstructural_multiscale_fast_ion_transport": {
-  "figures": 6,
+  "figures": 31,
   "generated": "2026-09-09",
   "pdfs": [
    "88._Microstructural_insights_into_fast_ion_transport_in_solid_electrolytes_via_multiscale_modeling.pdf",
@@ -1213,6 +1221,13 @@
    "DEM 논문/05. A theoretical model for the stick bounce behaviour of adhesive, elastic-plastic spheres.pdf"
   ]
  },
+ "tompa2026_finetuning_mlip_foundation_strategies": {
+  "figures": 28,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "7eca4ae9-91._Finetuning_MLIP_foundation_models_strategies_for_accuracy_and_transferability.pdf"
+  ]
+ },
  "torii2025_lpscl_mechanical_anisotropy_dft": {
   "figures": 11,
   "generated": "2026-08-05",
@@ -1263,6 +1278,14 @@
   "pdfs": [
    "DFT 먹인 논문/52. Electronic Localization Enables Long-Cycling Sulfides-Based All-Solid-State Lithium Batteries.pdf",
    "DFT 먹인 논문/52. Sup) Electronic Localization Enables Long-Cycling Sulfides-Based All-Solid-State Lithium Batteries.pdf"
+  ]
+ },
+ "wang2025_pretrained_deep_potential_sulfide_sse": {
+  "figures": 17,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "dc978d7f-90._A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
+   "ad74839f-90._Sup_A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf"
   ]
  },
  "wang2026_dryprocess_thick_cathode_failure_ncm94": {
