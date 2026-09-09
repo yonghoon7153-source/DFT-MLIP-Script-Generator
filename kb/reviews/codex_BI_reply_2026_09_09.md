@@ -81,8 +81,8 @@ b2o3 가 표본 밖**이었다. 주장은 "적다" 가 아니라 **0** 이었고
 브라우저 재렌더를 폐지했다. 브라우저는 이제 **부착만** 한다(KaTeX·mermaid·목차).
 `marked.parse` 금지 **정적 린트**(음성 경로 포함)로 회귀를 막는다.
 
-저장소 전체 `innerHTML` 133건 중 서버 결속을 덮던 것은 `concept.html` **딱 하나**였다
-(§2-4 참조).
+저장소 전체 `innerHTML` **90건**(webapp/templates + static/js 전수 grep) 중 서버 결속을 덮던 것은
+`concept.html` **딱 하나**였다 (§2-4 참조).
 
 ### 1-4. P0-2a / P0-3 `data-claim-not` 담요
 
@@ -160,8 +160,8 @@ handoff 94 전수 unbound 0(bound 19) · talk 8 전수 0 · paper 218~227 전수
 표본(요지 ①) 문제다.** `/api/paper`·`/api/handoff` 로 들어오는 innerHTML 주입 4곳
 (literature.html:327 · cascade.html:1423 · benchmarks.html:510 · log.html:94)은 **서버가
 `md_html` 로 그린 HTML 을 넣으므로 결속이 살아 있다**(전수 실측 unbound 0).
-*"같은 패턴이 여기저기 있다"* 는 뭉뚱그림은 거절한다 — 저장소 전체 innerHTML 133건 중
-서버 결속을 덮는 것은 concept.html **하나**였다.
+*"같은 패턴이 여기저기 있다"* 는 뭉뚱그림은 거절한다 — 전수 grep 90건 중 서버 결속을 덮는 것은
+concept.html **하나**였다.
 
 ### 2-5. 우리에게 **불리한** 방향의 정정 둘 (같이 적는다)
 
@@ -258,6 +258,13 @@ b2o3 행이 `claim: MD_Ea_eV@b2o3` 를 갖고도 **결속 기계에 아예 안 �
 **구조적으로 못 하는 것 (이번에 안 닫혔다)**
 - 태그 **속성** 안의 값(`/compare` 의 title 툴팁 `b2o3(0.199±0.034)`)은 서버 스캔도 DOM 층도
   못 본다. 목록화만 한다.
+- ⛔ **클라이언트가 조립하는 표는 여전히 사각이다 — 자리를 특정했다.**
+  `/compare` 는 `<script>` 안에 `"MD_Ea_eV": {"b2o3": 0.199, …}` 를 통째로 싣고
+  `compare.html:111` 의 `document.getElementById('cmp').innerHTML = …` 이 셀을 만든다.
+  스캐너는 `<script>` 를 건너뛰므로(설계상 그래야 한다) **서버 스캔에 안 잡히고**, 만들어진 DOM
+  셀에는 `data-claim` 이 없다. 재렌더를 없앤 것과는 다른 구멍이다 — 정적 린트는
+  *"파서를 둘 두지 마라"* 만 지키고 *"JS 가 값을 그리지 마라"* 는 못 지킨다.
+  고칠 방향은 **셀 조립을 서버 파생 claim id 로 바꾸는 것**이고, 아직 안 했다.
 - claim id 단위가 `(metric, system)` 이라 **"구간 Ea 600→800" 같은 하위 보고량을 못 가른다.**
   sentinel 로 그 자리는 막았지만 온도·창·프로토콜별 하위 이름표가 없다. **다음 누출은 여기서 난다.**
 - 원고 .docx·슬라이드·메일·사람이 눈으로 옮겨 적는 것은 못 막는다.
