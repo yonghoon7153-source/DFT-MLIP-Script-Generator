@@ -246,9 +246,9 @@
         <label>Conductive Additive</label>
         <select id="additive" style="width:100%;padding:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;margin-top:4px">
           <option value="none">None (AM-AM only)</option>
-          <option value="vgcf">VGCF 1wt% (sub-perc, σ_el ~0.4)</option>
-          <option value="c65">C65 1wt% (sub-perc, 미미한 효과)</option>
-          <option value="c65_4wt">C65 4wt% (percolation! σ_el ~70, but σ_ion -15%)</option>
+          <option value="vgcf" title="⚠ σ_el 0.4 mS/cm 는 출처 미확인 (결함 AUD-02). Reisacher 실측 매트릭스는 C65 전용이라 VGCF 에 전이되지 않는다.">VGCF 1wt% (sub-perc, σ_el ~0.4 ⚠출처미확인)</option>
+          <option value="c65" title="Reisacher 2023 (Batteries 9(12) 595) CM-1 실측 — LPSCl+C65, 우리와 같은 SE. 퍼콜레이션 문턱 4 wt% 아래라 고립된 C65 섬.">C65 1wt% (sub-perc, σ_el 0.095 · 실측)</option>
+          <option value="c65_4wt" title="Reisacher 2023 CM-4 실측 (LPSCl+C65) — 퍼콜레이션 무릎. ⚠ 무릎이지 포화가 아니다: 5 wt% 에서 102 mS/cm 로 75배 더 오른다. 옛 라벨의 ~70 은 이 리포에 없는 논문을 인용한 값이었다 (AUD-02).">C65 4wt% (무릎, σ_el 1.36 · 실측 · σ_ion −15%)</option>
         </select>
       </div>
 

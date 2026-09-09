@@ -1657,6 +1657,30 @@ _SIGMA_C_MSCM       = 1000.0   # ⚠§F1 ANALYTIC what-if hook (NOT measured) �
                                #   percolation losses (mS/cm).  ~10× above Reisacher 5wt% (≈1e-1 S/cm=100 mS/cm);
                                #   drives d_sig_e in the PURE-ANALYTIC grade axis only, not the STEP3 solve.
 
+#: ★ 2026-09-09 (결함 AUD-02) — **탄소 앵커가 사는 유일한 자리.**
+#:   계기: `webapp/predictor_engine.py` 가 **두 번째 탄소 모델**을 따로 들고 있었고, 그쪽 값은
+#:   이 리포에 없는 논문("Bielefeld 2023")을 인용하면서 아래 실측과 **51배** 어긋났다.
+#:   문턱(`_CARB_PC_WT`)만 이 논문에서 가져오고 값은 다른 데서 가져온 상태였다.
+#:   ⇒ 앵커를 여기 한 군데 두고 예측기가 **읽어 간다** (규율 ①: "이 리포에 이미 있나").
+#:
+#:   출처: `docs/data/reisacher2023_percolation.csv`
+#:         Reisacher, Kaya, Knoblauch — Batteries 2023, 9(12), 595 (open access)
+#:         전도 매트릭스 = **Li6PS5Cl (= 우리와 같은 SE) + C65** (Super C65, Imerys).
+#:         EIS + DC-분극 실측.  ⇒ 재료 보정 없이 전이 가능한 드문 앵커다.
+#:
+#:   ⚠⚠ **이 구간은 퍼콜레이션 무릎이다** — 4 → 5 wt% 에서 **75배** 뛴다.  한 칸 오차가
+#:      두 자릿수 오차가 되므로 보간으로 중간값을 지어내지 말 것 (측정점만 쓴다).
+#:   ⚠ 0 wt% 행은 **이온** 측정(순수 SE in-cell, under-compacted)이라 전자 baseline 이
+#:      아니다 — 그래서 여기 싣지 않는다.
+#:   ⚠ **C65 전용이다.**  VGCF 는 이 매트릭스가 아니므로 이 표를 VGCF 에 쓰지 말 것.
+REISACHER_C65_SIGMA_E_MSCM = {
+    1.0: 0.095,    # CM-1  고립된 C65 섬 (below p_c)
+    3.0: 0.166,    # CM-3  전이 개시 (below p_c)
+    4.0: 1.36,     # CM-4  퍼콜레이션 무릎 (at p_c) — CM-3 대비 ~1 자릿수
+    5.0: 102.0,    # CM-5  전자망 형성 (above p_c) — CM-3 대비 ~3 자릿수
+    10.0: 110.0,   # CM-10 포화
+}
+
 
 def _sat(x):
     return max(0.0, min(1.0, x))

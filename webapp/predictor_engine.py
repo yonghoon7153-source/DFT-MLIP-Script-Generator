@@ -25,6 +25,16 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 import se_material
 
+#: ★ 탄소 σ_e 앵커도 **한 군데**에서 읽는다 (결함 AUD-02).  전에는 여기에 두 번째 사본이
+#:   있었고 그 값이 리포에 없는 논문을 인용하며 실측과 51배 어긋났다.
+#:   ⚠ 임포트가 실패해도 예측기는 살아 있어야 한다 (배포 호스트에 scripts/ 가 없을 수 있다)
+#:     — 그때는 아래 fallback 이 **같은 실측값**을 쓰고, 그 사실이 코드에 보이게 둔다.
+try:
+    from grade_engine import REISACHER_C65_SIGMA_E_MSCM as _REISACHER_C65
+except Exception:                                          # noqa: BLE001
+    #  docs/data/reisacher2023_percolation.csv 와 같은 값 (Batteries 2023, 9(12), 595)
+    _REISACHER_C65 = {1.0: 0.095, 3.0: 0.166, 4.0: 1.36, 5.0: 102.0, 10.0: 110.0}
+
 # ═══ Physical Constants ═══
 # ★ 2026-07-28: σ_grain now shared with the solvers via se_material (value unchanged, 3.0 mS/cm,
 # declared at T_ref = 25 °C).  docs/temp_pressure_capability.md §3-4 / T1-b / T1-e.
@@ -799,8 +809,19 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_electronic *= arrhenius_AM
 
     # ── Electronic Active AM (Dead AM estimation) ──
-    # Ref: Minnmann 2021, Clausnitzer 2023, Bielefeld 2023
-    # Percolation threshold: ~25-30 vol% AM
+    # Ref: Minnmann 2021, Clausnitzer 2023, **Bielefeld 2019** (인용 연도 정정 2026-09-09)
+    #   ⚠ 옛 주석은 여기도 "Bielefeld 2023" 이라 적었는데 그런 논문이 리포에 없다 (AUD-02).
+    #     AM 전자-퍼콜레이션을 다룬 것은 **2019** 판이다 (J. Phys. Chem. C 2019, 123, 1626).
+    #     그 논문은 σ 를 **아예 계산하지 않는다** — 퍼콜레이션 존재까지만 낸다
+    #     (`docs/data/bielefeld2019_percolation.csv` 머리말이 그렇게 적고 있다).
+    #     ⇒ 앞의 C65 σ_e 값이 그 논문에서 왔을 수도 없다.
+    # ⚠⚠ **미해결 (AUD-02, 값 안 바꿈)**: 아래 문턱 "~25-30 vol% AM" 이 그 논문과 안 맞는다.
+    #   Bielefeld 2019 Eq8: p_c = 7.83·ln(d/µm) + 36.67 vol%
+    #     d = 3 µm → 45.3 · 5 µm → 49.3 · 10 µm → 54.7 vol%   (Fig5 전이구간 41~46 / 52~57)
+    #   즉 실제 문턱은 **45~58 vol%** 이고 **입경 의존**인데, 아래는 25~30 고정이다 (~20 vol%p 차).
+    #   ">55 vol% 완전 퍼콜레이션" 만 상단(10 µm 54.7)과 대략 맞는다.
+    #   ⇒ 이 블록은 dead-AM 추정을 정하므로 저자 판단이 필요하다 — 라벨만 달고 값은 둔다.
+    # Percolation threshold: ~25-30 vol% AM   ← ⚠ 위 경고 참조 (문헌은 45~58, 입경 의존)
     # >55 vol%: fully percolating, 0% dead
     # 30-55%: transition zone
     # <25%: severe electronic isolation
@@ -816,36 +837,34 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         electronic_active_pct = max(10, phi_am / 0.18 * 50)
 
     # ── Conductive Additive Effect ──
-    # ⚠⚠ 출처 미확인 (2026-09-09 전수 감사 · 결함 AUD-02).  아래 세 값이 인용하는
-    #    **"Bielefeld 2023" 은 이 리포 어디에도 없다** — 정본 litdb 에 있는 것은
-    #    bielefeld2019(구조모델·σ 안 풂) · bielefeld2020(바인더 연속체 σ) 둘뿐이다.
-    #    그리고 C65 4 wt% 값은 리포 자신의 실측 앵커와 **51배 어긋난다**:
-    #      docs/data/reisacher2023_percolation.csv (LPSCl = 우리와 같은 SE, + C65)
-    #        4 wt% → 1.36e-3 S/cm = 1.36 mS/cm   ← 실측 (CM-4, 퍼콜레이션 무릎)
-    #        5 wt% → 1.02e-1 S/cm = 102 mS/cm    ← 무릎 바로 위
-    #    아래의 70 mS/cm 는 4 wt% 가 아니라 **5 wt% 쪽 크기**다.  이 구간은 두 자릿수가
-    #    뛰는 자리라 한 칸 오차가 100배 오차다.
-    #    ⇒ 값을 **바꾸지 않고 라벨만 단다** (어느 값이 맞는지는 저자 판단 소관).
-    #    그때까지 이 경로의 σ_el 은 `UNVERIFIED_PROVENANCE` 로 표시된다.
-    # Ref: Minnmann 2021, Kang 2024 (+ 출처 미확인 항목은 위 경고 참조)
+    # ★ 2026-09-09 (결함 AUD-02) — **C65 σ_e 를 리포 자신의 실측으로 갈아탔다.**
+    #   옛 판은 세 곳에서 **"Bielefeld 2023"** 을 인용했는데(한 곳은 *"directly measured"*
+    #   라고까지), **그 논문이 이 리포에 없다** — 정본 litdb 에 있는 것은 bielefeld2019
+    #   (구조모델, σ 를 아예 안 푼다) · bielefeld2020(바인더 연속체 σ) 둘뿐이다.
+    #   그리고 그 값은 우리 자신의 실측과 **51배** 어긋났다 (4 wt% 에서 70 vs 1.36 mS/cm).
+    #   70 은 4 wt% 가 아니라 **5 wt% 쪽 크기**(102)였다.
+    #   ⇒ 앵커는 `grade_engine.REISACHER_C65_SIGMA_E_MSCM` **한 군데**에만 산다.
+    #     (규율 ①: 리포에 이미 있었다 — `grade_engine.whatif_additives` 가 같은 논문의
+    #      p_c 를 `_CARB_PC_WT=4.0` 으로 쓰고 있었고, 여기가 그 **두 번째 사본**이었다.)
+    #   ⚠ 이 구간은 퍼콜레이션 무릎이라 4 → 5 wt% 에서 75배 뛴다 — 측정점만 쓴다.
+    # Ref: Reisacher 2023 (C65 σ_e, LPSCl 매트릭스 실측) · Minnmann 2021 · Kang 2024
     # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
         # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
-        # σ_el ≈ 0.4 mS/cm — ⚠ 출처 미확인 (AUD-02, 위 경고).  NOT percolating, local enhancement
-        # But bridges isolated AM → dead AM reduced by ~10% (Minnmann 2021: +13% capacity)
+        # ⚠ σ_el 0.4 mS/cm 는 **아직 출처 미확인**이다 (AUD-02).  Reisacher 매트릭스는
+        #   **C65 전용**이라 이 값에 전이되지 않는다 — 다른 탄소를 같은 표로 덮지 않는다.
         sigma_electronic = max(sigma_electronic, 0.4)
         sigma_ionic_final *= 0.99
         electronic_active_pct = min(100, electronic_active_pct + 10)
     elif additive == 'c65':
-        # C65 1wt%: BELOW percolation threshold (~4wt%!)
-        sigma_electronic += 1.0
+        # C65 1 wt%: 퍼콜레이션 문턱(~4 wt%) **아래** — 고립된 C65 섬 (Reisacher CM-1)
+        sigma_electronic = max(sigma_electronic, _REISACHER_C65.get(1.0, 0.095))
         sigma_ionic_final *= 0.97
         electronic_active_pct = min(100, electronic_active_pct + 5)
     elif additive == 'c65_4wt':
-        # C65 4wt%: AT percolation threshold — full electronic network!
-        # σ_el ≈ 70 mS/cm — ⚠ 출처 미확인 (AUD-02).  옛 주석의 "directly measured" 는
-        #   근거를 못 찾았고, 리포 실측(Reisacher 2023 LPSCl+C65)은 같은 4 wt% 에서 1.36 mS/cm 다.
-        sigma_electronic = max(sigma_electronic, 70)
+        # C65 4 wt%: 퍼콜레이션 **무릎 위** (Reisacher CM-4).  ⚠ 무릎이지 포화가 아니다 —
+        #   5 wt% 에서 102 mS/cm 로 75배 더 오른다.  "전자망 완성" 은 5 wt% 쪽이다.
+        sigma_electronic = max(sigma_electronic, _REISACHER_C65.get(4.0, 1.36))
         sigma_ionic_final *= 0.85
         electronic_active_pct = 100.0
 
