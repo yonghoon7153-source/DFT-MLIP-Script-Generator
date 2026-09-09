@@ -8,6 +8,17 @@
     {# 하위 페이지는 부모를 먼저 보여준다 — 어디 소속인지 모르면 되돌아갈 데를 못 찾는다. #}
     {% if parent %}<div class="sub" style="margin-bottom:2px"><a href="{{ parent.url }}">{{ parent.label }}</a> ›</div>{% endif %}
     <h1>{{ title }}</h1>{% if subtitle %}<div class="sub">{{ subtitle }}</div>{% endif %}
+    {# 📅 frontmatter 배지 (v3 묶음 F · P0-34) — 본문에서 **뗀** YAML 을 버리지 않고
+       여기로 올린다. 종전에는 이 15줄이 본문 첫 문단이자 목차 1번 항목이었다.
+       ⚠ 없는 것은 채우지 않는다 — 갱신일이 없으면 '미기재' 라고 말한다(오늘로 안 메운다). #}
+    {% if docmeta %}
+    <div class="doc-fm">
+      {% for lab, val in docmeta %}
+      <span class="doc-fm-b{% if not val %} is-none{% endif %}">
+        <b>{{ lab }}</b> {{ val or '미기재' }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   <div class="page-actions">
     {% if artifact %}<a class="btn" href="{{ artifact }}" target="_blank" rel="noopener">🔗 읽기용 페이지</a>{% endif %}
@@ -148,5 +159,94 @@
   </details>
 </div>
 {% endif %}
-<div class="doc">{{ content|safe }}</div>
+{# ── 문서 안에서 찾기 + 목차 (v3 묶음 F, 2026-09-09) ────────────────────────
+   /methods 는 68 KB, /todo 는 209 KB 다 — 스크롤 말고 **찾을 수단**이 필요하다.
+   seminar.html 의 buildToc/search 를 그대로 옮겨 왔다(같은 문제, 같은 해법).
+   ⚠ 목차 항목은 서버가 이미 판 heading id 를 **재사용한다.** 여기서 새로 매기면
+     `h0`·`h1` 식 위치 기반 id 가 되고, 절이 하나 늘 때마다 외부 딥링크가 어긋난다. #}
+<div class="doc-bar">
+  <input id="docq" type="search" autocomplete="off" placeholder="이 문서 안에서 찾기">
+  <span class="muted mono" id="dochits" style="font-size:.76rem"></span>
+</div>
+<nav class="doc-toc" id="doctoc" aria-label="문서 목차"></nav>
+<div class="doc" id="docbody">{{ content|safe }}</div>
+<style>
+.doc-fm{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.doc-fm-b{font-size:.7rem;border:1px solid var(--border);border-radius:999px;
+  padding:2px 9px;color:var(--dim);background:var(--card)}
+.doc-fm-b b{color:var(--muted);font-weight:700;margin-right:3px}
+.doc-fm-b.is-none{border-style:dashed;opacity:.7}
+.doc-bar{display:flex;gap:10px;align-items:center;margin:0 0 6px}
+.doc-bar input{flex:1;max-width:420px;font:inherit;font-size:.84rem;padding:6px 10px;
+  border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text)}
+.doc-toc{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:4px 14px;
+  padding:9px 13px;margin:0 0 14px;background:var(--card);
+  border:1px solid var(--border);border-radius:10px;max-height:23vh;overflow:auto}
+.doc-toc a{font-size:.77rem;color:var(--dim);text-decoration:none;white-space:nowrap}
+.doc-toc a:hover{color:var(--navy);text-decoration:underline}
+.doc-toc a.h3{padding-left:8px;opacity:.75}
+.doc-toc:empty{display:none}
+</style>
+<script>
+(function(){
+  var body = document.getElementById('docbody'), toc = document.getElementById('doctoc');
+  if (!body || !toc) return;
+  var TOCMAX = 80;
+  Array.prototype.slice.call(body.querySelectorAll('h2, h3'), 0, TOCMAX)
+    .forEach(function(h, i){
+      /* 서버 id 가 없을 때만 임시 id 를 판다 — 있으면 손대지 않는다. */
+      if (!h.id) h.id = 'sec-' + i;
+      var a = document.createElement('a');
+      a.href = '#' + h.id; a.textContent = h.textContent.trim();
+      if (h.tagName === 'H3') a.className = 'h3';
+      toc.appendChild(a);
+    });
+  /* ⚓ 죽은 앵커 구조 — 옛 링크(GitHub 식 `--`)가 서버 슬러그(`-`)와 안 맞는다.
+     하드코딩된 딥링크를 고치는 대신, 구분자만 다른 id 를 찾아 그리로 보낸다. */
+  function norm(s){ return decodeURIComponent(s || '').replace(/-+/g, '-'); }
+  function rescue(){
+    var h = location.hash.slice(1);
+    if (!h || document.getElementById(h)) return;
+    var want = norm(h), hit = null;
+    body.querySelectorAll('[id]').forEach(function(el){ if (!hit && norm(el.id) === want) hit = el; });
+    if (hit) hit.scrollIntoView({block:'start'});
+  }
+  rescue(); window.addEventListener('hashchange', rescue);
+
+  function clearMarks(){
+    body.querySelectorAll('mark.docq').forEach(function(m){
+      var p = m.parentNode; p.replaceChild(document.createTextNode(m.textContent), m); p.normalize();
+    });
+  }
+  function search(q){
+    clearMarks();
+    var out = document.getElementById('dochits');
+    if (!q || q.length < 2){ out.textContent = ''; return; }
+    var re, n = 0, first = null;
+    try { re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); }
+    catch(e){ out.textContent = ''; return; }
+    var walk = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null), nodes = [], t;
+    while ((t = walk.nextNode())) if (re.test(t.nodeValue)) { nodes.push(t); re.lastIndex = 0; }
+    nodes.forEach(function(node){
+      var frag = document.createDocumentFragment(), s = node.nodeValue, last = 0, m;
+      re.lastIndex = 0;
+      while ((m = re.exec(s))){
+        frag.appendChild(document.createTextNode(s.slice(last, m.index)));
+        var mk = document.createElement('mark'); mk.className = 'docq'; mk.textContent = m[0];
+        frag.appendChild(mk); last = m.index + m[0].length; n++;
+        if (!first) first = mk;
+        if (m[0].length === 0) re.lastIndex++;
+      }
+      frag.appendChild(document.createTextNode(s.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+    });
+    out.textContent = n ? (n + '곳에서 찾음') : '없음';
+    if (first) first.scrollIntoView({block:'center'});
+  }
+  var qbox = document.getElementById('docq'), timer = null;
+  if (qbox) qbox.oninput = function(){
+    clearTimeout(timer); var v = qbox.value; timer = setTimeout(function(){ search(v); }, 180);
+  };
+})();
+</script>
 {% endblock %}

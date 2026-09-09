@@ -718,6 +718,7 @@ def methods():
     html = md_html(md, ("tables", "fenced_code", "toc"))
     return render_template("doc.html", active="methods",
                            title="계산 방법 Canonical (단일 기준)", content=html,
+                           docmeta=doc_badges(split_frontmatter(md)[0]), toc=True,
                            subtitle="kb/methodology/computational_methods_canonical.md · 값 인용 전 단일 기준")
 
 
@@ -736,6 +737,7 @@ def sdcp_wave1():
         "doc.html", active="sdcp",
         title="🧪 SDCP wave1 — 바인더가 NCM 표면 어디에 붙나",
         content=html, data=D.sdcp_wave1_rows(),
+        docmeta=doc_badges(split_frontmatter(md)[0]), toc=True,
         parent={"url": "/log", "label": "Work Log"},
         artifact="https://claude.ai/code/artifact/5b5d48c5-e23c-47a1-8493-b42dedb9a121",
         child={"url": "/sdcp/self-doping",
@@ -764,6 +766,7 @@ def sdcp_self_doping():
         "doc.html", active="sdcp",
         title="⚗️ 자기도핑이란 무엇인가",
         content=md_html(md, ("tables", "fenced_code", "toc")),
+        docmeta=doc_badges(split_frontmatter(md)[0]), toc=True,
         parent={"url": "/sdcp", "label": "SDCP wave1"},
         # 공유용 HTML — 랩 밖(공저자·처음 보는 대학원생)에 링크로 던질 수 있는 판.
         #   kb md 가 정본이고 이건 읽기용이다. 내용이 갈리면 md 를 고치고 다시 배포한다.
@@ -784,6 +787,34 @@ def todo():
                            title="📋 미결 리스트 (Open Items)",
                            content=html, banner=banner,
                            subtitle="kb/open_items.md · 판정 대기 · PDF 확보 대기 · ML 후속 · 심포지엄 대응")
+
+
+@app.route("/kb/<path:rel>")
+def kb_doc(rel):
+    """kb 마크다운 읽기 (v3 묶음 G · 2026-09-09).
+
+    왜 생겼나: 결정 원장의 근거 문서 14건이 `kb/…md` 라 화면에서 **회색 문자열**로
+    끝났다. 정책 결정 7건은 근거가 전부 kb 카드라, 결정에서 논거로 가는 길이 하나도
+    없었다. `/todo` 가 이미 kb md 를 doc.html 로 그리고 있으니 배선만 없었던 것이다.
+
+    ⛔ 이 라우트가 **못 하는 것**
+      · 다운로드가 아니다. `.md` 본문을 렌더할 뿐이고 `/api/file` 허용 뿌리는 그대로다.
+      · 문서가 맞는지·최신인지 판정하지 않는다. frontmatter 의 `updated`·`status` 를
+        배지로 올리되(F 의 doc_badges), **없으면 메우지 않는다**.
+      · kb 밖(tools/·litdb/)은 안 연다 — 없으면 404 다 (빈 화면이 아니라).
+    """
+    p = D.safe_kb_doc(rel)
+    if p is None:
+        abort(404)
+    text = p.read_text(encoding="utf-8")
+    meta, _ = split_frontmatter(text)
+    return render_template(
+        "doc.html", active="governance",
+        title="📄 " + p.name, content=md_html(text, ("tables", "fenced_code", "toc")),
+        badges=doc_badges(meta),
+        parent={"url": "/governance", "label": "⚖ 판정 원장"},
+        subtitle=f"kb/{rel.split('kb/')[-1] if rel.startswith('kb/') else rel} · "
+                 "원본은 이 파일이다 — 화면은 읽기용이다")
 
 
 @app.route("/requests")
@@ -813,6 +844,32 @@ def claim_ref_to_id(ref):
     return f"{m.group(1)}@{m.group(2)}" if m else ""
 
 
+# ── 결정끼리의 참조를 화면에서 걷게 한다 (v3 묶음 G · 2026-09-09) ─────────────
+#   결정 ID 는 repo 전체가 인용 단위로 쓴다 — statement·reopen_criteria·대시보드
+#   카드·citation_hazards·마감 기록. 그런데 이름만 대고 갈 데가 없었다.
+@app.template_filter("declink")
+def _declink(s, known=(), skip=None):
+    """본문 안의 결정 ID 를 같은 페이지 앵커(`#<id>`)로 잇는다.
+
+    `skip` 은 자기 자신 — 자기 행에서 자기 id 로 가는 링크는 안 만든다.
+
+    ⛔ 못 하는 것: **원장에 실제로 있는 id 만** 링크한다. 정규식으로 `D-…` 모양을
+      전부 잇으면 오타·옛 id 가 조용히 죽은 링크가 된다 (없는 것을 있는 척하는
+      이 repo 의 반복 사고형). 모르는 id 는 글자 그대로 남는다.
+    ⛔ 또 못 하는 것: 그 결정이 무엇인지 판정하지 않는다 — 이름이 같으면 이을 뿐이다.
+    """
+    if s is None:
+        return Markup("")
+    txt = s if isinstance(s, Markup) else escape(str(s))
+    ids = sorted({str(k) for k in (known or ()) if k and k != skip},
+                 key=len, reverse=True)
+    if not ids:
+        return Markup(txt)
+    pat = re.compile("|".join(re.escape(i) for i in ids))
+    return Markup(pat.sub(
+        lambda m: f'<a href="#{m.group(0)}" class="mono">{m.group(0)}</a>', str(txt)))
+
+
 @app.route("/governance")
 def governance_page():
     """판례·평가·산출물·인용위험 네 원장을 한 화면에 — **판정이 어디에 근거하는지**.
@@ -824,9 +881,13 @@ def governance_page():
       · 값·판정이 맞는지 판정하지 않는다. 판정의 근거·소재만 보인다.
       · 결정 본문을 다 보여주지 않는다 — statement 까지다. rationale·enforcement·
         applies_to 는 원장 파일이 원본이고 화면은 그리로 보내는 길만 낸다.
-      · 근거 문서 링크는 `/api/file` 허용 뿌리(docs·db·litdb/figures) 안만 연다.
-        `kb/…` 카드와 조각 참조(`…json#절`)는 **경로 문자열만** 나온다 (ledger_page 와 같은 관례).
+      · 근거 문서 링크는 두 갈래다: `/api/file` 허용 뿌리(docs·db·litdb/figures)와
+        `/kb/<path>` 마크다운 읽기(v3 G). **그 밖은 경로 문자열만** 나온다.
+        조각 참조(`…json#절`)는 파일까지만 열고 절로 점프하지 않는다 — 링크 글자는
+        조각까지 그대로 둔다(원장이 이름 댄 문자열을 화면이 줄이지 않는다).
       · 사전등록 여부를 추론하지 않는다 — `results_seen` 이 원장에 없으면 "미기재" 다.
+      · 인용위험 행의 '결속' 배지는 **원장이 선언한 binding_scope** 를 옮길 뿐,
+        그 선언이 맞는지(정말 그 형태가 다 덮이는지)는 검사하지 않는다.
     """
     import canonical as _C
     # ⚠ 이 세 accessor 는 **id 로 키를 잡은 dict** 를 준다 (리스트가 아니다).
@@ -866,13 +927,23 @@ def governance_page():
         d["_ratified"] = rat_state
         rs = d.get("results_seen")
         d["_prereg"] = ("before" if rs is False else "after" if rs is True else "unstated")
-        # 근거 문서 — 링크로 열 수 있는 것만 링크한다 (safe_repo_path 밖이면 경로만).
+        # 근거 문서 — 열 수 있는 것만 링크한다. 두 갈래(파일 서빙 / kb 마크다운 렌더)를
+        #   **각자의 화이트리스트**로 판정한다. 하나로 합치면 /api/file 이 kb 전체를
+        #   내려받게 된다 (2026-08-17 교훈과 같은 자리).
+        #   ⚠ 링크 **글자**는 원장이 적은 ref 그대로다 — 조각(`…#절`)까지 보인다.
+        #     href 만 파일까지 자른다. 화면이 원장 문자열을 줄이면 "무엇을 가리켰나" 가 샌다.
         seen, docs = set(), []
         for role, ref in (("기록", d.get("record")), ("카드", d.get("card"))):
-            if ref and ref not in seen:
-                seen.add(ref)
-                docs.append({"role": role, "path": ref,
-                             "linkable": D.safe_repo_path(ref) is not None})
+            if not ref or ref in seen:
+                continue
+            seen.add(ref)
+            head, _, frag = str(ref).partition("#")
+            url = None
+            if D.safe_repo_path(head) is not None:
+                url = "/api/file/" + head
+            elif D.safe_kb_doc(head) is not None:
+                url = "/" + head                      # /kb/<path>
+            docs.append({"role": role, "path": ref, "url": url, "frag": frag})
         d["_docs"] = docs
     # 최신 결정이 위 — id 가 `D-YYYY-MM-DD-slug` 라 문자열 역순이 곧 날짜 역순이다.
     dec.sort(key=lambda d: str(d.get("id", "")), reverse=True)
@@ -880,6 +951,20 @@ def governance_page():
     from collections import Counter
     dec_kinds = Counter(d.get("kind") or "미기재" for d in dec).most_common()
     dec_states = Counter(d.get("_state") or "미기재" for d in dec).most_common()
+    # ── 옛 결정 접기 (v3 묶음 G) ──────────────────────────────────────────
+    #   대체·철회된 결정을 active 와 같은 굵기로 인라인에 두면 "지금 규칙" 이 안 읽힌다.
+    #   ⚠ **DOM 에서 빼지 않는다** — 전건 렌더 시험이 잡고, 무엇보다 옛 판정을 지우는 것이
+    #     이 repo 가 금지한 것이다. 두 표로 나누되 둘 다 그린다(옛 것은 <details> 안).
+    _OLD = ("superseded", "retracted")
+    dec_now = [d for d in dec if d.get("_state") not in _OLD]
+    dec_old = [d for d in dec if d.get("_state") in _OLD]
+    dec_ids = [d.get("id") for d in dec if d.get("id")]
+    # 실제 위험 카운터 — 초록 배너 옆에 나란히 둔다. 초록이 무엇을 보증했는지
+    #   말하지 않으면 페이지 전체 건강 신호로 읽힌다 (조사 gov-green-banner-scope-unstated).
+    #   ⚠ '비준 없는 active' 는 원장 _rules 위반이다(ratification 없이 active 가 될 수 없다).
+    #     0 이어야 정상이고, 0 이 아니면 그 자체가 발견이다.
+    dec_active_unratified = [d.get("id") for d in dec
+                             if d.get("_state") == "active" and d.get("_ratified") != "ratified"]
 
     # 네 번째 원장 (2026-09-01): 인용 위험. 25건이 화면 밖에 있었다 —
     #   "무엇을 알아냈나" 만 보이고 "무엇을 인용하면 안 되나" 가 안 보이는 화면은
@@ -890,11 +975,41 @@ def governance_page():
     hazards = sorted(haz.get("hazards", []),
                      key=lambda h: (_sev.get(h.get("level"), 9), h.get("file", "")))
 
+    # ── 결속됨 / 산문 (v3 묶음 G) ─────────────────────────────────────────
+    #   화면이 29행을 **똑같이** 그리면, 어느 행이 기계 결속(다른 화면에서 그 문구를 쓰면
+    #   잡힌다)이고 어느 행이 사람이 읽어야만 하는 산문인지 구분이 안 된다.
+    #   두 함수의 **차이**를 그대로 옮긴다:
+    #     · `hazard_ids()`   = 어휘. 원장에 있는 id 전부 (해소·폐기 포함).
+    #     · `hazard_claims()`= 결속 **요구**. RESOLVED·SUPERSEDED 는 빠진다.
+    #   ⛔ 이 화면은 binding_scope 가 **맞는지** 검사하지 않는다 — 원장 선언을 옮긴다.
+    _hz_vocab = _C.hazard_ids()
+    _hz_req = {c["id"] for c in _C.hazard_claims()}
+    for h in hazards:
+        hid = h.get("id")
+        if not hid:
+            h["_bind"] = "none"          # 원장에 id 자체가 없다 = 결속 대상이 아니다
+        elif hid not in _hz_req:
+            h["_bind"] = "inactive"      # 어휘에는 남지만 살아있는 금지가 아니다
+        elif h.get("claim"):
+            h["_bind"] = "claim"         # 정본값에 결속 — 숫자를 쓰면 잡힌다
+        elif h.get("forbidden_phrases"):
+            h["_bind"] = "phrase"        # 금지 문구에 결속 — 그 산문을 쓰면 잡힌다
+        else:
+            h["_bind"] = "name"          # 이름만 댈 수 있다 (결속 요구는 있으나 매칭 문자열 0)
+        h["_n_phrase"] = len(h.get("forbidden_phrases") or [])
+        h["_n_pending"] = len(h.get("pending_forbidden_phrases") or [])
+    hz_bind_counts = Counter(h["_bind"] for h in hazards)
+    hz_blocked = [h for h in hazards if h.get("level") == "BLOCKED"]
+
     return render_template("governance.html", active="governance",
                            decisions=dec, assessments=ass, artifacts=art,
+                           dec_now=dec_now, dec_old=dec_old, dec_ids=dec_ids,
                            dec_kinds=dec_kinds, dec_states=dec_states,
+                           dec_active_unratified=dec_active_unratified,
                            single=single, lost=lost,
                            hazards=hazards, hazards_updated=haz.get("updated"),
+                           hz_bind_counts=hz_bind_counts, hz_blocked=hz_blocked,
+                           hz_vocab_n=len(_hz_vocab), hz_req_n=len(_hz_req),
                            problems=_C.validate_governance() + _C.validate_artifacts())
 
 
@@ -1478,7 +1593,11 @@ def concept(cid):
     # ★ 본문은 **서버가 한 번만** 그린다 (Codex BI P0-2b · 2026-09-08). 종전에는
     #   이걸 "fallback" 이라 부르고 브라우저 marked 가 다시 그렸는데, 그 재렌더가
     #   서버 결속을 덮었다. 이제 이게 유일한 렌더다 — 콜아웃·수식보호·결속 포함.
+    # frontmatter 는 **본문에서 빼되 화면으로 올린다** (P0-34). 용어집에 안 걸린 문서는
+    #   h1 이 슬러그(`msd_reading`)였는데, frontmatter title 이 있으면 그걸 제목으로 쓴다.
+    _fm = split_frontmatter(md)[0]
     return render_template("concept.html", active="glossary", cid=cid,
+                           docmeta=doc_badges(_fm), docmeta_title=_fm.get("title"),
                            term=term, siblings=siblings, body_html=doc_html(md),
                            papers=D.glossary_papers(cid),
                            attachments=(_att := D.concept_attachments(cid)),

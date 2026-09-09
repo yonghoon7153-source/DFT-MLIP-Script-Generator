@@ -209,6 +209,77 @@ def check(root=None):
 
 
 
+# ── 셸 러너 ↔ 파이썬 도구의 **필수 인자** 대조 (2026-09-09 추가) ──────────────
+#: ⛔⛔ 왜 생겼나 — 2026-08-30 에 `run_anneal.py` 의 `--seed` 를 **필수**로 만들었다
+#:   (회신 AL 해제조건 2 · 비결정 endpoint 차단). 그런데 부르는 쪽인
+#:   `tier_cascade.sh` 를 안 고쳤고, **열흘 동안 아무도 몰랐다.**
+#:   2026-09-09 에 273 캐스케이드를 던졌더니 Stage 01–03 을 30분씩 정상으로 돌고
+#:   Stage 04 에서 전부 `error: the following arguments are required: --seed` 로 죽었다.
+#:   도구 하나를 엄격하게 만들면 부르는 쪽이 조용히 깨진다 — 그걸 기계가 봐야 한다.
+#:
+#: ⛔ 이 검사가 **못 하는 것**
+#:   · 인자의 **값**이 맞는지는 안 본다. `--seed` 가 있으면 통과다.
+#:   · 변수로 조립한 호출(`CMD="python3 $TOOL"; $CMD`)은 못 본다 — 리터럴만 본다.
+#:   · 파이썬이 파이썬을 부르는 것은 안 본다 (subprocess 인자 조립은 형태가 너무 다양하다).
+_RE_REQ = re.compile(
+    r"""add_argument\(\s*['"](--[A-Za-z0-9_-]+)['"](?P<rest>[^)]*)\)""", re.S)
+_RE_PYCALL = re.compile(r"""python3?\s+(?:-u\s+)?(tools/[A-Za-z0-9_/.-]+\.py)""")
+
+
+def _required_flags(py: Path):
+    """그 도구의 `required=True` 인 롱플래그 집합. 못 읽으면 빈 집합."""
+    try:
+        src = py.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return set()
+    out = set()
+    for m in _RE_REQ.finditer(src):
+        if "required=True" in (m.group("rest") or ""):
+            out.add(m.group(1))
+    return out
+
+
+def check_shell_calls(root=None):
+    """tools/**/*.sh 안의 `python3 tools/x.py …` 호출이 x.py 의 필수 인자를 다 넘기나.
+
+    → [(sh경로:줄, 도구, 빠진 플래그들)]
+    """
+    base = Path(root) if root else REPO
+    bad = []
+    for sh in sorted((base / "tools").rglob("*.sh")):
+        try:
+            lines = sh.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue
+        i = 0
+        while i < len(lines):
+            m = _RE_PYCALL.search(lines[i])
+            if not m:
+                i += 1
+                continue
+            # ⚠ 오탐 회귀 (2026-09-09 실측 2건) — `echo "다음: python3 tools/x.py …"` 같은
+            #   **안내문**은 실행이 아니다. 두 파일이 그렇게 걸렸다(cube_diff · qe_to_vasp).
+            #   판정: 호출 앞에 echo/ts/printf/# 가 있거나, 그 줄이 따옴표 안이면 건너뛴다.
+            _head = lines[i][:m.start()]
+            if re.search(r"(^|[;&|]|\bthen\b)\s*(echo|printf|ts|log|LOG|cat)\b", _head) \
+                    or _head.lstrip().startswith("#") \
+                    or _head.count('"') % 2 == 1 or _head.count("'") % 2 == 1:
+                i += 1
+                continue
+            tool = base / m.group(1)
+            # 호출은 백슬래시 연속줄로 이어진다 — 끊길 때까지 모은다
+            j, chunk = i, lines[i]
+            while chunk.rstrip().endswith("\\") and j + 1 < len(lines):
+                j += 1
+                chunk += " " + lines[j]
+            req = _required_flags(tool)
+            miss = sorted(f for f in req if f not in chunk)
+            if miss:
+                bad.append((f"{sh.relative_to(base)}:{i+1}", m.group(1), miss))
+            i = j + 1
+    return bad
+
+
 # ── selftest 스윕 (2026-08-31 추가) ──────────────────────────────────────
 #: 왜 여기인가: 이 파일은 "같은 규약이 조용히 갈라지는 것" 을 막는 가드다.
 #:   **죽은 selftest** 도 같은 병이다 — 2026-08-31 스윕에서 `codoping_ml.py` 의
@@ -285,9 +356,18 @@ def main():
         print(f" ⚠ {rel}:{ln} — {why}")
     if len(warn) > 10:
         print(f"   … 외 {len(warn) - 10}건")
-    if not viol:
+
+    # ── 셸 러너 ↔ 파이썬 도구 필수 인자 (2026-09-09) ────────────────────────
+    #   도구 하나를 엄격하게 만들면 부르는 쪽이 조용히 깨진다. 열흘 뒤 273 캐스케이드가
+    #   Stage 04 에서 전부 죽고서야 알았다 — 그건 사람이 아니라 기계가 볼 일이다.
+    sh_bad = check_shell_calls()
+    print(f"\n셸 러너 필수 인자 누락 ({len(sh_bad)}):")
+    for where, tool, miss in sh_bad:
+        print(f" ✗ {where} → {tool} 에 {' '.join(miss)} 를 안 넘긴다")
+
+    if not viol and not sh_bad:
         print("\nRESULT: 0 위반 — 2026-08-11 기준선 유지")
-    return 1 if viol else 0
+    return 1 if (viol or sh_bad) else 0
 
 
 def selftest():
@@ -315,6 +395,36 @@ def selftest():
             "window_2theta = (8.0, 11.0)\n"
             "WINDOW_EV = (0.5, 3.0)\n"
             "bond_window_ang = (1.60, 2.40)\n")
+        # ── 셸 러너 ↔ 필수 인자 (2026-09-09) ──────────────────────────────
+        #   ⛔음성: 필수 인자를 빠뜨린 호출을 못 잡으면 실패
+        (t / "tool_req.py").write_text(
+            "import argparse\n"
+            "p = argparse.ArgumentParser()\n"
+            "p.add_argument('--out', required=True)\n"
+            "p.add_argument('--seed', type=int, required=True)\n"
+            "p.add_argument('--device', default='cuda')\n")
+        (t / "caller_bad.sh").write_text(
+            "python3 tools/tool_req.py \\\n    --out x \\\n    --device cuda\n")
+        (t / "caller_good.sh").write_text(
+            "python3 tools/tool_req.py \\\n    --out x --seed 1 \\\n    --device cuda\n")
+        _shroot = t / "_sh"
+        (_shroot / "tools").mkdir(parents=True)
+        (_shroot / "tools" / "tool_req.py").write_text((t / "tool_req.py").read_text())
+        (_shroot / "tools" / "caller_bad.sh").write_text((t / "caller_bad.sh").read_text())
+        (_shroot / "tools" / "caller_good.sh").write_text((t / "caller_good.sh").read_text())
+        # ⛔음성 회귀: echo 안내문은 실행이 아니다 (2026-09-09 실측 오탐 2건)
+        (_shroot / "tools" / "caller_echo.sh").write_text(
+            'echo "다음: python3 tools/tool_req.py --out x"\n')
+        _sc = check_shell_calls(_shroot)
+        if [x for x in _sc if "caller_echo" in x[0]]:
+            print("⛔ selftest: echo 안내문을 실행으로 오탐했다"); ok = False
+        _bad = [x for x in _sc if "caller_bad" in x[0]]
+        _good = [x for x in _sc if "caller_good" in x[0]]
+        if not (_bad and _bad[0][2] == ["--seed"]):
+            print("⛔ selftest: 필수 인자 누락(--seed)을 못 잡았다:", _sc); ok = False
+        if _good:
+            print("⛔ selftest: 정상 호출을 오탐했다:", _good); ok = False
+
         # ⛔ 그렇다고 다 통과시키면 안 된다 — 단위를 안 밝힌 창은 여전히 잡아야 한다
         (t / "unitwindow_bad.py").write_text(
             "fit_window = (10.0, 100.0)\n"

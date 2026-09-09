@@ -25,10 +25,28 @@
   <ul>{% for p in problems %}<li><code>{{ p }}</code></li>{% endfor %}</ul>
 </div>
 {% else %}
+{# ⚠ 초록의 **범위**를 같이 쓴다. 검사 함수 자신의 docstring 이 범위를 좁혀 놓았는데
+   (canonical.py: "판정의 과학적 타당성은 안 본다. 그래프 무결성과 어휘만 본다")
+   화면이 그 한정을 안 옮겨서, 초록 도장이 페이지 전체 건강 신호로 읽혔다.
+   바로 아래에 유실 1건·BLOCKED 다수가 이어지는데도. #}
 <div class="card" style="border-left:4px solid #0d9488">
-  <strong>✅ 원장 검증 통과</strong> — 거버넌스·산출물 음성 체크 전부 통과.
+  <strong>✅ 원장 <u>구조</u> 검증 통과</strong> — 거버넌스·산출물 음성 체크 전부 통과.
+  <b>그래프·어휘만 본다. 값·판정의 타당성은 검사하지 않는다.</b>
 </div>
 {% endif %}
+
+{# ── 실제 위험 카운터 (v3 G) — 초록 옆에 나란히. 검증 통과 여부와 **무관하게** 뜬다.
+     구조가 멀쩡한 것과 인용해도 되는 것은 다른 문제다. #}
+<div class="v3-legend" style="margin:-6px 0 18px">
+  <span class="v3-legend-h">지금 실제 위험</span>
+  <span class="v3-legend-item"><a href="#hazards"><b>인용 금지(BLOCKED) {{ hz_blocked|length }}건</b></a></span>
+  <span class="v3-legend-item"><b>되돌릴 수 없는 유실 {{ lost|length }}건</b></span>
+  <span class="v3-legend-item">
+    비준 없는 active {{ dec_active_unratified|length }}건{% if dec_active_unratified %} ⛔
+    <span class="mono">{{ dec_active_unratified|join(' · ') }}</span>
+    <span class="muted">— 원장 _rules 위반이다</span>{% endif %}</span>
+  <span class="v3-legend-src">구조 검증(위 초록)은 이 셋을 하나도 안 본다 — 세는 사람이 따로다</span>
+</div>
 
 {# ── 위험 요약: 사본이 없거나 하나뿐인 것부터 ───────────────────────────── #}
 <div class="card">
@@ -43,44 +61,10 @@
      {% for a in need %}<code>{{ a.id }}</code>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 </div>
 
-{# ── 인용 위험 원장 (2026-09-01 신설): "무엇을 인용하면 안 되나" ──────────
-   db/properties/citation_hazards.json — 파일마다 흩어진 인용 금지·보류·조건부
-   단서를 모은 원장. 화면 밖에 있으면 원고 쓸 때 놓친다 (repo 반복 사고 유형). #}
-{% if hazards %}
-<div class="card">
-  <h2>⛔ 인용 위험 원장 <span class="sub" style="font-weight:400">— {{ hazards|length }}건
-    · citation_hazards.json{% if hazards_updated %} · 갱신 {{ hazards_updated }}{% endif %}</span></h2>
-  <p class="sub">원고·그림에 값을 넣기 전에 여기부터 본다. 파일 안 단서가 원문이고 이 표는 집계다.</p>
-  {% set hz_color = {"BLOCKED": "#be123c", "HOLD": "#c05621", "STALE": "#b45309",
-                     "SUPERSEDED": "#6b7280", "CONDITIONAL": "#0284c7",
-                     "PREVIEW": "#7c3aed", "RESOLVED": "#0d9488"} %}
-  <div style="overflow-x:auto">
-  <table class="data-table" style="font-size:.78rem">
-    <thead><tr><th>수준</th><th>파일</th><th>무엇이</th><th>왜</th><th>풀리는 조건</th></tr></thead>
-    <tbody>
-    {% for h in hazards %}
-    {# 회신 BG ② — 이 위험이 **어느 주장**인지 이름을 댄다 (근접성 대신 구조 결속).
-       두 가지를 함께 단다: `claim`(가리키는 정본값)과 `id`(위험 자체 = 비수치 금지주장). #}
-    {% set _cids = [h.claim, h.id]|select|join(' ') %}
-    <tr{% if _cids %} data-claim="{{ _cids }}"{% endif %}>
-      <td><span class="tbadge" style="background:{{ hz_color.get(h.level, '#6b7280') }};color:#fff">{{ h.level }}</span></td>
-      <td class="mono" style="font-size:.7rem">{{ h.file }}</td>
-      <td>{{ h.what|bold }}</td>
-      <td class="muted">{{ h.why|bold }}</td>
-      <td class="muted">{{ h.fix|bold }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-</div>
-{% else %}
-<div class="card" style="border-left:4px solid #be123c">
-  <h2>⛔ 인용 위험 원장을 못 읽었다</h2>
-  <p class="sub">db/properties/citation_hazards.json 이 없거나 비어 있다 —
-    "위험 0건" 이 아니라 <b>원장 부재</b>다. 빈 표로 안심하지 말 것.</p>
-</div>
-{% endif %}
+{# ⚠ 인용 위험 원장은 **결정 원장 아래**로 내려갔다 (v3 G · 2026-09-09).
+   절 순서를 "결정 → 인용위험" 으로 뒤집은 이유: 결정 원장이 가장 최신이고 가장 자주
+   되돌아보는 원장인데 25행짜리 인용위험 표 뒤에 있어 매번 스크롤로만 도달했다.
+   위험 요약은 맨 위 카운터 줄에 남아 있고 거기서 #hazards 로 바로 간다. #}
 
 {# ── 결정 원장 (2026-09-08 확장) ──────────────────────────────────────────
    종전에는 네 칸(id·decision_state·digest·title)뿐이었다. 원장에 실제로 든 것 중
@@ -95,22 +79,15 @@
                    "gate": "게이트", "metric": "지표"} %}
 {% set dk_color = {"policy": "#0284c7", "estimand": "#7c3aed", "closure": "#c05621",
                    "gate": "#0d9488", "metric": "#65a30d"} %}
-<div class="card" id="decisions">
-  <h2>📜 결정 원장 <span class="sub" style="font-weight:400">— {{ decisions|length }}건 ·
-    db/governance/decisions.json · 최신순</span></h2>
-  <p class="sub">
-    종류 {% for k, n in dec_kinds %}{{ dk_label.get(k, k) }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
-    &nbsp;|&nbsp; 상태 {% for s, n in dec_states %}{{ s }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
-    <br>비준은 본문 해시(decision_digest)에 결속된다 — 승인 뒤 본문을 고치면 승인이 무효가 된다.
-    <b>ratification 없이 active 가 될 수 없다</b>(원장 _rules).
-  </p>
-  <div style="overflow-x:auto">
-  <table class="data-table" style="font-size:.78rem">
-    <thead><tr><th>ID</th><th>종류</th><th>상태</th><th>사전등록</th>
-      <th>무엇을 정했나</th><th>비준</th></tr></thead>
-    <tbody>
-    {% for d in decisions %}
-      <tr>
+{# ── 행 하나를 그리는 매크로 ──────────────────────────────────────────────
+   현행 표와 '옛 결정' 표가 **같은 매크로**를 쓴다. 두 벌로 베끼면 한쪽만 고쳐져
+   같은 원장이 두 규칙으로 그려진다 (이 화면에서 이미 한 번 난 사고다). #}
+{% macro drow(d) %}
+      {# ⚠ `id="{{ d.id }}"` — 결정 ID 는 repo 전체가 인용 단위로 쓰는데(대시보드 카드 ·
+         reopen_criteria 상호참조 · citation_hazards · 마감 기록) 갈 곳이 없었다.
+         행 앵커가 있어야 `/governance#<id>` 가 성립하고, statement 안의 자동 링크도
+         여기로 떨어진다. #}
+      <tr id="{{ d.id }}" data-kind="{{ d.kind or '' }}">
         <td class="mono" style="font-size:.7rem;white-space:nowrap">{{ d.id }}</td>
         <td><span class="tbadge" title="원장 kind: {{ d.kind or '미기재' }}"
               style="background:{{ dk_color.get(d.kind, '#6b7280') }};color:#fff">{{ dk_label.get(d.kind, d.kind or '미기재') }}</span></td>
@@ -128,12 +105,17 @@
           {%- else %}<span class="muted">– 미기재</span>{% endif %}
           {%- if d.record_kind %}<br><span class="sub">{{ d.record_kind }}</span>{% endif %}</td>
         <td>
-          <div>{{ (d.title or d.statement)|bold }}</div>
-          {% if d.title and d.statement %}<div class="muted" style="margin-top:3px">{{ d.statement|bold }}</div>{% endif %}
-          {% if d.reopen_criteria %}<div class="sub" style="margin-top:3px">↻ 재개조건: {{ d.reopen_criteria|bold }}</div>{% endif %}
+          {# 본문 안의 `D-YYYY-…` 를 같은 페이지 앵커로 잇는다 — 결정끼리의 참조 그래프를
+             화면에서 걷게 한다. **원장에 있는 id 만** 링크한다(declink 필터). #}
+          <div>{{ (d.title or d.statement)|bold|declink(dec_ids, d.id) }}</div>
+          {% if d.title and d.statement %}<div class="muted" style="margin-top:3px">{{ d.statement|bold|declink(dec_ids, d.id) }}</div>{% endif %}
+          {% if d.reopen_criteria %}<div class="sub" style="margin-top:3px">↻ 재개조건: {{ d.reopen_criteria|bold|declink(dec_ids, d.id) }}</div>{% endif %}
           {% if d._docs %}<div class="sub" style="margin-top:3px">
             {% for x in d._docs %}{{ x.role }}
-              {%- if x.linkable %} <a href="/api/file/{{ x.path }}" class="mono">{{ x.path }}</a>
+              {#- 링크 **글자는 원장이 적은 ref 그대로**(조각 `#절` 포함). href 만 파일까지 자른다. -#}
+              {%- if x.url %} <a href="{{ x.url }}" class="mono">{{ x.path }}</a>
+                {%- if x.frag %} <span class="tbadge" style="background:#6b7280;color:#fff"
+                    title="조각 참조 — 화면은 파일까지만 연다">§ {{ x.frag }}</span>{% endif %}
               {%- else %} <code>{{ x.path }}</code>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
           </div>{% endif %}
         </td>
@@ -150,13 +132,171 @@
               {%- else %}<span class="sub muted">지문 없음</span>{% endif %}
         </td>
       </tr>
+{% endmacro %}
+<div class="card" id="decisions">
+  <h2>📜 결정 원장 <span class="sub" style="font-weight:400">— {{ decisions|length }}건 ·
+    db/governance/decisions.json · 최신순</span></h2>
+  <p class="sub">
+    종류 {% for k, n in dec_kinds %}{{ dk_label.get(k, k) }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
+    &nbsp;|&nbsp; 상태 {% for s, n in dec_states %}{{ s }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}
+    <br>비준은 본문 해시(decision_digest)에 결속된다 — 승인 뒤 본문을 고치면 승인이 무효가 된다.
+    <b>ratification 없이 active 가 될 수 없다</b>(원장 _rules).
+  </p>
+
+  {# ── 읽는 법 (조사 gov-no-vocabulary-help) ────────────────────────────
+     /ledger 는 헤더에 코드 체계를 깔고 절마다 경고를 반복하는데 여기엔 하나도 없었다.
+     '보고량'·'사전등록'·'지문' 이 아무 설명 없이 나오고 /glossary 링크도 없었다. #}
+  <details class="v3-fold" style="margin:6px 0 10px">
+    <summary>이 표 읽는 법 — 종류 다섯 · 사전등록 · 지문</summary>
+    <ul style="font-size:.82rem;margin:6px 0 0;line-height:1.6">
+      <li><b>종류</b> — <span class="mono">정책</span>(상시 규약) ·
+        <span class="mono">보고량</span>(무엇을 재서 무엇으로 보고할지 · 원장 필드값은
+        <code>estimand</code>) · <span class="mono">마감</span>(축을 닫는다) ·
+        <span class="mono">게이트</span>(통과 조건) · <span class="mono">지표</span>(무엇으로 재나).</li>
+      <li><b>사전등록</b> — 결과를 <b>보기 전에</b> 규칙을 정했나. 결과를 보고 규칙을 정하면
+        그건 규칙이 아니라 사후 설명이다. 원장에 <code>results_seen</code> 이 없으면
+        "미기재" 로 둔다 — <b>없는 것을 '보기 전' 으로 읽지 않는다.</b></li>
+      <li><b>지문</b> — 비준 시각의 본문 해시. 승인 뒤 본문을 한 글자라도 고치면
+        불일치가 떠서 <b>승인이 무효</b>임을 화면이 바로 말한다.</li>
+      <li>용어 정의는 <a href="/glossary">용어집</a>, 근거 문서는 각 행의
+        기록·카드 링크(<code>db/…</code> 는 파일, <code>kb/…</code> 는 읽기 화면)로 간다.</li>
+    </ul>
+  </details>
+
+  {# ── 종류 칩 필터 — 숨길 뿐 지우지 않는다 (DOM 은 그대로) ── #}
+  <div class="v3-chips" id="dec-chips" role="group" aria-label="종류로 거르기">
+    <button type="button" class="v3-chip active" data-kind="" aria-pressed="true">전체
+      <span class="v3-chip-n">{{ decisions|length }}</span></button>
+    {% for k, n in dec_kinds %}
+    <button type="button" class="v3-chip" data-kind="{{ k }}" aria-pressed="false">
+      {{ dk_label.get(k, k) }} <span class="v3-chip-n">{{ n }}</span></button>
+    {% endfor %}
+  </div>
+
+  <div style="overflow-x:auto">
+  <table class="data-table" style="font-size:.78rem">
+    <thead><tr><th>ID</th><th>종류</th><th>상태</th><th>사전등록</th>
+      <th>무엇을 정했나</th><th>비준</th></tr></thead>
+    <tbody>
+    {% for d in dec_now %}{{ drow(d) }}{% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {# ── 옛 결정 — 접되 **지우지 않는다** ──────────────────────────────────
+     ⚠ DOM 에서 빼면 전건 렌더 시험이 깨진다. 그보다 먼저: 철회·대체된 판정을 지우는 것이
+       이 repo 가 금지한 것이다(무엇이 왜 뒤집혔는지가 근거다). `<details>` 로만 접는다. #}
+  {% if dec_old %}
+  <details class="v3-fold" style="margin-top:10px">
+    <summary>↩ 옛 결정 {{ dec_old|length }}건 (대체됨·철회) — 지우지 않고 접어 둔다</summary>
+    <div style="overflow-x:auto;margin-top:6px">
+    <table class="data-table" style="font-size:.78rem;opacity:.82">
+      <thead><tr><th>ID</th><th>종류</th><th>상태</th><th>사전등록</th>
+        <th>무엇을 정했나</th><th>비준</th></tr></thead>
+      <tbody>
+      {% for d in dec_old %}{{ drow(d) }}{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
+
+  <p class="sub" style="margin-top:6px">⚠ 이 표는 결정이 <b>옳은지</b> 판정하지 않는다 —
+    원장에 무엇이 어떤 지위로 등록돼 있는지만 보인다. 본문 전체는 위 기록·카드 파일이 원본이다.</p>
+</div>
+
+{# 칩 필터 — 행을 **숨길 뿐** DOM 에서 빼지 않는다. 접힘 안의 옛 결정에도 같이 걸린다. #}
+<script>
+(function () {
+  var box = document.getElementById('dec-chips');
+  if (!box) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-kind]'));
+  box.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.v3-chip') : null;
+    if (!b) return;
+    var k = b.getAttribute('data-kind') || '';
+    box.querySelectorAll('.v3-chip').forEach(function (c) {
+      var on = (c === b);
+      c.classList.toggle('active', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    rows.forEach(function (r) {
+      r.style.display = (k && r.getAttribute('data-kind') !== k) ? 'none' : '';
+    });
+  });
+})();
+</script>
+
+{# ── 인용 위험 원장 (2026-09-01 신설): "무엇을 인용하면 안 되나" ──────────
+   db/properties/citation_hazards.json — 파일마다 흩어진 인용 금지·보류·조건부
+   단서를 모은 원장. 화면 밖에 있으면 원고 쓸 때 놓친다 (repo 반복 사고 유형). #}
+{% if hazards %}
+<div class="card" id="hazards">
+  <h2>⛔ 인용 위험 원장 <span class="sub" style="font-weight:400">— {{ hazards|length }}건
+    · citation_hazards.json{% if hazards_updated %} · 갱신 {{ hazards_updated }}{% endif %}</span></h2>
+  <p class="sub">원고·그림에 값을 넣기 전에 여기부터 본다. 파일 안 단서가 원문이고 이 표는 집계다.</p>
+  {# ── '결속됨 / 산문' (v3 G) ────────────────────────────────────────────
+     종전에는 29행을 **똑같이** 그려서, 어느 행이 기계 결속(다른 화면에서 그 문구를 쓰면
+     검사가 잡는다)이고 어느 행이 사람이 읽어야만 걸리는 산문인지 구분이 안 됐다.
+     화면이 두 함수의 **차이**를 말한다: `hazard_ids()`(어휘 전부) vs
+     `hazard_claims()`(살아있는 결속 요구 — RESOLVED·SUPERSEDED 는 빠진다). #}
+  <p class="sub">결속 어휘 {{ hz_vocab_n }}개 · 살아있는 결속 요구 {{ hz_req_n }}건
+    &nbsp;|&nbsp; 정본값 결속 {{ hz_bind_counts.get('claim', 0) }} ·
+    금지문구 결속 {{ hz_bind_counts.get('phrase', 0) }} ·
+    이름만(산문) {{ hz_bind_counts.get('name', 0) }} ·
+    결속 해제 {{ hz_bind_counts.get('inactive', 0) }}
+    {%- if hz_bind_counts.get('none') %} · <b style="color:#be123c">id 없음
+      {{ hz_bind_counts.get('none') }}</b>{% endif %}
+    <br>⚠ <b>결속됨</b> = 그 값·문구를 다른 화면이 쓰면 검사가 잡는다.
+    <b>이름만</b> = 화면이 이 위험을 <em>선언</em>할 수는 있으나, 걸리는 형태가 문자열로
+    열거돼 있지 않아 <b>사람이 읽어야 잡힌다</b>. 배지는 원장의 <code>binding_scope</code>
+    선언을 옮길 뿐이고, 그 선언이 맞는지는 이 화면이 검사하지 않는다.</p>
+  {% set hz_color = {"BLOCKED": "#be123c", "HOLD": "#c05621", "STALE": "#b45309",
+                     "SUPERSEDED": "#6b7280", "CONDITIONAL": "#0284c7",
+                     "PREVIEW": "#7c3aed", "RESOLVED": "#0d9488"} %}
+  <div style="overflow-x:auto">
+  <table class="data-table" style="font-size:.78rem">
+    <thead><tr><th>수준</th><th>결속</th><th>파일</th><th>무엇이</th><th>왜</th><th>풀리는 조건</th></tr></thead>
+    <tbody>
+    {% for h in hazards %}
+    {# 회신 BG ② — 이 위험이 **어느 주장**인지 이름을 댄다 (근접성 대신 구조 결속).
+       두 가지를 함께 단다: `claim`(가리키는 정본값)과 `id`(위험 자체 = 비수치 금지주장). #}
+    {% set _cids = [h.claim, h.id]|select|join(' ') %}
+    <tr{% if _cids %} data-claim="{{ _cids }}"{% endif %}>
+      <td><span class="tbadge" style="background:{{ hz_color.get(h.level, '#6b7280') }};color:#fff">{{ h.level }}</span></td>
+      <td style="white-space:nowrap">
+        {%- if h._bind == 'claim' %}<span class="tbadge" style="background:#0d9488;color:#fff"
+             title="정본값 {{ h.claim }} 에 결속 — 그 수치를 쓰면 검사가 잡는다">🔗 결속됨 · 값</span>
+        {%- elif h._bind == 'phrase' %}<span class="tbadge" style="background:#0d9488;color:#fff"
+             title="금지 문구 {{ h._n_phrase }}건에 결속 — 그 산문을 쓰면 검사가 잡는다">🔗 결속됨 · 문구 {{ h._n_phrase }}</span>
+        {%- elif h._bind == 'name' %}<span class="tbadge" style="background:#c05621;color:#fff"
+             title="id 로 이름은 댈 수 있으나 걸리는 형태가 문자열로 열거돼 있지 않다">✎ 이름만(산문)</span>
+        {%- elif h._bind == 'inactive' %}<span class="tbadge" style="background:#6b7280;color:#fff"
+             title="{{ h.level }} — 살아 있는 금지가 아니라 결속을 요구하지 않는다. 어휘에는 남는다">↩ 결속 해제</span>
+        {%- else %}<span class="tbadge" style="background:#be123c;color:#fff"
+             title="원장에 id 가 없어 어느 화면도 이 위험을 이름으로 댈 수 없다">⛔ id 없음</span>{% endif %}
+        {%- if h.binding_scope %}<br><span class="sub mono" style="font-size:.66rem"
+          {% if h.binding_scope_why %}title="{{ h.binding_scope_why }}"{% endif %}>{{ h.binding_scope }}</span>{% endif %}
+        {%- if h._n_pending %}<br><span class="sub" style="font-size:.66rem;color:#c05621"
+          title="실제로 걸리지만 아직 집행하지 않는 문구">보류 문구 {{ h._n_pending }}</span>{% endif %}
+      </td>
+      <td class="mono" style="font-size:.7rem">{{ h.file }}</td>
+      <td>{{ h.what|bold }}</td>
+      <td class="muted">{{ h.why|bold }}</td>
+      <td class="muted">{{ h.fix|bold|declink(dec_ids) }}</td>
+    </tr>
     {% endfor %}
     </tbody>
   </table>
   </div>
-  <p class="sub" style="margin-top:6px">⚠ 이 표는 결정이 <b>옳은지</b> 판정하지 않는다 —
-    원장에 무엇이 어떤 지위로 등록돼 있는지만 보인다. 본문 전체는 위 기록·카드 파일이 원본이다.</p>
 </div>
+{% else %}
+<div class="card" id="hazards" style="border-left:4px solid #be123c">
+  <h2>⛔ 인용 위험 원장을 못 읽었다</h2>
+  <p class="sub">db/properties/citation_hazards.json 이 없거나 비어 있다 —
+    "위험 0건" 이 아니라 <b>원장 부재</b>다. 빈 표로 안심하지 말 것.</p>
+</div>
+{% endif %}
 
 {# ── 산출물 원장 ────────────────────────────────────────────────────────── #}
 <div class="card">

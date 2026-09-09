@@ -181,10 +181,20 @@ STAGE 03 winners \
 # to the cheap 300K mode.
 ANNEAL_FLAGS=""
 [ "${ANNEAL_MODE:-real}" = "light" ] && ANNEAL_FLAGS="--light"
+# ⛔⛔ 2026-09-09 실측 — 이 줄에 `--seed` 가 없어서 **Stage 04 가 전 캐스케이드에서 죽었다.**
+#   2026-08-30(회신 AL 해제조건 2 · 커밋 34a400e93)에 run_anneal.py 의 `--seed` 를 **필수**로
+#   만들었는데 부르는 쪽인 이 러너를 안 고쳤다. Stage 01–03 이 30분 정상으로 돌고 나서
+#   `error: the following arguments are required: --seed` 로 rc=2 → abort.
+#   273 캐스케이드가 전부 같은 자리에서 죽는다(2026-09-09 Li2O_x002 실측).
+#   ⚠ seed 는 **고정·기록**이 요점이다 — 비우면 anneal 이 비결정이라 같은 입력이 다른
+#     endpoint 로 가고, 그 위에서 계산된 BVS·탄성 G 가 순위를 정한다(P0-3 의 뿌리).
+#     run_anneal.py 가 결과 json 에 이 값을 기록한다.
+ANNEAL_SEED=${ANNEAL_SEED:-20260830}
 STAGE 04 anneal \
     python3 tools/doping/run_anneal.py \
         --summary_json "$OUT/03_winners/winners.json" \
         --out "$OUT/04_anneal" \
+        --seed "$ANNEAL_SEED" \
         --device cuda $ANNEAL_FLAGS
 
 # Stage 05 — BVSE on post-anneal (relaxed) geometry, not the pre-relax input.

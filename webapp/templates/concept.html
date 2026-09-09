@@ -8,14 +8,34 @@
 <div class="page-header concept-head">
   <div>
     <div class="crumb"><a href="/glossary">← Glossary</a></div>
-    <h1>{{ term.term if term else cid }}</h1>
+    {# 용어집에 안 걸린 문서(msd_reading 등)는 h1 이 슬러그였다 — frontmatter title 이
+       있으면 그걸 쓴다. 없으면 그때만 슬러그로 떨어진다. #}
+    <h1>{{ term.term if term else (docmeta_title or cid) }}</h1>
     {% if term %}<div class="sub">{{ term.full }} · <span class="badge b-fam">{{ term.cat }}</span></div>{% endif %}
+    {# 📅 frontmatter 배지 (v3 묶음 F · P0-34) — 본문 첫 h2 로 새던 15줄이 여기로 온다. #}
+    {% if docmeta %}
+    <div class="doc-fm">
+      {% for lab, val in docmeta %}
+      <span class="doc-fm-b{% if not val %} is-none{% endif %}"><b>{{ lab }}</b> {{ val or '미기재' }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
   <div style="display:flex;gap:8px;align-items:center">
     <span id="pnotebadge" class="muted" style="font-size:.74rem"></span>
     <button class="btn sm" onclick="window.print()">🖨 인쇄/PDF</button>
   </div>
 </div>
+
+{# CSS 는 묶음 A 단독 소유라 새 클래스를 style.css 에 못 넣는다 — 그때까지 여기 인라인.
+   doc.html 의 `.doc-fm*` 과 **같은 규칙**이다(갈라지면 두 화면 어휘가 달라진다). #}
+<style>
+.doc-fm{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.doc-fm-b{font-size:.7rem;border:1px solid var(--border);border-radius:999px;
+  padding:2px 9px;color:var(--dim);background:var(--card)}
+.doc-fm-b b{color:var(--muted);font-weight:700;margin-right:3px}
+.doc-fm-b.is-none{border-style:dashed;opacity:.7}
+</style>
 
 <div class="concept-wrap">
   {#- 본문은 **서버 렌더 하나뿐**이다 (app.doc_html — 콜아웃·수식보호·결속 포함).
@@ -205,6 +225,9 @@
   })();
 
   // 9) 목차 자동생성 (H2 스캔)
+  //    ⚠ id 는 **서버가 판 것을 그대로 쓴다** (app._md_slugify · 한글 보존).
+  //      위치 기반 `h0`·`h1` 로 다시 매기면 절이 하나 늘 때마다 외부 딥링크가 어긋난다
+  //      — 그게 /concept/dft#12-… 계열이 죽어 있던 이유다. 없을 때만 임시로 판다.
   var heads = box.querySelectorAll('h2');
   if (heads.length > 3){
     var toc = document.createElement('nav'); toc.className = 'concept-toc';
@@ -216,6 +239,18 @@
     toc.innerHTML = html2 + '</ul>';
     document.querySelector('.concept-wrap').prepend(toc);
   }
+
+  // 10) ⚓ 죽은 앵커 구조 — 옛 딥링크는 GitHub 식이라 구분자가 `--` 로 겹쳐 있다.
+  //     하드코딩된 링크를 좇아다니며 고치는 대신, **구분자만 다른 id** 를 찾아 보낸다.
+  function _norm(s){ return decodeURIComponent(s || '').replace(/-+/g, '-'); }
+  function _rescue(){
+    var h = location.hash.slice(1);
+    if (!h || document.getElementById(h)) return;
+    var want = _norm(h), hit = null;
+    box.querySelectorAll('[id]').forEach(function(el){ if (!hit && _norm(el.id) === want) hit = el; });
+    if (hit) hit.scrollIntoView({block:'start'});
+  }
+  _rescue(); window.addEventListener('hashchange', _rescue);
 })();
 </script>
 

@@ -5154,6 +5154,35 @@ def safe_repo_path(rel: str) -> Path | None:
     return None
 
 
+#: kb 마크다운 **읽기** 전용 뿌리 (v3 묶음 G · 2026-09-09).
+#: ⚠ `_ATT_ROOTS`(=/api/file 다운로드)·`_NOTE_DOC_DIRS`(=메모 대상)와 **셋 다 분리**한다.
+#:   셋은 목적이 다르고, 하나를 넓히면 나머지 둘이 조용히 같이 넓어진다 (2026-08-17 교훈).
+#:   여기는 `/kb/<path>` 가 **본문을 렌더**하는 경로라 .md 만, 다운로드는 못 한다.
+_KB_DOC_ROOT = "kb"
+
+
+def safe_kb_doc(rel: str) -> Path | None:
+    """kb/ 안의 **마크다운 한 개**면 실제 경로, 아니면 None.
+
+    왜 필요했나: 결정 원장 22건 중 14건의 근거 문서가 `kb/…md` 인데 화면에서
+    회색 문자열로 끝났다 — `/todo` 가 이미 kb md 를 렌더하고 있었으니 능력이 아니라
+    배선이 없었던 것이다 (조사 gov-evidence-deadend-kb).
+
+    ⛔ 이 함수가 **못 하는 것**
+      · .md 가 아닌 파일은 안 연다 (pptx·docx·png 는 여기로 못 나간다).
+      · 파일 내용을 안 본다 — 존재·위치만 본다. frontmatter 도 안 읽는다.
+      · 다운로드 경로가 아니다. `safe_repo_path` 를 대신하지 않는다.
+    """
+    rel = (rel or "").lstrip("/")
+    if not rel.startswith(_KB_DOC_ROOT + "/") or not rel.endswith(".md"):
+        return None
+    if "\x00" in rel:
+        return None
+    p = (ROOT / rel).resolve()
+    base = (ROOT / _KB_DOC_ROOT).resolve()
+    return p if p.is_relative_to(base) and p.is_file() else None
+
+
 # 파일명 → 개념 자동 연결 규칙 (2026-08-05)
 #   본문에 경로를 적어야만 첨부되던 걸 보완한다 — 새 그림·CSV 를 만들면 문서를 안 고쳐도
 #   해당 개념 페이지에 뜬다. 본문 언급분은 "cited", 규칙 매칭분은 "auto" 로 구분 표시.
