@@ -5,7 +5,9 @@
 
 > slug `liu2026_planar_li_deposition_dissolution_enable_practical` · DOI `10.1038/s41586-026-10402-0` · type `⏳ 문서 대기 (exp|DFT|AIMD|MLIP|DEM|MPM|FEM|mixed)`
 > · PDF `⏳ 미확보` · digested `2026-09-03` · status `🌱 skeleton (문서 대기)`
-> · evidence_level `fulltext`
+> · evidence_level `snippet`  ← 2026-09-09 정정: PDF `⏳ 미확보` 인데 `fulltext` 로 찍혀 있었다.
+>   (CLAUDE.md — 전문이 없으면 snippet/title. 그대로 두면 나중에 들어오는 진짜 초록 분석이
+>    충돌 규칙 `fulltext > abstract > snippet > title` 에서 이 빈 카드에 진다.)
 > · IF `48.5` · tier `A` · relevance `0.55`
 
 ## 0. 왜 이 카드가 열렸나 (research-agent 판정)

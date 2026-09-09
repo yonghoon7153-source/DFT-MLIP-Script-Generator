@@ -10,6 +10,53 @@
    CSS 는 A 묶음 소유 `.v3-band` / `.v3-fold` 를 그대로 쓴다. 새 클래스 안 만든다.
    쓰는 곳: `cascade.html`. 다른 캠페인 화면이 같은 밴드를 원하면 band dict 만 넘기면 된다.
    ══════════════════════════════════════════════════════════════════════════ #}
+{# ── 마감 카드 모드 (`closure` 를 넘겼을 때) ────────────────────────────────
+   마감 문서의 **상태 · 닫는 범위 · 허용/금지 서술 · 재개 조건**을 그대로 싣는다.
+   ⛔ 확정값(절대 E_ads 8개)은 **싣지 않는다** — hazard 원장이 BLOCKED 로 잡아 둔 축이라
+      마감 카드가 그걸 헤드라인으로 다시 띄우면 화면 둘이 같은 값에 정반대 지위를 준다.
+      data.sdcp_closure_card() docstring 에 사유가 있다. #}
+{% if closure is defined %}
+{% if not closure or not closure.ok %}
+<div class="v3-band is-hold"><div class="v3-band-cell" style="flex-basis:100%">
+  <span class="v3-band-t">마감 상태</span>
+  <span class="v3-band-v">⛔ 마감 문서를 못 읽었다 — {{ closure.why if closure else '경로 미지정' }}</span>
+</div></div>
+{% else %}
+<div class="v3-band is-blocked" id="closure-card">
+  <div class="v3-band-cell" style="flex-basis:100%">
+    <span class="v3-band-t">마감 상태 <span class="muted" style="font-weight:400;text-transform:none">
+      {{ closure.state_at }} · 상태 이력 {{ closure.n_history }}건</span></span>
+    <span class="v3-band-v"><span class="mono">{{ closure.state }}</span></span>
+    {% if closure.state_note %}
+    <div class="muted" style="font-size:.78rem;margin-top:3px">{{ closure.state_note|bold }}</div>{% endif %}
+  </div>
+  {% if closure.scope %}
+  <div class="v3-band-cell" style="flex-basis:100%">
+    <span class="v3-band-t">닫는 범위</span>
+    <span class="v3-band-v" style="font-weight:400">{{ closure.scope|bold }}</span></div>
+  {% endif %}
+  <div class="v3-band-cell" style="flex-basis:100%">
+    <span class="v3-band-t">허용 서술 — 이대로만 쓴다</span>
+    <ul style="margin:2px 0 0;padding-left:18px;font-size:.82rem;line-height:1.6">
+      {% for k, v in closure.allowed.items() %}<li><b>{{ k }}</b> — {{ v|bold }}</li>{% endfor %}</ul>
+  </div>
+  <div class="v3-band-cell" style="flex-basis:100%">
+    <span class="v3-band-t" style="color:var(--red)">금지 서술 {{ closure.forbidden|length }}건</span>
+    <ul style="margin:2px 0 0;padding-left:18px;font-size:.82rem;line-height:1.6">
+      {% for s in closure.forbidden %}<li>⛔ {{ s|bold }}</li>{% endfor %}</ul>
+  </div>
+  <div class="v3-band-cell" style="flex-basis:100%">
+    <span class="v3-band-t">재개 조건 — 이것들만</span>
+    <ul style="margin:2px 0 0;padding-left:18px;font-size:.82rem;line-height:1.6">
+      {% for k, v in closure.reopen.items() %}<li><b>{{ k }}</b> — {{ v|bold }}</li>{% endfor %}</ul>
+    {% if closure.reopen_only %}
+    <div style="font-size:.82rem;margin-top:5px;color:var(--red)"><b>{{ closure.reopen_only|bold }}</b></div>
+    {% endif %}
+  </div>
+  <div class="muted mono" style="flex-basis:100%;font-size:.72rem">출처: {{ closure.record }}</div>
+</div>
+{% endif %}
+{% else %}
 {% if not band or not band.ok %}
 <div class="v3-band is-hold" role="status">
   <div class="v3-band-cell" style="flex-basis:100%">
@@ -96,4 +143,5 @@
     </div>
   </details>
 </div>
+{% endif %}
 {% endif %}

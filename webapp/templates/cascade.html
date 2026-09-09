@@ -149,7 +149,7 @@
   <div class="cm-grid">
     <div><span class="cm-l">엔진</span>{{ casc.meta.engine }}</div>
     <div><span class="cm-l">스코어</span><span class="mono">{{ casc.meta.score_formula }}</span></div>
-    <div class="cm-warn"><span class="cm-l">⚠ 주의</span>{{ casc.meta.caveat }}</div>
+    <div class="cm-warn"><span class="cm-l">⚠ 주의</span>{{ casc.meta.caveat|bold }}</div>
     <div><span class="cm-l">검증</span>{{ casc.meta.verified }}</div>
   </div>
 </div>
@@ -185,14 +185,14 @@
       <h4>➕ 우리가 <b>추가</b>한 축 <span class="muted" style="font-weight:400;font-size:.74rem">문헌 재현이 아니라 확장</span></h4>
       {% for a in lineage.axes_added %}
       <div class="ln-ax ln-ax-add"><b>{{ a.axis }}</b><div class="muted">{{ a.why }}</div>
-        <div class="ln-ax-cav">⚠ {{ a.caveat }}</div></div>
+        <div class="ln-ax-cav">⚠ {{ a.caveat|bold }}</div></div>
       {% endfor %}
     </div>
     <div>
       <h4>⛔ 문헌에 있고 우리에겐 <b>없는</b> 축 <span class="muted" style="font-weight:400;font-size:.74rem">'전부 재현했다'고 쓰면 틀린다</span></h4>
       {% for a in lineage.axes_missing %}
       <div class="ln-ax ln-ax-miss"><b>{{ a.axis }}</b><div class="muted">문헌: {{ a.lit }}</div>
-        <div class="ln-ax-cav">{{ a.status }}</div></div>
+        <div class="ln-ax-cav">{{ a.status|bold }}</div></div>
       {% endfor %}
     </div>
   </div>
@@ -223,7 +223,7 @@
   {% endfor %}
 </div>
 <div class="callout cal-danger" style="margin:10px 0;font-size:.84rem">
-  <b>현재 승인된 도펀트 랭킹은 0건이다.</b> {{ T.why_zero }}
+  <b>현재 승인된 도펀트 랭킹은 0건이다.</b> {{ T.why_zero|bold }}
   <div class="muted" style="margin-top:6px;font-size:.94em">
     <b>호스트</b> {{ T.host.formula_hint }} — {{ T.host.evidence }} ({{ T.host.not }}).
     <b>실측 농도</b> x = {{ T.actual_x }} — {{ T.actual_x_note }}</div>
@@ -402,7 +402,7 @@
     {% for ax in casc.audit_axes %}{% if ax in VS %}{% set g, txt = VS[ax] %}
       <tr><td><b>{{ _axl.get(ax, ax) }}</b></td>
           <td><span class="badge {{ 'ok' if g == 'complete' else 'warn' }}">{{ g }}</span></td>
-          <td style="font-size:.86em">{{ txt }}</td></tr>
+          <td style="font-size:.86em">{{ txt|bold }}</td></tr>
     {% endif %}{% endfor %}
     </tbody></table></div>
     <div class="muted" style="font-size:.75rem;margin-top:6px">
@@ -451,7 +451,7 @@
           <td style="font-size:.82em">{{ enrich.eligible_slots.denominator_note }}</td></tr>
     </tbody></table></div>
     <div class="callout cal-warning" style="margin-top:8px;font-size:.82rem">
-      {{ enrich.why_not_causal }}<br>
+      {{ enrich.why_not_causal|bold }}<br>
       <!--FORBIDDEN-->⛔ 이렇게 부르지 않는다: {% for n in enrich.never_call_it %}<span class="mono">{{ n }}</span>{% if not loop.last %} · {% endif %}{% endfor %}<!--/FORBIDDEN-->
     </div>
   </div>
@@ -482,7 +482,7 @@
       <b>마지막 열은 다른 phase set 이다</b> (LiS4 제외 · host 2.256 vs 2.140) — 절대 onset 을 섞지 말 것.
       conditional contrast 가 roster 에 의존한다: WO₃ +0.216 → 0.000 · Al₂O₃ +0.214 → +0.098.
       <ul style="margin:6px 0 0;padding-left:18px">
-        {% for c in facc.caveats %}<li>{{ c }}</li>{% endfor %}
+        {% for c in facc.caveats %}<li>{{ c|bold }}</li>{% endfor %}
       </ul>
     </div>
   </div>
@@ -519,17 +519,17 @@
         <span class="muted" style="font-size:.8rem">— {{ g.cost_class }}</span></div>
       <div style="font-size:.84rem;margin-top:3px"><b>묻는 것</b> {{ g.question }}</div>
       <div style="font-size:.82rem" class="muted"><b>입출력</b> {{ g.input_output }}</div>
-      <div style="font-size:.82rem" class="muted"><b>왜 이 순서</b> {{ g.why_before_next }}</div>
+      <div style="font-size:.82rem" class="muted"><b>왜 이 순서</b> {{ g.why_before_next|bold }}</div>
       <div style="font-size:.82rem;color:var(--red)"><b>주장 못 함</b> {{ g.cannot_claim }}</div>
       <ul style="margin:4px 0 0;padding-left:18px;font-size:.8rem">
-        {% for w in g.warnings %}<li>{{ w }}</li>{% endfor %}
+        {% for w in g.warnings %}<li>{{ w|bold }}</li>{% endfor %}
       </ul>
     </div>
     {% endfor %}
     <div class="tbl-scroll"><table class="data-table"><thead><tr>
       <th>게이트</th><th>스테이지 매핑</th></tr></thead><tbody>
     {% for gate, mapping in stagemap %}
-      <tr><td class="mono"><b>{{ gate }}</b></td><td style="font-size:.84em">{{ mapping }}</td></tr>
+      <tr><td class="mono"><b>{{ gate }}</b></td><td style="font-size:.84em">{{ mapping|bold }}</td></tr>
     {% endfor %}
     </tbody></table></div>
   </div>
@@ -598,14 +598,14 @@
           <td style="font-size:.86em">모든 농도 라벨에서 gate 입력이 다 있음</td></tr>
       <tr><td><span class="badge warn">partial</span></td><td class="mono">{{ VA.partial|length }}</td>
           <td style="font-size:.86em">일부 라벨 결측 → <b>남은 라벨 평균</b>으로 평가됨:
-            {% for sp, why in VA.partial.items() %}<b class="mono">{{ sp }}</b> — {{ why }}{% endfor %}</td></tr>
+            {% for sp, why in VA.partial.items() %}<b class="mono">{{ sp }}</b> — {{ why|bold }}{% endfor %}</td></tr>
       <tr><td><span class="badge err">dropped</span></td><td class="mono">{{ VA.dropped|length }}</td>
-          <td style="font-size:.86em">{% for sp, why in VA.dropped.items() %}<b class="mono">{{ sp }}</b> — {{ why }}{% endfor %}</td></tr>
+          <td style="font-size:.86em">{% for sp, why in VA.dropped.items() %}<b class="mono">{{ sp }}</b> — {{ why|bold }}{% endfor %}</td></tr>
     </tbody></table></div>
     <div class="callout cal-warning" style="margin-top:10px;font-size:.82rem">
       <b>⚠ 판정이 아닌 이유로 통과한 종</b> — waterfall 끝단에 남지만 물성 판정이 아니다.
       <ul style="margin:6px 0 0;padding-left:18px">
-      {% for sp, why in ((casc.v2.meta or {}).artifacts or {}).items() %}<li><b class="mono">{{ sp }}</b> — {{ why }}</li>{% endfor %}
+      {% for sp, why in ((casc.v2.meta or {}).artifacts or {}).items() %}<li><b class="mono">{{ sp }}</b> — {{ why|bold }}</li>{% endfor %}
       </ul>
     </div>
   </div>
@@ -1179,7 +1179,7 @@
 <div class="tab-panel" id="tab-ion">
   {% set G = casc.g4 %}
   <div class="callout cal-danger" style="margin:0 0 12px;font-size:.84rem">
-    <b>이 축의 옛 이름 “{{ G.old_name }}” 은 폐기했다.</b> {{ G.why_renamed }}
+    <b>이 축의 옛 이름 “{{ G.old_name }}” 은 폐기했다.</b> {{ G.why_renamed|bold }}
     <div style="margin-top:6px">잰 적 없는 것: {% for m in G.not_measured %}<span class="badge err" style="margin-right:4px">{{ m }}</span>{% endfor %}</div>
   </div>
   <div class="card">
@@ -1187,7 +1187,7 @@
     {% for inp in G.inputs %}
     <div class="callout cal-warning" style="margin:0 0 10px;font-size:.83rem">
       <b>{{ loop.index }}. {{ inp.name }}</b> <span class="mono muted">{{ inp.col }}</span><br>
-      {{ inp.what }}<br><span style="display:inline-block;margin-top:4px">{{ inp.warn }}</span>
+      {{ inp.what|bold }}<br><span style="display:inline-block;margin-top:4px">{{ inp.warn|bold }}</span>
     </div>
     {% endfor %}
     <div class="muted" style="font-size:.75rem">
@@ -1213,7 +1213,7 @@
     {% if ESW_IS_V2 %}<b>✅ 90종 전수 (oxidation_stability_cascade_v2.csv · {{ (ESW.data or [])|length }}행).</b>
       옛 141건과 ox_V 차이 0 — 드리프트 없음.
     {% else %}<b>⚠ v2 파일이 없어 47종판을 표시 중이다.</b>{% endif %}
-    <div style="margin-top:6px"><b>⛔ 재현성 한계 (v1·v2 공통)</b> — {{ casc.v2.meta.esw_limits }}</div>
+    <div style="margin-top:6px"><b>⛔ 재현성 한계 (v1·v2 공통)</b> — {{ casc.v2.meta.esw_limits|bold }}</div>
   </div>
   <div class="card">
     <h3>Grand-potential 전기화학 안정성창(ESW) <span class="muted" style="font-weight:400;font-size:.8rem">도펀트명 클릭 = 분자오비탈</span></h3>
@@ -1351,9 +1351,9 @@
       <div class="cal-b" style="font-size:.82rem">
         <b style="font-size:1.05em">{{ VM.headline }}</b><br>
         <b>범위</b> — {{ VM.scope }}<br>
-        <b>왜</b> — {{ VM.why }}<br>
-        <b>{{ VM.caveat }}</b><br>
-        {{ VM.inherited_text_warning }}
+        <b>왜</b> — {{ VM.why|bold }}<br>
+        <b>{{ VM.caveat|bold }}</b><br>
+        {{ VM.inherited_text_warning|bold }}
       </div>
     </div>
 
@@ -1368,7 +1368,7 @@
             <span class="mono">{{ A.partial.keys()|sort|join(' ') }}</span></td></tr>
       <tr><td><span class="badge warn">dropped</span></td><td class="mono">{{ A.dropped|length }}</td>
           <td style="font-size:.86em">gate 입력 전면 결측 → ESW 만 있고 <b>평가 불가</b>:
-            {% for sp, why in A.dropped.items() %}<span class="mono">{{ sp }}</span> — {{ why }}{% endfor %}</td></tr>
+            {% for sp, why in A.dropped.items() %}<span class="mono">{{ sp }}</span> — {{ why|bold }}{% endfor %}</td></tr>
     </tbody></table></div>
     {% endif %}
 
@@ -1379,7 +1379,7 @@
       <tr>
         <td class="mono">{{ k }}</td>
         <td><span class="badge {{ 'ok' if st in ('complete','recovered') else 'warn' }}">{{ st }}</span></td>
-        <td style="font-size:.86em">{{ desc }}</td>
+        <td style="font-size:.86em">{{ desc|bold }}</td>
       </tr>{% endfor %}
     </tbody></table></div>
 
@@ -1412,7 +1412,7 @@
     {% if VM.artifacts %}
     <div class="callout cal-warning" style="margin:10px 0 0">
       <div class="cal-b" style="font-size:.8rem"><b>⚠ 판정이 아닌 통과</b> —
-        {% for d, why in VM.artifacts.items() %}<b>{{ d }}</b>: {{ why }}{% if not loop.last %} · {% endif %}{% endfor %}
+        {% for d, why in VM.artifacts.items() %}<b>{{ d }}</b>: {{ why|bold }}{% if not loop.last %} · {% endif %}{% endfor %}
       </div>
     </div>
     {% endif %}

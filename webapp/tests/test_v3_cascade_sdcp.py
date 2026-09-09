@@ -163,6 +163,45 @@ def test_sdcp_page_table_and_body_agree(client):
             f"원장에 있는 {key} 를 화면이 '등록돼 있지 않다' 고 말한다 (키 모양 불일치 재발)"
 
 
+def test_sdcp_closure_card_quotes_ledger_verbatim(client):
+    """마감 문서의 허용/금지/재개 세 절이 **그대로** 화면에 있는가."""
+    clo = json.loads((ROOT / "db" / "properties" / D.SDCP_CLOSED_JSON)
+                     .read_text(encoding="utf-8"))
+    card = D.sdcp_closure_card()
+    assert card["ok"]
+    assert card["forbidden"] == clo["⛔_금지_서술"], "금지 서술을 다듬었다"
+    assert card["state"] == clo["status_history"][-1]["state"]
+    assert card["reopen_only"] == clo["재개_조건_이것들만"]["⛔"]
+
+    h = client.get("/sdcp").get_data(as_text=True)
+    assert card["state"] in h and "재개 조건" in h
+    from markupsafe import escape
+    for s in clo["⛔_금지_서술"]:
+        # `**`→<b> 와 escape 를 지나므로, 첫 `*`/`—` 전까지의 평문 토막으로 확인한다
+        core = str(escape(re.split(r"[*—]", s)[0].strip()))
+        assert len(core) >= 4 and core in h, f"금지 서술이 화면에서 빠졌다: {s}"
+
+
+def test_sdcp_closure_card_omits_held_absolute_eads(client):
+    """⛔음성 — 보류(HOLD)된 절대 E_ads 를 마감 카드가 헤드라인으로 되살리면 안 된다.
+
+    같은 값을 `/sdcp` 는 접힘 안에서 다루는데 마감 카드가 큰 글씨로 띄우면 한 화면이
+    같은 값에 두 지위를 준다. hazard 원장(HZ-sdcp-wave1-absolute-eads)이 BLOCKED 다.
+    """
+    card = D.sdcp_closure_card()
+    assert "확정값" not in json.dumps(card, ensure_ascii=False), "확정값 절이 카드에 들어왔다"
+    blob = json.dumps(card, ensure_ascii=False)
+    for v in ("-0.7675", "-0.7582", "-0.7728", "-0.4124"):
+        assert v not in blob, f"보류된 절대 E_ads {v} 가 마감 카드에 실렸다"
+
+
+def test_sdcp_closure_card_fails_closed(monkeypatch, tmp_path):
+    (tmp_path / "properties").mkdir()
+    monkeypatch.setattr(D, "DB", tmp_path)
+    c = D.sdcp_closure_card()
+    assert c["ok"] is False and "못 읽었다" in c["why"]
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # P0-13 — 캠페인 지위 밴드 (값은 원장 파생, 하드코딩 금지)
 # ══════════════════════════════════════════════════════════════════════════
@@ -312,6 +351,21 @@ def test_fail_closed_gates_still_hold(client):
     r = client.get("/api/file/db/properties/cascade_v23_champions.csv")
     assert r.status_code == 403, f"미등재 artifact 가 {r.status_code} 로 나간다"
     assert "원장" in r.get_json()["error"], "403 이 왜인지 말하지 않는다"
+
+
+@pytest.mark.parametrize("url", ["/cascade", "/cascade?archive=1", "/cascade?view=diagnostic"])
+def test_no_literal_markdown_asterisks(client, url):
+    """`|bold` 필터를 빠뜨린 자리는 화면에 `**` 를 기호로 노출한다 (실측 48회였다).
+
+    ⛔음성 성격 — 필터를 지우거나 새 자리에 db 문자열을 그냥 찍으면 여기서 걸린다.
+    ⚠ 못 하는 것: 스크립트·스타일·주석 안은 안 본다 (JS 리터럴에 `**` 가 정당하게 있다).
+    """
+    h = client.get(url).get_data(as_text=True)
+    body = re.sub(r"<script.*?</script>", "", h, flags=re.S)
+    body = re.sub(r"<style.*?</style>", "", body, flags=re.S)
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+    hits = [m.group(0).replace("\n", " ") for m in re.finditer(r".{40}\*\*.{40}", body, re.S)]
+    assert not hits, f"|bold 를 빠뜨린 자리 {len(hits)}곳: {hits[:3]}"
 
 
 def test_protected_markers_survive(client):

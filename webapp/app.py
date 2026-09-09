@@ -774,10 +774,20 @@ def sdcp_wave1():
     """
     md = D.load_sdcp_wave1_md()
     html = md_html(md, ("tables", "fenced_code", "toc"))
+    rows = D.sdcp_wave1_rows()
+    # ⛔ 2026-09-09 (v3 묶음 E) — 마감 문서(sdcp_neutral_closed_2026_08_28.json)의
+    #   허용 서술 5항·금지 서술 7항·재개 조건 4항이 화면에 **한 줄도 없었다** (파일명만
+    #   두 번). "그래서 뭐라고 쓸 수 있나" 를 화면에서 알 방법이 없었다. 정본을 읽어
+    #   본문 맨 앞에 붙인다 — 화면이 문구를 새로 짓지 않는다.
+    #   ⚠ 이 카드는 doc.html 의 `content` 앞에 들어간다. 즉 **원자료 표 아래**다 —
+    #     표를 먼저 그리는 규칙(doc.html)이 F 묶음 소유라 순서를 여기서 못 뒤집는다.
+    #     `data_first` 스위치가 doc.html 에 생기면 그때 맨 위로 올린다.
+    card = render_template("_campaign_band.html", closure=D.sdcp_closure_card())
+    html = Markup(card) + html
     return render_template(
         "doc.html", active="sdcp",
         title="🧪 SDCP wave1 — 바인더가 NCM 표면 어디에 붙나",
-        content=html, data=D.sdcp_wave1_rows(),
+        content=html, data=rows,
         docmeta=doc_badges(split_frontmatter(md)[0]), toc=True,
         parent={"url": "/log", "label": "Work Log"},
         artifact="https://claude.ai/code/artifact/5b5d48c5-e23c-47a1-8493-b42dedb9a121",
@@ -785,7 +795,10 @@ def sdcp_wave1():
                "label": "⚗️ 자기도핑이란 무엇인가 (배경지식 0 기준)"},
         # ⚠ "두 자기 시드 교차확인" 이라 쓰지 않는다 — seed 투입·독립재현은 미증명
         #   (회신 P 5번). realized basin 이 일치한 잡끼리만 인용한다.
-        subtitle="VASP 외주 30잡 · realized-basin 일치분만 인용 · "
+        # ⚠ 부제의 인용 가능 수는 **게이트가 센 것**을 그대로 쓴다(하드코딩 금지) —
+        #   종전 부제는 '일치분만 인용' 이라 약속했는데 정작 인용 가능 행이 0 이었다.
+        subtitle=f"VASP 외주 30잡 · realized-basin 일치분만 인용 (지금 "
+                 f"{rows['n_citable_dE']}행) · 자리대비 미해결 · 절대 E_ads 보류 · "
                  "db/properties/sdcp_wave1_results.json")
 
 
@@ -1291,23 +1304,47 @@ def benchmarks():
 @app.route("/literature")
 def literature():
     papers = D.list_papers()
+    talks = D.list_talks()
     counts = {"all": len(papers),
               "dft": sum(1 for p in papers if p["track"] == "dft"),
-              "dem": sum(1 for p in papers if p["track"] == "dem")}
+              "dem": sum(1 for p in papers if p["track"] == "dem"),
+              "talk": len(talks),
+              # 카운트는 **완성 digest 만** 헤드라인으로 쓴다 (뼈대는 스스로 인용을 금지한다).
+              "skeleton": sum(1 for p in papers if p["skeleton"]),
+              "ban": sum(1 for p in papers if p["ban_n"])}
+    counts["full"] = counts["all"] - counts["skeleton"]
     pi_counts = {}
-    for it in papers + D.list_talks():
+    for it in papers + talks:
         for k in it.get("pis", []):
             pi_counts[k] = pi_counts.get(k, 0) + 1
     pis = [dict(p, n=pi_counts.get(p["key"], 0)) for p in D.PI_REGISTRY if pi_counts.get(p["key"])]
     pis.sort(key=lambda x: (not x["our"], -x["n"]))
     tmeta = D.topic_meta()
     tcounts = {k: sum(1 for p in papers if k in p["topics"]) for k in tmeta}
+    # 🆕 최근 30일 — 정렬만으로는 "새로 들어온 것"이 안 보인다(215장 그리드의 첫 줄일 뿐).
+    #   ⚠ 오늘 날짜로 재므로 **손으로 쓴 목록이 아니다** — 시간이 지나면 저절로 비워진다.
+    from datetime import timedelta as _td
+    cut = (_dt.now().date() - _td(days=30)).isoformat()
+    recent = [p for p in papers if p["digested"] and p["digested"] >= cut][:12]
     return render_template("literature.html", active="lit", papers=papers,
-                           count=len(papers), counts=counts, talks=D.list_talks(),
+                           count=len(papers), counts=counts, talks=talks,
+                           recent=recent, recent_days=30,
                            tmeta=tmeta, tcounts=tcounts, tprimer=D.topic_primer(),
-                           pis=pis, PI=D.PI_BY_KEY, figcount=D.papers_with_figures(),
-                           figsearch=D.paper_figure_search(),
-                           cmtsearch=D.paper_comment_search())
+                           pis=pis, PI=D.PI_BY_KEY, figcount=D.papers_with_figures())
+
+
+@app.route("/api/lit-index")
+def api_lit_index():
+    """/literature 의 **검색 색인**(그림·표 캡션 + 내 코멘트) — 페이지 밖으로 뺀 것.
+
+    왜 별도 라우트인가: 종전에는 카드마다 `data-fig`(=279 KB)·`data-cmt` 를 HTML 에
+      구워 넣어 /literature 한 장이 899 KB 였다. 색인은 **검색을 시작해야** 필요하므로
+      첫 입력 때 한 번 받아 온다.
+
+    ⛔ 못 하는 것: 검색을 서버에서 하지 않는다. 거르는 일은 여전히 브라우저가 한다 —
+      이 라우트는 색인을 옮기기만 한다(랭킹·형태소 분석 없음).
+    """
+    return jsonify({"fig": D.paper_figure_search(), "cmt": D.paper_comment_search()})
 
 
 # ── API (구조뷰 / 차트 / 원본) ──────────────────────────
@@ -1549,6 +1586,10 @@ def api_property(name):
 @app.route("/api/paper/<pid>")
 def api_paper(pid):
     # papers/ 우선, 없으면 talks/ (발표 덱). 같은 모달 JS 를 그대로 쓰기 위한 폴백.
+    # ⚠ `_` 접두는 목록에서 빠지는 것(서식·초안)이다 — /talk 은 이미 막고 있었는데
+    #   이 API 만 안 막아 `/api/paper/_TEMPLATE` 이 200 이었다. 같은 가드로 맞춘다.
+    if pid.startswith("_"):
+        abort(404)
     p = D.LITDB / "papers" / f"{pid}.md"
     if not p.exists():
         p = D.LITDB / "talks" / f"{pid}.md"
@@ -1563,6 +1604,36 @@ def api_paper(pid):
     #   talks/ 인지는 **서버만 안다**. 화면이 papers/ 로 찍으면 발표덱 메모가 조용히 실패한다.
     return jsonify({"id": pid, "html": html, "figures": D.paper_figures(pid),
                     "rel": p.relative_to(D.ROOT).as_posix()})
+
+
+@app.route("/paper/<slug>")
+def paper_page(slug):
+    """논문 digest **전체 페이지** (모달 말고 정독용) — /talk 과 같은 자리.
+
+    왜 필요한가: /literature 의 모달은 훑기용인데 digest 는 그보다 크다
+      (qian2025 58 KB · wu2026_ta 63 KB). 발표덱 7건에는 '전체 페이지' 버튼이
+      있었고 논문 215편에는 라우트 자체가 없었다.
+
+    ⛔ 이 페이지가 못 하는 것
+      · 인용 가능 여부를 판정하지 않는다. 머리의 제한 배지는 **digest 산문을
+        문자열로 훑은 것**이고(D.paper_notice), 원장(citation_hazards.json)이 아니다.
+        배지가 없다고 인용 가능이라는 뜻이 아니다.
+      · digest 를 요약하지 않는다 — 본문 전체를 그대로 편다.
+    """
+    p = D.LITDB / "papers" / f"{slug}.md"
+    if not p.exists() or slug.startswith("_"):
+        abort(404)
+    md = p.read_text(encoding="utf-8", errors="ignore")
+    title = md.splitlines()[0].lstrip("# ").strip() if md.startswith("#") else slug
+    notice = D.paper_notice(slug)
+    return render_template(
+        "paper.html", active="lit", title=D.title_plain(title),
+        # ⚠ litdb 는 남의 문서다 — origin="external" (결속 매처가 우리 값으로 안 세게)
+        content=md_html(md, ("tables", "fenced_code", "toc"), origin="external"),
+        parent={"url": "/literature", "label": "문헌 · litdb"},
+        paper_notice=notice, paper_rel=p.relative_to(D.ROOT).as_posix(),
+        figures=D.paper_figures(slug),
+        subtitle=f"litdb/papers/{slug}.md · digest 원문")
 
 
 @app.route("/talk/<slug>")
@@ -1714,6 +1785,26 @@ def api_concept(cid):
 # ── 작업 로그 (기록·저장) ─────────────────────────────
 JOURNAL = D.ROOT / "webapp" / "journal.jsonl"
 
+import records_view as RV                                        # noqa: E402
+
+
+@app.template_filter("closedaxis")
+def _closedaxis(html):
+    """**마감된 축의 수**에 표식을 얹는다 (묶음 H · P0, 2026-09-09).
+
+    마감 결정이 축 전체를 닫았는데 스캐너 어휘는 레지스트리 수 둘뿐이라, 기록 화면이
+    금지된 수를 **초록인 채로** 권하고 있었다 (/requests 의 `저온 구간 Ea = 0.2241` ·
+    /todo 의 `구간 Ea 600→800 0.222` · handoff 의 `✅ 600→800 구간 Ea = 0.222 eV`).
+    판정·숫자는 여기서 짓지 않고 `records_view` 가 원장에서 파생시킨다.
+    """
+    return RV.mark_closed_axis(html)
+
+
+@app.template_filter("kindlabel")
+def _kindlabel(raw):
+    """저널 kind → 화면 어휘. ⛔ 원문 journal.jsonl 은 고치지 않는다 (표시층만)."""
+    return RV.kind_label(raw)
+
 
 def _load_journal():
     entries = []
@@ -1727,18 +1818,39 @@ def _load_journal():
 
 
 def _handoffs():
-    out = []
+    """kb/results/*.md → 카드. 정렬은 **파일명 역알파벳이 아니라 날짜 역순**이다.
+
+    종전에는 `sorted(reverse=True)` 라 화면 첫 줄이 vgcf·uma·slide2 였다 —
+    94장이 3열로 깔리는데 무엇이 최근인지 알 길이 없었다.
+    ⛔ 파일은 하나도 빼지 않는다. 화면에서 접는 것과 지우는 것은 다르다.
+    """
     rd = D.KB / "results"
-    if rd.exists():
-        for f in sorted(rd.glob("*.md"), reverse=True):
-            out.append({"id": f.stem, "name": f.stem.replace("_", " ")})
-    return out
+    if not rd.exists():
+        return []
+    return RV.handoff_cards(sorted(rd.glob("*.md")), first_line=RV.first_sentence)
+
+
+#: journal 이 비어 있는 구간에 무엇이 있었는지 — **여기서 지어내지 않는다.**
+#: 커밋 수는 조사 실측(`git log --since=2026-08-26 --until=2026-09-08 --oneline | wc -l`)
+#: 이고, 다른 구간이 생기면 그 구간은 "기록 없음" 만 찍힌다(수를 만들지 않는다).
+JOURNAL_GAPS = {("2026-08-26", "2026-09-07"): "커밋 806개"}
 
 
 @app.route("/log")
 def log():
+    """작업 기록 — **수기 일지다.** 전수 기록이 아니다.
+
+    ⚠ 타임라인은 `ts` 로 정렬한다. journal.jsonl 자체가 시간순이 아니라서(어긋난 쌍 3개)
+      줄 순서를 뒤집기만 하면 08-25 구간이 15:40→15:00→13:30→14:30 으로 나왔다.
+    ⚠ 기록이 없는 구간은 **회색 줄로 명시한다.** 비어 있는 것과 일이 없었던 것은
+      다른 말이다 — 08-26~09-07 에 커밋 806개가 있었는데 기록은 0건이다.
+    """
+    entries = _load_journal()
     return render_template("log.html", active="log",
-                           entries=_load_journal(), handoffs=_handoffs())
+                           entries=entries,
+                           groups=RV.journal_groups(entries, JOURNAL_GAPS),
+                           kinds=RV.KIND_ORDER,
+                           handoffs=_handoffs())
 
 
 @app.route("/api/log", methods=["POST"])

@@ -323,6 +323,50 @@ def sdcp_wave1_rows() -> dict:
             "n_blocked": sum(1 for r in dE if r["status"] == "BLOCKED")}
 
 
+SDCP_CLOSED_JSON = "sdcp_neutral_closed_2026_08_28.json"
+
+
+def sdcp_closure_card() -> dict:
+    """`/sdcp` 최상단 **마감 카드** — 상태 · 닫는 범위 · 허용/금지 서술 · 재개 조건.
+
+    왜 필요한가: 마감 문서에 허용 서술 5항 · 금지 서술 7항 · 재개 조건 4항이 있는데
+      화면에는 **파일명만** 두 번 나왔다. 그래서 "그래서 뭐라고 쓸 수 있나" 를 화면에서
+      알 방법이 없었다. 화면이 판정하지 않는다는 원칙은 맞지만, 정본을 **읽어서 보여주는
+      것**과 파일명만 대는 것은 다르다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 문구를 다듬거나 요약하지 않는다. 원장 문자열을 **그대로** 옮긴다 (특히
+        `재개_조건_이것들만.⛔ '위 넷 말고 다른 이유로 이 값을 다시 열지 않는다'`).
+      · **확정값 8개를 싣지 않는다.** 절대 E_ads 는 hazard 원장이 BLOCKED 로 잡아
+        뒀고(HZ-sdcp-wave1-absolute-eads, 기준 비대칭 δ_m·δ_LREAL), 마감 카드가
+        그 숫자를 헤드라인으로 다시 띄우면 화면 둘이 같은 값에 정반대 지위를 준다.
+        값은 `/composition/sdcp` 의 레지스트리 타일이 지위와 함께 보여준다.
+      · 마감이 **옳은지** 판정하지 않는다. status_history 의 마지막 상태를 옮긴다.
+      · 파일이 없으면 카드를 만들지 않는다 (`ok=False`) — 빈 카드로 흉내내지 않는다.
+    """
+    d = _load_json(DB / "properties" / SDCP_CLOSED_JSON)
+    if not d:
+        return {"ok": False, "why": f"db/properties/{SDCP_CLOSED_JSON} 을 못 읽었다"}
+    hist = d.get("status_history") or []
+    last = hist[-1] if hist else {}
+    reopen = dict(d.get("재개_조건_이것들만") or {})
+    only = reopen.pop("⛔", "")
+    return {
+        "ok": True,
+        "title": d.get("제목") or "",
+        "state": last.get("state") or "closed",
+        "state_at": last.get("at") or d.get("date"),
+        "state_note": last.get("note") or "",
+        "n_history": len(hist),
+        "scope": d.get("닫는_범위") or "",
+        "allowed": d.get("허용_서술_이대로만_쓴다") or {},
+        "forbidden": d.get("⛔_금지_서술") or [],
+        "reopen": reopen,
+        "reopen_only": only,
+        "record": f"db/properties/{SDCP_CLOSED_JSON}",
+    }
+
+
 OPEN_ITEMS_MD = KB / "open_items.md"
 
 
@@ -3429,9 +3473,11 @@ def list_talks() -> list:
             md = re.search(r"digested `?(\d{4}-\d{2}-\d{2})`?", line)
             if md and not digested:
                 digested = md.group(1)
+        nt = paper_notice(f.stem)
         out.append({"id": f.stem, "title": title_plain(title), "title_html": title_html(title),
                     "speaker": speaker,
-                    "session": session, "digested": digested, "pis": paper_pis(f.stem)})
+                    "session": session, "digested": digested, "pis": paper_pis(f.stem),
+                    "ban_n": nt["ban_n"], "ban": nt["ban"]})
     return out
 
 
@@ -3493,8 +3539,73 @@ def title_html(t: str) -> str:
     return _EM_ITAL.sub(r'<span class="t-it">\1</span>', s)
 
 
+# ── digest 본문에서 읽는 두 가지 지위 표시 (v3 묶음 I) ────────────────────
+#  ① 뼈대(skeleton) — research-agent 가 만든 빈 카드. 헤더가 스스로 인용을 금지한다
+#     ("⏳ 문서 대기 가 하나라도 남아 있으면 이 카드를 **인용하지 않는다**").
+#  ② 인용 제한 문구 — digest 본문에 사람이 적어 둔 `⛔ 인용 금지` 계열 문장.
+#
+#  ⛔⛔ 이 함수가 **못 하는 것** (화면 문구도 이대로 말해야 한다)
+#   · 원장이 아니다. db/properties/citation_hazards.json 처럼 id·범위·해제조건이 있는
+#     판정이 아니라, **digest 산문을 문자열로 훑은 것**이다. 없다고 인용 가능이 아니다.
+#   · 무엇이 금지인지 구조화하지 못한다 — 걸린 줄 원문을 그대로 보일 뿐이다.
+#   · "인용 금지 **해제**"(예: anderson2024 §20)는 제외하지만, 그 밖의 부정문·인용문
+#     안의 문구는 못 가른다. 그래서 화면에는 '제한 문구 있음' 으로만 쓰고
+#     '인용 금지 논문' 이라고 단정하지 않는다.
+_BAN_RE = re.compile(r"인용\s*금지")
+_BAN_LIFT_RE = re.compile(r"인용\s*금지\s*(해제|아님|아니)")
+#  표·인용·강조 기호를 걷어내 툴팁 한 줄로 만든다 (값은 안 건드린다).
+_BAN_STRIP = re.compile(r"^[>\s|#*\-–·]+|[|\s]+$")
+
+
+def _paper_notice(slug: str) -> dict:
+    """digest 본문 → {skeleton, ban_n, ban}. 위 docstring 의 한계가 그대로 적용된다."""
+    f = LITDB / "papers" / f"{slug}.md"
+    if not f.exists():
+        f = LITDB / "talks" / f"{slug}.md"
+    if not f.exists():
+        return {"skeleton": False, "ban_n": 0, "ban": None}
+    try:
+        txt = f.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return {"skeleton": False, "ban_n": 0, "ban": None}
+    lines = txt.splitlines()
+    head = "\n".join(lines[:14])
+    skeleton = ("🌱 skeleton" in head) or ("⏳ 문서 대기" in head)
+    hits = []
+    for ln in lines:
+        if not _BAN_RE.search(ln) or _BAN_LIFT_RE.search(ln):
+            continue
+        s = _BAN_STRIP.sub("", ln).replace("**", "").replace("`", "")
+        s = " ".join(s.split())
+        if s:
+            hits.append(s)
+    return {"skeleton": skeleton, "ban_n": len(hits),
+            "ban": (hits[0][:200] if hits else None)}
+
+
+@lru_cache(maxsize=512)
+def _paper_notice_c(slug: str, _mt) -> tuple:
+    n = _paper_notice(slug)
+    return (n["skeleton"], n["ban_n"], n["ban"])
+
+
+def paper_notice(slug: str) -> dict:
+    f = LITDB / "papers" / f"{slug}.md"
+    if not f.exists():
+        f = LITDB / "talks" / f"{slug}.md"
+    sk, bn, ban = _paper_notice_c(slug, _mtime_ns(f) if f.exists() else 0)
+    return {"skeleton": sk, "ban_n": bn, "ban": ban}
+
+
 def list_papers() -> list:
-    """litdb/papers/*.md → [{id, title, type, track}] (DEM/DFT 분류 포함)."""
+    """litdb/papers/*.md → [{id, title, type, track, skeleton, ban_n, ban}].
+
+    정렬은 **digest 등록일 내림차순**이다 (v3, 2026-09-09). 종전 기본값은 슬러그
+    알파벳순이라 09-08 에 들어온 두 편이 148·197번째에 박혀 있었다.
+    ⚠ 날짜가 없는 digest 2편이 조용히 사라지지 않게 두 단 정렬을 쓴다 —
+      먼저 id 로 세우고(안정 정렬), 그 위에 날짜 내림차순을 얹는다. 날짜 없는 것은
+      빈 문자열이라 맨 뒤로 가되 **목록에서 빠지지는 않는다**.
+    """
     out = []
     pd = LITDB / "papers"
     if not pd.exists():
@@ -3523,13 +3634,17 @@ def list_papers() -> list:
             if md and not digested:
                 digested = md.group(1)
         tp = paper_topics(f.stem)
+        nt = paper_notice(f.stem)
         # title 은 **평문**(검색·⌘K·tooltip), title_html 은 강조를 색으로 바꾼 것(카드)
         out.append({"id": f.stem, "title": title_plain(title), "title_html": title_html(title),
                     "type": type_str,
                     "track": literature_track(f.stem, type_str, title),
                     "digested": digested, "pis": paper_pis(f.stem),
                     "topics": tp["topics"], "gloss": tp["gloss"],
-                    "caution": tp["caution"]})
+                    "caution": tp["caution"],
+                    "skeleton": nt["skeleton"], "ban_n": nt["ban_n"], "ban": nt["ban"]})
+    out.sort(key=lambda p: p["id"])
+    out.sort(key=lambda p: p["digested"] or "", reverse=True)
     return out
 
 
