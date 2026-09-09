@@ -209,6 +209,22 @@
    "blank": 0.952
   },
   {
+   "key": "fS4",
+   "kind": "figure",
+   "label": "S4",
+   "page": 4,
+   "file": "fig_S4.png",
+   "caption": "FIG. S4. Structural relaxation. The relaxed lattice constant of the 41 compounds covered in the training set as predicted by DPA-SSE and DFT calculation.",
+   "rotated_deg": 0,
+   "bbox": null,
+   "w": 1592,
+   "h": 2060,
+   "dpi": 200,
+   "src": "ad74839f-90._Sup_A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
+   "blank": 0.0,
+   "note": "caption-anchor crop was rejected as near-blank (plot is small on a mostly empty page) -> full-page render fallback (digest agent, 2026-09-09)"
+  },
+  {
    "key": "fS5",
    "kind": "figure",
    "label": "S5",
@@ -327,6 +343,22 @@
    "dpi": 300,
    "src": "ad74839f-90._Sup_A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
    "blank": 0.963
+  },
+  {
+   "key": "fS11",
+   "kind": "figure",
+   "label": "S11",
+   "page": 8,
+   "file": "fig_S11.png",
+   "caption": "FIG. S11. Calculated room temperature lithium-ion conductivity of Li5.5PS4.5-xOxCl1.5 solid electrolyte as a function of O doping, which help improve moisture stability critical to industrial application. For comparison, experimental measurements are also presented[4]. (NOTE: this render is SI page 8 in full, so it also contains FIG. S10.)",
+   "rotated_deg": 0,
+   "bbox": null,
+   "w": 1592,
+   "h": 2060,
+   "dpi": 200,
+   "src": "ad74839f-90._Sup_A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
+   "blank": 0.0,
+   "note": "caption-anchor crop was rejected as near-blank -> full-page render fallback (digest agent, 2026-09-09)"
   },
   {
    "key": "fS12",

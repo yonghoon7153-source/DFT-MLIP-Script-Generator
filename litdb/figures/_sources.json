@@ -24,6 +24,13 @@
    "1-s2.0-S0378775323008030-mmc1.docx (SI)"
   ]
  },
+ "alghamdi2026_finetuning_strategies_li_diffusion_mace": {
+  "figures": 6,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "592ec934-92._Comparing_finetuning_strategies_for_machine_learning_force_fields_in_lithiumion_diffusion.pdf"
+  ]
+ },
  "aminchiang2016_nmc_electronic_ionic_transport_vs_li": {
   "figures": 6,
   "generated": "2026-08-25",
@@ -58,6 +65,13 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/18. Can_substitutions_affect_the_oxidative_stability_o.pdf"
+  ]
+ },
+ "basu2026_multifidelity_bandit_dopant_screening_funnel": {
+  "figures": 29,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf"
   ]
  },
  "bazzoun2026_dem_fem_rnm_ionic": {
@@ -746,6 +760,20 @@
    "DEM 논문/54. Small - 2025 - Liu - Dry Processing Technique for High‐Energy Density Lithium Batteries.pdf"
   ]
  },
+ "liu2026_ai_ready_finetuning_solid_solid_interfaces": {
+  "figures": 4,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "a9f742ec-94._An_AIready_finetuning_framework_for_accurate_MLIPs_in_solidsolid_battery_interfaces.pdf"
+  ]
+ },
+ "liu2026_finetuning_umlip_tutorial": {
+  "figures": 9,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "d32d0af1-93._Finetuning_universal_machinelearned_interatomic_potentials_A_Tutorial_on_methods_and_applications.pdf"
+  ]
+ },
  "liyaru_gaf3_codoping_argyrodite": {
   "figures": 35,
   "generated": "2026-08-05",
@@ -1222,7 +1250,7 @@
   ]
  },
  "tompa2026_finetuning_mlip_foundation_strategies": {
-  "figures": 28,
+  "figures": 29,
   "generated": "2026-09-09",
   "pdfs": [
    "7eca4ae9-91._Finetuning_MLIP_foundation_models_strategies_for_accuracy_and_transferability.pdf"
@@ -1281,7 +1309,7 @@
   ]
  },
  "wang2025_pretrained_deep_potential_sulfide_sse": {
-  "figures": 17,
+  "figures": 19,
   "generated": "2026-09-09",
   "pdfs": [
    "dc978d7f-90._A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
