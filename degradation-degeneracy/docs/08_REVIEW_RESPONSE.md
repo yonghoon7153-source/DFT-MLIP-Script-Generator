@@ -6699,3 +6699,164 @@ payload index 를 묶음 **밖**에 두고 있었다. P0-8 을 넣은 뒤로 이
 상태였다. 정상 묶음 시험에는 P0-8 을 닫으며 같은 이동을 이미 적용했는데 이 쪽은
 빠뜨렸다. **방어를 넓히면 그 방어가 다른 시험의 축을 가린다** — 증인 문자열을
 축마다 적어 두는 이유가 이것이고, 전수 재생이 아니었으면 못 봤다 (`30816e10`).
+
+---
+
+## §73 61차 판정 접수 — **NO-GO**. P0 2건 · P1 4건 · P2 1건 (2026-09-09)
+
+대상 head `f7cce740` · RUN_SCOPE `c4e71004` · `source_digest d29650980daf6b9a`
+(리뷰어 실측 일치). 60차 전용 회귀 49건은 전부 통과했고 `--check-preimages` 도
+통과했다. 그 초록과 아래 반례들은 **동시에 성립한다**.
+
+리뷰어가 새 발견으로 **세지 않은 것**: 요청문 §0 의 미착수·신고 항목, 환경
+결손(`pybamm`·`tqdm` 부재)으로 인한 전체 회귀·lifecycle E2E 중단, 리뷰어 환경
+receipt 가 달라 fail-closed 한 coverage 합집합. wiki lint 0 errors.
+
+### 판정의 한 문장
+
+> **가장 강한 반례 둘은 공격이 아니라 정상 production 순서다.**
+
+60차에도 같은 문장을 들었고 같은 실수를 한 번 더 했다. 60차는 봉인 뒤 report 를
+**처음** 더하는 경우만 시험했다. 61차가 낸 것은 **이미 report 가 있는** run 을
+resume 한 뒤 그 report 를 갱신하는 경우다 — `run.sh:558-565` 의 정상 순서
+(fit → finalize → score → report)를 **두 번** 도는 형태이고, 시험이 순서가
+아니라 순서의 **한 조각**을 보고 있었다.
+
+### 발견 7건
+
+| ID | 무엇이 틀렸나 | 무효화하는 것 | 묶음 |
+|---|---|---|---|
+| P0-1 | resume 시 시간 봉인이 **옛 report 를 흡수**한다. 이어지는 정상 report 갱신이 봉인을 stale 로 만들고, 새 content id 에는 class 가 없어 마지막 승격이 거부된다 | P0-1 종결 · 정상 resume 가용성 · execution class | α |
+| P0-2 | fit 이 논리 경로를 `/proc/self/fd/N` 으로 **대체**하고 그것을 durable manifest·summary·phase receipt 에 적는다. 성공하면 fd 가 닫히고 staged input 도 지워져 **존재하지 않는 경로가 provenance 가 된다** | P0-4 종결 · provenance · 재현 명령 | β |
+| P1-1 | capability 를 **마지막 사용자보다 먼저** 닫는다 — 닫힌 경로로 phase receipt 를 쓰고 lock 삭제가 `OSError` 를 삼켜 `.fit.lock` 이 남는다 | staged handle 수명 · phase receipt · 정상 cleanup | β |
+| P1-2 | 복수 `PYTHONPATH` root 의 **동명 module** 이 basename 키 하나로 접힌다 (root 순서를 뒤집으면 digest 가 반대로 바뀐다) | P1-4 importable roots 증언 | γ |
+| P1-3 | startup-history **측정 실패**가 성공 영수증이 된다 (`{"<unmeasured>": "1"}`) — child rc 미검사 · 해석 실패 누락 · 예외를 정상 dict 로 | P1-3 증언 · coverage evidence 의 fail-closed 주장 | γ |
+| P1-4 | comprehension 결속을 **부모 scope 에 적용**한다 (Python 3 에서 comprehension target 은 별도 scope) | P0-11 scope 모델의 정확성 | δ |
+| P2 | `STAGE3_CONTRACT.md:1071` 은 AST 정규형에서 docstring 이 사라진다고 적는데 현재 코드는 보존한다 — 계약 문구가 현재 규칙과 **반대** | 계약 문서의 정확성 | ε |
+
+### 공통 형태 셋
+
+1. **경계의 member 를 우연이 정한다** — identity 는 "지금 있는 파일" 로,
+   증언의 키는 basename 으로 정해졌다. 둘 다 선언이 아니라 우연이다.
+2. **논리와 물리를 같은 값으로 쓴다** — 쓰는 자리(handle)와 적는 자리(이름)를
+   가르지 않아서, 사라질 값이 durable 기록에 들어갔다.
+3. **못 잰 것을 잰 것처럼 말한다** — 실패가 성공 dict 로 흘렀다.
+
+---
+
+## §74 61차 대응 — **7건 전부 닫음**. P0 2건 · P1 4건 · P2 1건 (2026-09-09)
+
+### α (P0-1) — member 집합을 **선언**이 정한다 · `3911c2be`
+
+60차는 identity 를 "지금 있는 것 전부" 에서 "굳히는 순간 있었던 것 전부" 로
+옮겼다. 그런데 그 "전부" 는 여전히 **우연한 파일 존재**로 정해졌다. 그래서
+`analysis_manifest.yaml` 이 굳히는 순간 있었느냐 없었느냐가 같은 실행에 두 키를
+줬다.
+
+`RUN_MANIFEST_SCHEMA` 를 둘로 가른다.
+
+- `RUN_IDENTITY_MANIFESTS` — 실행이 만든 것. 내용 identity 는 **이것만** 담는다.
+- `RUN_DERIVED_MANIFESTS` — 실행 **뒤** 파생이 만드는 것 (report 의
+  `analysis_manifest.yaml`). 봉인은 그것을 **기록만** 하고 staleness 를 허용한다.
+
+`RUN_MANIFEST_SCHEMA` 는 둘의 정렬 합집합으로 남긴다 — 파생을 identity 에서
+빼는 것이 그것을 "선언 밖 manifest" 로 만들면 (59차 M2 가 거부한다) P0-1 을
+고치다 정상 report 를 또 죽인다. `_CONTENT_ID_KIND` 는 `run-content-id/v4`.
+등록부는 58차 L2 전례대로 **새 키에 승계 레코드**를 쓴다 — 판단을 다시 하지
+않는다.
+
+**고치면서 잃은 것을 마감이 잡았다**: 60차 P0-1 의 축은 "굳힌 뒤
+`analysis_manifest.yaml` 을 더해도 class 가 안 사라진다" 를 증인으로 썼는데,
+α 가 파생을 선언 밖으로 뺐으므로 그 경우는 이제 **봉인이 없어도** 안 흔들린다.
+봉인이 지금 지키는 자리는 다른 곳이다 — grid 가 굳힌 뒤 fit 이 같은 자리에
+실행 manifest 를 더하는 정상 순서. 증인을 그리로 옮겼다.
+
+### β (P0-2·P1-1) — 쓰는 자리와 적는 자리를 가른다 · `3a08f589`
+
+60차 γ 가 "판정한 실물 아래로 쓴다" 를 위해 handle 을 **경로로 노출**했다
+(`/proc/self/fd/N`). 그 경로가 기록에도 그대로 들어갔다. fd 는 성공 시 닫히므로
+**존재하지 않는 경로가 provenance** 가 됐다.
+
+- `_run_fit_staged` 가 **논리 경로**(`logical_in`/`logical_out`)와 **쓰기
+  뿌리**(`write_root = staged_root(cap)`)를 나눠서 들고 간다. 실제 writer 는
+  `write_root` 아래로, manifest·summary·phase receipt 는 전부 논리 이름으로.
+- capability 를 **마지막 사용자 뒤에** 닫는다 — `commit_run_outputs()` 를 lock
+  해제 뒤로 옮겼다. 부수 효과가 하나 더 있다: commit 에 **논리** 경로를 넘기게
+  되어 `_assert_still_the_judged_dir()` 가 이제 **실제로 검사**한다 (전에는
+  staged_root 를 받아 조기 반환했다).
+- `release_run_lock()` 이 오류를 **안 삼킨다**. 내 것일 때만 지우고, 지우다
+  실패하면 그대로 올린다.
+
+### γ (P1-2·P1-3) — 증언의 키 공간과 실패 전파 · `7dafdfbd`
+
+- 키에 **검색 순서**를 담는다 (`"<i>/<name>"`). 접는 구현이 틀린 이유는 값이 안
+  바뀌어서가 아니라 **반대**를 적기 때문이다 — Python 은 앞 root 를 고르는데
+  basename 키는 뒤 root 로 덮었다. 그래서 회귀도 "뒤집으면 값이 바뀐다" 가
+  아니라 "첫 자리 항목이 **앞** root 의 바이트인가" 를 묻는다.
+- 측정을 **typed** 로 만든다 (`status: measured|failed`). 손자의 rc·timeout·
+  해석 실패·예외가 전부 `failed` 로 흐르고, 파일 없는 builtin/frozen 은 실패가
+  아니라 `unfiled` 로 센다. 읽는 쪽(`_execution_receipt`)이 **불완전한 영수증을
+  거부**한다.
+- `packages` 도 같은 결함이었다 (`{"<unavailable>": ""}`). 리뷰어는 history 만
+  짚었지만 규칙이 한 자리에 있지 않으면 남은 중복이 곧 다음 반례다.
+
+### δ (P1-4) — comprehension 은 자식 scope · `2f7acafb`
+
+`_own_shadows` 가 comprehension target 을 **부모 scope** 결속으로 셌다. Python 3
+에서 그것은 별도 scope 이고, 최외곽 iterable 만 바깥에서 평가된다. 분석기를
+그대로 맞춘다 — comprehension 을 자식 scope 로 내려보내고 target 은 그 안에서만
+묶는다.
+
+`_is_comprehension` 은 **철자를 그대로** 쓴다 (`ast.ListComp` …). `getattr` 로
+이름을 계산하면 producer closure 검사가 거부한다 — 51차가 세운 규칙이 여기서
+자기 몫을 했다.
+
+### ε (P2) — 계약 문구가 코드와 반대였다 · `6dfa8615`
+
+`STAGE3_CONTRACT.md` 는 AST 정규형에서 docstring 이 사라진다고 적었는데 현재
+코드는 **보존**한다 (51차 P0-I · 60차 P0-13). 코드를 약하게 만드는 문제는
+아니지만 계약이 반대를 적은 채 열한 라운드를 지났다 — **문서도 실측 대상**이다.
+언제 왜 뒤집혔는지를 함께 적었다.
+
+### 마감 — 축 6개를 심고, 전수 재생이 셋을 되돌려 세웠다
+
+이번 라운드 방어 전부를 세어 새 축 6개를 심었다 (`3a7d102b`). 마지막 것이 또
+같은 교훈을 줬다: `if _is_comprehension(sub):` 를 `if False:` 로 두는 변이는
+**안 물었다** — comprehension 안으로 들어가기만 하고 target 은 여전히 안 묶여서
+결함이 복원되지 않는다. **축은 "지운 검사" 가 아니라 고치기 전 코드를 되돌려야
+한다.** 61차 이전 문장을 되살리자 리뷰어의 반례가 그대로 증인이 됐다.
+
+12조각 전수 재생이 세 번 만에 통과했다 (`faa838c2` · `aa901eb5` · `54b7be67`).
+
+1. 새 축 하나가 58차 축과 **preimage 를 공유**했다 → 떼어 내고 58차 증인을
+   완전성 거부로 재조준.
+2. α 가 60차 P0-1 의 축을 가렸다 → 위에 적은 대로 증인을 옮겼다.
+3. 증인에 박아 둔 content id 가 v4 로 바뀌었다 → 잘라 냈는데, 자르면서
+   **꼬리 공백 한 칸**을 남겨 5조각이 "baseline 이 이미 빨갛다" 로 멈췄다.
+   증인은 접두 대조다 — 경계를 한 글자 틀리면 그 조각 전체를 못 재게 만든다.
+
+등록부: **MUTANTS 201 · MULTI 31 · EXPECT 223 · DECLARED_MASKED 10**,
+합집합 **232 축** (실행 222 · 선언 10).
+
+### 세대 전환 (g15 → g16) · `e37bff80`
+
+```
+g15_2026_09_08  active → frozen  (journal seq 14)
+g16_2026_09_09  새 active · docs/22p_gap/proj_g16
+
+pin  compute            3b94bda70dc63869 → fa5b9324c01ab7f0
+     row_projection     a425da3233253625 → 0e22767966646d49
+     producer_semantic  6518c2fa47f1e8c4 → 2e2ddce417ecf0db
+     src_scoring        69e69cb046f4b4ae (변동 없음)
+validator source_digest d29650980daf6b9a → 4227b40871fa0c10
+행 바이트                ad598fe77e75afec — **열두 세대째 같다**
+```
+
+pin 을 움직인 것은 δ 다 — analyzer 가 comprehension 을 자식 scope 로 다루게
+됐다. `src_scoring` 이 그대로이고 행 바이트가 안 움직인 것이 "이번 라운드는
+증거·경계층만 건드렸고 계산식은 안 건드렸다" 를 실물로 말한다.
+
+전환 중에 층 셋이 물었다 (전부 앞선 라운드가 세운 것이다): 얼린 cohort 복사에
+`frozen_reason` 이 딸려 오자 "status 만 active 로 되돌린 해동이다" 로 거부 ·
+`evidence.cohorts` 양방향 대조가 g16 누락을 잡음 · 원장의
+`validator_identity.source_digest` 가 새 영수증과 어긋난다고 잡음.

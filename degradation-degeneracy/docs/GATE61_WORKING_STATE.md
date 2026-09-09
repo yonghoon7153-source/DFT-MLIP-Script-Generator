@@ -90,7 +90,10 @@ run 을 resume 한 뒤 그 report 를 갱신하는" 경우다. 시험이 product
 `env` 자리 하나로는 안 물어서(`_env_facts()` 안에도 같은 결속이 있다) 두 자리를
 함께 되돌리는 MULTI 로 바꿨다.
 
-등록부: **MUTANTS 202 · MULTI 31 · EXPECT 224 · DECLARED_MASKED 10 · 61차 축 10**
+등록부 (이 시점): **MUTANTS 202 · MULTI 31 · EXPECT 224 · DECLARED_MASKED 10**.
+전수 재생이 중복 축 하나를 떼어 내면서 최종값은
+**MUTANTS 201 · MULTI 31 · EXPECT 223 · DECLARED_MASKED 10** 이 됐다 (아래
+"12조각 전수 재생" — 합집합 232 축).
 
 ### 세대 전환 (g15 → g16)
 
@@ -117,3 +120,81 @@ pin 을 움직인 것은 δ(P1-4) 다 — analyzer 가 comprehension 을 자식 
    "status 만 active 로 되돌린 해동이다. 얼린 cohort 는 자라지 않는다".
 2. `evidence.cohorts` 양방향 대조가 g16 누락을 잡았다.
 3. 원장의 `validator_identity.source_digest` 가 새 영수증과 어긋난다고 잡았다.
+
+### 12조각 전수 재생 — 세 번 만에
+
+| 회차 | 결과 | 원인 |
+|---|---|---|
+| ① | 3조각 빨강 | 새 축 하나가 58차 축과 **preimage 공유** · α 가 60차 P0-1 축을 가림 · 증인에 박힌 content id 가 v4 로 바뀜 |
+| ② | 5조각 "baseline 이 이미 빨갛다" | ①에서 증인을 자르며 남긴 **꼬리 공백 한 칸** (`aa901eb5`) |
+| ③ | 12/12 통과 (`54b7be67`) | 합집합 **232 축** (실행 222 · 선언 10) |
+
+②의 교훈: **증인은 접두 대조다.** 경계를 한 글자 틀리면 그 조각 전체를 못 재게
+만든다 — 그리고 그 실패는 "변이가 안 물었다" 가 아니라 "baseline 이 이미
+빨갛다" 로 나와서, 원인을 찾을 때 변이 쪽을 먼저 보게 만든다.
+
+### 마감 산출
+
+| 무엇 | 상태 |
+|---|---|
+| 발견 7건 전부 코드에서 닫힘 | ✔ `3911c2be` `3a08f589` `7dafdfbd` `2f7acafb` `6dfa8615` |
+| 새 축 6개 + 재조준 3 + 중복 제거 1 | ✔ `3a7d102b` `faa838c2` `aa901eb5` |
+| g15 → g16 · 투영 재생성 · 영수증 | ✔ `e37bff80` |
+| 12조각 전수 재생 증거 | ✔ `54b7be67` |
+| 원장 §73(판정)·§74(대응) | ✔ |
+| webapp `/trust` §6 · `/handover` 신설 | ✔ `6f731382` |
+| 전체 회귀 + strict smoke | ✔ 1615 passed, 1 xfailed · smoke exit 0 (아래 실측) |
+| 요청문 | ✔ `docs/22p_gap/GATE61_REQUEST.md` |
+
+### 신고 (요청문 §0 로 옮길 것)
+
+- `docs/22p_gap/_exec_class/` 에 **커밋 안 된 레코드가 쌓인다.**
+
+  실측 (2026-09-09 13:16, 전체 회귀가 도는 중):
+
+  ```
+  git ls-files … | wc -l        16      (추적)
+  ls …/*.json    | wc -l       104      (디스크)
+  mtime 분포                    08:05 4건 · 12:36–12:39 100건
+  _exec_class/local/            6471    (gitignored — 58차 L14 대로)
+  ```
+
+  88건이 **이번 실행 창(12:36–12:39) 안에** 생겼다. 즉 시험 또는 smoke 가
+  공유 등록부 자리에 `canonical`/legacy 레코드를 남긴다 — `.gitignore:52` 는
+  그 두 분류를 **감사 대상이라 커밋한다**고 선언하므로, 시험이 만든 것이
+  거기 섞이는 것은 선언과 어긋난다.
+
+  **아직 안 한 것**: 어느 시험이 쓰는지 못 좁혔다. 후보는 원장을
+  monkeypatch 하지 않는 넷이다 — `tests/test_compare.py` ·
+  `test_exec_class_capability_59.py` · `test_fitting.py` ·
+  `test_handle_carry_59.py` (실측: `canonical_ledger` 문자열이 없는 파일).
+  회귀가 끝난 뒤 지우고 하나씩 돌려서 좁힌다.
+
+  산출물 identity 나 `source_digest` 에는 영향이 없다 (`docs/` 는 RUN_SCOPE
+  밖). 이번 라운드에서 **고치지 않는다** — RUN_SCOPE 를 건드리면 영수증·g16·
+  전수 재생을 전부 다시 만들어야 한다. 요청문 §0 에 신고하고 다음 라운드로.
+
+- **grid 의 콘솔 요약이 staged 경로를 적는다** (`src/grid.py:806`).
+
+  실측 (이번 마감 strict smoke 출력):
+
+  ```
+  ── 1. PyBaMM 합성 격자 (producer artifact) ──
+  { "n_ok": 6, ..., "out_dir": "/proc/self/fd/3" }
+  ```
+
+  β 가 고친 것은 durable 기록이고, grid 의 durable 기록은 이미 `named_out` 을
+  쓴다 (`:837` `"out": str(named_out)` · `write_curves_manifest(named_out, …)`).
+  남은 것은 `print(json.dumps(summary))` 한 줄 — **파일로 안 남는다.** 그래도
+  운용자가 다음 명령에 복사할 경로를 거짓으로 말한다.
+
+  **다음 라운드 첫 항목.** 한 줄이지만 RUN_SCOPE 라 `source_digest` 가 움직이고,
+  그러면 영수증(~28분)·전체 회귀(44분)·strict smoke 를 통째로 다시 만들어야
+  한다. 판정 뒤에 한 번에 하는 편이 싸다.
+
+### 전체 회귀 + strict smoke (마감 실측, `54b7be67` 트리)
+
+```
+python -m pytest tests/ -q      1615 passed, 1 xfailed   (44분 26초, exit 0)
+./scripts/smoke_e2e.sh          pipeline smoke 통과 (✅ 52건, exit 0)
+```
