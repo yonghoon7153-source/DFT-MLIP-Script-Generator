@@ -2299,7 +2299,7 @@ EXPECT: dict = {
         ],
         "witness": {
             "tests/test_exec_class_capability_59.py::test_a_short_write_never_publishes_a_partial_record":
-                "tools.preserve.PreserveError: [promote] 내용 ",
+                "tools.preserve.PreserveError: [promote] 내용",
         }
     },
     "exec-class-retry-reseals-durability-g59": {
