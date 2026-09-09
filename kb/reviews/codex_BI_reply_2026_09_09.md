@@ -17,7 +17,8 @@ evidenceScope: multi-source-primary
 # 리뷰 BI 회신
 
 > 앞 요청: `codex_BI_prompt_webapp_claim_binding_2026_09_08.md` (대상 커밋 `c221ac933`)
-> 이 회신의 대상 커밋: `b38cb5214` 이후 (아래 §6 에 커밋별 대응표)
+> 이 회신의 대상 커밋: **`f74d7613b`** (초안은 `b38cb5214` 기준이었다 — 그 뒤 바뀐 것은
+> **§0-1**, 커밋별 대응은 **§6**)
 > ⚠ **초안이다.** 1저자 승인 전 발송 금지 —
 > `kb/reviews/decisions_pending_first_author_2026_09_09.md` Q7.
 >
