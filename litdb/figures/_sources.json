@@ -103,7 +103,7 @@
   ]
  },
  "carrete2023_deep_ensembles_vs_committees": {
-  "figures": 9,
+  "figures": 12,
   "generated": "2026-09-09",
   "pdfs": [
    "66caeb45-79DEEP1.PDF"
@@ -172,6 +172,14 @@
   "generated": "2026-08-19",
   "pdfs": [
    "b1606701-cm6b03630_si_001.pdf"
+  ]
+ },
+ "deklerk2018_diffusion_analysis_md_beta_li3ps4": {
+  "figures": 18,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "564a5b44-86._Analysis_of_diffusion_in_solidstate_electrolytes_through_MD_simulations_improvement_of_the_Liion_conductivity_in__Li_PS__as_an_example.pdf",
+   "1109599e-86._Sup_Analysis_of_diffusion_in_solidstate_electrolytes_through_MD_simulations_improvement_of_the_Liion_conductivity_in__Li_PS__as_an_example.pdf"
   ]
  },
  "dem_mechanical_stresses_ssb_electrode_cycling": {
@@ -266,6 +274,14 @@
   "generated": "2026-08-06",
   "pdfs": [
    "260805_ECER-D-26-00097.pdf"
+  ]
+ },
+ "fang2022_argyrodite_transport_beyond_paddlewheel": {
+  "figures": 22,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "e5c9115c-87._Argyroditetype_advanced_lithium_conductors_and_transport_mechanisms_beyond_paddlewheel_effect.pdf",
+   "6fe46724-41467_2022_29769_MOESM1_ESM.pdf"
   ]
  },
  "fujimura2013_ml_conductivity_origin": {
@@ -895,6 +911,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/43. Phase stability, electrochemical stability and ionic conductivity of the Li10±1MP2X12 (M = Ge, Si, Sn, Al or P, and X = O, S or Se) family of superionic conductors.pdf"
+  ]
+ },
+ "ou2026_microstructural_multiscale_fast_ion_transport": {
+  "figures": 6,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "88._Microstructural_insights_into_fast_ion_transport_in_solid_electrolytes_via_multiscale_modeling.pdf",
+   "88._Sup_Microstructural_insights_into_fast_ion_transport_in_solid_electrolytes_via_multiscale_modeling.pdf"
   ]
  },
  "park2020_digitaltwin_assb_foundational": {
