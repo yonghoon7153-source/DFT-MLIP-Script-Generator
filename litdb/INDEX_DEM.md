@@ -2,7 +2,7 @@
 
 > **이 파일은 `tools/litdb/build_index.py` 가 생성한다 — 손으로 고치지 말 것.**
 > 논평·우선순위가 붙는 SE 축 인덱스는 `INDEX.md` (사람이 큐레이션).
-> digest 114편 · 생성 2026-09-03
+> digest 117편 · 생성 2026-09-09
 
 왜 따로 두나 — `INDEX.md` 는 argyrodite 전해질 축이라 접촉역학·MPM·건식전극
 digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱스에도 없었다**
@@ -52,7 +52,7 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `zunker2024_mdr_contact_model_partI` | 층(2.75) 발견 — 점착 탄소성 입자의 역학적으로 유도된 접촉모델, Part I: 차원축소법(MDR) — Zunker & Kamrin (J. Mech. Phys. Solids 2024) | contact-mechanics theory (MDR) + FEM(Abaqus) 검증 | 2026-08-25 | — |
 | `zunker2025_dem_large_deformation_compaction` | 실험검증된 대변형 압밀 DEM (Experimentally validated DEM for large deformation powder compaction: mechanically-derived contact model and screening of non-physical contacts) — Zunker, Dunatun | DEM (LAMMPS, MDR 접촉모델 다체 확장) + MPFEM(Abaqus) 검증 + 제약 tableti | 2026-08-25 | — |
 
-## 복합양극 미세구조 · percolation (18편)
+## 복합양극 미세구조 · percolation (20편)
 
 | slug | 논문 | 유형 | digest | 그림 |
 |---|---|---|---|---|
@@ -64,6 +64,8 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `jung2023_single_crystal_ncm_morphology` | 필독 / 우리-랩 — Customizing the Morphology and Microstructure of Single-Crystalline Ni-rich Layered Cathode Materials for All-Solid-State Batteries — Jung et al. (Chem. Eng. J. 2023) | exp (morphology / electrochemistry / mechanical) | 2026-06-26 | 🖼 7 |
 | `kim2024_carbon_volumetric_occupation_se_domain` | 필독 / 우리-랩 — Accelerated Degradation of ASSBs Induced through Volumetric Occupation of the Carbon Additive in the SE Domain — Kim, Park, Kang, …, Lee, Sun, Cho (Adv. Funct. Mater. 2 | exp | 2026-06-26 | 🖼 5 |
 | `kim2026_a3d_air_electrode_microstructure_transport` | Kim 2026 (Journal of Power Sources 686, 240471) — 디지털트윈 미세구조(GeoDict) → 유효물성 → 1D 전기화학(COMSOL)으로 A3D 공기극 수송 설계 | FEM·digital-twin | 2026-07-28 | — |
+| `kissel2026_mechanofusion_derived_cathode_composite_microstructures_scalable` | Mechanofusion-derived cathode composite microstructures with scalable mixed conducting matrix coatings for solid state batteries — Maximilian Kissel (Nature Communications 2026) | ⏳ 문서 대기 (exp|DFT|AIMD|MLIP|DEM|MPM|FEM|mixed) | 2026-09-03 | — |
+| `matthews2024_ptfe_nanofibril_network` | 무용매(dry-process) NMC 전극의 PTFE 나노-피브릴 binder 망 — 계층 microstructure 와 형성기전을 고해상 SEM 으로 풀다 — Matthews (Front. Energy Res. 2024) | exp (SEM/EDX + 전기화학 + EIS; 시뮬레이션 0) | 2026-09-04 | 🖼 9 |
 | `minnmann2021_jes_charge_transport_bottlenecks` | Minnmann 2021 JES — 복합 양극 전하수송 병목 정량화 (EIS-TLM) ★ 우리 porosity/σ_ion/τ_ion 앵커의 진짜 출처 | DEM | 2026-07-28 | 🖼 6 |
 | `minnmann2024_microstructure_porosity_visualization` | 복합 양극 미세구조·porosity → SSB 성능을 FIB-SEM 토모그래피로 시각화 — Minnmann (J. Electrochem. Soc. 2024, Editors' Choice) | exp | 2026-06-26 | 🖼 8 |
 | `nisar2024_dem_effective_electrical_conductivity_sps` | 부분소결 다공성 재료의 유효 전기전도도를 위한 DEM 저항망 모델 (sinter-neck conductance) — Nisar (Comp. Part. Mech. 2024) | DEM+RNM | 2026-06-26 | 🖼 10 |
@@ -75,7 +77,7 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `yoo2026_porosity_gradient_dry_electrode` | Yoo 2026 (Energy Storage Materials, ENSM 105331) — Porosity-구배 건식 흑연 전극 + 변형성 Primer Layer | MPM | 2026-07-28 | 🖼 7 |
 | `zhang2026_dryprocess_electrode_architecture_cell_level` | 건식(dry-process) 후막 NMC811 전극 — VGCF–PTFE 전단 커플링이 CBD 도전망 percolation 연결성을 17.1 → 61.2 % 로 올려 99 wt% 활물질 · >5 mAh cm⁻² · 4.70 V 를 연다 — CGMD(LAMMPS) + PFIB-SEM 3D + COMSOL 전자전류 + Tau | exp 주도 + CGMD (LAMMPS, Martini-3 유래 LJ 12-6; VGCF+PTFE 2성분 전 | 2026-08-19 | 🖼 42 |
 
-## 공정 — 캘린더링 · 압축 · 건식전극 (25편)
+## 공정 — 캘린더링 · 압축 · 건식전극 (26편)
 
 | slug | 논문 | 유형 | digest | 그림 |
 |---|---|---|---|---|
@@ -93,6 +95,7 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `koo2025_cnt_wrapped_sc_nca_dry_cathode` | Koo 2025 (Energy Storage Materials 78, 104270) — anti-solvent로 MWCNT 감싼 단결정 SC-NCA dry 양극 (99.6 wt%, 4.0 g/cm³) ★ #275(Joule 2026)의 2025 PRECURSOR / SISTER 논문 | FEM·digital-twin | 2026-07-28 | — |
 | `koo2026_swcnt_sheath_thick_electrode` | Koo 2026 (Joule 10, 102392) — 연속 SWCNT sheath가 두꺼운 dry 전극에서 초고에너지밀도 + 급속충전 (★ 우리 CBD SuperP-vs-VGCF 발견의 실험적 증명) | FEM·digital-twin | 2026-07-28 | 🖼 59 |
 | `lee2025_corolling_dryprocess_lpscl_ptfe` | Co-rolling dry-process로 만든 박막 LPSCl SSE — robust 계면 + 저압(2 MPa) 작동 — Lee (Nat. Commun. 2025) | exp | 2026-06-24 | 🖼 6 |
+| `lee2025_dual_fibrous_ptfe_dry_electrode` | Dual-fibrous PTFE (fibre + rope) 로 균일·후막 건식전극 — Kwon-Hyung Lee / Tae-Hee Kim / Gyujin Song (Energy Environ. Sci. 2025) | exp | 2026-09-04 | 🖼 33 |
 | `liu2025_dry_processing_high_energy_li_batteries_review` | 건식공정(DPT)으로 고에너지밀도 Li 전지 전극·SE막 만들기 — DPC / 분무 / 압출 / 바인더 섬유화(PTFE) 4대 기법 총설, LIB→ASSB 적용 — Liu et al. (Small 2025, 리뷰) | REVIEW (건식공정 총설; 실험·시뮬 *원저 아님* — 문헌 종합) | 2026-06-26 | 🖼 12 |
 | `lyu2025_3d_dem_drying_calendering_lib` | LIB 전극 구조진화를 건조+압연 한 번에 — 3D RVE DEM(AM + carbon-binder domain + 용매 + 입자접촉), 3-stage 건조법 + 압연→σ_e·두께방향 응력 — Lyu (Int. J. Electrical Power & Energy Systems 2025) | DEM (3D RVE, 건조+압연 연속; exp 검증) | 2026-06-26 | 🖼 10 |
 | `mun2025_dry_electrode_technology_assb_review` | 차세대 ASSB를 위한 건식전극(dry electrode) 기술 — 무용매 제조(dry-mixing·PTFE 섬유화·calendering·co-rolling) 종합 리뷰 — Mun (Advanced Materials 2025) | review (exp/process; no DEM/MPM/FEM) | 2026-06-26 | 🖼 8 |

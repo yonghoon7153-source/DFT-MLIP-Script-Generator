@@ -94,6 +94,7 @@
 | **[Ren26]** ⛔프리프린트·⚠할라이드 | **Yuan Ren\*** 외 8인(内蒙古科技大 Baotou) **Authorea 프리프린트(동료심사 전)**, DOI 10.22541/authorea.15005774/v1 — "**Regulation of the Lattice Dynamics of Li₂ZrCl₆ SEs via Low-Ion-Potential Element Doping**". **할라이드 Li₂₊ₓZr₁₋ₓMₓCl₆(M=Er/Nd)**. exp(볼밀 45 h·XRD/Rietveld·XPS·Raman·EIS·NCM811셀) + DFT/AIMD/NEB/**phonon VDOS**. σ_RT 0.227→**1.32/1.13 mS/cm**(≈5–6×)·NEB 0.658→0.370/0.417 eV·100 cyc 82.5 %. **🔑 우리 수확은 그들 결론이 아니라 *재분석* 3건**: ①**"ion potential" = Φ = Z/r (Shannon VI, pm⁻¹)** 정의 확정(Table S6 18계 **18/18 역산 일치**) → **`lee2024` inductive effect와 *같은 축·반대 부호·다른 인과경로***(그들 ref[29] JACS 2026이 곧 inductive effect인데 이 논문은 저-Φ 처방; **Bader/COHP 0건**) ②**서술자 붕괴**: Table S6 재분석 **R²=0.065·Spearman −0.089**(문헌 16쌍만 보면 −0.045), 같은 Φ=0.0781서 Ta 1.42 vs Nb 0.55(2.6×), **Li 함량이 더 나은 예측자(ρ +0.628)** ③**σ 격차=외삽 산물**: NE 역산으로 셀 72원자·N_Li=8(2+x)·**단일부피**·11/11 재현 확정 → D₀ 복원 → **Meyer–Neldel R²=0.93·E_MN 57 meV≈시뮬 kT**, **600–900 K 분산 2.3–3.6× → 300 K 외삽 29.6×**. ⚠ 본문 volcano ↔ SI Table S5 모순(Er 첫 도핑 σ **8.8× 하락**)·**Er x=0.25 이론/실험 방향 반대**·⟨ω⟩ 값 없음·E_hull/ESW/gap/탄성 0 | ✅ `papers/ren2026_li2zrcl6_low_ion_potential_doping.md` | exp + DFT/AIMD/NEB/phonon (**프리프린트**) |
 | **[Wu26]** ⭐⭐계면 산물품질 최신·★★방법론 반례 | Xin Wu/Lixin Liang/…/**Shaochun Tang\***/**Guangjin Hou\***(DICP)/**Haoshen Zhou\***/**Ping He\*** (**Nanjing University**) 2026 *Angew. Chem. Int. Ed.* **65**, e23225, DOI 10.1002/anie.202523225 (**VIP**) — "**High-Conductivity Argyrodite Electrolyte with Self-Passivating Stability for Single-Electrolyte ASSLBs**". **`Li₅.₅P₀.₉₄Ta₀.₀₆S₄.₅Cl₀.₇₅Br₀.₇₅`** (Cl/Br 이중 할로겐 ΔS_conf/R 2.08 최대 + P-자리 Ta⁵⁺ 6 %). σ **12 mS/cm**(30 °C)·Ea 0.32→0.28 eV·σ_e 9.7e-9→1.4e-9·CCD 0.8→2.4 mA/cm²·대칭셀 >1600 h·1200 cyc 81 %·**10×6 cm² 파우치 200 cyc 96.4 %**. **핵심 = 계면 XPS 비대칭 CEI LiTaO₃ / SEI 금속 Ta⁰**. exp 강 + **계산층(밴드갭 스크리닝·NEB·AIMD·ICOHP·COMSOL) 절반 붕괴** — AIMD **300 K 20 ps 1시드**, Ta DFT 셀 **+22.8 % 부피(실험 +1.03 %)·x≈0.25(명목 4배)**, U/스핀 0, COHP 부호규약 붕괴, 계면 열역학 계산 0건, 오차막대 0 | ✅ `papers/wu2026_ta_argyrodite_selfpassivating.md` (감사 §4·§11) | exp 주 + DFT/AIMD 보조 + COMSOL |
 | **[Ling26]** ⭐열수송 축 신규·★★계산감사 2호 | **Bingyue Ling**/**Kun Li**/Y.Meng/Z.Fang/K.Qian/**Xu Yang\***/G.Wang/B.Li/F.Kang/**Dong Zhou\*** (**칭화대 선전국제대학원** + Great Bay Univ. + UTS Sydney) 2026 *Angew. Chem. Int. Ed.* e1775824 — "**Dual Thermal Stabilization Toward Highly Safe and Durable ASSLMBs Based on Sulfide Electrolytes**". **전해질은 시판 `Li₆PS₅Cl` 그대로**(우리 comp1 과 같은 화학식), 바꾼 건 배치 두 곳: 음극쪽 **3층 `LPSC/LPSC–FG/LPSC`**(불소화 그래핀 10 wt%) + 양극쪽 도전재를 **산소공공 CuO₁₋ₓ** 로 교체. 본문 11 pp + **SI(.docx)** Fig S1–S31·Table S1–S4 전문. **DFT 는 산소흡착 막대 4개 + 계면 AIMD 10 ps 가 전부**(NEB/DOS/Bader/COHP 0건) | ✅ `papers/ling2026_dual_thermal_stabilization_fg_cuox.md` | exp 주도 + DFT/AIMD 보조 + COMSOL |
+| **[Cho25AL]** ⭐⭐⭐**실험 능동학습 축 신설**·cascade 재설계 1순위 | **Min Young Cho⁺**/**Kyunglim Pyo⁺**/B. D. Lee/H. Kim/J. Shin/J. Y. Seo/**Woon Bae Park\***/**Kee-Sun Sohn\*** (세종대 나노신소재 + 순천대 프린티드일렉트로닉스) 2025 ***Small* 21, 2410008** (DOI 10.1002/smll.202410008) — "**Discovering Multi-Compositional Li-Argyrodite SSEs via Experimental Active Learning**". **PSO 5라운드 × 20 실합성**(대리모델·acquisition **없음** — 목적함수가 실제 EIS σ). 두 공간(P-free Ge-Si-Sb-I / P-included P-As-Sb-Si-I-Br) + **공정변수(소성온도·냉각률)를 결정변수에 포함**. 최적해 **Li₆.₄₂₅Ge₀.₂₅Si₀.₃₇₅Sb₀.₃₇₅S₄.₈I₁.₂ = 7.45 (관행) / 13.02 (가압) mS/cm**, 200 사이클 86 % (Si-Sb 2원계 61 %). 검증 = VASP PBE + Coulomb 전수열거(4×10⁸ 배열) + AIMD 250 ps. 🔴 **±3 % 재현성 주장이 자기 `Table S1` 과 모순**(3↔4라운드 19쌍 재측정 median 39 %·max 94 %) | ✅ `papers/cho2025_multicompositional_argyrodite_experimental_active_learning.md` | **exp 닫힌고리 AL** + DFT/AIMD 보조 — 축 **A**(σ) · **J-9**(방법론) |
 | **[Ahn26CEJ]** 🔴**[우리 원고·미출판]**·자기감사 축 §L | D. Kim/J. Kang/T. Y. Lee(공동1저자 3인)/H. R. Shin/**Yonghoon An** (DFT 담당)/**Jong-Won Lee\*** (한양대 MSE + 배터리공학과 · SK On) 2026 ***Chem. Eng. J.* 투고본 (DOI 없음)** — "**Electrochemical precursor conversion for coupled control of Li nucleation and transport in anode-free all-solid-state batteries**". **AgNO₃–C–PVP 계면층**: PVP 카보닐–Ag⁺ 배위 → AgNO₃ 도메인 **53.4 ± 58.6 → 7.82 ± 2.61 nm**, 첫 충전 in-situ 전환 → **Ag–Li 자리 + Li₃N 계면상**. NCA anode-free 풀셀 **350 cy**(Ag–C 174 단락 · AgNO₃–C 125), 15 wt% 에서 **54.2 vs 35.4 %** (+18.8 %p). 계산 2갈래 = **1D 전기화학–크리프 모델**(`Fig. 3`) + **DFT Li adatom 확산**(`Fig. 5c–e`: Li₃N **0.118** vs LiC₆ **0.290 eV**, ≈59 %↓). ⛔ **물성 4축(A/B/C/D)에 넣지 않는다** — σ·ESW·탄성·밴드갭을 하나도 계산하지 않는다 | ✅ `papers/ahn2026_cej_agno3_pvp_li3n_anodefree.md` | **[우리 원고] 자기감사 전용** — exp 주도 + 연속체모델 + DFT(QE 2점 구속이완 · UMA-oc20 CI-NEB) |
 
 ---
@@ -205,6 +206,8 @@
 ## A. 이온전도도 — *Cl-rich가 빠르다 (전원 일치)*
 | 주장 | 출처 | 우리 (comp1→modelc) | 일치 |
 |---|---|---|---|
+| **★★ σ 값을 인용하기 전에 "EIS 프로토콜"을 먼저 물어야 한다 — 같은 시료가 1.3–1.9배 달라진다** — 한 논문 안에서 12 시료를 **두 프로토콜**로 다 쟀다: ①관행(295 MPa 성형 → **압력 빼고** 측정) ②가압([Zhou19] 방식, 측정 내내 가압). **digest 계산**(`Table S4` 12점 최소제곱): 단단한 P·Cl argyrodite(n=7) **기울기 1.181 · R² 0.986 · 배율 1.30–1.64**, 무른 P-free 요오드계(n=5) **기울기 2.010 · R² 0.776 · 배율 1.57–1.94**. 같은 A1 이 **7.45(관행) ↔ 13.02(가압)**. 저자 권고는 **관행 쪽**(무가압 구동 셀 현실) | **[Cho25AL]** `Fig. 3a–c` · `Table S4` (기울기·R²·배율은 **digest 재계산**, 논문은 "moderate/steeper" 정성 서술만) | 우리는 **실험 σ 가 없다** (MLIP-MD 의 D·Ea 만) — 대신 **문헌 σ 를 우리 표에 올릴 때 프로토콜 꼬리표를 강제**하는 근거로 쓴다 | ⚠ **비교 불가·규율로 사용.** 우리 절대 σ 인용 금지 규율(Nernst–Einstein Haven=1)과 같은 성격의 외부 근거 |
+| **★ P 를 버리고 Ge-Si-Sb 3원 + I 로 가면 σ 는 Cl-rich LPSCl 을 넘는다 (그러나 환원 열역학을 내준다)** — 같은 저자 손으로 잰 기준물 **Li₆PS₅Cl 1.77 · Li₅.₅PS₄.₅Cl₁.₅ 5.04** vs **Li₆.₄₂₅Ge₀.₂₅Si₀.₃₇₅Sb₀.₃₇₅S₄.₈I₁.₂ 7.45** (전부 관행 프로토콜, 동일 실험실·동일 펠릿 조건) | **[Cho25AL]** `Table 1` · `Table S4` | 우리 축은 **Cl-rich 가 빠르다**(comp1 → modelc, D 2.6×)까지다 — **I-rich P-free 계는 우리 계보 밖** | 🔶 **방향 일치, 계열 다름.** "Cl-rich 가 빠르다"는 우리 결론과 모순 아님(같은 실험실에서 Cl 1.0→1.5 가 1.77→5.04 로 오른다). 다만 **P-free 요오드계는 별도 계보**이므로 우리 comp1/modelc 표에 섞지 않는다 |
 | **★ 계면·표면 구역이 벌크보다 Li 가 *빠르다* — σ 게이트가 "손실만 보는 한쪽 필터"임을 드러내는 사례** — Li₆PS₅Cl **벌크 Ea 0.30 eV** ↔ **(001) 표면 slab-1(Li-rich) 0.23 · slab-2(S-rich) 0.28** ↔ **a-Li_xSi/LPSCl 계면 12개 전부 0.10–0.30 eV**. 반대로 **a-Li_xSi 표면은 벌크보다 느리다**(+0.02~+0.08 eV, Li 편석 때문) | **[Wang26IF]** `Fig. 6b` · `Fig. S23–S25` **범례 숫자**(figure-read 아님). 구역 정의 = **z 방향 2 Å(표면)/5 Å(계면), slab-2 만 3 Å/6 Å**, **80 ps 중 50 ps 이상 잔류한 Li 만** MSD 에 포함 | ⚠ **게이트 값 `D_rel_vs_host ≥ 0.90` 을 바꿀 근거는 아니다** — 이 논문은 *host 개질 전후*가 아니라 *같은 계의 벌크 vs 구역*을 비교한다(**분모가 다르다**). [Deng26PS] 의 **"σ 손실 7 % 허용 / 31 % 실패"** 같은 성능 경계는 이 논문에 **없다**(성능 데이터 자체가 0). ⇒ **게이트 0.90 유지.** 🔑 **다만 구조적 지적 1건**: 개질이 표면·계면을 만들어 D 를 *올릴* 수도 있는데 우리 게이트는 손실에만 벌금을 매긴다 ⇒ **"게이트는 손실 필터이지 이득 지표가 아니다"** 를 cascade 문서에 명시(T5). ✅ **방법론 소득**: 이 논문의 **구역별 MSD 분해**는 우리 파이프라인에 없다(우리는 셀 전체 평균) → **T1** |
 | **⚠ Ea 절대값 대비 — real difference 아님(method-dependent)** — [Wang26IF] LPSCl **0.30 eV**, σ_300K **0.65 mS/cm** | **[Wang26IF]** `Fig. 6a` · SI 식 (6)–(8) | 우리 **comp1 0.253 / modelc 0.224 eV** (MLIP-MD UMA-s-1p1, 단일 궤적) | ⚠ **나란히 인용 금지.** 방법이 4중으로 다르다 — **AIMD-PBE vs MLIP-UMA** · **Nosé vs Langevin** · **80 ps vs prod 200 ps** · **MSD 창 미기재 vs 2–50 ps 고정**. 게다가 그들의 Arrhenius 는 **588–1250 K → 300 K 외삽**(1/T 로 2–4배)이고 **시드·오차막대가 0** 이다. ⛔ **σ 절대값 0.65 mS/cm 은 인용 금지**(MD+Haven=1, 우리 규율). ⚠ 그들 SE 7종 중 **LGPS 0.33 eV > LPSCl 0.30**, **Li₄SnS₄ 0.26 < LPSCl** 라는 순위가 나오는데 **실험 대조는 LPSCl 1종만** 한다 — 우리 db 에 그 두 계 실험값이 없으니 **"대조 부재"까지만 적는다** |
 | **★ 표면 코팅이 σ 에 물리는 *허용 손실*의 실험 경계 — 우리 cascade σ 게이트의 외부 근거** — 같은 host(Li₆PS₅Cl) 에 poly(sulfate) 막 두께만 바꿔(DTD **0 / 0.05 / 0.1 / 0.4 M**, 12 h) 펠릿 σ **4.64 / 4.49 / 4.32 / 3.19 mS cm⁻¹** (**100 / 97 / 93 / 69 %**). 그런데 **10 C 1,000 사이클 성능은 0.1 M(144.1 mAh g⁻¹·92.1 %)이 최고**이고 **0.4 M 은 무너진다** ⇒ **σ 손실 7 % 는 허용, 31 % 는 실패**. 반응시간은 1→24 h 에서 σ 거의 불변(24 h 4.31 = 92.9 %) = **자기제한 반응** | **[Deng26PS]** `Fig. S4a,b,c` · `Fig. S5a,b,c` | ⛔ **값 이식 금지** — 그들은 **실험 펠릿 σ**, 우리는 **MLIP-MD D(600 K)**(comp1 3.09×10⁻⁶ / modelc 7.90×10⁻⁶ cm² s⁻¹) 라 단위·물리가 다르다. **이식 가능한 것은 값이 아니라 *상대 게이트*** — cascade 도핑 스크리닝의 σ 축을 "host 대비 D 감소 ≤10 %" 로 잡을 때의 **외부 실험 근거** | **△ 축이 다름 · 게이트 기준으로만 사용** |
@@ -1096,6 +1099,59 @@ preflight 이 알리바이로 쓰던 문구를 **철회한다.**
 논문 결론(*"최고 모델도 이상의 절반"*)은 유효하나, **2층 모델의 강스케일링은 본문 인상보다 나쁘다.**
 
 ---
+
+### J-9. ★★★ **실험 능동학습(AL) 축 — [Cho25AL] PSO 닫힌고리 vs 우리 cascade** (2026-09-09 신설)
+
+> **왜 이 블록이 있나**: 2026-09-09 litdb 219편 전수 대조(`kb/reviews/litdb_dopant_sota_2026_09_09.md`)의
+> 결론 하나가 *"능동학습 축이 219편에 없다"* 였다. 정확히는 **계산 내부 AL**(MTP 불확실도 query —
+> `kim2025_csp…`, `kim2026_li_argyrodite_sei_reactive_md`)만 있었고 **오라클이 실험인 닫힌 고리**가 없었다.
+> [Cho25AL] 이 그 구멍이다. 상세는 `papers/cho2025_multicompositional_argyrodite_experimental_active_learning.md`.
+>
+> ⚠ **먼저 기대치 교정**: 이 논문의 "active learning" 에는 **대리모델도 acquisition function 도 없다.**
+> 저자 본인이 *"can also be applied in **non-machine learning** contexts"*, *"PSO-assisted experimentation"*
+> 이라고 쓴다. 우리가 배울 것은 **통계가 아니라 루프 구조**다.
+
+| 항목 | **[Cho25AL]** | 우리 cascade | 판정 |
+|---|---|---|---|
+| **대리모델** | ⛔ **없음** (학습되는 회귀기 0개) | ridge + 상호작용 distillation | — 범주 다름 |
+| **acquisition** | **PSO 속도식** = w·관성 + c₁·(전역최고−x) + c₂·(개인최고−x). ⛔ **w·c₁·c₂ 값 미공개** | Pareto front 선별(1회) | 🔴 **양쪽 다 재현 불가 요소 보유** |
+| **배치·라운드** | **20 × 5 라운드 × 2 공간 = 200 실합성** (+예비 30 +단순화 6) | **273 후보 1회 통과**(라운드 개념 없음) | 🔴 우리는 **열린 고리** |
+| **중단 조건** | **예산 소진** (수렴 아님) — *"terminated after the fifth round because of the high-cost"* | 없음 | — |
+| **오라클** | **실제 합성 + EIS** (라운드당 20회) | **UMA MLIP-MD** (설계당 수 시간) | ⭕ **우리 오라클이 100배 싸다** — 라운드를 못 돌 이유가 없다 |
+| **오라클 잡음 계측** | ⭕ **설계로 박음** — 엘리트 복제본을 라운드마다 재합성, **>5 % 어긋나면 그 라운드 전체 재측정** | 🔶 modelc 600 K **3-seed 0.197±0.032** 일회성 | ⭕ **이들이 낫다** (규칙이 루프 안에 있다) |
+| ↳ **그 계측의 실제 결과** | 🔴 **본문 "±3 % 이내" ↔ `Table S1` 3↔4라운드 19쌍 재측정 median 39 % · max 94 %**(3-18 4.02→0.23) | — | 🔴 **이들 실패 — 규칙을 발동시키고 발동 안 했다고 썼다** |
+| **랜덤 대조군** | 🔶 **1라운드가 실측 랜덤 표본**(n=20, 같은 공간) — 병렬 팔은 없음 | ⛔ 없음(사후 순열검정만) | 🔶 **이들이 조금 낫다** |
+| **enrichment** | ⛔ **논문 미보고.** digest 재계산: hit(σ≥3) **1/20 → 15/20 = 15×**, **공정 고정 시 1/6 → 15/20 = 4.5×** | ⭕ ordering **3.35× (p=0.010)** · discovery **1.22× (p=0.426)** | ⭕ **우리가 숫자를 냈다** — 단 ⛔ **두 수를 같은 표에 놓지 마라** (이들 것은 자기상관 시계열 앞뒤 비교, 우리 것은 독립 순열검정) |
+| **prospective 검증** | ⭕⭕ **루프 전체가 prospective.** 예측→합성→측정이 5번 닫혔다 | ⛔ **0/270** | ⭕⭕ **이들이 압도적** |
+| **group-out CV / p-값 / estimand 카드** | ⛔ 전부 없음 | ⭕ LODO −0.1805 · 순열 p · `cascade_d_rel_estimand_2026_09_08.json` | ⭕ **우리가 낫다** |
+| **설계변수에 "공정" 포함** | ⭕ **소성온도·냉각률** — 5라운드 20/20 이 **450 °C+급랭**으로 수렴 | ⛔ 조성만 (셀·배열·시드는 잡음 취급) | ⭕ **이들이 낫다 — 우리 대응물은 셀·배열·시드다** |
+| **무질서 처리** | **Coulomb(Ewald) 전수열거 → 하위 30 → DFT 재채점 → 최저 1개**. A3 는 **4.06×10⁸ 배열** 전수. 도구 = Okhotnikov 2016 `supercell` | 실험 점유 decorate / 단일 배열 | 🔶 **방법은 훔칠 가치 있음.** ⚠ 단 **최종 MD 는 배열 1개** = 우리와 같은 병 |
+| **MSD 회귀 창** | **250 ps 전체, 원점 포함 단일 회귀**(Deng 2017). 5×50 ps 분할(He 2018)도 해봤으나 *"고온 분산이 크다"*고 기각 | **2–50 ps 고정 창 + 자유절편** | 🔴 **정면 반대.** `Fig. S5` 600 K 곡선에 **평탄부·계단**이 보인다 → 전체 회귀는 방어 곤란. 단 **우리 창이 짧아 분산은 우리가 크다** = 편향/분산의 다른 지점 |
+| **데이터 공개** | ⭕ SI 에 **200 엔트리 전수**(조성·공정·σ) + PSO 코드 GitHub | ⭕ CSV + provenance + sha256 | ⭕ 양쪽 다 |
+
+> ### 🔑 판정
+> **우리는 정직한 평가를 가졌고, 이들은 닫힌 고리를 가졌다.**
+> 부러워할 것은 이들의 통계가 아니라 *"예측을 실행해서 확인까지 갔다"* 는 사실 하나다.
+> 그리고 이들의 실패(±3 % 주장 ↔ SI 39 %)가 우리에게 주는 교훈은 **"잡음 계측 장치를 넣는 것만으로는
+> 부족하고, 발동 이력을 로그로 남겨야 한다"** 이다.
+>
+> ### 🛠 우리 좌표로 옮기면 (cascade 재설계 후보 — 아직 판정 아님)
+> - **① host 재측정을 라운드마다.** `D_rel = D*(design)/D*(host)` 는 이미 host 를 분모에 두므로,
+>   라운드마다 host 를 **새 시드로 다시 돌리는 비용은 MD 1~3개**다. 그것이 우리의 "엘리트 복제본" 이다.
+> - **② 1라운드를 의도적으로 랜덤 20개로.** 그러면 랜덤 팔이 *실측으로* 생기고, 이후 모든 라운드의
+>   hit rate 를 거기에 나눌 수 있다 — 우리 `discovery 1.22×, p=0.426` 의 약점(랜덤 팔 부재)이 사라진다.
+> - **③ 대리모델을 빼고 MD 를 오라클로 직접.** 이 논문은 **surrogate 없이** 4.5× 를 냈다.
+>   우리 예측기 LODO −0.18 은 **AL 을 막는 이유가 아니다** — surrogate 를 쓰면 UMA 편향이 *학습·증폭*되지만,
+>   오라클 직접 방식에서는 편향이 **상수로 남는다** (`kb/reviews/litdb_dopant_sota_2026_09_09.md` §안 C ① 에 대한 부분 답).
+> - **④ 설정을 설계변수로 승격.** 그들의 소성온도 = 우리의 셀·배열·시드. 그들 이득의 절반 이상이 거기서 왔다.
+>
+> ### ⛔ 이 블록에서 우리 4축으로 넘기면 안 되는 것
+> - **AIMD σ₃₀₀K 15.79/15.49/11.41 mS/cm** — 250 ps 전체 회귀 + 1200 K 포함 + 단일 궤적 + 조성 근사(A1_calc ≠ A1).
+>   우리 D·Ea 와 같은 표 금지.
+> - **ESW 0.022 V / 산화 2.025 V / 환원 2.003 V** — 경쟁상 86종 중 **49종이 GNoME 가상구조**다.
+>   우리 2.256/1.242 V 와 **0.2 V 차이**로 읽으면 안 된다 (상 집합이 다르다).
+>   🔶 다만 **"P → Sb/Ge/Si 치환은 환원 열역학 창을 통째로 내준다"** 는 방향성은 살아 있다 — §E 후보.
+> - **band gap** — `Fig. 4a` **figure-read ≈ 2.2 eV**, 논문에 수치 없음. "둘 다 wide-gap" 이상 금지.
 
 ---
 

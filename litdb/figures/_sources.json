@@ -123,6 +123,13 @@
    "★ 랩실 논문/07. Conflicting roles of conductive additives in controlling cathode performance in all-solid-state batteries.pdf"
   ]
  },
+ "cho2025_multicompositional_argyrodite_experimental_active_learning": {
+  "figures": 7,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "29b611c5-75._Discovering_MultiCompositional_LiArgyrodite_SolidState_Electrolytes_via_Experimental_Active_Learning.pdf"
+  ]
+ },
  "choi2025_mlip_cu_taxn_interfacial_adhesion": {
   "figures": 15,
   "generated": "2026-08-05",
@@ -323,6 +330,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DEM 논문/10. A Finite Element Study of Elasto-Plastic Hemispherical Contact Against a Rigid Flat.pdf"
+  ]
+ },
+ "jain2026_ml_pipelines_solid_state_electrolyte_design": {
+  "figures": 12,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "386c01ae-77._Machine_learning_pipelines_for_the_design_of_solidstate_electrolytes.pdf",
+   "4b4d549e-77._Sup_Machine_learning_pipelines_for_the_design_of_solidstate_electrolytes.pdf"
   ]
  },
  "jun2022_argyrodite_ion_cage_size_descriptor": {
@@ -729,6 +744,13 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DFT 먹인 논문/22. High performance P-based argyrodite sulfide electrolytes enabled by Sb-based argyrodite doping for all-solid-state lithium metal batteries†.pdf"
+  ]
+ },
+ "ma2025_active_learning_electrolyte_solvent_screening_anodefree": {
+  "figures": 5,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "e5b5751a-76._Active_learning_accelerates_electrolyte_solvent_screening_for_anodefree_lithium_metal_batteries.pdf"
   ]
  },
  "matthews2024_ptfe_nanofibril_network": {
