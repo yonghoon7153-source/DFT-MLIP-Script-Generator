@@ -15,6 +15,9 @@
 
 > ⚠ **서지 정정**: 요청 메모의 DOI `s41467-022-29769-x` 는 틀렸다. **표지·각주 실물은 `-5`** 다
 > (`https://doi.org/10.1038/s41467-022-29769-5`, MOESM 파일명 `41467_2022_29769_MOESM*`와 일치).
+>
+> 📝 **패널 표기 규약**: 원논문은 패널을 **대문자**(A, B, C…)로 인쇄한다. 이 digest 는 **소문자**(`Fig. 1c`)로 적는다 —
+> webapp 의 그림 자동링크(`webapp/static/js/figref.js`)가 소문자 패널만 인식하기 때문이다. 가리키는 패널은 같다.
 
 ---
 
@@ -58,7 +61,7 @@ argyrodite 골격의 할로겐 자리를 **가벼운 1가 클러스터 음이온
 
 ## 3. 핵심 물성 (수치 총정리)
 
-### 3a. 전도 지표 — `Fig. 1C` 표 (원문 그대로)
+### 3a. 전도 지표 — `Fig. 1c` 표 (원문 그대로)
 
 | Phase | σ₃₀₀K (mS/cm) | ε_a (eV) |
 |---|---|---|
@@ -68,11 +71,11 @@ argyrodite 골격의 할로겐 자리를 **가벼운 1가 클러스터 음이온
 | **Li₆.₂₅PS₅.₂₅Cl₀.₇₅** (기준) | **14** | **0.210** |
 
 - 괄호는 통계분산 해석(§3c)에 근거한 불확도. **Cl 기준계와 양론 BH₄ 계에는 불확도가 없다** — 저자가 그 두 계에는 RSD 분석을 안 했다.
-- σ₃₀₀K 는 **직접 잰 값이 아니라 Arrhenius 외삽**이다 (Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅ 만 300 K 점이 실제로 있다 — `Fig. 1C` figure-read).
+- σ₃₀₀K 는 **직접 잰 값이 아니라 Arrhenius 외삽**이다 (Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅ 만 300 K 점이 실제로 있다 — `Fig. 1c` figure-read).
 - **⚠ 본문 수치 슬립**: "14 mS/cm 는 양론 Li₆PS₅Cl 의 2×10⁻³ mS/cm 보다 **four orders of magnitude 이상** 높다" 라고 썼는데
   14/0.002 = 7000 = **3.85 자릿수**다. 네 자릿수가 아니다. (원 출처는 ref 8 = Deng 2017.)
 
-### 3b. `Fig. 1C` Arrhenius 판독 (**figure-read ≈**, 축: log D (cm²/s) −9…−4 vs 1000/T (1/K) 0.5…4.0)
+### 3b. `Fig. 1c` Arrhenius 판독 (**figure-read ≈**, 축: log D (cm²/s) −9…−4 vs 1000/T (1/K) 0.5…4.0)
 
 | 계 | 마커 | 실제로 찍힌 온도점 (figure-read) | log D 판독 |
 |---|---|---|---|
@@ -105,7 +108,7 @@ inset 의 MSD(Å²) 4곡선(250 ps 를 4등분한 독립구간)은 50 ps 에서 
 
 | 항목 | Li₆POS₄(SH) | Li₆PS₅(BH₄) | 비고 |
 |---|---|---|---|
-| 격자 (삼사정, 원시셀) | a 5.9662 / b 6.7378 / c 6.9147 Å; α 117.3107 / β 88.072 / γ 90.4551° | a 6.9678 / b 7.016 / c 7.0769 Å; α 61.9646 / β 117.5361 / γ 118.4223° | `Fig. 1A,B`. **바닥상태는 입방이 아니라 삼사정** — 할로겐 argyrodite 도 마찬가지(ref 11) |
+| 격자 (삼사정, 원시셀) | a 5.9662 / b 6.7378 / c 6.9147 Å; α 117.3107 / β 88.072 / γ 90.4551° | a 6.9678 / b 7.016 / c 7.0769 Å; α 61.9646 / β 117.5361 / γ 118.4223° | `Fig. 1a,b`. **바닥상태는 입방이 아니라 삼사정** — 할로겐 argyrodite 도 마찬가지(ref 11) |
 | 포논 | 허수모드 없음 (`Fig. S2`) | 허수모드 없음 | DFPT. 격자동역학적 안정 |
 | **밴드갭 (HSE06)** | **4.37 eV** | **3.47 eV** | 할로겐 argyrodite(≤3.40 eV)보다 넓다 (`Fig. S3`) |
 | 생성에너지 (Li₃PS₄+Li₂S+LiY → Li₆PS₅Y) | **+16 meV/atom** | **+18 meV/atom** | 삼사정 Li₆PS₅Cl 은 **+29 meV/atom** — 셋 다 이 분해에 대해 **준안정**(양수) |
@@ -129,16 +132,16 @@ inset 의 MSD(Å²) 4곡선(250 ps 를 4등분한 독립구간)은 50 ps 에서 
 
 ---
 
-## 4. 재료 & 구조 — argyrodite 골격을 어떻게 개조했나 (`Fig. 1`, `Fig. 2A,B`)
+## 4. 재료 & 구조 — argyrodite 골격을 어떻게 개조했나 (`Fig. 1`, `Fig. 2a,b`)
 
 argyrodite Li₆PS₅X 의 골격은 두 부분이다.
-- **황 중심 블록(sulfur-block)**: S²⁻ 하나를 Li 6개가 일그러진 팔면체로 둘러싼 SLi₆ 단위 (`Fig. 2A` 의 노란 팔면체).
+- **황 중심 블록(sulfur-block)**: S²⁻ 하나를 Li 6개가 일그러진 팔면체로 둘러싼 SLi₆ 단위 (`Fig. 2a` 의 노란 팔면체).
 - 그 블록들 **사이**에 앉는 **X⁻**(원래 할로겐) — 여기에 클러스터를 넣었다.
 
-**Li₆POS₄(SH)** (`Fig. 2A`): SH⁻ 의 **S 쪽 끝**이 이웃한 3개 sulfur-block 에서 온 Li 4개가 만드는 직사각 평면의 중심에 앉는다.
+**Li₆POS₄(SH)** (`Fig. 2a`): SH⁻ 의 **S 쪽 끝**이 이웃한 3개 sulfur-block 에서 온 Li 4개가 만드는 직사각 평면의 중심에 앉는다.
 바닥상태에서 **모든 SH 가 방향적으로 정렬(orientationally ordered)** 돼 있다.
 
-**Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅** (`Fig. 2B`): BH₄⁻ 또는 **도핑된 황 S_d** 가 각각 4개의 sulfur-block 에 사면체 배위된다.
+**Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅** (`Fig. 2b`): BH₄⁻ 또는 **도핑된 황 S_d** 가 각각 4개의 sulfur-block 에 사면체 배위된다.
 2×2×2 셀의 **BH₄ 자리 8개 중 2개를 S²⁻ 가 차지**한다 (S²⁻ 반경 1.70 Å 가 BH₄⁻ 반경 — Br⁻ 1.82 와 I⁻ 2.06 사이 — 과 비슷하기 때문).
 양론 Li₆PS₅(BH₄) 와 달리 **BH₄ 방향 무질서 + 클러스터/S_d 주변 Li 위치 무질서**가 약하게 있다.
 
@@ -146,7 +149,7 @@ argyrodite Li₆PS₅X 의 골격은 두 부분이다.
 > **"할로겐 자리에 S²⁻ 를 넣은 S-rich"** 조성이다 (Cl 0.75 < 1). 우리 **modelc = Li₅.₄PS₄.₄Cl₁.₆** 는
 > **"S 자리에 Cl 을 넣은 Cl-rich"** 다 (Cl 1.6 > 1). Fang 이 "핵심 도관"이라고 지목한 **S_d(할로겐 자리의 S²⁻)는 우리 modelc 에 아예 없다.**
 
-### 4a. Li 확률분포함수 (`Fig. 2C`) — 계층적 확산의 직접 증거
+### 4a. Li 확률분포함수 (`Fig. 2c`) — 계층적 확산의 직접 증거
 
 800 K MD 스냅샷에서 Li 존재확률 등가면.
 - **윗줄 (P₀ = 1.8×10⁻⁵/Bohr³)**: 세 계 모두 **블록 안에 갇힌 도넛(고리) 모양** — 블록 내 확산(intra)만 보인다.
@@ -167,15 +170,15 @@ argyrodite Li₆PS₅X 의 골격은 두 부분이다.
 CALYPSO PSO. 클러스터를 **하나의 '원소'처럼** 다뤄(기체상 기하를 Z-matrix 내부좌표로 고정) 4종 성분(Li, P, S, BH₄)으로 시행구조 생성.
 세대당 30–40 구조, 최저에너지 60 % 를 다음 세대로, **10–30 세대** 후 최저구조가 안 바뀌면 종료.
 
-### 5.2 전도도·활성화에너지 (`Fig. 1C`)
+### 5.2 전도도·활성화에너지 (`Fig. 1c`)
 
 §3a·3b 참조. 저자가 신뢰성을 주장하는 근거는 **두 가지뿐**이다:
 1. **Li₆.₂₅PS₅.₂₅Cl₀.₇₅ 의 σ·Ea 가 같은 방법을 쓴 문헌(ref 8 = Deng 2017)과 "identical"** 하다.
    ⚠ 이것은 **방법 내부 재현**이지 실험과의 일치가 아니다. 실험 Li₆PS₅Cl 은 보통 1–3 mS/cm 인데 이 계산은 양론 Li₆PS₅Cl 을
    **2×10⁻³ mS/cm**(ref 8)로 본다 — 즉 **양론 결정을 3자릿수 과소평가**하는 계보 위에 있다 (무질서·공공이 없는 완전정렬 셀의 고전적 함정. `deklerk2016` digest 와 같은 진단).
-2. Arrhenius 선형성이 좋다 (`Fig. 1C` 실물에서도 4 계 모두 선 위에 잘 앉는다).
+2. Arrhenius 선형성이 좋다 (`Fig. 1c` 실물에서도 4 계 모두 선 위에 잘 앉는다).
 
-### 5.3 확률분포 (`Fig. 2C`) — §4a
+### 5.3 확률분포 (`Fig. 2c`) — §4a
 
 ### 5.4 집단성 — Haven 비와 van Hove ★★
 
@@ -279,7 +282,7 @@ Li 가 블록을 빠져나온 뒤 SH 클러스터에 **강하게 붙잡혀 수�
 
 ⚠ 저자 자인: **선택적 이완 + 고정 부피** 때문에 **장벽이 크게 과대평가**된다. 정량이 아니라 정성 결론용.
 
-**`Fig. 6B` figure-read ≈ (Li₆POS₄(SH), 에너지 eV vs 반응좌표 0–5 au)**
+**`Fig. 6b` figure-read ≈ (Li₆POS₄(SH), 에너지 eV vs 반응좌표 0–5 au)**
 
 | 경로 | (F) 고정 | (M) 클러스터 이완 | 감소 |
 |---|---|---|---|
@@ -293,7 +296,7 @@ Li 가 블록을 빠져나온 뒤 SH 클러스터에 **강하게 붙잡혀 수�
 ⇒ 본문의 "최대 80 % 감소" 는 보수적 표현이고, 내 판독으로는 P1 에서 **90 % 가까이** 내려간다.
 ⇒ **P1·P2(=intra)가 가장 낮다**는 것이 billiard-ball 의 전제다 (본문 "order of 10 meV" — 내 판독으로는 50–150 meV 쪽에 가깝다. **본문과 그림이 어긋나는 지점**).
 
-**`Fig. 6C` figure-read ≈ (active 회전, 에너지 vs 각도 0–300°)**
+**`Fig. 6c` figure-read ≈ (active 회전, 에너지 vs 각도 0–300°)**
 - **P1(Ext)**: 0° ≈0.80 → **125° 부근 ≈0.22 (−73 %)** → **235° 부근 ≈1.10**.
   ⚠ 본문은 "125° 에서 약 70 % 감소, 230° 에서 약 80 % 증가" 라고 쓴다. 감소분은 내 판독과 맞지만
   **증가분은 내 판독으로 +40 % 정도**다. 판독 오차일 수 있으나 그대로 적어 둔다.
@@ -302,13 +305,13 @@ Li 가 블록을 빠져나온 뒤 SH 클러스터에 **강하게 붙잡혀 수�
 - **(Diff) 파선**(출발–도착 자리 에너지차): P5(Diff) 가 −0.12 → +0.35 → **−0.95(≈255°)**, P2(Diff) 는 −0.5 까지.
   ⇒ **능동 회전 하나로 자리 에너지차가 ~1 eV 규모로 뒤바뀐다.**
 
-**`Fig. 6E` figure-read ≈ (Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅)**
+**`Fig. 6e` figure-read ≈ (Li₆.₂₅PS₅.₂₅(BH₄)₀.₇₅)**
 - P5(F) ≈1.28 → P5(M) ≈0.50
 - **P1(F) ≈0.63 → P1(M) ≈ −0.21** (내리막이 된다) · **P1(PM)**(B 고정, H 만 이완) ≈ −0.05
   ⇒ **B 를 고정하면 이득이 절반 이하로 준다 = 클러스터의 병진 자유도가 responsive 효과의 상당 부분**이라는 직접 증거
 - P2 ≈0.05 / P3 ≈0.18→0.10 / P4 ≈0.21→0.02 — **P2(두 BH₄ 사이)·P3·P4(S_d 주변)가 가장 평탄** ✅ 본문과 일치
 
-**`Fig. 6F` figure-read ≈ (BH₄ 능동회전, C2 0–90° / C3 0–150°)**
+**`Fig. 6f` figure-read ≈ (BH₄ 능동회전, C2 0–90° / C3 0–150°)**
 - **C2-P5(Ext)**: 0° 1.27 → **28° 부근 3.13 eV(!)** → 75° ≈0.32. 능동회전이 이 경로를 **완전히 막을 수도** 있다.
 - **C3-P5(Ext)**: 1.27 → 0.72(75°) → 1.53(90°)
 - **C2-P3·C3-P3 (흑·연두)**: **0 근처 완전 평탄** ← BH₄ 와 무관한 S_d 경로는 회전에 **면역** ✅ (본문 주장 그대로)
@@ -450,7 +453,7 @@ paddle-wheel 이라면 **뚜렷한 회전이 Li 변위를 선행**해야 한다.
 **(iii) 구조/경로 논증 (`Fig. 6`)**
 NEB 로 두 성분을 분리하니 —
 - **responsive**(Li 가 지나갈 때 클러스터가 이완): **항상 장벽을 낮춘다** (최대 80 %, 내 판독 90 %)
-- **active**(열적 자발 회전): **경로에 따라 올리기도 내리기도** 한다 (`Fig. 6C` P1 은 각도에 따라 −73 %~+40 %)
+- **active**(열적 자발 회전): **경로에 따라 올리기도 내리기도** 한다 (`Fig. 6c` P1 은 각도에 따라 −73 %~+40 %)
 ⇒ paddle-wheel 이 상정하는 "회전 = 전도 촉진" 은 **active 성분에 대해 참이 아니다.**
 
 **⚠ 그리고 저자가 스스로 인정하는 한계**: SH 계에서는 상관이 그나마 보이지만(S 전하 −0.9 e, 무겁고 회전자유도가 작아서),
@@ -484,10 +487,10 @@ Fang 의 축은 **"약하게 상호작용하는 큰 음이온을 할로겐 자�
 | 1 | **각시간상관 C(t) = ⟨u(t)·u(t+t′)⟩** (`Fig. S5`) | ✅ **이미 도구가 있다** | `tools/ionic/anion_rotation_acf.py` (2026-08-28 완성, selftest 20건, **kb/open_items T16 — 돌리는 것만 남음**) |
 | 2 | **van Hove G_d(r,t)** (`Fig. S4`) | ✅ **있다** | `tools/ionic/run_vanhove_sweep.sh` |
 | 3 | **Haven 비 H_R = D\*/D_σ** | ✅ **이미 쟀다** | `tools/ionic/msd_diffusive_check.py --haven` → `db/properties/haven_ratio_measured_2026_09_07.json` (⚠ `citable:false`) |
-| 4 | **Li 확률분포 등가면** (`Fig. 2C`) | ✅ 있다 | `tools/ionic/li_density_cube.py` |
+| 4 | **Li 확률분포 등가면** (`Fig. 2c`) | ✅ 있다 | `tools/ionic/li_density_cube.py` |
 | 5 | **장수명·대변위 사건 검출 Eq.(1)** (`Fig. 3`) | ⚠ **부분** — 홉 통계는 있으나 (t_p, t_a, a) 3-파라미터 필터는 없다 | `tools/ionic/aimd_jump_stats.py`, `cage_jump_descriptors.py` 를 확장하면 된다 (새 파일 금지 규율상 **확장이 정답**) |
 | 6 | **경로별 NEB (F) vs (M) 선택적 이완 대조** | ⚠ **가능하지만 우리 스택에선 비쌈** | 우리는 QE 기반이고 NEB 상용화가 안 돼 있다. UMA 로 대체하면 싸지만 MLIP 로 선택적-이완 NEB 를 하는 것은 **검증되지 않은 경로** |
-| 7 | **손으로 돌린 active 회전 스캔** (`Fig. 6C,F`) | ⚠ 가능하나 우리 계엔 회전할 클러스터가 **PS₄³⁻ 뿐** — 그건 이 논문에서도 "안 돈다"고 나온다 | 도핑계에 다원자 음이온이 들어가야 의미가 생긴다 |
+| 7 | **손으로 돌린 active 회전 스캔** (`Fig. 6c,f`) | ⚠ 가능하나 우리 계엔 회전할 클러스터가 **PS₄³⁻ 뿐** — 그건 이 논문에서도 "안 돈다"고 나온다 | 도핑계에 다원자 음이온이 들어가야 의미가 생긴다 |
 
 **⇒ 질문 7 의 답**: **1·2·3·4 는 지금 당장, 재계산 0 으로 기존 궤적에서 낼 수 있다.** 5 는 도구 확장, 6·7 은 새 인프라.
 가장 값싼 재현은 **① 회전 ACF(T16)** 다 — 우리 계엔 PS₄³⁻ 밖에 없으니 *"우리 것도 안 돈다"* 를 확인하는 **음성 대조**가 되고,
@@ -537,9 +540,9 @@ Fang 의 축은 **"약하게 상호작용하는 큰 음이온을 할로겐 자�
 
 | Fig | 내용 (무엇을 보여주나) | 우리 활용 |
 |---|---|---|
-| 1A,B | Li₆POS₄(SH)·Li₆PS₅(BH₄) 의 최적화 2×2×2 바닥상태 구조 + 격자상수(삼사정) | argyrodite 바닥상태가 **입방이 아니라 삼사정**이라는 사실 — 우리 무질서 배열 논의의 배경 |
+| 1a,b | Li₆POS₄(SH)·Li₆PS₅(BH₄) 의 최적화 2×2×2 바닥상태 구조 + 격자상수(삼사정) | argyrodite 바닥상태가 **입방이 아니라 삼사정**이라는 사실 — 우리 무질서 배열 논의의 배경 |
 | **1C** | **σ₃₀₀K·Ea 표 4행 + log D vs 1000/T Arrhenius (4계)** | ★ **Li₆.₂₅PS₅.₂₅Cl₀.₇₅ = 14 mS/cm·0.210 eV** 가 우리 modelc 대조 기준. **figure-read D(600 K) ≈ 5×10⁻⁶ cm²/s**. Cl 계는 700/600/500 K **3점 외삽**이라는 취약점도 여기서 읽힌다 |
-| 2A,B | sulfur-block(SLi₆ 팔면체) 골격 + SH / BH₄+S_d 의 배위 | **S_d = 할로겐 자리의 S²⁻** 라는 개념 정의. 우리 Cl-rich 와 방향이 반대임을 보여 주는 그림 |
+| 2a,b | sulfur-block(SLi₆ 팔면체) 골격 + SH / BH₄+S_d 의 배위 | **S_d = 할로겐 자리의 S²⁻** 라는 개념 정의. 우리 Cl-rich 와 방향이 반대임을 보여 주는 그림 |
 | **2C** | 800 K Li 확률분포 등가면 — 윗줄 P₀(블록 내), 아랫줄 저등가면(블록 간). 등가면 **0.17/0.40/0.17×P₀** | ★ 우리 `li_density_cube.py` 산출물과 **같은 종류의 그림**. ⚠ 세 패널 등가면이 달라 **눈 비교 금지**, 숫자만 비교 |
 | **3** | Eq.(1) 로 검출한 장수명·대변위 사건 raster (y=Li 인덱스, x=0–60 ps), 좌=엄격 우=a 1.0 Å | ★ 우리 `aimd_jump_stats.py` 확장 시 **목표 그림 형식**. (t_w,t_p,a) 3-파라미터 정의가 여기 다 있다 |
 | **4** | SH 계 Event 1–3: Li 변위 시계열 vs 상대 SH 의 각도·병진 (패널 A–I) | ★ **paddle-wheel 부정의 1차 증거.** ⚠ 패널 B 는 회전이 Li 점프를 **선행**한다 — 반례가 그림 안에 있다 |
@@ -592,7 +595,7 @@ Fang 의 축은 **"약하게 상호작용하는 큰 음이온을 할로겐 자�
 - 그러나 **Supplementary Note 2 는 SH⁻ 의 C2 회전(24 중간상)만** 기술하고, Videos 1–3 을 그 계산의 산물로 인용한다.
 - 그리고 **이 계의 바닥상태에는 OH⁻ 가 없다** — 본문 §Results 가 Li₆PS₅(OH) 는 Li₆POS₄(SH) 로 재배열되고 OH 배열은 140 meV/f.u. 더 높다고 못박는다.
 - **실물 판독**: 프레임 안에 **노란 S + 분홍 H 로 그려진 비강조 SH 막대들이 여럿 보인다** ⇒ 이 구조는 **SH 를 가진 Li₆POS₄(SH)** 다.
-- 또 MOESM3 의 Video 1 범례는 "O in **magenta**" 라고 하는데 `Fig. 1A` 캡션은 "O in **red**" 다 — **범례끼리도 어긋난다.**
+- 또 MOESM3 의 Video 1 범례는 "O in **magenta**" 라고 하는데 `Fig. 1a` 캡션은 "O in **red**" 다 — **범례끼리도 어긋난다.**
 
 ⇒ **우리 판정: MOESM3 의 Video 1 설명 중 "OH" 는 오기이고, 실제 내용은 SH⁻ 의 C2 회전으로 보인다.**
    (⚠ 이것은 **우리 판독에 근거한 추정**이다. 저자 정오표를 확인한 것이 아니다.)
@@ -690,7 +693,7 @@ Fang 이 "핵심 도관"이라고 지목한 **S_d = 할로겐 자리에 앉은 S
 
 **우리 판정 (digest 판단)**: **shin2026 의 증거가 더 강하다.**
 - shin 은 **개입 실험(회전을 구속하고 D 가 떨어지는지)** 을 했다 — 인과 검정이다.
-- Fang 은 **관찰만** 했고, 그것도 눈으로 했으며, 자기 그림(`Fig. 5A,D`)에서 상관이 안 보인다고 스스로 적었다.
+- Fang 은 **관찰만** 했고, 그것도 눈으로 했으며, 자기 그림(`Fig. 5a,d`)에서 상관이 안 보인다고 스스로 적었다.
 - 다만 **두 결론이 반드시 모순인 것은 아니다**: Fang 의 responsive 성분(=Li 가 지나갈 때 클러스터가 비켜 줌)은
   **회전을 구속하면 사라진다** — 즉 **shin 의 "구속하면 D 2–3배 감소"는 Fang 의 responsive 로도 설명된다.**
   진짜 쟁점은 *"회전이 있어야 빠른가"*(둘 다 예)가 아니라 *"회전이 hop 을 **개시**하는가"*(Fang: 아니오, shin: 예에 가까움)다.
@@ -780,8 +783,8 @@ Fang 의 설계축(**할로겐 자리에 가볍고 −1 가인 다원자 음이�
 - "In that work the ionic conductivity is obtained from the **tracer** diffusivity through the Nernst–Einstein relation, i.e. **without applying the Haven correction they themselves computed** — so a Haven-uncorrected Nernst–Einstein estimate is standard practice even in studies that measure H_R."
 - "Their van Hove analysis shows **significant correlation only between nearest-neighbour Li**, with no long-range correlated (string-like) motion." *(`Fig. S4`)*
 - "The rotational barriers of the mono-anion clusters are **29 meV/atom (SH⁻, C2)** and **11–12 meV/atom (BH₄⁻, C2/C3)**, against **1–2 orders of magnitude higher** for PS₄³⁻/POS₃³⁻, whose dynamics are librational only."
-- "Allowing the cluster to relax in response to the migrating Li lowers the NEB barrier by **up to ~80 %**, whereas a migration path away from any cluster (**P3**) is essentially unchanged." *(`Fig. 6B`)*
-- "Thermally excited (**'active'**) cluster rotation can either lower or raise the migration barrier depending on the path and angle, introducing randomness rather than uniform enhancement." *(`Fig. 6C,F`)*
+- "Allowing the cluster to relax in response to the migrating Li lowers the NEB barrier by **up to ~80 %**, whereas a migration path away from any cluster (**P3**) is essentially unchanged." *(`Fig. 6b`)*
+- "Thermally excited (**'active'**) cluster rotation can either lower or raise the migration barrier depending on the path and angle, introducing randomness rather than uniform enhancement." *(`Fig. 6c,f`)*
 - ⚠ **금지**: "argyrodite 의 Haven 비는 0.67–0.77" (저자는 **할로겐 argyrodite 의 H_R 을 보고하지 않았다**).
 - ⚠ **금지**: "Fang 이 paddle-wheel 을 반증했다" — 그는 **자기 그림에서 상관이 흐려진다고 스스로 인정**했고,
   같은 계에서 개입 실험을 한 `shin2026` 은 반대 결론이다.
@@ -800,8 +803,8 @@ Fang 의 설계축(**할로겐 자리에 가볍고 −1 가인 다원자 음이�
 
 **16.2 ★ paddle-wheel 부정의 증거가 "눈으로 본 시계열"이다.**
 `Fig. 4`·`Fig. 5` 에 **상호상관 함수도, 지연(lag) 분포도, 통계 검정도 없다.** 그리고
-- `Fig. 4B` 는 **회전이 Li 점프를 선행**한다 (본문도 인정: SH(1)이 Li(2) 변위 전에 회전).
-- `Fig. 5A,D` 는 각도가 **전 구간 포화**라 전후 대비 자체가 불가능하다.
+- `Fig. 4b` 는 **회전이 Li 점프를 선행**한다 (본문도 인정: SH(1)이 Li(2) 변위 전에 회전).
+- `Fig. 5a,d` 는 각도가 **전 구간 포화**라 전후 대비 자체가 불가능하다.
 - 각도 축이 **창 시작점 기준 편차**로 보이므로, 창을 어디서 끊느냐에 따라 "이후에 커진다"가 **부분적으로 자동 성립**한다
   (창 시작 시 각도 = 0 에서 랜덤워크로 벌어지므로). 사건 전 기준선이 **2 ps 밖에 없는 패널(A)** 이 있다.
 ⇒ **"회전은 반응이다" 는 가설로는 훌륭하지만 이 자료로 증명되지 않는다.**
@@ -828,10 +831,10 @@ argyrodite 의 전도도가 **S/X 자리 무질서에 극도로 민감**하다�
 | # | 어긋남 |
 |---|---|
 | 1 | 본문 *"more than four orders of magnitude"* — 실제 14/0.002 = **3.85 자릿수** |
-| 2 | 본문 *"intra 장벽 order of 10 meV"* — `Fig. 6B` 실물 판독은 **50–150 meV** 쪽 |
-| 3 | 본문 *"230° 에서 약 80 % 증가"* — `Fig. 6C` 실물 판독은 **약 +40 %** (판독 오차 가능) |
-| 4 | `Fig. 1C` 범례에 **"Li₆POS₄P(SH)"** — P 가 하나 더 붙은 오타 |
-| 5 | **MOESM3 의 Video 1 설명 "OH"** — SI Note 2 및 영상 실물과 어긋난다 (§10a). 범례도 O 를 magenta 라 하고 `Fig. 1A` 는 red 라 한다 |
+| 2 | 본문 *"intra 장벽 order of 10 meV"* — `Fig. 6b` 실물 판독은 **50–150 meV** 쪽 |
+| 3 | 본문 *"230° 에서 약 80 % 증가"* — `Fig. 6c` 실물 판독은 **약 +40 %** (판독 오차 가능) |
+| 4 | `Fig. 1c` 범례에 **"Li₆POS₄P(SH)"** — P 가 하나 더 붙은 오타 |
+| 5 | **MOESM3 의 Video 1 설명 "OH"** — SI Note 2 및 영상 실물과 어긋난다 (§10a). 범례도 O 를 magenta 라 하고 `Fig. 1a` 는 red 라 한다 |
 
 **16.8 재현성**: 후처리 코드 전부 자체 제작·**미공개**. 데이터는 *"upon request"*. 저장소 없음. VASP 버전·thermostat 미기재.
 
@@ -884,9 +887,9 @@ argyrodite 의 전도도가 **S/X 자리 무질서에 극도로 민감**하다�
 | **billiard-ball 기전** | (저자 신조어) Li–Li 반발로 국소 확산이 **릴레이**되어 장거리 전도가 생김 | Discussion 1번 결론 |
 | **revolving-door 기전** | (저자 신조어) 같은 블록 안에서만 도는 릴레이 (장거리 기여 없음) | Event 5 |
 | **docking / undocking** | Li 가 클러스터에 수십 ps 붙잡히거나 풀려나는 것 | `Fig. S8`·`S9` |
-| **sulfur-block** | S²⁻ 하나를 Li 6개가 둘러싼 SLi₆ 단위. argyrodite 확산의 기본 케이지 | `Fig. 2A` |
-| **S_d (doped sulfur)** | **할로겐 자리에 앉은 S²⁻**. 약하게 상호작용하는 확산 도관 | `Fig. 2B`·`Fig. S11` |
-| **intra- / inter-diffusion** | 블록 **안** 확산 / 블록 **사이** 확산. argyrodite 확산의 계층 구조 | `Fig. 2C` |
+| **sulfur-block** | S²⁻ 하나를 Li 6개가 둘러싼 SLi₆ 단위. argyrodite 확산의 기본 케이지 | `Fig. 2a` |
+| **S_d (doped sulfur)** | **할로겐 자리에 앉은 S²⁻**. 약하게 상호작용하는 확산 도관 | `Fig. 2b`·`Fig. S11` |
+| **intra- / inter-diffusion** | 블록 **안** 확산 / 블록 **사이** 확산. argyrodite 확산의 계층 구조 | `Fig. 2c` |
 | **N_eff (유효 홉 수)** | max[TMSD]/a². D 의 상대표준편차가 1/√N_eff 로 줄어든다 | Supplementary Note 1 |
 | **RSD (상대표준편차)** | S_d/D_true. **<0.3 이면 수렴** 으로 본다 | 0.235 / 0.051 |
 | **PSO 구조탐색 (CALYPSO)** | 입자군집최적화로 결정구조를 찾는 방법. 클러스터를 하나의 '원소'로 다룰 수 있다 | Methods |

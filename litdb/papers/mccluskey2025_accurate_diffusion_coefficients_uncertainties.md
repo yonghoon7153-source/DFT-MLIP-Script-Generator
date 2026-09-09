@@ -468,15 +468,20 @@ OLS 평균 = 9.976×10⁻⁶ (참 1.00×10⁻⁵, **−0.24 %**), kinisi 평균 
 
 ### 7.C ★★ 손실의 분해 — **두 겹이고, 곱해진다**
 
-| 무엇을 바꾸면 | 분산 개선 배수 |
-|---|---|
-| 추정기만 (OLS → kinisi), **같은 single-origin 데이터** | **2.8×** |
-| 시간원점 평균만 (single → multi-origin), **같은 OLS** | **8.7×** |
-| **둘 다** (= 우리 현재 → kinisi 표준) | **87×** |
+| 무엇을 바꾸면 | 비교한 두 행 | 분산 개선 배수 |
+|---|---|---|
+| 시간원점 평균만 (single → multi-origin), **추정기는 우리 OLS 고정** | D → A | **8.7×** |
+| 추정기만 (OLS → kinisi), **데이터는 multi-origin 고정** | A → B | **10.0×** |
+| **둘 다** (= 우리 현재 → kinisi 표준) | D → B | **87×** (=8.7×10.0 ✅ 일관) |
+
+> ⚠ **"kinisi 를 single-origin 데이터에 그대로 적용" 조합은 측정할 수 없었다** — §6.4② 의
+> 색인 버그 때문에 그 경로가 D 를 −65 % 로 뱉는다. 그래서 위 분해는 **우리 OLS 를 고정한 축**과
+> **multi-origin 을 고정한 축**으로 짰다. 두 배수의 곱이 전체와 일치하므로 분해는 닫혀 있다.
 
 > 🔴 **우리 파이프라인의 D 한 점은 kinisi 한 점의 1/87 짜리 정보다** (digest 계산, N=48).
-> 그리고 **더 큰 손실은 추정기가 아니라 "단일 시간원점"** 이다.
-> **이건 MD 를 한 스텝도 더 안 돌리고 공짜로 회수된다.**
+> **두 손실이 거의 같은 크기(8.7 vs 10.0, 40회 반복의 ±11 % 안에서 사실상 동급)이고 곱해진다.**
+> 그중 **시간원점 쪽은 새 코드도 새 이론도 필요 없다** — `msd_multi_origin` 이 이미 있다.
+> **둘 다 MD 를 한 스텝도 더 안 돌리고 회수된다.**
 
 우리 저장소에 이미 근거가 있다 — `tools/modelc_v3/disorder_ensemble_diffusion.py::msd_multi_origin`
 docstring: *"With only 27 Li … that is 27 samples per lag — the curve is dominated by whichever few
@@ -645,9 +650,11 @@ between estimated diffusion coefficients across different systems or under varyi
 
 ## 8. 적용 인사이트
 
-1. **가장 싼 개선은 추정기가 아니라 시간원점 평균이다.** MD 0 스텝, 분산 ~9배
-   (digest 계산). 우리 정본 MSD 가 single-origin 인 것은 **의도적 재현성 선택**이었지
-   물리적 판단이 아니었다 (`disorder_ensemble_diffusion.py` docstring 자인).
+1. **가장 싼 개선은 추정기 교체가 아니라 시간원점 평균이다** — 이득은 둘이 비슷한데
+   (분산 8.7× vs 10.0×, digest 계산) **시간원점 쪽은 새 의존성도 새 환경도 필요 없다**
+   (`msd_multi_origin` 이 이미 우리 코드에 있다). 우리 정본 MSD 가 single-origin 인 것은
+   **의도적 재현성 선택**이었지 물리적 판단이 아니었다
+   (`disorder_ensemble_diffusion.py` docstring 자인).
 2. **우리 오차막대(시드 산포)는 원리적으로 옳다.** 이 논문이 "정직하지만 비싸다"고 부른
    그 방법이다. 흠집은 **정밀도**이지 **정직성**이 아니다. ⇒ 발표에서 방어 가능하다.
 3. **`Fig. 6`b: OLS 는 오래 돌려도 안 좋아진다.** "200 ps 로 늘렸으니 통계가 좋아졌다" 는
@@ -734,7 +741,7 @@ between estimated diffusion coefficients across different systems or under varyi
 - **우리 실제 궤적으로 안 돌렸다.** §7 의 digest 계산은 **전부 합성 브라운 걸음**이고,
   그것은 kinisi 의 가정 그 자체다. ⇒ **실제 LPSCl 궤적에서의 배수는 다를 수 있다.**
   특히 **8.7× (multi-origin 이득)** 은 cage 상관이 있으면 줄어든다.
-- **그림 12장 중 4장(`Fig. S1`·`S2`·`S4`·`S5`)을 안 봤다.**
+- **그림 12장 중 4장(`Fig. S1` · `Fig. S2` · `Fig. S4` · `Fig. S5`)을 안 봤다.**
 - **arXiv 2305.18244 판본과 출판본의 차이를 대조 안 했다.**
 - **SI 를 두 개 받았는데 같은 문서다** — 텍스트를 뽑아 비교한 결과 `Sup` 과 `Sup2` 는
   **ACS 다운로드 워터마크 줄 하나만 다르고 내용이 동일**하다(둘 다 8쪽, 같은 S-I~S-IV).
