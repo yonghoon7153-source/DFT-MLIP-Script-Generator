@@ -61,8 +61,10 @@
   (사이클 chemo-mech, future), **B1-B6**(대조연구 — B1은 audit #1 envelope로 사실상 닫힘, 점대점만 잔여),
   **C3**(GB-phonon 실제 ref 확보 대기), D1-D6(접촉모델 연구 트랙), F1 잔여(SuperP/PTFE 압력-형상 크기앵커 부재).
 
-- 상태 갱신 2026-07-15: **σ_SDCP 스윕 완료**({15/50/150/1500} → +0.8/+25.8/+45.5/+63.4%, A4′ 잔여=E_bind만;
-  원자료 `docs/data/sdcp318_sigma_sdcp_sweep/`) · **STEP4-v2 동역학 솔버 구현**(`scripts/step4_dyn.py`,
+- 상태 갱신 2026-07-15: **σ_SDCP 스윕 완료**({15/50/150/250/1500}, A4′ 잔여=E_bind만;
+  원자료 `docs/data/sdcp318_sigma_sdcp_sweep/`, 머리 배너 있음).
+  ⛔ **그 이득 % 계열은 2026-08-13 에 철회**됐다 (CL-24 — vox 0.4 점-스탬프 격자의 산물, 인용 금지).
+  살아남는 것은 *"크기가 σ_SDCP 에 강의존 · 최악에도 무손해 · 분담 역행"* 이라는 **방향**뿐이다. · **STEP4-v2 동역학 솔버 구현**(`scripts/step4_dyn.py`,
   COMSOL-패리티, 물리·수치 2-agent 리뷰 반영, selftest 20/20; pybamm 앵커 export 포함 — V100 스모크 진행)
   · 중복 ID 정리(collector R_int 행 A8→**A11**).
 - litdb 전수 감사 반영 2026-07-15 (33편 digest ↔ backlog 대조; 상세는 감사 결과 세션 기록):

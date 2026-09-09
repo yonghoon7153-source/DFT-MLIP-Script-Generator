@@ -1,14 +1,37 @@
 {
  "measured_at": "2026-09-09",
- "method": "set difference against `git ls-files -z`; audit-1 coverage is what agents actually returned in their inventory arrays, recovered from the workflow journal — NOT what the scope globs claimed",
- "tracked_files": 1882,
- "audit1_inventoried_files": 710,
- "audit1_inventoried_strict": 510,
- "audit1_directory_level_only": 200,
- "audit1_coverage_pct": 37.7,
- "audit1_claimed_coverage_pct": 55.1,
- "gap_bucket_files": 843,
- "union_after_gap_audit": 1346,
- "residual_never_covered": 536,
- "residual_note": "534 of 536 are docs/data measurement files that the docs-data scope glob claimed but the agent enumerated only 274 of; the ban sweep does not read CSV/JSON either, so a retracted number inside a data file is currently unchecked"
+ "method": "set difference against `git ls-files -z`, using ONLY paths agents actually returned in their inventory arrays",
+ "tracked_files": 1894,
+ "audit1_scopes_23": {
+  "inventoried": 710,
+  "strict": 510,
+  "via_directory_entry": 291
+ },
+ "audit2_gap_partial_8_of_94_buckets": {
+  "inventoried": 84
+ },
+ "audit3_residual_21_of_21_buckets": {
+  "assigned": 536,
+  "inventoried": 536,
+  "never_opened": 0
+ },
+ "union_covered": 1283,
+ "coverage_pct": 67.7,
+ "remaining_uncovered": 611,
+ "remaining_by_dir": {
+  "scripts": 408,
+  "litdb": 72,
+  "이종기술": 44,
+  "se_curve": 40,
+  "machine-learning": 16,
+  ".claude": 9,
+  "docs": 8,
+  "heckel": 4,
+  "webapp": 4,
+  "(root)": 2,
+  "skills": 2,
+  ".github": 1,
+  "pipeline": 1
+ },
+ "note": "audit2 is on hold (docs/data/audit_20260909/GAP_AUDIT_HOLD.md); litdb 73 files are excluded from its next run by the user."
 }
