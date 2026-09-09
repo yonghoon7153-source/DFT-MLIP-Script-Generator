@@ -221,6 +221,20 @@ BAN_NEAR_LINES = 2
 #:   *"지금 무엇을 쓸 수 있는가"* 보고서 · 위키 질문 카드 · 흡수 지도 · 리뷰 기록 2건.)
 BAN_NEAR_MARKS = ('인용 금지', '철회', '반증', '폐기', '무효', '~~')
 
+#: ⚠⚠ 2026-09-09 (Codex Q1-3 · 원장 AUD-05) — **주석은 화면에 안 나온다.**
+#:   ±2 줄 규칙은 *소스를 읽는 사람*을 위한 것인데, 생성기·사용자출력에서는 그 줄이
+#:   그대로 **stdout·화면**으로 간다.  실측 반례: `// … 철회` 주석 **아래**
+#:   `console.log('<금지값>')` 은 스윕 0 건인데 읽는 사람은 표지를 못 본다 (옛 22i 가
+#:   사실상 그 허용을 정상 계약으로 고정하고 있었다).
+#:   ⇒ 그 줄이 **출력 문장**이면 표지가 **같은 문장 안**(주석을 뗀 코드 부분)에 있어야
+#:     면제한다.  설명 주석은 여전히 쓸 수 있다 — 출력이 아닌 줄에는 종전대로 적용된다.
+BAN_OUTPUT_CALLS = ('console.log', 'console.error', 'console.warn', 'console.info',
+                    'console.debug', 'process.stdout.write', 'process.stderr.write',
+                    'print(', 'sys.stdout.write', 'sys.stderr.write')
+#: 줄 주석 기호 — **확장자별**.  (JS 의 `//` 를 파이썬에 적용하면 나눗셈이 잘린다.)
+BAN_LINE_COMMENT = {'.js': ('//',), '.mjs': ('//',), '.cjs': ('//',), '.ts': ('//',),
+                    '.py': ('#',)}
+
 #: 표기 변형 정규화 — NBSP·얇은 공백·JSON `\u0025`(%)·꼬리 0.
 #: Codex 실측 미검출: "+52.00%", NBSP, JSON 이스케이프.
 _BAN_WS = {'\u00a0': ' ', '\u2009': ' ', '\u202f': ' ', '\u2007': ' '}
@@ -381,6 +395,39 @@ def _os_norm(base_dir, target):
     return os.path.normpath(os.path.join(base_dir, target)).replace(os.sep, '/')
 
 
+def _strip_line_comment(rel, ln):
+    """문자열 **밖**의 줄 주석을 뗀다 (따옴표 상태를 따라간다).
+
+    `console.log('철회된 값')  // 설명` 에서 뒤 주석은 화면에 안 나온다 — 면제 근거가
+    될 수 없다.  반대로 따옴표 **안**의 `//` (URL 등)는 주석이 아니다.
+    """
+    marks = BAN_LINE_COMMENT.get(os.path.splitext(rel)[1])
+    if not marks:
+        return ln
+    q = None
+    i = 0
+    while i < len(ln):
+        ch = ln[i]
+        if q is not None:
+            if ch == '\\':
+                i += 2
+                continue
+            if ch == q:
+                q = None
+        elif ch in '\'"`':
+            q = ch
+        elif any(ln.startswith(m, i) for m in marks):
+            return ln[:i]
+        i += 1
+    return ln
+
+
+def _is_output_line(rel, ln):
+    """이 줄이 **사람이 보는 자리**(stdout·화면)로 나가는가."""
+    code = _strip_line_comment(rel, ln)
+    return any(c in code for c in BAN_OUTPUT_CALLS)
+
+
 def frozen_reproducer_ok(repo_root, rel):
     """`rel` 이 동결 재현기이고 **내용이 동결 시점 그대로**인가.
 
@@ -465,8 +512,8 @@ def ban_sweep(repo_root, claims_path=None, files=None):
         if lines is None:
             continue
         banner = _has_banner(lines)
-        if (banner and not frozen_reproducer_ok(repo_root, rel)
-                and any(_fn.fnmatch(rel, g) for g in BAN_NO_FILE_EXEMPT)):
+        visible = any(_fn.fnmatch(rel, g) for g in BAN_NO_FILE_EXEMPT)
+        if banner and visible and not frozen_reproducer_ok(repo_root, rel):
             #  생성기·사용자출력: 배너는 파일을 면제하지 않는다 (줄-근처 표지만 인정).
             banner = False
         for b in bans:
@@ -484,7 +531,12 @@ def ban_sweep(repo_root, claims_path=None, files=None):
                 lo = max(0, i - BAN_NEAR_LINES)
                 near = '\n'.join(lines[lo:i + BAN_NEAR_LINES + 1])
                 if any(m in near for m in BAN_NEAR_MARKS):
-                    continue
+                    #  ⚠ 출력 줄은 다르다 (AUD-05) — 이웃 **주석**은 화면에 안 나오므로
+                    #    면제 근거가 못 된다.  표지가 **같은 출력 문장 안**에 있어야 한다.
+                    if not (visible and _is_output_line(rel, ln)):
+                        continue
+                    if any(m in _strip_line_comment(rel, ln) for m in BAN_NEAR_MARKS):
+                        continue
                 #  Office zip 은 줄번호가 뜻이 없다 — 리더가 붙인 파트 태그(`slide7`)를 쓴다.
                 _m = _re_mod.match(r'([A-Za-z0-9-]+)\| ', ln)
                 _at = f'{rel}#{_m.group(1)}' if _m else f'{rel}:{i + 1}'
@@ -930,8 +982,40 @@ def _selftest():
                           "// 아래 값은 **철회**됐다 (인용 금지)\n"
                           "rows.push(['ratio','%s']);\n" % _pat)
             _p13, _, _ = ban_sweep(_dr)
-            ok('22i) 생성기도 줄-근처 철회 표지로는 통과한다 (설명할 자리를 남긴다)',
+            ok('22i) 생성기도 줄-근처 철회 표지로는 통과한다 — 단 **출력이 아닌 줄**에서만 '
+               '(설명할 자리를 남긴다)',
                not any('build.js' in x for x in _p13))
+
+            #  ⓕ-2 ★★ **출력 문장은 다르다** (Codex Q1-3 · AUD-05).  주석은 화면에 안 나온다:
+            #     `// … 철회` 아래 `console.log('<금지값>')` 은 옛 규칙에서 **0 건**인데
+            #     stdout 에는 표지 없이 나간다.  옛 22i 가 사실상 그 허용을 계약으로 굳혔다.
+            _gen = os.path.join(_d6, 'build.js')
+            with open(_gen, 'w', encoding='utf-8') as _fa:
+                _fa.write('// 아래 값은 **철회**됐다 (인용 금지)\n'
+                          "console.log('%s');\n" % _pat)
+            _p16, _, _ = ban_sweep(_dr)
+            ok('22n) ★★ 생성기의 **출력 문장**은 이웃 주석으로 면제받지 못한다 '
+               '(주석은 stdout 에 안 나온다)',
+               any('build.js' in x and _pat in x for x in _p16))
+
+            with open(_gen, 'w', encoding='utf-8') as _fb:
+                _fb.write("console.log('%s — 철회된 값이다');\n" % _pat)
+            _p17, _, _ = ban_sweep(_dr)
+            ok('22o) 같은 **출력 문장 안**에 표지가 있으면 통과한다 (읽는 사람이 실제로 본다)',
+               not any('build.js' in x for x in _p17))
+
+            with open(_gen, 'w', encoding='utf-8') as _fc:
+                _fc.write("console.log('%s'); // 철회\n" % _pat)
+            _p18, _, _ = ban_sweep(_dr)
+            ok('22p) 꼬리 주석도 면제가 아니다 — 같은 줄이어도 화면엔 안 나온다',
+               any('build.js' in x and _pat in x for x in _p18))
+
+            #     따옴표 **안**의 `//` 는 주석이 아니다 (URL 을 자르면 거짓 검출이 난다).
+            with open(_gen, 'w', encoding='utf-8') as _fd:
+                _fd.write("console.log('https://x/y — %s 는 철회됐다');\n" % _pat)
+            _p19, _, _ = ban_sweep(_dr)
+            ok('22q) 따옴표 안의 `//` 를 주석으로 자르지 않는다 (거짓 검출 방지)',
+               not any('build.js' in x for x in _p19))
             #  ⓖ ★★ **fail-closed 로 잠긴 이력 재현기**는 예외다 — 그냥 실행하면 거부되므로
             #     산출물이 조용히 되살아날 경로가 없고, 값은 **발표된 그대로** 보존돼야 한다.
             #     ⚠⚠ 2026-09-09 (Codex Q1-1 · AUD-06) — 옛 22j 는 **파일 존재만** 봤다.

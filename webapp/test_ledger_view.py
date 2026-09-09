@@ -16,7 +16,9 @@
 
   python3 webapp/test_ledger_view.py
 """
+import html as _html
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -35,25 +37,54 @@ def chk(name, cond):
         print(f'  FAIL  {name}')
 
 
-def _unmarked_bans(CRF, bans, html, where):
-    """렌더된 HTML 에 **표지 없이** 사는 금지값 — `ban_sweep` 과 같은 기준.
+#: 화면에 **안 나오는** 것 — 여기 든 표지는 면제 근거가 될 수 없다.
+_RE_HIDDEN = re.compile(r'<(script|style)\b[^>]*>.*?</\1\s*>', re.S | re.I)
+_RE_COMMENT = re.compile(r'<!--.*?-->', re.S)
+#: **덩어리(카드)** 경계 — 블록 요소만.  `span`·`a`·`b`·`code` 같은 인라인은 자르지
+#:   않는다 (자르면 한 문장 안의 표지를 놓쳐 거짓 검출이 난다).
+_RE_BLOCK = re.compile(r'</?(?:p|div|li|tr|td|th|h[1-6]|section|article|header|footer|'
+                       r'ul|ol|table|thead|tbody|blockquote|pre|main|nav|aside|form|'
+                       r'figure|figcaption|details|summary|dl|dt|dd|option|hr)\b[^>]*>',
+                       re.I)
+_RE_TAG = re.compile(r'<[^>]+>')
 
-    스윕이 소스에 적용하는 규칙(줄 ±2 안에 철회 어휘가 있으면 통과)을 **화면**에 적용한다.
-    소스가 통과해도 화면이 다르게 조립될 수 있으므로 (라우트가 만든 문자열 · 매크로 ·
-    JSON 삽입) 최종 산출물에서 한 번 더 본다.
+
+def _visible_blocks(page_html):
+    """독자가 **실제로 보는** 덩어리들.
+
+    ⚠⚠ 2026-09-09 (Codex Q3-2 · 원장 AUD-05) — 떼는 것이 요점이다.  `<script>`·
+    `<style>`·**HTML 주석**은 화면에 안 나오므로 그 안의 철회 표지는 면제 근거가 아니다.
     """
-    lines = html.splitlines()
+    #  ⚠ 소스의 줄바꿈은 **덩어리 경계가 아니다** — 한 문장이 여러 줄에 걸쳐 적히면
+    #    표지와 값이 갈라져 거짓 검출이 난다 (실측: `/eis` 의 철회 안내 한 문장).
+    #    ⇒ 블록 경계만 sentinel 로 찍고, 원래 줄바꿈은 공백으로 눕힌다.
+    t = _RE_HIDDEN.sub(' ', page_html)
+    t = _RE_COMMENT.sub(' ', t)
+    t = _RE_BLOCK.sub('\x00', t)
+    t = _RE_TAG.sub(' ', t)
+    t = _html.unescape(t)
+    return [re.sub(r'\s+', ' ', b).strip() for b in t.split('\x00') if b.strip()]
+
+
+def _unmarked_bans(CRF, bans, page_html, where):
+    """화면에 **표지 없이** 사는 금지값.
+
+    ⚠⚠ 옛 판은 **원본 HTML 을 줄 단위로** 보고 ±2 줄 안의 표지를 인정했다.  구멍 둘:
+      ⓐ `<!-- 철회 -->` 는 화면에 안 나오는데 면제가 됐다 (주석·스크립트도 마찬가지),
+      ⓑ **다른 카드**의 표지가 "이웃 줄" 이라는 이유로 면제 근거가 됐다.
+    ⇒ 보이는 덩어리로 자르고, 표지는 **같은 덩어리 안**에 있어야 한다.  소스 스윕의
+      "같은 출력 문장" 규칙(`check_review_findings` AUD-05)과 같은 취지다.
+    """
     out = []
-    for i, ln in enumerate(lines):
-        norm = CRF._ban_norm(ln)
+    for j, blk in enumerate(_visible_blocks(page_html)):
+        norm = CRF._ban_norm(blk)
         for b in bans:
             pat = b.get('pattern')
             if not pat or CRF._ban_norm(pat) not in norm:
                 continue
-            lo = max(0, i - CRF.BAN_NEAR_LINES)
-            near = '\n'.join(lines[lo:i + CRF.BAN_NEAR_LINES + 1])
-            if not any(m in near for m in CRF.BAN_NEAR_MARKS):
-                out.append(f'{where}:{i + 1} {pat!r}')
+            if any(m in blk for m in CRF.BAN_NEAR_MARKS):
+                continue
+            out.append(f'{where}#블록{j + 1} {pat!r}')
     return out
 
 
@@ -142,10 +173,31 @@ def main():
 
     #  ── 신선도 배선이 실제로 화면에 닿는가 ────────────────────
     #    선언만 해 두고 템플릿이 안 부르면 아무 일도 안 일어난다 (규칙 K: 안 도는 검사).
-    pages = {'group': '/group', 'predictor': '/predictor', 'eis': '/eis',
-             'mpm_lab': '/mpm-lab', 'step5': '/step5'}
-    chk('26) 선언한 페이지가 전부 라우트를 갖는다',
-        set(pages) <= set(A.PAGE_FRESHNESS))
+    #  ⚠⚠ 2026-09-09 (Codex Q3-2 부수 · 원장 AUD-05) — 옛 판은 페이지 **다섯 개를
+    #    손으로 적고** `set(pages) <= set(PAGE_FRESHNESS)` 를 봤다.  그 방향으로는
+    #    *"선언한 모든 페이지"* 를 증명할 수 없다 — 실제로 `single` 이 빠져 있었고,
+    #    새 페이지를 선언해도 이 시험은 아무 말을 안 한다.  ⇒ **선언에서 파생**한다.
+    #    URL 이 None 인 페이지는 실물 데이터가 있어야 열리므로 여기서 해석해 채운다.
+    _urls = {'single': None, 'group': '/group', 'predictor': '/predictor',
+             'eis': '/eis', 'mpm_lab': '/mpm-lab', 'step5': '/step5'}
+    _cases = []
+    try:
+        _cases = [c for c in A.list_cases() if c.get('id')]
+    except Exception:                                          # noqa: BLE001
+        _cases = []
+    if _cases:
+        _urls['single'] = '/single/' + str(_cases[0]['id'])
+    _undeclared = sorted(set(A.PAGE_FRESHNESS) - set(_urls))
+    chk('26) ★ 선언한 **모든** 페이지가 이 시험의 등록부에 있다 '
+        '(부분집합으로는 "선언한 전부" 를 증명할 수 없다)'
+        + (f'  ← 빠진 것 {_undeclared}' if _undeclared else ''),
+        not _undeclared)
+    pages = {k: u for k, u in _urls.items() if u and k in A.PAGE_FRESHNESS}
+    _dataless = sorted(k for k, u in _urls.items() if not u and k in A.PAGE_FRESHNESS)
+    if _dataless:
+        #  통과로 세지 않는다 — 못 연 페이지를 초록으로 적는 것이 false-green 이다.
+        print(f'  SKIP  26b) 실물 케이스가 있어야 열리는 페이지 {_dataless} — '
+              '이 트리에 분석된 케이스가 없어 27·28 이 그 페이지를 못 봤다')
     bars, leaks2 = [], []
     for key, url in pages.items():
         r = c.get(url)
@@ -165,6 +217,30 @@ def main():
     #    `redact()` 를 지나야 하고, 지나면 남을 이유가 없다.
     chk('28) ★★ 그 페이지들에 **표지 없는** 금지값이 없다 (스윕과 같은 기준)'
         + (f'  ← {leaks2}' if leaks2 else ''), not leaks2)
+
+    #  ── 28 의 기준 자체가 옳은가 — 음성 대조 넷 (AUD-05) ──────────
+    #    통과만 하는 검사는 없는 것과 같다.  아래 넷은 **합성 HTML** 이라 서버가 필요 없다.
+    _p0 = bans[0]['pattern']
+    _syn = [
+        ('28a) ★★ HTML 주석의 표지는 면제가 아니다 (화면에 안 나온다)',
+         f'<div class="card"><!-- 철회 --><p>비 {_p0} 달성</p></div>', True),
+        ('28b) ★★ **다른 카드**의 표지는 면제가 아니다 (옛 ±2 줄 규칙은 통과시켰다)',
+         f'<div class="card"><p>이 값은 철회됐다</p></div>'
+         f'<div class="card"><p>비 {_p0} 달성</p></div>', True),
+        ('28c) 같은 카드 안의 표지는 면제한다 (철회를 알리는 문장까지 막지 않는다)',
+         f'<div class="card"><p>옛 문구의 {_p0} 는 <b>철회</b> — claims.json</p></div>', False),
+        ('28d) `<script>` 안의 표지도 면제가 아니다 (독자가 못 본다)',
+         f'<script>/* 철회 */</script><div class="card"><p>비 {_p0}</p></div>', True),
+    ]
+    for _name, _html_frag, _want_leak in _syn:
+        _got = _unmarked_bans(CRF, bans, _html_frag, 'synthetic')
+        chk(_name + ('' if bool(_got) == _want_leak else f'  ← {_got}'),
+            bool(_got) == _want_leak)
+    #    한 문장이 소스에서 여러 줄에 걸쳐도 한 덩어리다 (실측 거짓 검출 자리).
+    chk('28e) 소스 줄바꿈은 덩어리를 가르지 않는다 (거짓 검출 방지)',
+        not _unmarked_bans(CRF, bans,
+                           f'<div class="card"><p>옛 문구의 {_p0} 는\n    <b>철회</b>\n'
+                           f'    — claims.json</p></div>', 'synthetic'))
 
     #  선언 날짜가 미래면 경고가 영원히 안 뜬다 = 조용한 거짓 초록.
     import datetime as _dt
