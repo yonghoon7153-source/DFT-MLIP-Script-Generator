@@ -1422,9 +1422,14 @@ def _own_shadows(node) -> set:
             if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
                                 ast.Lambda, ast.ClassDef)):
                 continue                     # 자식 scope 는 자기 것만 묶는다
+            if _is_comprehension(sub):
+                # ★ 61차 P1-4 — comprehension 은 **자식 scope** 다. 그 target 은
+                #   바깥에 안 샌다 (Python 3). 예전 판은 여기서 그것을 감싸는
+                #   함수의 shadow 에 합쳤고, 그래서 분석기가 실제 Python 과
+                #   반대를 말했다 (리뷰어 실측: `return value` 자리의 shadow 에
+                #   comprehension target 이 들어 있었다).
+                continue
             if isinstance(sub, (ast.For, ast.AsyncFor)):
-                out |= set(_target_names(sub.target))
-            if isinstance(sub, ast.comprehension):
                 out |= set(_target_names(sub.target))
             for item in (getattr(sub, "items", ()) or ()):
                 if getattr(item, "optional_vars", None) is not None:
@@ -1432,6 +1437,34 @@ def _own_shadows(node) -> set:
             if isinstance(sub, ast.ExceptHandler) and sub.name:
                 out.add(sub.name)
             stack.append(sub)
+    return out
+
+
+#: 자기 scope 를 가지는 comprehension 넷 (61차 P1-4). Python 3 에서 이들의
+#: target 은 바깥에 안 샌다 — `for` 문과 다른 점이 정확히 그것이다.
+#:
+#: ★ 이 module 은 `ast` 를 **함수 안에서** import 한다 (module 초기화 슬라이스를
+#:   작게 유지하려고 — 그것이 producer identity 의 대상이다). 그래서 상수가
+#:   아니라 함수로 둔다.
+#:
+#: ★ 그리고 이름을 **철자 그대로** 쓴다. 첫 판은 `getattr(ast, n)` 으로 모았는데
+#:   producer 닫힘 검사가 그것을 거부했다 ("이름을 계산해서 건넨다") — 자기
+#:   방어에 자기가 걸린 것이고, 그 거부가 맞다.
+
+
+def _is_comprehension(node) -> bool:
+    """이 node 가 자기 scope 를 가지는 comprehension 인가 (61차 P1-4)."""
+    import ast
+
+    return isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                             ast.GeneratorExp))
+
+
+def _comprehension_targets(node) -> set:
+    """이 comprehension 이 **자기 안에서** 묶는 이름 (61차 P1-4)."""
+    out: set = set()
+    for gen in getattr(node, "generators", ()) or ():
+        out |= set(_target_names(gen.target))
     return out
 
 
@@ -1455,16 +1488,45 @@ def _scoped_shadows(node, inherited: frozenset = frozenset()):
 
     here = frozenset(inherited | _own_shadows(node))
     yield node, here
-    stack = [node]
-    while stack:
-        cur = stack.pop()
-        for sub in ast.iter_child_nodes(cur):
-            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                ast.Lambda, ast.ClassDef)):
-                yield from _scoped_shadows(sub, here)
-                continue
-            yield sub, here
-            stack.append(sub)
+    yield from _walk_in_scope(node, here)
+
+
+def _walk_in_scope(cur, here: frozenset):
+    """`cur` 의 자손을 훑으며 **그 자리에서 유효한** shadow 집합을 붙인다.
+
+    ★ 61차 P1-4 — comprehension 을 자식 scope 로 다룬다. 다만 Python 은
+      **가장 바깥 iterable 만** 바깥 scope 에서 평가하므로 그 자리는 바깥
+      집합으로 남긴다 — 규칙을 통째로 옮기면 그 자리가 반대로 틀린다.
+    """
+    import ast
+
+    for sub in ast.iter_child_nodes(cur):
+        if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef,
+                            ast.Lambda, ast.ClassDef)):
+            yield from _scoped_shadows(sub, here)
+            continue
+        if _is_comprehension(sub):
+            inner = frozenset(here | _comprehension_targets(sub))
+            yield sub, inner
+            gens = list(getattr(sub, "generators", ()) or ())
+            for i, gen in enumerate(gens):
+                yield gen, inner
+                where = here if i == 0 else inner   # 첫 iterable 만 바깥이다
+                yield gen.iter, where
+                yield from _walk_in_scope(gen.iter, where)
+                yield gen.target, inner
+                yield from _walk_in_scope(gen.target, inner)
+                for cond in (gen.ifs or ()):
+                    yield cond, inner
+                    yield from _walk_in_scope(cond, inner)
+            for part in (getattr(sub, "elt", None), getattr(sub, "key", None),
+                         getattr(sub, "value", None)):
+                if part is not None:
+                    yield part, inner
+                    yield from _walk_in_scope(part, inner)
+            continue
+        yield sub, here
+        yield from _walk_in_scope(sub, here)
 
 
 def _imported_module_names(src: str) -> set:
