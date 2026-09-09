@@ -4251,9 +4251,38 @@ EXEC_CLASSES = (EXEC_CLASS_SMOKE, EXEC_CLASS_CANONICAL)
 #: 집합과 **양방향으로 같은지**를 구조 시험이 강제하며
 #: (`tests/test_run_schema_binding_59.py`), (c) 런타임에 선언 밖의 manifest 를
 #: 만나면 **멈춘다** (identity 가 이미 불완전하기 때문이다).
-RUN_MANIFEST_SCHEMA = ("analysis_manifest.yaml", "curves_manifest.yaml",
-                       "curves_manifest_start.yaml", "manifest.yaml",
-                       "manifest_grid.yaml", "manifest_start.yaml")
+#: ★ 61차 P0-1 — 선언을 **둘로 가른다.**
+#:
+#:   60차는 identity 를 "지금 있는 것 전부" 에서 "굳히는 순간 있었던 것 전부"
+#:   로 옮겼다. 그런데 그 "전부" 는 여전히 **우연한 파일 존재**로 정해졌다.
+#:   `run.sh` 의 정상 순서를 두 번 돌면(=재개) 두 번째 commit 이 **첫 번째
+#:   report 가 남긴 `analysis_manifest.yaml` 을 봉인에 흡수**하고, 이어지는
+#:   정상 report 갱신이 그 member 를 바꿔 봉인을 stale 로 만든다. 그러면
+#:   fallback 이 새 키를 만들고 그 키에는 class 가 없다 — **정상 실행이
+#:   마지막 승격에서 거부된다** (리뷰어 실측: `class_after_refresh: null`).
+#:
+#:   "재개 때만 흡수한다" 를 고치는 것으로는 부족하다. 흡수 여부가 **순서**에
+#:   달려 있으면 다음 순서가 또 반례다. 그러므로 규칙은 순서가 아니라
+#:   **선언**이다:
+#:
+#:     · `RUN_IDENTITY_MANIFESTS` — **실행이 만든 것.** 내용 identity 는 이것만
+#:       담는다. 어느 순서에서 굳히든 member 집합이 같다.
+#:     · `RUN_DERIVED_MANIFESTS` — 실행이 **끝난 뒤** 파생이 만드는 것
+#:       (`report` 의 `analysis_manifest.yaml`). identity 밖이고, 봉인은
+#:       그것을 **기록만** 한다 (갱신돼도 봉인은 유효한 채로 남는다).
+#:
+#:   파생을 선언에서 아예 빼면 안 된다 — 그러면 `_MANIFEST_NAME_RE` 가 그것을
+#:   "선언 밖 manifest" 로 보고 정상 report 를 거부한다 (P0-1 을 고치다 또
+#:   정상 순서를 죽이는 형태다). 그래서 `RUN_MANIFEST_SCHEMA` 는 둘의 합이다.
+RUN_IDENTITY_MANIFESTS = ("curves_manifest.yaml", "curves_manifest_start.yaml",
+                          "manifest.yaml", "manifest_grid.yaml",
+                          "manifest_start.yaml")
+
+#: 실행 뒤 파생이 쓰는 manifest — 선언돼 있으나 **identity 밖**이다 (61차 P0-1).
+RUN_DERIVED_MANIFESTS = ("analysis_manifest.yaml",)
+
+RUN_MANIFEST_SCHEMA = tuple(sorted(RUN_IDENTITY_MANIFESTS
+                                   + RUN_DERIVED_MANIFESTS))
 
 #: run dir 안에서 "이것은 manifest 다" 를 뜻하는 이름 꼴. 선언 밖의 manifest 를
 #: **발견**하는 데 쓴다 (선언과 실물이 어긋나면 그 사실이 보여야 한다).
@@ -4266,8 +4295,17 @@ _MANIFEST_NAME_RE = re.compile(r"^[a-z0-9_]*manifest[a-z0-9_]*\.yaml$")
 #:   v1 — 첫 번째로 발견한 manifest 하나만 해시 (58차 L2 에서 폐기)
 #:   v2 — `_EXEC_ID_MANIFESTS` 중 존재하는 것 전부 (59차 M2 에서 폐기:
 #:        그 목록이 production schema 보다 작았다)
-#:   v3 — `RUN_MANIFEST_SCHEMA` 전부 + 선언 밖 manifest 는 거부
-_CONTENT_ID_KIND = "run-content-id/v3"
+#:   v3 — `RUN_MANIFEST_SCHEMA` 전부 + 선언 밖 manifest 는 거부 (61차 P0-1 에서
+#:        폐기: 그 "전부" 가 **우연한 파일 존재**로 정해져서, 재개가 옛 파생
+#:        산출을 봉인에 흡수하고 이어지는 정상 report 갱신이 키를 갈아 치웠다)
+#:   v4 — `RUN_IDENTITY_MANIFESTS` 만. 파생(`RUN_DERIVED_MANIFESTS`)은 선언
+#:        안이지만 identity 밖이므로 몇 번 갱신돼도 키가 안 움직인다.
+#:
+#: ★ v3 → v4 는 **모든 키를 바꾼다.** 그러므로 기존 등록부는 re-key 가 필요하고,
+#:   그 절차는 58차 L2 가 이미 만들어 뒀다 — 새 키에 레코드를 하나 더 쓰고
+#:   `evidence` 에 "어느 레코드의 판단을 승계했는가" 를 적는다 (판단을 새로
+#:   하지 않는다). 승계 기록은 새 레코드의 `evidence` 안에 있다.
+_CONTENT_ID_KIND = "run-content-id/v4"
 
 #: 굳히는 순간의 **시간 봉인**이 사는 이름 (60차 P0-1).
 #:
@@ -4402,11 +4440,12 @@ def _sealed_manifest_parts(d: Path, dir_fd) -> list | None:
             "`[[이름, digest], …]` 여야 한다 (60차 P0-1)")
     out = []
     for name, digest in parts:
-        if name not in RUN_MANIFEST_SCHEMA:
+        if name not in RUN_IDENTITY_MANIFESTS:
             raise PreserveError(
                 "promote",
-                f"{d} 의 봉인이 schema 밖의 이름 {name!r} 을 담았다 — 봉인은 "
-                "선언된 manifest 만 담는다 (60차 P0-1)")
+                f"{d} 의 봉인이 identity 선언 밖의 이름 {name!r} 을 담았다 — "
+                "봉인의 `manifests` 는 **실행이 만든** manifest 만 담는다 "
+                "(60차 P0-1 · 61차 P0-1)")
         got = _read_member(d, name, dir_fd)
         if got is None:
             return None             # 봉인이 낡았다 — 아래 설명을 보라
@@ -4435,13 +4474,33 @@ def _present_manifest_parts(d: Path, dir_fd) -> list:
             "정한 class 는 다른 내용에도 적용된다. `RUN_MANIFEST_SCHEMA` 에 "
             "선언하거나 그 파일을 run 디렉터리 밖에 두라 (59차 M2)")
     parts = []
-    for name in RUN_MANIFEST_SCHEMA:
+    # ★ 61차 P0-1 — **identity 선언만** 돈다. 파생 manifest 는 선언 안이라
+    #   "선언 밖" 검사에는 안 걸리지만 identity 에는 안 들어간다.
+    for name in RUN_IDENTITY_MANIFESTS:
         if name not in present:
             continue
         body = _read_member(d, name, dir_fd)
         if body is not None:
             parts.append((name, hashlib.sha256(body).hexdigest()))
     return parts
+
+
+def _derived_manifest_parts(d: Path, dir_fd) -> list:
+    """파생 manifest 의 `(이름, digest)` — **기록용**이다 (61차 P0-1).
+
+    identity 밖이므로 이것이 바뀌어도 봉인은 유효하다. 그래도 굳히는 순간
+    무엇이 옆에 있었는지는 기록에 남긴다 — 나중에 "그때 report 가 있었나" 를
+    묻는 자리가 사본이 아니라 봉인을 보게 하기 위해서다.
+    """
+    present = _dir_entries(d, dir_fd)
+    out = []
+    for name in RUN_DERIVED_MANIFESTS:
+        if name not in present:
+            continue
+        body = _read_member(d, name, dir_fd)
+        if body is not None:
+            out.append((name, hashlib.sha256(body).hexdigest()))
+    return out
 
 
 def seal_run_identity(run_dir, dir_fd=None) -> str:
@@ -4475,7 +4534,12 @@ def seal_run_identity(run_dir, dir_fd=None) -> str:
         raise PreserveError(
             "promote",
             f"{d} {_MISSING_MANIFEST_MARK} — 봉인할 것이 없으므로 굳히지 않는다")
-    body = (json.dumps({"kind": _RUN_SEAL_KIND, "manifests": parts},
+    # ★ 61차 P0-1 — `derived` 는 **identity preimage 가 아니다.** 굳히는 순간
+    #   옆에 무엇이 있었는지의 기록이고, 그것이 나중에 갱신돼도 봉인은 유효한
+    #   채로 남는다 (`_sealed_manifest_parts()` 는 `manifests` 만 검증한다).
+    body = (json.dumps({"kind": _RUN_SEAL_KIND, "manifests": parts,
+                        "derived": [[n, h]
+                                    for n, h in _derived_manifest_parts(d, dir_fd)]},
                        sort_keys=True, ensure_ascii=False,
                        separators=(",", ":")) + "\n").encode("utf-8")
     tmp_name = f".{RUN_SEAL_NAME}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
