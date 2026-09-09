@@ -199,9 +199,19 @@ def _wave1_gate() -> dict:
                 hz_by_frag.setdefault(frag, f"{h.get('level')} — {h.get('what')}")
     missing = not (cit and neu and dop)
     cit, neu, dop = cit or {}, neu or {}, dop or {}
+    # ⛔⛔ 2026-09-09 (v3 묶음 E · P0-07) — **키 모양이 한 함수 안에서 갈려 있었다.**
+    #   `dE_site_meV` 의 키는 원장 그대로 `<조각>_<시드>`(`ptfe_dimer_pm1` …)인데
+    #   조회는 맨 조각 이름(`ptfe_dimer`)으로 들어와 **영원히 불일치**했다 → CITABLE 0.
+    #   원장에 `dE_site_meV/ptfe_dimer_pm1 = 36.071` 로 **등록돼 있는** 값을 화면이
+    #   "등록돼 있지 않다" 고 말했다. 반대로 `dE_notes` 는 **조각 단위** 키다.
+    #   ⇒ 두 키 모양을 지우지 말고 **이름을 붙여 구분한다**. 게이트는 시드별로 건다
+    #     (원장이 시드별로 값을 나눠 뒀으므로 그게 원장 구조와 맞다) — 느슨해지는 게
+    #     아니라 오히려 좁아진다. `ptfe_c10_net4` 처럼 원장에 없는 시드는 그대로 막힌다.
     g = {"source_missing": missing,
          "hazards_by_fragment": hz_by_frag,
+         #: allow-list 키 모양 = `<조각>_<시드>` (원장 dE_site_meV 그대로)
          "citable_dE": set((cit.get("dE_site_meV") or {}).keys()),
+         "citable_key_shape": "fragment_seed",
          "not_citable": cit.get("not_citable") or [],
          "caveats": cit.get("⚠_caveats_MUST_QUOTE_WITH_VALUES") or [],
          "eads_hold": cit.get("⚠_hold_2026_08_28_회신O") or {},
@@ -211,10 +221,17 @@ def _wave1_gate() -> dict:
     return g
 
 
-def _wave1_status(fragment: str, kind: str, gate: dict) -> tuple:
+def _wave1_status(fragment: str, kind: str, gate: dict, seed: str = "") -> tuple:
     """(지위, 사유) — `kind` 는 'dE' | 'eads'.
 
     ⚠ 정본이 없으면 전부 BLOCKED 다. "판정 못 함" 을 "통과" 로 바꾸지 않는다.
+
+    `seed` 를 주면 allow-list 조회 키가 **`<조각>_<시드>`** 가 된다 (원장
+      `dE_site_meV` 의 키 모양). 안 주면 맨 조각 이름으로 본다 — 조각 단위로
+      물어보는 호출부(시험 픽스처)를 위한 하위호환이고, **넓히는 쪽이 아니다**:
+      시드를 주면 그 시드가 원장에 있어야만 통과한다.
+    ⛔ 이 함수가 못 하는 것: 어느 조각·시드가 인용 가능해야 **옳은지** 판정하지
+      않는다. 원장에 있나만 본다.
     """
     if gate.get("source_missing"):
         return "BLOCKED", "인용 원장을 못 읽었다 — 지위 불명이므로 잠근다"
@@ -230,13 +247,17 @@ def _wave1_status(fragment: str, kind: str, gate: dict) -> tuple:
     #   위에서 `citable_dE` allow-list 를 만들어 놓고 **쓰지 않은 채** 마지막 줄이
     #   무조건 `CITABLE` 을 돌려줬다. 새 fragment 가 들어오거나 citable 키가 잘못
     #   추가·삭제돼도 화면은 그냥 통과시킨다. **모르는 것은 통과가 아니다.**
-    if fragment not in gate.get("citable_dE", ()):
-        return "UNKNOWN", (f"`{fragment}` 가 인용 원장(sdcp_wave1_citable.json 의 "
-                           f"dE_site_meV)에 **등록돼 있지 않다** — 지위 불명이므로 "
-                           f"인용하지 않는다. 등록하거나, 왜 없는지 원장에 적어라")
+    # ⚠ hazard 검사는 allow-list 검사 **앞**에 온다. 뒤에 두면 미등록 UNKNOWN 리턴이
+    #   먼저 나가서 hazard 줄에 영영 도달하지 못한다(2026-09-07 이후 죽은 코드였다).
+    #   둘 다 인용 불가지만 **사유가 다르다** — "원장이 금지했다" 와 "원장에 없다".
     hz = gate.get("hazards_by_fragment", {}).get(fragment)
     if hz:
         return "BLOCKED", (f"인용 위험 원장에 걸려 있다: {hz}")
+    key = f"{fragment}_{seed}" if seed else fragment
+    if key not in gate.get("citable_dE", ()):
+        return "UNKNOWN", (f"`{key}` 가 인용 원장(sdcp_wave1_citable.json 의 "
+                           f"dE_site_meV)에 **등록돼 있지 않다** — 지위 불명이므로 "
+                           f"인용하지 않는다. 등록하거나, 왜 없는지 원장에 적어라")
     return "CITABLE", gate["dE_notes"].get(fragment, "허용 문구와 함께만 인용한다")
 
 
@@ -271,7 +292,8 @@ def sdcp_wave1_rows() -> dict:
             continue
         ni, li = d2["Nitop"], d2["Litop"]
         same = ni["basin"] == li["basin"]
-        st, why = _wave1_status(frag, "dE", gate)
+        # 시드를 같이 넘긴다 — 원장이 `<조각>_<시드>` 로 값을 나눠 뒀다 (P0-07).
+        st, why = _wave1_status(frag, "dE", gate, seed)
         # ⛔⛔ 2026-09-05 — 종전 조건은 `st == "CITABLE" and not same` 이었다.
         #   그래서 basin 이 갈린 **비-CITABLE** 행은 조각 단위 사유를 그대로 달고 나왔고,
         #   실측으로 거짓말이 됐다: `sdcp_neutral / net4` 는 **−40.7 meV** 인데 사유가
@@ -467,8 +489,16 @@ def categorize(prop_name: str) -> str:
 _PREFIX = {
     "comp1": ["comp1"], "comp2": ["comp2"], "comp3": ["comp3"], "comp4": ["comp4"],
     "comp5": ["comp5"], "modelc": ["modelc", "modelC", "lpscl16"], "modelc_v3": ["modelc_v3", "modelC_v3"],
-    "modelc_nd_doped": ["modelc_nd", "nd_"], "lpsocl": ["lpsocl"], "b2o3": ["b2o3"],
-    "vgcf_hbn": ["vgcf", "hbn", "li3n", "lic6"],
+    # ⚠ 'ndo' — 2026-09-07 Rietveld·어닐 산출물이 `ndo_lpscl16_…` 로 들어왔는데 prefix 가
+    #   `nd_`(밑줄) 뿐이라 **27개 구조가 화면에서만 사라졌다**(/api/structure 로는 200).
+    #   파일이 죽은 게 아니라 목록 규칙이 못 따라간 것 — 규칙에 이름을 추가한다.
+    "modelc_nd_doped": ["modelc_nd", "nd_", "ndo"], "lpsocl": ["lpsocl"], "b2o3": ["b2o3"],
+    # ⚠ vgcf_hbn 은 VGCF/h-BN 슬랩이다. li3n·lic6 는 **별도 조성 페이지가 있는 다른 계**인데
+    #   여기 얹혀 있어서 li3n_* 자료가 두 페이지에 동시에 떴다(어느 쪽이 주인인지 화면이
+    #   말하지 못했다). 소유를 각자에게 돌리고, 아래 세 계를 fallback 이 아니라 **명시**한다
+    #   — fallback([cid])은 규칙이 안 보여서 다음 사람이 같은 함정을 다시 판다.
+    "vgcf_hbn": ["vgcf", "hbn"],
+    "li3n": ["li3n"], "lic6": ["lic6"], "sdcp": ["sdcp"],
 }
 
 # 파일이 여러 조성 prefix에 걸릴 때 "가장 긴(구체적) prefix"가 소유
