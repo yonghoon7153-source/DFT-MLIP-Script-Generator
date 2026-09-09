@@ -17,6 +17,17 @@ gabia (uma env, GPU는 pbrefine 점유 → --device cpu):
   tmux new -s c2phon -d '/data/apps/miniforge3/envs/uma/bin/python3 \
       tools/electronic/comp_phonon_uma.py --device cpu \
       --out /data/work/runs/comp2_phonon > /data/work/runs/comp2_phonon.log 2>&1'
+
+⛔ 이 도구가 **못 하는 것**
+  · `mic_rmsd` 는 **`round()` 한 번짜리 최소이미지**다. 셀이 심하게 기울면 최근접 이미지를
+    못 찾는다 (2026-09-09 실측: `ndo_lpscl16_n5fu` 셀 a=b=6.928 · **c=34.64, c 성분
+    17.32/10/28.28** — 여기서 이 함수는 배열 간 O 거리를 틀리게 준다).
+    ⇒ **여기 쓰는 용도(V0 대비 relax 변위, 보통 <0.3 Å)에서는 안전하다** — 변위가 반셀보다
+      훨씬 작아 round 가 맞는 이미지를 고른다. **큰 변위·다른 구조 간 비교에는 쓰지 마라.**
+      그 경우는 이미지를 실제로 훑어야 한다 (`shifts ∈ [-2..2]³` 전탐색).
+  · **원자 순서가 같다고 가정한다.** 순서가 다른 두 구조(예: 같은 조성의 다른 배열)에는
+    쓸 수 없다 — 종별 최적대응(Hungarian)이 필요하다.
+  · UMA 기준의 국소최소 여부만 본다. **DFT 와의 일치가 아니다.**
 """
 import argparse
 import json
