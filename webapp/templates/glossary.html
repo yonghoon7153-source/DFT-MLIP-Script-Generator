@@ -14,7 +14,13 @@
 <div class="section-title" data-n="{{ cats[cat]|length }}개">{{ cat }}</div>
 <div class="grid grid-3">
 {% for g in cats[cat] %}
-<div class="card gterm" data-t="{{ g.term|lower }} {{ g.full|lower }} {{ g.id }} {{ g.what|striptags|lower }}">
+{# id 는 앵커다 — 홈 부제가 이미 /glossary#beta-gate 로 보내는데 페이지에 카드 id 가
+   하나도 없어서 맨 위에 떨어졌다. 검색 색인에는 how/ours/lit 까지 넣는다: 철회·인용금지
+   문구는 거의 다 '우리 계산' 칸에 있어서, 정확히 확인하러 온 검색어가 다 빠졌다
+   (실측 `b2o3` 10장 중 1장 · `철회` 6장 중 1장). #}
+<div class="card gterm" id="{{ g.id }}"
+     data-t="{{ g.term|lower }} {{ g.full|lower }} {{ g.id }} {{ g.what|striptags|lower }}
+             {{ g.how|striptags|lower }} {{ g.ours|striptags|lower }} {{ g.lit|striptags|lower if g.lit else '' }}">
   <div onclick="this.parentNode.classList.toggle('open')" onkeydown="_kbd(event)" tabindex="0" role="button" aria-label="{{ g.term }} 설명 펼치기" style="cursor:pointer">
     <div style="font-weight:700;color:var(--navy);font-size:1.02rem">{{ g.term }}
       <span class="gplus" style="float:right;color:var(--muted);font-weight:400">＋</span></div>
@@ -77,5 +83,16 @@ function filt(q){q=q.toLowerCase();let n=0;
     let vis=[...s.querySelectorAll('.gterm')].some(c=>c.style.display!=='none');
     s.style.display=vis?'':'none';});
   let e=document.getElementById('gl-empty'); if(e)e.style.display=n?'none':'';}
+/* #<id> 로 들어오면 그 카드를 **펼쳐서** 보여준다 — 접힌 카드로 스크롤만 하면
+   "빈 제목줄" 만 보이고 정작 찾아온 내용이 안 보인다. */
+function _openHash(){
+  var id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  var el = document.getElementById(id);
+  if (!el || !el.classList.contains('gterm')) return;
+  el.classList.add('open');
+  el.scrollIntoView({block:'center'});
+}
+window.addEventListener('hashchange', _openHash); _openHash();
 </script>
 {% endblock %}

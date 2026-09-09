@@ -344,22 +344,48 @@
   <h2>🧪 게이트 평가 <span class="sub">({{ assessments|length }}건 · append-only)</span></h2>
   <p class="sub"><strong>미평가는 실패가 아니다.</strong> 게이트 입력이 없으면 평가가 성립하지 않는다
     (D-2026-08-20-no-retro-gate-without-artifact). 옛 판정과 현행 판정은 지우지 않고 <em>함께</em> 남는다.</p>
+  {# ⚠ 레코드 종류가 둘이다 — `gate`(게이트가 어떻게 났나)와 `correction`(그 판정을 정정).
+     종전 템플릿은 gate 필드만 읽어서 correction 레코드가 **완전히 빈 행**으로 그려졌다:
+     대상만 있고 게이트·판정·사유가 전부 '–'. 정작 그 레코드가 든 것은
+     what_was_wrong · second/third_error_corrected · scope · evidence 4건이고,
+     원장 자신의 _rules 가 "★ 정정도 산출물이다" 라고 못 박는다. 분기를 만든다. #}
   <table class="tbl">
-    <thead><tr><th>대상</th><th>게이트</th><th>판정</th><th>사유</th></tr></thead>
+    <thead><tr><th>대상 · 레코드</th><th>게이트</th><th>판정</th><th>사유</th></tr></thead>
     <tbody>
     {% for a in assessments %}
       {% set _cid = claim_ref_to_id(a.claim_ref) %}
       <tr{% if _cid %} data-claim="{{ _cid }}"{% endif %}>
-        <td><code>{{ a.claim_ref or a.applies_to or '–' }}</code></td>
-        <td>{{ a.gate or a.slot or '–' }}</td>
+        <td><code>{{ a.claim_ref or a.applies_to or '–' }}</code>
+          {# append-only 원장인데 화면이 레코드 ID 를 안 보이면 '어느 판정' 인지 못 가리킨다 #}
+          <br><span class="sub mono" style="font-size:.66rem">{{ a.assessment_id or a.id or '' }}</span>
+          {%- if a.binding %} <span class="sub" style="font-size:.66rem">· {{ a.binding }}</span>{% endif %}
+          {%- if a.supersedes_assessment_id %}<br><span class="sub" style="font-size:.66rem">↩ 대체:
+            <span class="mono">{{ a.supersedes_assessment_id }}</span></span>{% endif %}</td>
+        <td>{{ a.gate or a.slot or ('(정정 레코드)' if a.kind == 'correction' else '–') }}</td>
         <td>{% set o = a.result or a.gate_outcome or a.outcome %}
             {%- if o == 'pass' %}<span style="color:#0d9488">✅ 통과</span>
             {%- elif o == 'fail' %}<span style="color:#be123c">⛔ 실패</span>
             {%- elif o == 'not_assessed' %}<span style="color:#c05621">◻ 미평가</span>
             {%- elif o == 'inapplicable' %}<span style="color:#6b7280">– 비해당</span>
+            {%- elif a.kind == 'correction' %}<span style="color:#7c3aed">✎ 정정</span>
             {%- else %}{{ o or '–' }}{% endif %}
             {% if a.state == 'retracted' or a.status == 'retracted' %}<span class="sub">(철회된 옛 판정 — 지우지 않고 남긴다)</span>{% endif %}</td>
-        <td>{{ a.reason or a.why_retracted or a.note or '' }}</td>
+        <td>
+          {%- if a.kind == 'correction' %}
+            {% if a.what_was_wrong %}<div><b>무엇이 틀렸나:</b> {{ a.what_was_wrong|bold }}</div>{% endif %}
+            {% if a.second_error_corrected %}<div class="sub" style="margin-top:3px">② {{ a.second_error_corrected|bold }}</div>{% endif %}
+            {% if a.third_error_corrected %}<div class="sub" style="margin-top:3px">③ {{ a.third_error_corrected|bold }}</div>{% endif %}
+            {% if a.scope %}<div class="sub" style="margin-top:3px">범위: {{ a.scope|bold }}</div>{% endif %}
+            {% if a.evidence %}
+            <details class="v3-fold" style="margin-top:4px">
+              <summary>근거 {{ a.evidence|length }}건</summary>
+              <ul style="font-size:.78rem;margin:4px 0 0">
+                {% for e in a.evidence %}<li>{{ e|bold }}</li>{% endfor %}</ul>
+            </details>{% endif %}
+            {% if a.reviewed_by %}<div class="sub" style="margin-top:3px">검토: {{ a.reviewed_by }}</div>{% endif %}
+          {%- else %}{{ a.reason or a.why_retracted or a.note or '' }}
+            {%- if a.why %}<div class="sub" style="margin-top:3px">{{ a.why|bold }}</div>{% endif %}
+          {%- endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

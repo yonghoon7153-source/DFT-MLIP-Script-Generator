@@ -803,7 +803,9 @@ def kb_doc(rel):
         배지로 올리되(F 의 doc_badges), **없으면 메우지 않는다**.
       · kb 밖(tools/·litdb/)은 안 연다 — 없으면 404 다 (빈 화면이 아니라).
     """
-    p = D.safe_kb_doc(rel)
+    # URL 규칙이 `kb/` 를 이미 먹었다 — 화이트리스트에는 **저장소 상대경로**를 준다.
+    full = rel if str(rel).startswith("kb/") else "kb/" + str(rel).lstrip("/")
+    p = D.safe_kb_doc(full)
     if p is None:
         abort(404)
     text = p.read_text(encoding="utf-8")
@@ -813,8 +815,7 @@ def kb_doc(rel):
         title="📄 " + p.name, content=md_html(text, ("tables", "fenced_code", "toc")),
         badges=doc_badges(meta),
         parent={"url": "/governance", "label": "⚖ 판정 원장"},
-        subtitle=f"kb/{rel.split('kb/')[-1] if rel.startswith('kb/') else rel} · "
-                 "원본은 이 파일이다 — 화면은 읽기용이다")
+        subtitle=full + " · 원본은 이 파일이다 — 화면은 읽기용이다")
 
 
 @app.route("/requests")
