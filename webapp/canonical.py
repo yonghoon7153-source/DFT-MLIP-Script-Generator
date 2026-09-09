@@ -620,6 +620,70 @@ def hazard_claims(root=None) -> list:
     return out
 
 
+#: 축 단위 금지가 취하는 꼴 (Codex BI-4 Q5 · 2026-09-09).
+#:   `{"system": …, "method": …, "quantity_group": [...], "use": [...]}`
+#: ⛔ 왜 필요한가: 금지는 **양의 종류**로 선언되는데 스캐너는 `(metric, system)` 쌍만 안다.
+#:   실측 — `HZ-b2o3-md-ea` 가 *"D · Ea · σ · 구간 Ea 전부 인용 불가"* 인데
+#:   `binding_scope_why` 자신이 *"같은 축의 D·σ·구간 Ea 는 **레지스트리에 없어 안 덮인다**"*
+#:   라고 적어 두었다. 어휘 밖 표기(`0.2241`)가 걸어 나간 것도 같은 구멍이다.
+#: ⚠ 그래서 축은 **claim 을 대신하지 않는다** — claim 위에 얹혀 **상속**시킨다.
+AXIS_KEYS = ("system", "method", "quantity_group", "use")
+
+
+def _axis_tokens(cid: str) -> dict:
+    """claim id `MD_Ea_eV@b2o3` → `{"system": "b2o3", "method": "MD", "quantity": {...}}`.
+
+    ⛔ 못 하는 것: id 규약(`{metric}@{system}`)에 의존한다. 규약이 바뀌면 여기가 먼저 깨진다.
+      그래서 아래 `validate_hazards` H5 가 **축이 실제로 무엇을 덮는지 세어** 0이면 잡는다.
+    """
+    metric, _, system = str(cid or "").partition("@")
+    parts = [p for p in metric.split("_") if p]
+    return {"system": system.lower(),
+            "method": (parts[0] if parts else "").upper(),
+            # 남은 토큰 전부를 양 이름 후보로 본다 (Ea · sigma · D · ratio · singleseed …)
+            "quantity": {p.lower() for p in parts[1:]} | {metric.lower()}}
+
+
+def axis_covers(cid: str, axis: dict) -> bool:
+    """이 claim id 가 그 금지 축 **안**인가.
+
+    셋을 **모두** 만족해야 한다 — 계 · 방법 · 보고량군. 하나라도 어긋나면 밖이다.
+    (`use` 는 소비 시점 조건이라 여기서 안 본다 — 소비자가 본다.)
+    """
+    t = _axis_tokens(cid)
+    sysd = str(axis.get("system", "")).lower()
+    if not sysd or sysd not in t["system"]:
+        return False
+    meth = str(axis.get("method", "")).upper().replace("-", "_")
+    # `UMA-MD` · `MD` 둘 다 claim 접두 `MD` 와 맞아야 한다
+    if meth and not any(m and m == t["method"] for m in meth.split("_")):
+        return False
+    qs = {str(q).lower() for q in (axis.get("quantity_group") or [])}
+    return bool(qs & t["quantity"]) if qs else False
+
+
+def axis_prohibitions(root=None) -> list:
+    """살아있는 **축 단위 금지** 목록 → `[{axis, id, level, why, fix, decision}]`."""
+    out = []
+    for z in _hazard_rows(root=root):
+        ax = z.get("prohibition_axis")
+        if not isinstance(ax, dict) or not prohibition_active(z):
+            continue
+        out.append({"axis": ax, "id": z.get("id"), "level": z.get("level"),
+                    "why": z.get("why", ""), "fix": z.get("fix", ""),
+                    "decision": z.get("decision")})
+    return out
+
+
+def axis_blocked(cid: str, root=None, axes=None) -> list:
+    """이 claim 을 덮는 축 금지들 → `[{id, axis, why, fix}]` (빈 목록 = 축 밖).
+
+    **claim 이 레지스트리에 없어도 판정된다** — 그게 축을 넣은 이유다.
+    """
+    return [a for a in (axes if axes is not None else axis_prohibitions(root=root))
+            if axis_covers(cid, a["axis"])]
+
+
 def all_claims(reg=None, root=None) -> list:
     """결속을 요구하는 주장 **전부** — 수치(레지스트리) + 비수치(인용위험 원장).
 
@@ -1564,13 +1628,17 @@ def validate_hazards(root=None, reg=None) -> list:
       `validate_governance()` 는 결정↔판정만 본다. 그래서 hazard 의 `fix` 가 **존재하지 않는
       키**(`FINAL_for_paper.Ea_eV_PAPER`)를 "이것만 인용하라" 고 3주 동안 가리키고 있었다.
 
-    검사 넷 (전부 사실검사 — 사람 판단 0):
+    검사 다섯 (전부 사실검사 — 사람 판단 0):
       H1  `level` 이 `HAZARD_LEVELS` 어휘 안인가
       H2  `claim` 이 레지스트리에 실재하는 (metric, system) 인가
       H3  `fix`/`what` 이 지목하는 **점표기 키**가 그 원자료 파일에 실재하는가
       H4  `id` 가 중복되지 않는가
+      H5  `prohibition_axis` 가 어휘·모양을 지키고 **실제로 무엇인가를 덮는가**
+          (Codex BI-4 Q5 · 2026-09-09)
 
     ⛔ 못 하는 것: 금지가 **옳은지**, 화면이 그 금지를 지키는지는 못 본다 (그건 결속 검사다).
+      그리고 H5 는 축이 **너무 넓은지**는 못 본다 — `quantity_group` 에 흔한 낱말을 넣으면
+      과잉차단이 되는데, 그건 사람이 본다.
     """
     import re as _re
     bad, seen = [], {}
@@ -1651,6 +1719,33 @@ def validate_hazards(root=None, reg=None) -> list:
                         bad.append(f"{tag}: {fld} 가 {sp} 에 **없는 하위 키**를 지목한다 — "
                                    f"{dotted!r}. 화면·원고가 그 지시를 따를 수 없다")
                     break
+        # ── H5: 축 단위 금지의 모양·어휘·실효성 ──────────────────────────
+        ax = z.get("prohibition_axis")
+        if ax is not None:
+            if not isinstance(ax, dict):
+                bad.append(f"{tag}: prohibition_axis 가 객체가 아니다 ({type(ax).__name__})")
+            else:
+                unk = sorted(set(ax) - set(AXIS_KEYS)
+                             - {"why", "decision", "added"}
+                             - {k for k in ax if str(k).startswith(("⛔", "⚠"))})
+                if unk:
+                    bad.append(f"{tag}: prohibition_axis 에 어휘 밖 키 {unk} "
+                               f"(허용: {list(AXIS_KEYS)} + why/decision/added + ⛔·⚠ 주석)")
+                for k in ("system", "quantity_group"):
+                    if not ax.get(k):
+                        bad.append(f"{tag}: prohibition_axis 에 `{k}` 가 없다 — "
+                                   f"계와 보고량군이 없으면 축이 무엇을 덮는지 모른다")
+                if not isinstance(ax.get("quantity_group", []), list):
+                    bad.append(f"{tag}: prohibition_axis.quantity_group 이 배열이 아니다")
+                # ⛔ 실효성 — 이 축이 **레지스트리의 무엇도 안 덮으면** 죽은 선언이다.
+                #   (오타·잘못된 계 이름이 여기서 잡힌다. 축의 값어치는 레지스트리 밖
+                #    claim 도 덮는 것이지만, 하나도 안 덮히면 그건 배선 실패다.)
+                if isinstance(ax, dict) and ax.get("system") and ax.get("quantity_group"):
+                    if not any(axis_covers(k, ax) for k in known):
+                        bad.append(f"{tag}: prohibition_axis 가 레지스트리의 어떤 claim 도 "
+                                   f"안 덮는다 — 계 이름이나 보고량군 오타를 의심해라 "
+                                   f"(system={ax.get('system')!r}, "
+                                   f"method={ax.get('method')!r})")
     return bad
 
 

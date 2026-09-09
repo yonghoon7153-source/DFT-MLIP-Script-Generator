@@ -136,6 +136,45 @@ def policy_for_file(target, root: Path = None) -> dict:
             "hazards": haz, "why": why, "errors": errors}
 
 
+def axis_blocked(claim_id: str, root: Path = None) -> list:
+    """이 claim 을 덮는 **축 단위 금지** → `[{id, level, why, fix}]` (Codex BI-4 Q5).
+
+    소비자가 **claim 이름으로** 물을 수 있게 한다 — `policy_for_file` 은 파일 단위라
+    *"이 파일의 어느 양을 쓰려는가"* 를 모른다. 축은 그 질문에 답한다.
+
+    ⛔ 못 하는 것: `webapp/canonical.py` 의 `axis_covers` 와 **같은 규칙을 두 번 구현**한다.
+      (webapp 을 import 하면 flask 의존이 따라온다.) 규칙이 갈라지지 않도록
+      `--selftest` 가 양쪽 판정을 같은 픽스처로 대조한다.
+    """
+    base = Path(root) if root else REPO
+    try:
+        rows = json.loads((base / "db/properties/citation_hazards.json")
+                          .read_text(encoding="utf-8")).get("hazards", [])
+    except (OSError, ValueError):
+        return [{"id": None, "level": "POLICY_ERROR",
+                 "why": "인용위험 원장을 못 읽었다 — 확인 불가는 통과가 아니다", "fix": ""}]
+    metric, _, system = str(claim_id or "").partition("@")
+    parts = [p for p in metric.split("_") if p]
+    t_sys, t_meth = system.lower(), (parts[0] if parts else "").upper()
+    t_q = {p.lower() for p in parts[1:]} | {metric.lower()}
+    out = []
+    for z in rows:
+        ax = z.get("prohibition_axis") if isinstance(z, dict) else None
+        if not isinstance(ax, dict) or not _prohibition_active(z):
+            continue
+        s = str(ax.get("system", "")).lower()
+        if not s or s not in t_sys:
+            continue
+        m = str(ax.get("method", "")).upper().replace("-", "_")
+        if m and not any(x and x == t_meth for x in m.split("_")):
+            continue
+        qs = {str(q).lower() for q in (ax.get("quantity_group") or [])}
+        if qs & t_q:
+            out.append({"id": z.get("id"), "level": z.get("level"),
+                        "why": z.get("why", ""), "fix": z.get("fix", "")})
+    return out
+
+
 def require_open(target, override: bool = False, what: str = "", root: Path = None) -> str:
     """닫힌 축이면 **시작하지 않는다**. `override` 면 경고를 찍고 스탬프를 돌려준다.
 
@@ -250,6 +289,50 @@ def _selftest() -> int:
     with tempfile.TemporaryDirectory() as d:
         if policy_for_file("무관한.json", root=Path(d))["state"] != "policy_error":
             print("⛔ selftest: db/properties 가 없는데 policy_error 가 아니다"); ok = False
+
+    # ── 축 단위 금지 상속 (Codex BI-4 Q5) ──────────────────────────────────
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d); (r / "db/properties").mkdir(parents=True)
+        (r / "db/properties/citation_hazards.json").write_text(json.dumps({"hazards": [{
+            "id": "HZ-ax", "level": "BLOCKED", "file": "db/properties/q.json",
+            "what": "축 전체", "prohibition_axis": {
+                "system": "b2o3", "method": "UMA-MD",
+                "quantity_group": ["d", "ea", "sigma", "ratio"]}}]},
+            ensure_ascii=False), encoding="utf-8")
+        for cid, want, 이름 in (
+            ("MD_Ea_eV@b2o3", True, "레지스트리에 있는 claim"),
+            ("MD_D_cm2s@b2o3", True, "★레지스트리에 **없는** claim (축을 넣은 이유)"),
+            ("MD_sigma_300K@b2o3", True, "★없는 파생량"),
+            ("MD_sigma_ratio_600K@b2o3_vs_modelc", True, "비교 claim"),
+            ("gap_eV@b2o3", False, "⛔음성: 같은 계의 **다른 방법**(0 K DFT)"),
+            ("B0_GPa@b2o3", False, "⛔음성: 같은 계의 **다른 양**"),
+            ("MD_Ea_eV@modelc", False, "⛔음성: 같은 양의 **다른 계**"),
+        ):
+            got = bool(axis_blocked(cid, root=r))
+            if got != want:
+                print(f"⛔ selftest 축: {이름} — {cid} → {got} (기대 {want})"); ok = False
+        # ⛔음성: 원장을 못 읽으면 **POLICY_ERROR 를 낸다** (빈 목록 = 통과가 아니다)
+        (r / "db/properties/citation_hazards.json").write_text("{깨진", encoding="utf-8")
+        b = axis_blocked("MD_Ea_eV@b2o3", root=r)
+        if not b or b[0].get("level") != "POLICY_ERROR":
+            print("⛔ selftest 축: 원장을 못 읽었는데 통과했다 —", b); ok = False
+
+    # ⛔ 두 구현이 갈라지지 않는가 — webapp/canonical.py 와 **같은 판정**이어야 한다
+    try:
+        import importlib.util as _ilu
+        _sp = _ilu.spec_from_file_location("_c4x", REPO / "webapp/canonical.py")
+        _c = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_c)
+    except Exception as _e:                                          # noqa: BLE001
+        print(f"   ⚠ webapp/canonical.py 대조 생략 ({type(_e).__name__}) — "
+              "두 구현이 갈라져도 여기서 못 잡는다")
+    else:
+        for cid in ("MD_Ea_eV@b2o3", "MD_D_cm2s@b2o3", "MD_sigma_300K@b2o3",
+                    "gap_eV@b2o3", "B0_GPa@b2o3", "MD_Ea_eV@modelc",
+                    "MD_sigma_ratio_600K@b2o3_vs_modelc"):
+            a, b = bool(axis_blocked(cid)), bool(_c.axis_blocked(cid))
+            if a != b:
+                print(f"⛔ selftest: 두 구현이 갈라졌다 — {cid}: policy={a} canonical={b}")
+                ok = False
 
     print("selftest PASS" if ok else "selftest FAIL")
     return 0 if ok else 1

@@ -210,13 +210,27 @@ if _a.segment:
     import policy as _pol                                              # noqa: E402
     _stamp = _pol.require_open(_a.segment, override=_a.policy_override)
     _pol_state = _pol.policy_for_file(_a.segment)
+    # ⛔ BI-4 Q5 — 파일 게이트는 "이 파일이 닫혔나" 만 안다. 이 도구가 **무엇을 만드는지**
+    #   (Ea · D · σ)를 알고 있으므로 **축 단위 금지**도 claim 이름으로 직접 묻는다.
+    #   그래야 레지스트리에 없는 파생량(`MD_D_cm2s@b2o3` 등)도 걸린다.
+    _sys = pathlib.Path(str(_a.segment)).name.split("_")[0]
+    _axis_hits = []
+    for _m in ("MD_Ea_eV", "MD_D_cm2s", "MD_sigma_mScm"):
+        for _h in _pol.axis_blocked(f"{_m}@{_sys}"):
+            if _h not in _axis_hits:
+                _axis_hits.append(_h)
+    if _axis_hits:
+        print(f"  ⛔ 축 단위 금지가 이 계({_sys})의 D·Ea·σ 를 덮는다: "
+              + " / ".join(f"{h.get('id')}({h.get('level')})" for h in _axis_hits),
+              file=sys.stderr)
     _r = run_segment(_a.segment, _a.T_lo, _a.T_hi, _a.T_out, _a.n_li)
     # ⛔⛔ BI-4 P1 — 종전 반환값에는 **숫자만** 있었다. 스탬프는 화면에만 찍히고
     #   json 을 읽는 쪽은 이 값이 인용 가능한지 알 방법이 없었다. 정책을 값과 같이 낸다.
-    _r["citable"] = (_pol_state["state"] == "open")
+    _r["citable"] = (_pol_state["state"] == "open") and not _axis_hits
     _r["policy"] = {"state": _pol_state["state"], "why": _pol_state["why"],
                     "target": str(_a.segment),
-                    "checked_by": "tools/db/policy.py policy_for_file()"}
+                    "axis_blocked": _axis_hits,
+                    "checked_by": "tools/db/policy.py policy_for_file() + axis_blocked()"}
     if _stamp:
         _r["⛔_POLICY_OVERRIDE"] = _stamp
         print("\n" + "=" * 74 + f"\n {_stamp}\n" + "=" * 74)

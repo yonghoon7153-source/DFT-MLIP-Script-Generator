@@ -2911,6 +2911,27 @@ _BINDING_SKIP_PREFIX = ("/static",)
 #:   **완화**다 — 새 미결속은 표를 늘려서가 아니라 결속을 붙여서 없앤다.
 _LEGACY_UNBOUND: dict = {}
 
+#: ⛔⛔ **검사하지 못한 표면** (Codex BI-4 재승인 조건 6 · 2026-09-09)
+#:   그쪽 조건은 *"미검사 표면을 명시하고, 핵심 JS 경로의 **실제 브라우저 검증** 결과를
+#:   고정 커밋과 함께 제출할 것"* 이다. **브라우저 검증은 못 했다** — 이 환경에서 CDN 이
+#:   403 이고 `webapp/static/vendor/.gitignore` 가 `*.js` 를 막아 `marked.min.js` 가 없다.
+#:   그 상태로 DOM 검사를 켜면 **거짓 초록**이 된다(실측: `typeof marked !== 'undefined'`
+#:   = 0/57 인데 DOM 스캔이 서버와 똑같이 초록이었다).
+#:   ⇒ 못 한 것을 못 했다고 **기계가 읽는 자리**에 적는다. 산문으로만 적으면 다음 사람이
+#:     "검사했겠지" 로 읽는다 — 그게 이번 리뷰 전체의 요지다.
+#:   ⚠ 이 목록이 **줄어야** 진전이다. 늘리려면 사유를 같이 적어라.
+_UNVERIFIED_SURFACES = {
+    "compare.html#cmp 조립 결과": "서버가 실은 JSON 을 JS 가 innerHTML 로 조립한다. "
+        "셀 조립은 서버 파생 claim id 로 바꿨지만 **브라우저에서 확인하지 않았다**.",
+    "댓글 정상 응답의 렌더": "`note_html` 이 서버에서 결속을 붙이는 것은 시험이 본다. "
+        "그 HTML 이 **브라우저에서 그대로 그려지는지**는 안 봤다.",
+    "댓글 오류 응답의 대체 표시": "`disp()` 가 `html` 없을 때 인용불가 안내를 내는 것은 "
+        "함수 단위로 확인했다. **실제 DOM 에서 텍스트 노드로 나가는지**는 안 봤다.",
+    "복사되는 문자열": "`.claim-mark` 를 텍스트 노드로 만든 이유가 복사·인쇄인데, "
+        "**실제 클립보드 내용을 확인하지 않았다**.",
+    "인쇄 경고 유지": "`@media print` 규칙은 CSS 에 있다. **인쇄 미리보기를 안 봤다**.",
+}
+
 #: `data-claim-not` 부인 원장 — **우연 일치**를 선언으로 처리한 자리와 그 사유.
 #:   ⚠ 이건 면제가 아니라 주장이다: *"이 문자열은 그 주장이 아니다"*. 틀리면 거짓 선언이고,
 #:     그래서 여기 사유를 적어 감사 가능하게 남긴다 (빈 사유 금지 — DYNAMIC_EXEMPT 관례).
@@ -3781,3 +3802,28 @@ def test_client_note_display_does_not_reparse():
     src = root.joinpath("comments.js").read_text(encoding="utf-8")
     assert "function disp(" in src and "cmt-unrendered" in src, \
         "html 이 없을 때의 처리가 눈에 보이지 않는다 — 조용한 폴백은 재발이다"
+
+
+def test_unverified_surfaces_are_declared_and_do_not_grow():
+    """⛔ **검사 못 한 표면**이 선언돼 있고, 조용히 늘지 않는가 (Codex BI-4 조건 6).
+
+    이 시험은 무엇을 검증하지 **않는다** — 그게 요점이다. 검증하지 못한 것이
+    기계가 읽는 자리에 남아 있는지만 본다. 산문으로만 적으면 다음 사람이
+    "검사했겠지" 로 읽고, 그게 이번 리뷰 전체의 요지다.
+
+    ⚠ 이 목록은 **줄어야** 진전이다. `CAP` 을 올리려면 왜 늘었는지 사유를 같이 적어라.
+    """
+    CAP = 5
+    assert _UNVERIFIED_SURFACES, "미검사 표면 선언이 비었다 — 다 검증했다면 CAP 을 0 으로 내려라"
+    assert len(_UNVERIFIED_SURFACES) <= CAP, (
+        f"⛔ 미검사 표면이 {len(_UNVERIFIED_SURFACES)}개로 늘었다 (상한 {CAP}). "
+        f"늘리려면 사유를 적고 CAP 을 올려라 — 조용히 늘면 선언의 뜻이 없다")
+    for name, why in _UNVERIFIED_SURFACES.items():
+        assert len(str(why).strip()) >= 20, f"{name}: 사유가 너무 짧다 — 무엇을 왜 못 봤나"
+    # 벤더 JS 가 실제로 없다는 전제를 확인한다 — 생기면 이 선언의 근거가 바뀐다
+    vend = A.ROOT / "webapp/static/vendor" if hasattr(A, "ROOT") else None
+    if vend and vend.is_dir():
+        js = sorted(p.name for p in vend.glob("*.js"))
+        assert not js, (
+            f"⛔ 벤더 JS 가 생겼다: {js} — 이제 브라우저 검증을 켤 수 있다. "
+            f"_UNVERIFIED_SURFACES 를 다시 보라 (더 이상 '못 한다' 가 아니다)")
