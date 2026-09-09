@@ -262,9 +262,10 @@ def test_hazard_binding_badge_matches_the_two_functions(gov_html):
     assert f"살아있는 결속 요구 {len(req)}건" in gov_html
 
     rows = D.citation_hazards().get("hazards", [])
-    inactive = [h for h in rows if h.get("level") in C.HAZARD_INACTIVE]
+    # ⛔ BI-3 P0-1: level 이 아니라 **금지 상태**로 센다. SUPERSEDED 라도 금지는 살아 있다.
+    inactive = [h for h in rows if h.get("id") and not C.prohibition_active(h)]
     assert len(vocab) - len(req) == len(inactive), (
-        "어휘와 결속 요구의 차이가 RESOLVED·SUPERSEDED 건수와 안 맞는다")
+        "어휘와 결속 요구의 차이가 **금지 해제** 건수와 안 맞는다")
     assert f"결속 해제 {len(inactive)}" in gov_html
 
 
@@ -273,10 +274,10 @@ def test_hazard_rows_are_not_all_drawn_the_same(gov_html):
     rows = D.citation_hazards().get("hazards", [])
     assert len(rows) > 5, "전제: 위험 원장이 여러 행이다"
     bound = [h for h in rows
-             if h.get("id") and h.get("level") not in C.HAZARD_INACTIVE
+             if h.get("id") and C.prohibition_active(h)
              and (h.get("claim") or h.get("forbidden_phrases"))]
     prose = [h for h in rows
-             if h.get("id") and h.get("level") not in C.HAZARD_INACTIVE
+             if h.get("id") and C.prohibition_active(h)
              and not (h.get("claim") or h.get("forbidden_phrases"))]
     assert bound and prose, "전제: 결속된 행과 산문 행이 둘 다 있다"
     assert "🔗 결속됨" in gov_html, "결속된 행 표시가 없다"

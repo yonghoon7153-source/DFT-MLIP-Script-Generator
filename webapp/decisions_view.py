@@ -260,7 +260,8 @@ def hazards_for(cid: str, prefixes=None, root=None) -> list:
             if e.get("system") == cid and e.get("source_path")}
     out = []
     for z in C._hazard_rows(root=root):
-        if z.get("level") in C.HAZARD_INACTIVE:
+        # 집행 기준은 level 이 아니라 **금지 상태**다 (BI-3 P0-1)
+        if not C.prohibition_active(z):
             continue
         claim_sys = str(z.get("claim") or "").split("@")[-1]
         if claim_sys:

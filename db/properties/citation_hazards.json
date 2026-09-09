@@ -224,8 +224,10 @@
     "베타 하드게이트",
     "β 하드게이트"
    ],
-   "binding_scope": "not_applicable",
-   "binding_scope_why": "level=SUPERSEDED — hazard_claims 가 제외한다(HAZARD_INACTIVE). forbidden_phrases 는 이력으로 남기되 집행되지 않는다."
+   "binding_scope": "phrase",
+   "binding_scope_why": "⛔ **2026-09-09 정정 (Codex BI-3 P0-1).** 종전 문구는 *\"level=SUPERSEDED — hazard_claims 가 제외한다. forbidden_phrases 는 이력으로 남기되 **집행되지 않는다**\"* 였다. **틀렸다.** 폐기된 것은 통과·탈락 **규칙**이고, 이 행의 `what` 이 말하는 *\"판정으로 인용 금지\"* 는 **살아 있는 금지**다 — 규칙이 죽었으니 오히려 더 살아 있다. 실측 반례: 화면에 \"판정은 β ≥ 0.80 하드게이트를 통과하면 된다\" 를 넣으면 탐지·미결속·suspect 가 전부 0 이었다. 이제 `prohibition_state` 로 집행하고 `level` 은 규칙 상태 표시로만 쓴다. 이력·반증 목적의 언급은 화면이 `data-claim-use=\"historical\"|\"refutation\"` 으로 선언한다.",
+   "prohibition_state": "active",
+   "rule_state_note": "level=SUPERSEDED 는 **규칙 상태**다 — β 0.80 고정문턱을 통과·탈락 판정으로 쓰는 것이 폐기됐다는 뜻(거짓탈락률 50 %). 판정축은 D_inc plateau · 창 안정성 · 홉 수."
   },
   {
    "file": "docs/manuscripts/figure2e_explained_v10.md",

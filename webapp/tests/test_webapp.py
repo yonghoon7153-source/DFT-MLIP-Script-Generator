@@ -3378,17 +3378,35 @@ def test_hazard_level_vocabulary_and_inactive_split():
     assert C.validate_hazards() == [], C.validate_hazards()
     ids = C.hazard_ids()
     active = {x["id"] for x in C.hazard_claims()}
-    # SUPERSEDED 는 **결속 어휘에는 있고 결속 요구에는 없다** — 폐기된 게이트가 살아있는
-    # 결속을 요구하던 것이 이번 회신의 실측 3건이다.
+    # ⛔⛔ 2026-09-09 (Codex BI-3 P0-1) — **이 시험이 틀린 해석을 기대값으로 고정하고 있었다.**
+    #   종전: "level 이 HAZARD_INACTIVE 면 결속을 요구하면 **안 된다**".
+    #   그 결과 `HZ-beta-hard-gate`(SUPERSEDED)의 *"판정으로 인용 금지"* 가 꺼졌고,
+    #   화면에 "판정은 β ≥ 0.80 하드게이트를 통과하면 된다" 를 넣어도 탐지 0 이었다.
+    #   ⇒ level(규칙 상태)과 prohibition_state(금지 상태)를 **갈라서** 본다.
     rows = {z["id"]: z for z in C._hazard_rows() if z.get("id")}
     for hid, z in rows.items():
         assert hid in ids, f"{hid} 이 결속 어휘에서 빠졌다 — 이력 언급이 유령이 된다"
-        if z.get("level") in C.HAZARD_INACTIVE:
-            assert hid not in active, (
-                f"⛔ {hid} 은 level={z['level']} 인데 살아있는 결속을 요구한다")
+        want = C.prohibition_active(z)
+        assert (hid in active) == want, (
+            f"⛔ {hid}: prohibition_active={want} 인데 결속 요구는 {hid in active} 다 "
+            f"(level={z.get('level')} · prohibition_state={z.get('prohibition_state')})")
     # ⛔음성 — 어휘 밖 level 은 위반이어야 한다 (fail-closed)
     assert "MAYBE" not in C.HAZARD_LEVELS
-    assert "SUPERSEDED" in C.HAZARD_LEVELS and "SUPERSEDED" in C.HAZARD_INACTIVE
+    # ⛔음성 ①: **폐기된 규칙이라도 금지는 기본으로 살아 있다.**
+    assert C.prohibition_active({"level": "SUPERSEDED"}), \
+        "SUPERSEDED 는 규칙이 죽은 것이지 금지가 죽은 게 아니다 (BI-3 P0-1)"
+    assert C.prohibition_active({"level": "STALE"}) and C.prohibition_active({"level": "HOLD"})
+    assert C.prohibition_active({"level": "OOPS_TYPO"}), "어휘 밖은 fail-closed 여야 한다"
+    assert not C.prohibition_active({"level": "RESOLVED"})
+    # ⛔음성 ②: 명시가 level 을 이기고, 어휘 밖 명시는 active 로 떨어진다
+    assert not C.prohibition_active({"level": "BLOCKED", "prohibition_state": "inactive"})
+    assert C.prohibition_active({"level": "RESOLVED", "prohibition_state": "active"})
+    assert C.prohibition_active({"level": "RESOLVED", "prohibition_state": "몰라"})
+    # ⛔음성 ③: Codex 가 낸 실제 반례가 지금 잡히는가
+    hit = C.find_claim_hits("판정은 β ≥ 0.80 하드게이트를 통과하면 된다", C.all_claims())
+    # find_claim_hits → (start, end, claim, verdict)
+    assert any(h[2].get("id") == "HZ-beta-hard-gate" for h in hit), \
+        "⛔ 폐기된 β 게이트를 판정으로 쓰는 문장이 안 잡힌다 (BI-3 P0-1 반례)"
 
 
 def test_retraction_can_say_there_is_no_alternative():

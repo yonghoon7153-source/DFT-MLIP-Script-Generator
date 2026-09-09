@@ -117,7 +117,7 @@ def test_hazard_panel_reconciles_with_governance(client):
     안 믿는다. 그래서 홈 칸 설명이 쪼갠 수를 **db 에서 세어** 말해야 한다.
     """
     rows = D.citation_hazards().get("hazards") or []
-    live = sum(1 for z in rows if z.get("level") not in C.HAZARD_INACTIVE)
+    live = sum(1 for z in rows if C.prohibition_active(z))
     blocked = sum(1 for z in rows if z.get("level") == "BLOCKED")
 
     card = next(c for c in NAV.onboard_stats()["cards"] if c["key"] == "hazard")

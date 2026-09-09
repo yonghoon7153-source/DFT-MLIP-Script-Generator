@@ -371,7 +371,9 @@ def onboard_stats(root=None) -> dict:
             import canonical as C
             import data as D
             rows = D.citation_hazards().get("hazards") or []
-            live = sum(1 for z in rows if z.get("level") not in C.HAZARD_INACTIVE)
+            # 화면이 세는 '지금 유효' 는 **금지가 살아 있는** 건수다 (BI-3 P0-1) —
+            # level 로 세면 SUPERSEDED 인데 금지는 살아 있는 행을 빠뜨린다.
+            live = sum(1 for z in rows if C.prohibition_active(z))
             blk = sum(1 for z in rows if z.get("level") == "BLOCKED")
             return ("철회·보류·조건부 등재 전건 — 지금 유효 %d · 그중 인용 금지 %d"
                     % (live, blk))

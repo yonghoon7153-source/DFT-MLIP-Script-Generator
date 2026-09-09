@@ -515,11 +515,48 @@ _HZ_CACHE = {"key": None, "out": None}
 #: RESOLVED 2 · HOLD 2 · STALE 2 · SUPERSEDED 1 · PREVIEW 1). 여기 없는 값은 UNKNOWN 이다.
 HAZARD_LEVELS = ("BLOCKED", "CONDITIONAL", "HOLD", "PREVIEW", "STALE",
                  "SUPERSEDED", "RESOLVED")
-#: **그 위험이 더는 적용되지 않는다** 는 뜻의 level — 살아있는 결속을 요구하지 않는다.
-#: ⚠ `STALE`(문서가 낡음)·`PREVIEW`(미완이니 인용 금지)·`HOLD` 는 여기 넣지 않는다 —
-#:   셋 다 **지금도 유효한 금지**다. 실측 사고: `HZ-beta-hard-gate` 가 SUPERSEDED 인데
-#:   `RESOLVED` 만 걸러서 폐기된 게이트가 결속 3건을 요구하고 있었다 (BI 회신 과소보고 (e)).
+#: ⛔⛔ **`level` 은 규칙의 상태지 금지의 상태가 아니다** (Codex BI-3, 2026-09-09).
+#:
+#: 2026-09-08 에 `HAZARD_INACTIVE = {"RESOLVED", "SUPERSEDED"}` 를 두고 `hazard_claims()`
+#: 에서 걸렀다. **그게 틀렸다.** `HZ-beta-hard-gate` 의 `what` 은
+#: *"β ≥ 0.80 하드게이트 — **판정으로 인용 금지**"* 다. 폐기된 것은 **통과·탈락 규칙**이고,
+#: *"그 규칙을 지금 판정에 쓰지 마라"* 는 **금지는 그대로 살아 있다** — 규칙이 죽었으니
+#: 오히려 더 살아 있다. 그런데 나는 그것을 끄고 `binding_scope_why` 에
+#: *"집행되지 않는다"* 라고 **정당화까지 적었다.** 실측: 화면에
+#: "판정은 β ≥ 0.80 하드게이트를 통과하면 된다" 를 넣으면 탐지·미결속·suspect 가 전부 0.
+#:
+#: 그래서 두 축을 **분리**한다:
+#:   · `level`              = **규칙 상태** (rule_state) — 그 판정·문턱이 아직 유효한가
+#:   · `prohibition_state`  = **금지 상태** — 그 문구를 지금 인용하면 안 되는가
+#: 기본값은 **fail-closed**: 명시가 없으면 `RESOLVED` 만 금지가 꺼지고 나머지는 **켜진다**.
+#: (`SUPERSEDED`·`STALE`·`PREVIEW`·`HOLD`·어휘 밖 오타 전부 살아 있는 금지로 친다.)
+#:
+#: 이력·반증 목적의 언급은 금지를 끄는 것이 아니라 **화면이 용도를 선언**해서 다룬다
+#: — `data-claim` + `data-claim-use="historical"|"refutation"` (아래 `USE_MODES`).
+#: ⚠ **표시 전용.** "그 규칙·판정이 더는 유효하지 않다" 를 화면이 세는 데만 쓴다
+#:   (`/governance` 의 '살아있는 위험 N건', nav 배지 등). **집행에 쓰지 마라** —
+#:   집행은 `prohibition_active()` 다. 이 둘을 같은 것으로 본 게 BI-3 P0-1 이다.
 HAZARD_INACTIVE = frozenset(("RESOLVED", "SUPERSEDED"))
+PROHIBITION_STATES = ("active", "inactive")
+#: 명시 없을 때 금지가 꺼지는 유일한 level. 나머지는 전부 켜진다.
+_PROHIBITION_OFF_BY_DEFAULT = frozenset(("RESOLVED",))
+#: 결속된 자리가 **어떤 용도**로 그 문구를 쓰는가. 기본은 `citation`(=금지 대상).
+USE_MODES = ("citation", "historical", "refutation")
+
+
+def prohibition_active(row: dict) -> bool:
+    """이 위험 행의 **금지**가 지금 살아 있는가 — `level` 이 아니라 이걸 본다.
+
+    · 행이 `prohibition_state` 를 명시하면 그것이 이긴다 (어휘 밖 값은 **active**).
+    · 없으면 `level == "RESOLVED"` 일 때만 꺼지고, 나머지는 전부 켜진다.
+    ⛔ 못 하는 것: 금지가 **정당한가**는 안 본다. 원장이 그렇게 말하는지만 본다.
+    """
+    raw = row.get("prohibition_state")
+    if raw is not None and str(raw).strip():
+        ps = str(raw).strip().lower()
+        # ⚠ 어휘 밖 값은 **active** 다 — 오타 하나로 금지가 사라지면 안 된다.
+        return ps != "inactive"
+    return str(row.get("level", "")).upper() not in _PROHIBITION_OFF_BY_DEFAULT
 
 
 def _hazard_rows(root=None) -> list:
@@ -565,7 +602,9 @@ def hazard_claims(root=None) -> list:
     out = []
     for z in _hazard_rows(root=root):
         hid, ph = z.get("id"), (z.get("forbidden_phrases") or [])
-        if not hid or z.get("level") in HAZARD_INACTIVE:
+        # ⛔ `level` 로 거르지 않는다 — 규칙이 폐기돼도 금지는 살아 있을 수 있다.
+        #    (Codex BI-3: SUPERSEDED 를 걸렀다가 폐기된 β 게이트의 '사용 금지' 까지 껐다.)
+        if not hid or not prohibition_active(z):
             continue
         # ⚠ 금지 문구가 없어도 **id 는 낸다** (`text=None`). 그래야 화면이 그 위험을
         #   선언했을 때 유령 결속(dangling)으로 잡히지 않는다 — bound_claims 의 짧은 수와 같은 처리.
