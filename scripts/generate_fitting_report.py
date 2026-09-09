@@ -342,8 +342,10 @@ def generate_report(data_list, names, outdir):
     L.append("```\n")
 
 
-    # ── Electronic — Stage 22 PRODUCTION form (2026-06-03, Trevisanello-locked)
-    # σ_e = (σ_S·NCM_S)^(1-p) · (σ_P·NCM_P)^p           ← AM material (Trevisanello LOCKED)
+    # ── Electronic — Stage 22 PRODUCTION form (2026-06-03)
+    #    ⛔ σ_S/σ_P 는 **코퍼스-적합 endpoint** 이지 Trevisanello 측정값이 아니다 (A1 CLOSED
+    #       2026-06-30).  Trevisanello 는 아래 NCM(r) 의 GB **방향**만 뒷받침한다.
+    # σ_e = (σ_S·NCM_S)^(1-p) · (σ_P·NCM_P)^p           ← AM material (endpoints LOCKED)
     #       · φ_AM⁴ · √A_AM-AM                            ← Bruggeman × Holm (structure)
     #       · (T/d_AM)^β_T · r_SE^β_logrSE                ← geometry
     #       · exp[β_AC·φ·logCN + β_v·v_AM]               ← network corrections
@@ -377,7 +379,7 @@ def generate_report(data_list, names, outdir):
     L.append("      · exp[g_thin·(β_φth·logφ + β_covth·log cov_AM,P + β_fpth·log f_p)]")
     L.append("      · C(τ),   C(τ) = exp[p_τ + q_τ·lnτ + r_τ·ln²τ]")
     L.append("")
-    L.append("  σ_S = 10 mS/cm LOCKED, σ_P = 5 mS/cm LOCKED  (Trevisanello 2021)")
+    L.append("  σ_S = 10 mS/cm LOCKED, σ_P = 5 mS/cm LOCKED  (corpus-fit endpoints, NOT literature)")
     L.append("  NCM(r) = 1 / (1 + (r/2µm)^1.5)   per-endpoint GB correction")
     L.append("  p      = AM_P mass fraction (= 1 means pure AM_P, = 0 means pure AM_S)")
     L.append("  φ_AM⁴  : dense-network percolation (locked exponent 4, Stage 14 nested CV)")
@@ -385,7 +387,7 @@ def generate_report(data_list, names, outdir):
     L.append("  g_thin = σ(-5·(T/d - 8))   thin-film 3D→2D crossover gate")
     L.append("  f_intact = 1 − fracture_aware_excluded_pct/100  살아있는 접촉 비율")
     L.append("")
-    L.append("FROZEN: σ_S, σ_P (Trevisanello), a=4 (φ_AM exp), 0.5 (Holm), 1.5 (NCM)")
+    L.append("FROZEN: σ_S, σ_P (corpus-fit), a=4 (φ_AM exp), 0.5 (Holm), 1.5 (NCM, Trevisanello)")
     if el_b is not None and len(el_b) >= 12:
         sS = float(np.exp(el_b[0])); sP = float(np.exp(el_b[1]))
         L.append(f"LIVE (12 OLS):  β_T={el_b[2]:+.3f}  β_v={el_b[3]:+.3f}  β_AC={el_b[7]:+.3f}")
@@ -582,15 +584,20 @@ def generate_report(data_list, names, outdir):
     # ── 🟢 재료 한계 (Material limits) ──
     L.append("### 🟢 재료 한계 (재료 자체의 전도 가능 최대치)\n")
 
-    L.append("#### (σ_S · NCM_S)^(1-p) · (σ_P · NCM_P)^p — Trevisanello endpoint mix")
-    L.append("- **σ_S = 10 mS/cm, σ_P = 5 mS/cm — Trevisanello 2021 LOCKED**.")
-    L.append("  S-rich polycrystalline NCM (작은 단결정 입자 집합체)는 큰 입자 NCM_P 보다 2배 σ_e 높음.")
-    L.append("  Stage 21까지는 live-fit (data가 σ_S≈9, σ_P≈4로 학습), Stage 22에서 문헌값으로 lock.")
+    L.append("#### (σ_S · NCM_S)^(1-p) · (σ_P · NCM_P)^p — AM endpoint mix")
+    L.append("- **σ_S = 10 mS/cm, σ_P = 5 mS/cm — 코퍼스-적합 endpoint 를 반올림해 고정한 값**")
+    L.append("  (live-fit 이 σ_S≈9.1 / σ_P≈4.1 을 학습했고 10/5 로 lock, ΔLOOCV −0.0004).")
+    L.append("  ⛔ **문헌 측정값이 아니다** — 2026-06-30 (A1 CLOSED) 에 Trevisanello 귀속이 철회됐다.")
+    L.append("  Trevisanello 2021 이 뒷받침하는 것은 아래 NCM(r) 의 **GB 방향뿐**이고 이 σ_e")
+    L.append("  **크기(10/5, 비 2.0×)는 아니다**.  두 값은 `--sigma-S/--sigma-P` 로 바꿀 수 있는")
+    L.append("  **재료 입력**이다.  (2026-09-09 전수 감사 P0 — 이 보고서가 그 둘을 문헌 실측으로")
+    L.append("  제시하고 2.0× 를 Trevisanello 가 쟀다고 적고 있었다.)")
     L.append("- **p = AM_P mass fraction** (0이면 순수 AM_S, 1이면 순수 AM_P).")
     L.append("- **(1−p) / p 지수**: 두 endpoint의 geometric mix — Bruggeman effective medium에서 자연스러운 형태.")
-    L.append("  '복합체 σ_e는 두 종류 AM 단결정 conductivity의 (mass-weighted) 기하 평균'.")
-    L.append("- **물리**: 같은 양이라도 P-rich(큰 단결정)이 S-rich(다결정 집합체)보다 전자 conductivity 절반.")
-    L.append("  Trevisanello 2021 실측 (단결정 vs 다결정 NMC811): ratio ≈ 2.0× 일치.\n")
+    L.append("  '복합체 σ_e는 두 종류 AM conductivity의 (mass-weighted) 기하 평균'.")
+    L.append("- **방향**: 작은 AM_S = **단결정**(입계 없음) → σ_e 높음 · 큰 AM_P = **다결정**")
+    L.append("  (secondary particle 내부 GB) → σ_e 낮음.  ⚠ 옛 판은 S-rich 를 '다결정 집합체',")
+    L.append("  P-rich 를 '큰 단결정' 이라 적어 **라벨이 뒤바뀌어** 있었다 (A1 정정).\n")
 
     L.append("#### NCM_S, NCM_P = 1/(1 + (r/2µm)^1.5) — Trevisanello GB correction")
     L.append("- **각 endpoint의 입자 크기에 따른 grain-boundary penalty**.")
@@ -671,7 +678,7 @@ def generate_report(data_list, names, outdir):
     L.append("### 항별 신뢰도 요약\n")
     L.append("| 항 | 신뢰도 | 근거 |")
     L.append("|---|---|---|")
-    L.append("| σ_S, σ_P (Trevisanello LOCKED) | HIGH | Trevisanello 2021 literature |")
+    L.append("| σ_S, σ_P (corpus-fit LOCKED) | MED | 코퍼스 endpoint 반올림 — ⛔ 문헌 아님 (A1, 2026-06-30) |")
     L.append("| NCM(r) | HIGH | Trevisanello 2021 측정 (단결정 vs 다결정) |")
     L.append("| φ_AM⁴ | MED-HIGH | Bruggeman EMT + Stage 14 nested CV lock |")
     L.append("| √A_AM-AM | HIGH | Holm 1967 (literature 정확히 -½) |")
@@ -696,7 +703,7 @@ def generate_report(data_list, names, outdir):
     L.append("| Stage 19 + β_bi bimodal coupling | 0.93 | +0.008 |")
     L.append("| Stage 20 + β_Fe·log f_intact (fracture) | 0.95 | +0.020 |")
     L.append("| Stage 21 + β_fpth + β_logrSE | 0.96 | +0.003 |")
-    L.append("| Stage 22 σ_S/σ_P LOCKED Trevisanello | **0.96+** | (literature anchor) |")
+    L.append("| Stage 22 σ_S/σ_P LOCKED (코퍼스 endpoint) | **0.96+** | (문헌 앵커 아님 — A1) |")
     L.append("| Stage 22.5 — WEAK BLOCK ablation (drop 4) | **0.9531** | +0.006 (12→8 LIVE) |\n")
 
     L.append("**FINAL production (Stage 22.5)**: LOOCV ≈ 0.9531, R² 0.9613, n_fit=76, "

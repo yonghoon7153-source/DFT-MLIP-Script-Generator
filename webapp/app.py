@@ -4032,8 +4032,15 @@ def api_seminar_slides():
              'σ_e 3.002 S/cm)는 2026-08-13 적대 리뷰로 **철회**됐습니다.  전부 vox 0.4 µm '
              '점-스탬프 격자의 산물이고, 격자를 조이면 σ_e 이득은 +42.15 → +8.49 % 로 '
              '내려가며 σ_ion 이득은 부호가 뒤집힙니다.  현재 말할 수 있는 것은 구-스탬프 '
-             '규약의 측정 서술뿐입니다 (vox 0.15/0.125/0.115 에서 비 1.123/1.144/1.155, '
-             '격자 수렴 미확인).  정본: CLAUDE.md SR-01 · docs/reviews/claims.json.')
+             '규약의 측정 서술뿐이고, 그 **값 자체도 p1 plate rule 산물이라 인용 금지**입니다 '
+             '(원장 CL-33 · CL-41, 둘 다 status hold).  세 격자에서 이득이 단조 증가하며 '
+             '멈추지 않고, 어떤 p > 0 도 안 맞아 Richardson 외삽이 성립하지 않습니다 — '
+             '어느 격자의 값도 헤드라인이 아닙니다.  '
+             '정본: CLAUDE.md SR-01 · docs/reviews/claims.json.')
+    #  ⚠⚠ 2026-09-09 (전수 감사 P0) — 이 배너가 한 세트를 철회하면서 **같은 문장에서 다른
+    #    금지 세트**(CL-33/CL-41 의 p1 plate-rule 비)를 현행 결론으로 적고 있었다.  스윕은
+    #    두 겹으로 못 봤다: ⓐ `webapp/*.py` 가 글롭 밖 ⓑ 값이 반올림돼 등록부의 리터럴
+    #    패턴에 안 걸림.  ⓐ 는 BAN_SCAN_GLOBS 에 넣어 닫았다 (check_review_findings.py).
     if (request.args.get('historical') or '') != '1':
         return jsonify({'ok': False, 'retracted': True, 'error': _RETR,
                         'evidence_ref': _SEMINAR_EVIDENCE,

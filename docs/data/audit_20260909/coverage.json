@@ -1,0 +1,14 @@
+{
+ "measured_at": "2026-09-09",
+ "method": "set difference against `git ls-files -z`; audit-1 coverage is what agents actually returned in their inventory arrays, recovered from the workflow journal — NOT what the scope globs claimed",
+ "tracked_files": 1882,
+ "audit1_inventoried_files": 710,
+ "audit1_inventoried_strict": 510,
+ "audit1_directory_level_only": 200,
+ "audit1_coverage_pct": 37.7,
+ "audit1_claimed_coverage_pct": 55.1,
+ "gap_bucket_files": 843,
+ "union_after_gap_audit": 1346,
+ "residual_never_covered": 536,
+ "residual_note": "534 of 536 are docs/data measurement files that the docs-data scope glob claimed but the agent enumerated only 274 of; the ban sweep does not read CSV/JSON either, so a retracted number inside a data file is currently unchecked"
+}

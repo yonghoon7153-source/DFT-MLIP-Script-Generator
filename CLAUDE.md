@@ -73,8 +73,11 @@
      `hold`) 에만 있고 `quotation_ban` 이 강제한다 (R5-CX-06).
      SBE 음성 대조 8/8 **셀 단위 완전 동일** (SDCP 없는 침대에 no-op).
      ⚠⚠ **이것은 두 번째 가설검정이 아니다** — prereg v2 는 점 스탬프에 대해 등록됐다.
-     판정기의 `h0` 출력은 **값 측정**이지 검정이 아니다 (prereg §7).  원고에는
-     "구 스탬프 규약에서 비 = 1.123" 이라는 **측정 서술**로만 쓸 것.
+     판정기의 `h0` 출력은 **값 측정**이지 검정이 아니다 (prereg §7).  원고에는 *"구 스탬프
+     규약에서 비 = <원장 CL-33 의 값>"* 이라는 **측정 서술**로만 쓸 것.
+     ⛔ **여기에 그 숫자를 적지 않는다** — 세 줄 위에서 인용을 금지해 놓고 반올림한 형태로
+     다시 적고 있었다 (2026-09-09 전수 감사 P0).  잘린 표기는 `quotation_ban` 의 어떤
+     패턴에도 안 걸려 스윕이 **초록**을 낸다 = 규율 ⑤ 의 false-green 이 값 표기 층에서 재현된 것.
      ⚠ **격자 수렴 미확인** · **실험 앵커 없음** (리포에 SBE/DBE σ_e 실측 부재).
      ★★ **갱신 2026-08-20 (CL-41) — 세 점 완주.  수렴이 아니라 미수렴이 확정됐다.**
        ⛔⛔ **세 격자(vox 0.15 · 0.125 · 0.115)의 R·이득 값은 인용 금지** — 전부 p1 plate
@@ -183,7 +186,8 @@
    ★★ 등록한 방향 예상 적중 + 크기가 크다: 비가 **1.1263 → 1.3092** (G +0.126 → **+0.309**, 2.45배).
    SBE(PTFE 1 wt%)가 DBE(0.5)보다 두 배 깎인다(−25.2 vs −13.0 %).
    ⇒ **실험 대칭셀 +23.1 % 가 우리 두 규약 사이에 든다** (+12.6 % PTFE 미표현 < 23.1 < +30.9 % PTFE 차단)
-   = 헤드라인 +12.3 % 가 이 축에 **하한**이라는 CL-46 서술이 실측으로 뒷받침됐다.
+   = **구-스탬프 헤드라인이 이 축에 하한**이라는 CL-46 서술이 실측으로 뒷받침됐다
+   (⛔ 그 헤드라인 **값**은 CL-33 `hold` = 인용 금지 — 여기에 적지 않는다).
    절대값도 문헌에 접근: Lee 2025 34 mS/cm 대비 2.15× → **1.61×**.
    ⚠ arm 0 **한 팔**이라 SE 없음(비 정량 인용 불가) · `1e-16` 은 제거가 아니라 극저-σ dof · 생산 규약 아님.
 
@@ -192,7 +196,8 @@
      (Lee 2025 Nat.Commun: LPSCl+NCM811+VGCF 3wt%+PTFE 0.5wt% → 34 mS/cm · Kim 2024: 38.6~65.2).
      CL-38 의 500배 갭 읽기 (b)("우리가 500배 과대") **기각** — 남은 편차 2~5배, 방향 설명 있음
      (PTFE 미차단: Lee 실측 PTFE 0.5→5wt% 에서 σ_e 3,000배 붕괴; 우리는 PTFE 를 안 찍어 그 효과 0).
-     SBE(PTFE 1wt%)가 DBE(0.5)보다 더 깎일 축이라 **+12.3 % 는 이 축에 하한** = 실험 +23.1 % 방향 정합.
+     SBE(PTFE 1wt%)가 DBE(0.5)보다 더 깎일 축이라 **구-스탬프 헤드라인은 이 축에 하한**
+     = 실험 +23.1 % 방향 정합 (⛔ 그 값은 CL-33 `hold` = 인용 금지).
    · **CL-47**: σ_VGCF=100 의 라벨이 틀렸다 — 직경-보존 식은 **단섬유** 컨덕턴스를 보존하는데
      (Showa Denko VGCF-H Ø150nm: 단섬유 1e-4 Ω·cm = **1e4 S/cm**, 분말 0.012 Ω·cm = **83 S/cm**)
      코드 100 은 **분말값**이다.  ★ **사용자 독립 검증 완료** (탄화 1e-3 · 흑연화 1e-4 ·
@@ -403,8 +408,12 @@ the other; their agreement quantifies model trust.
 | 실행 위치 | **웹앱 파이프라인** | **MPM 킷** (`run_mpm.sh`) |
 
 ⇒ 정확한 문장: MPM 은 **접촉망이 없어 Holm-협착 기반 σ 를 못 낸다**.  그러나 복셀 FV 로
-  **독립적인 두 번째 σ** 를 내며, 그것이 frame[4] 교차검증의 상대다 (한쪽이 다른 쪽의
-  근사가 아니라 **다른 이산화의 독립 측정**).
+  **두 번째 σ** 를 낸다.
+⛔ **정정 2026-09-08 (CL-81) — 옛 표기 "독립적인 두 번째 σ · 다른 이산화의 독립 측정 ·
+  frame[4] 교차검증의 상대" 는 철회한다.**  복셀 FV 는 대등한 독립 측정이 **아니라**
+  접촉망이 스스로 `CONTACT_FREE — upper bound, ideal contact limit` 이라 부르는 **가지 위에
+  있다** (아래 §CL-81 절).  ⇒ 두 σ_ion 의 일치를 교차검증으로 인용하지 말 것.
+  (2026-09-09 전수 감사 P0 — 이 문단이 다섯 줄 아래 CL-81 절과 정면 충돌한 채 표지 없이 있었다.)
 ⚠ 둘은 **다른 파이프라인**이다 — 웹앱은 STEP3 를 부르지 않고, 킷의 run_mpm.sh 가 부른다.
   그래서 웹앱 코드리뷰(Codex RC5 등)의 수정은 STEP3 에 자동 적용되지 않는다 — 실제로
   2026-08-11 에 thermal 무음-결손 결함이 **양쪽에 따로** 있어 각각 고쳤다.
@@ -429,7 +438,12 @@ the other; their agreement quantifies model trust.
   얹힌다.  (값의 지위는 `Assumed (저자 지정)` 그대로 — 다투지 않는다.)
   ★ **SDCP 는 새로 돌릴 것이 없다**: `sdcp_inert_prereg_20260903`(σ_SDCP=0 팔) 과 closure 3×3 의
   `C₂` 축(→2.5 = ×1/100)이 이미 등록돼 있고, 문헌의 10 S/cm 가 **그 범위 안**이다.
-  ⬜ **미실행 1순위 = 복셀 ÷ 접촉망 대조** (같은 침대에 두 이산화가 이미 있다, **GPU 불요**).
+  ⬜ **미실행 1순위 = 복셀 ÷ 접촉망 대조** — ⚠⚠ **공짜가 아니다** (초판의 *"GPU 불요"* 는 같은 날
+  CL-81 이 스스로 철회했다).  두 이산화가 **같은 침대·같은 첨가제 상태**로 있는 쌍이 리포에
+  **없다**: 복셀 σ_ion 은 SBE/DBE 첨가제 팔뿐(`ion8_*`)이고 접촉망 σ_ion 의 DEM 침대는 첨가제
+  **이전**이다.  PTFE·SDCP 가 이온 절연이라 섞으면 그 차이가 협착 결손과 **교란**된다 ⇒
+  (a) 코퍼스에 DEM 케이스가 있는 침대에서 **첨가제 없는 STEP3 σ_ion 1 솔브** 또는 (b) PTFE
+  이온-차단 스윕으로 **경계 짓기**.  ★ 크기 추정 4.04×/6.69× 는 접촉망 **안**의 비라 무영향.
   ⚠ Phase A(σ_e, `--no-ion`)는 무관하다 — `SE(6)` 기본 0.0 · `sid 9` 고정 0 ⇒ SE–SE 면에 전자
   전류가 없다.  ⛔ 그 면제를 **이온 축으로 옮기지 말 것**.
 
@@ -1199,11 +1213,16 @@ measured skeleton); (2) mobile rigid-AM re-introduces over-shielding (force chai
 the SE = the 36–41 % problem); (3) fixing forces the SE to bear the load and densify.
 - **CROSS-VALIDATION (n_grid=384, se_frac=0.27, servo, coh=0)**: porosity **16.7 % vs
   LIGGGHTS 15.6 %**; thickness **30.7 vs 30.28 µm**; **Tabor coverage AM_P/S 49.6/48.2 %
-  vs DEM Physics 48.3/51.8 %** ✓ (Hertz 18 % confirmed too low).  Two independently-
-  calibrated models (DEM E=1.35 hooke/hysteresis+adhesion+StageE vs MPM E=1.53 J2, both
-  anchored only to Minnmann, never each other — frame[4]) AGREE on porosity·thickness·
-  mechanical-coverage.  The Minnmann pure-SE anchor (10 % @300) TRANSFERS to the composite.
-  MPM value is the more physically-grounded (real plastic void-fill, not overlap-proxy).
+  vs DEM Physics 48.3/51.8 %** (Hertz 18 % confirmed too low).
+  ⛔⛔ **정정 2026-09-09 (전수 감사 P0 · CDX-16) — 옛 문장 "두 독립 보정 모델이 porosity ·
+  thickness · mechanical-coverage 에서 AGREE = frame[4] 교차검증" 은 철회한다.**  세 양 중
+  **둘이 같은 기하를 공유**한다: AM 골격은 **DEM 자신의 출력**을 그대로 얼린 것이고, SE 씨앗은
+  DEM 압축 **후** 좌표라 `solid_vol` 이 상수다 ⇒ coverage 와 porosity 의 일치는 **같은-기하
+  일관성**이지 두 모델의 독립 확인이 아니다 (CDX-16 이 이 주장을 기각).  porosity 쪽은 그 위에
+  **관례 오프셋 1.251 %p** 가 겹쳐 있어 (ε_sphere 로 통일하면 14.70 vs 15.63 = **0.93 %p
+  과압축**) 보이던 "±1 %p" 는 **두 오차의 상쇄**였다.
+  ⇒ **살아남는 것은 응력-정지 두께 하나**다 (30.7 vs 30.28 µm).  The Minnmann pure-SE anchor
+  (10 % @300) still transfers as the SE **material** calibration.
 - se_frac→porosity MONOTONE (user hypothesis ✓): 0.20→21.3 / 0.27→16.7 / 0.35→7.1 %.
   cell-fill 24.84 % → 16.7 % = −8.2 %p plastic densification (MPM-only).  B3 surface-
   roughness coverage = TRANSPORT-only correction the smooth-sphere MPM correctly ignores.

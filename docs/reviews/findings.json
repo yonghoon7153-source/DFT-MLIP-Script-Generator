@@ -1705,6 +1705,19 @@
     "scripts/check_method_discipline.py --selftest",
     "scripts/run_contract.py --selftest"
    ]
+  },
+  {
+   "id": "AUD-01",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/claims.json",
+   "title": "머리 배너의 **파일 전체 면제**가 300 파일 안에 표지 없는 철회값 125 건을 덮고 있다",
+   "note": "2026-09-09 전수 감사가 잡았고 실측으로 확인했다.  `_has_banner` 가 참이면 그 파일의 **모든** 철회값 출현이 통과한다.  계측: 배너를 가진 파일 300 개 안에 줄-근처 표지도 없는 철회값이 **125 건**.\n★ 같은 커밋에서 닫은 부분: **생성기·사용자출력**(`docs/**/*.js` · `scripts/seminar_deck/*.js` · `webapp/*.py`)은 배너로 파일 면제를 못 받게 했다 (`BAN_NO_FILE_EXEMPT`, selftest 22h/22i/22j).  다시 돌리면 산출물에 되살아나는 부류라 판단이 필요 없었다 — 실제로 `docs/manuscript_draft/build.js` 가 CL-33 hold 값을 3 건 들고 있었다.\n⬜ **남은 것은 판단이 필요하다**: 나머지 ~120 건은 대부분 **박제**다 (발송한 리뷰 요청 · 세션 진행 기록 · 발표한 pptx) — 거기서는 값이 **원문 그대로** 있어야 하고 줄마다 표지를 박으면 기록이 훼손된다.  그러나 같은 배너가 **살아 있는 정본 문서**에도 걸린다: `docs/mpm_platen_kinematic_stop_defect.md` (975 줄, 트랙2 정본, 계속 갱신) 는 배너가 *플래튼 결함*을 다루는데 그 아래 자산표가 철회 헤드라인을 **살아남은 Grade-B 자산**으로 제시하고 있었다 (이 커밋에서 세 줄을 개별 표기).\n⇒ 필요한 것은 *\"박제인가 정본인가\"* 의 판별이다.  후보 규칙: 배너가 **파일 전체**를 이력으로 선언할 때만(`HISTORICAL`·`박제`·`이 문서 전체`) 파일 면제를 주고, **정정 배너**(문서는 살아 있고 일부만 틀렸다)는 줄-근처 표지만 인정.  ⚠ 이 구분을 잘못 그으면 살아 있는 정본이 한꺼번에 빨간불이 되므로 리뷰를 거쳐 도입한다.\n계측 재현: `scripts/check_review_findings.py` 의 `_has_banner` 를 우회해 배너 파일만 훑으면 나온다 (세션 기록 `docs/session_20260909_progress.md`).",
+   "evidence_tests": [
+    "scripts/check_review_findings.py --selftest"
+   ]
   }
  ]
 }
