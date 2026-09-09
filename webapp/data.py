@@ -5759,10 +5759,28 @@ def _git_commit_days() -> dict[str, str]:
         (없는 것을 오늘로 채우지 않는다는 규율).
     """
     import subprocess
-    head = ROOT / ".git" / "HEAD"
+    # ⛔ 2026-09-09 (Codex BI-3) — `ROOT/".git"/"HEAD"` 만 봤다. **worktree 에서 깨진다**:
+    #   `git worktree add` 로 만든 트리는 `.git` 이 **디렉터리가 아니라 파일**이고
+    #   `gitdir: /…/.git/worktrees/<이름>` 한 줄이 들어 있다. 그래서 stat 이 실패하고
+    #   **날짜가 통째로 빈 dict** 가 됐다 — 화면이 조용히 '날짜 미상' 이 된다.
+    #   우리 kgy 작업트리가 실제로 worktree 다(`~/lpsocl-331`).
+    #   ⇒ git 에게 물어본다. 추측하지 않는다 (CLAUDE.md §QE-GPU 와 같은 규율).
+    def _gitfile(name):
+        g = ROOT / ".git"
+        if g.is_dir():
+            return g / name
+        try:                                          # worktree: `.git` 은 파일이다
+            line = g.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        if not line.startswith("gitdir:"):
+            return None
+        return Path(line.split(":", 1)[1].strip()) / name
+
+    head = _gitfile("HEAD")
     try:
         key = head.stat().st_mtime_ns
-    except OSError:
+    except (OSError, AttributeError):
         return {}
     if _GITDAY_CACHE["key"] == key:
         return _GITDAY_CACHE["map"]
