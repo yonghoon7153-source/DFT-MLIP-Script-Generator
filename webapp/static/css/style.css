@@ -1354,6 +1354,20 @@ body.rail .rail-peek:hover ~ .sidebar,body.rail .sidebar:hover{transform:transla
 @media print{.claim-flag{border-bottom:1.5px dotted #be123c}
   .claim-mark{color:#be123c;opacity:1}}
 
+/* ⛔ 표시 실패 상자 (BI-4 P0-3, 2026-09-09). 서버가 결속된 `html` 을 안 주면 값을
+   **본문처럼 내보내지 않는다** — 안내는 `.claim-mark` 텍스트 노드로 나가고, 원문은
+   읽기전용 편집영역에 따로 둔다. `title` 속성에만 경고를 두면 복사·인쇄·텍스트추출에
+   안 따라간다(위와 같은 이유). ⚠ 여기서 raw 를 본문으로 되돌리지 마라. */
+.cmt-unrendered{border:1.5px dashed var(--red,#be123c);border-radius:6px;
+  padding:6px 8px;margin:2px 0;background:#fff1f2}
+.cmt-unrendered .claim-mark{font-size:.86em;vertical-align:baseline;display:block;
+  margin:0 0 4px 0;white-space:normal;opacity:1}
+.cmt-unrendered-raw{width:100%;font:inherit;font-size:.9em;color:var(--mut,#6b7280);
+  border:1px solid var(--line,#e5e7eb);border-radius:4px;padding:3px 5px;
+  background:#fff;resize:vertical}
+@media print{.cmt-unrendered{border-color:#be123c}
+  .cmt-unrendered .claim-mark{color:#be123c}}
+
 /* 카드 본문 안의 간이 표 (mdlite · 2026-09-08) — 카드가 좁으므로 작고 촘촘하게 */
 .mdl-tbl{border-collapse:collapse;margin:6px 0;font-size:.95em;width:100%}
 .mdl-tbl th,.mdl-tbl td{border-bottom:1px solid var(--line,#e5e7eb);padding:2px 6px 2px 0;

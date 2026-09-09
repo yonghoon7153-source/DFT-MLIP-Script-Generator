@@ -1485,12 +1485,16 @@ def note_html(text: str) -> str:
 
     ⛔ 못 하는 것: 블록 문법(목록·제목)은 `_mdlite` 가 하는 만큼만. 메모는 문서가 아니다.
     """
-    import canonical as _C                       # 지연 import — 모듈 상단 관례를 따른다
-    s = str(_mdlite(text))                       # esc + code/bold/mark/strike/ital/표
-    s = _NOTE_IMG.sub(
+    # ⛔ BI-4 P2 (2026-09-09) — 여기서 `annotate_claims` 를 **한 번 더** 불렀다.
+    #   그런데 `_mdlite` 가 이미 `_bind_claims` 를 부른다(같은 파일 위쪽). 그래서
+    #   실측으로 `0.199` 하나에 `data-claim` 2개 · `.claim-mark` 2개가 중첩됐다.
+    #   인용 금지 누출은 아니지만, **결속 건수를 표시 위치 수로 읽으면 지표가 부푼다**
+    #   — 그게 §3-1 에서 우리가 자백한 "분모 부풀리기" 와 같은 실수다.
+    #   ⇒ 결속은 `_mdlite` 한 곳에서만 붙는다. 여기서는 이미지만 얹는다.
+    s = str(_mdlite(text))                       # esc + code/bold/mark/… + **결속**
+    return _NOTE_IMG.sub(
         lambda m: '<img class="note-img" src="%s" alt="%s" loading="lazy">'
                   % (m.group(2), m.group(1)), s)
-    return _C.annotate_claims(s)[0]              # ← 결속은 서버 한 곳에서
 
 
 def _with_note_html(obj):

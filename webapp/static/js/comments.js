@@ -48,11 +48,24 @@
    * ⇒ 서버 `/api/comments` 가 item 마다 `html`(= mdlite + 결속) 을 같이 낸다.
    *   `text` 는 **편집용 원문**이라 그대로 두고, 표시는 `html` 만 쓴다.
    * ⚠ `html` 이 없으면 **그리지 않는다** — 옛 응답에 조용히 옛 렌더러로 되돌아가면
-   *   그게 바로 이 결함의 재발이다. 눈에 보이게 원문을 그대로 내보인다. */
+   *   그게 바로 이 결함의 재발이다.
+   *
+   * ⛔⛔ 2026-09-09 재정정 (Codex BI-4 P0-3). 종전 대체 경로는 `esc(c.text)` 를
+   *   **본문 자리에 그대로** 내보냈다. 이스케이프는 HTML 주입을 막는 것이지 **결속을
+   *   보존하는 작업이 아니다** — 실측: 주장 ID 0개 · 표식 0개 · 스캐너 unbound 1.
+   *   경고는 `title` 속성에만 있었고 본문에는 없었다. **속성은 복사·인쇄·텍스트 추출에
+   *   안 따라간다** (화면 규율의 `.claim-mark` 가 텍스트 노드여야 하는 이유와 같다).
+   *   ⇒ 이제 값을 **본문처럼 내보내지 않는다**. 본문 자리에는 텍스트 노드로 된
+   *     실패·인용불가 안내만 넣고, 원문은 **읽기전용 편집영역**에 따로 준다. */
   function disp(c) {
     if (c && typeof c.html === "string") return c.html;
-    return '<span class="cmt-unrendered" title="서버가 표시용 HTML을 안 줬다 — '
-         + '결속 없이 그리지 않는다">' + esc((c && c.text) || "") + "</span>";
+    var raw = (c && c.text) || "";
+    return '<div class="cmt-unrendered" role="alert">'
+         + '<span class="claim-mark">⛔ 표시 실패 — 서버가 표시용 HTML 을 안 줬다. '
+         + '결속을 확인할 수 없으므로 이 메모의 내용은 <b>인용 금지</b>다.</span>'
+         + '<textarea class="cmt-unrendered-raw" readonly rows="3" '
+         + 'aria-label="결속되지 않은 원문 (인용 금지)">' + esc(raw) + '</textarea>'
+         + '</div>';
   }
 
   /* 입력창을 내용에 맞춰 늘린다 (1저자 2026-08-27: "수정할 때 창이 작아져서 불편해").

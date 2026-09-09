@@ -2930,7 +2930,12 @@ _DISCLAIMED = {
         "why": "codoping_ml_v2 스크리닝 표의 `window_gain 0.199`(V)다. b2o3 MD Ea 0.199(eV)와 "
                "글자만 같고 양·단위·출처가 전부 다르다 — 결속하면 거짓 선언이 된다.",
         "n": 1,
-        "where": ["rank=25.0|window_gain"],
+        # ⛔⛔ BI-4 P0-2 (2026-09-09) — 좌표에 **데이터셋 이름**을 넣었다. 종전 2칸 형식은
+        #   "어느 원자료의 rank 25 냐" 를 안 말해서 대조 자체가 불가능했다. 그리고 좌표가
+        #   맞아도 **그 칸에 무엇이 떠 있는지**는 여전히 안 봤다 — Codex 가 좌표를 그대로
+        #   둔 채 `0.199` → `b2o3 MD Ea = 0.199 eV` 로 갈아 통과시켰다.
+        #   이제 `canonical.verify_disclaimers()` 가 셀의 글을 원자료 값과 직접 댄다.
+        "where": ["codoping_ml_v2|rank=25.0|window_gain"],
         "where_prose": "codoping_ml_v2 상위 40행 · window_gain 열 (rank 25, pairA=B2O3/pairB=Gd2O3)",
         "⚠": "원자료 1081행에는 같은 글자가 13칸 더 있다(window_gain 5 · uncertainty 4 · "
              "ad_eps 1 · ml_score 1 …). 표를 늘리거나 정렬을 바꾸면 n 이 는다 — 그때 "
@@ -3009,7 +3014,7 @@ def test_retracted_claims_are_id_bound_on_every_surface():
         #    (BI-3 P0-2. 종전에는 `where` 를 안 읽고 발견된 것만 순회해서, 그 자리의
         #     의미가 바뀌어도 건수만 같으면 통과했다.)
         found = {}
-        for cl, _x, nsrc in sc["disclaimed"]:
+        for cl, _x, nsrc, _cell in sc["disclaimed"]:
             found.setdefault(cl["id"], []).append(nsrc)
         for cid, srcs in found.items():
             dec = _DISCLAIMED.get((url, cid))
@@ -3043,6 +3048,13 @@ def test_retracted_claims_are_id_bound_on_every_surface():
         for (u, cid), dec in _DISCLAIMED.items():                 # ← 반대 방향
             if u == url and cid not in found:
                 undeclared.append((url, cid, "선언한 부인이 화면에 없다 — 원장이 낡았다"))
+        # ⛔⛔ BI-4 P0-2 — 좌표가 맞는 것과 **그 자리에 무엇이 떠 있는지**는 다른 일이다.
+        #    여기서 화면 셀의 글을 원자료 값과 직접 댄다. `ok=False` 는 전부 실패로 센다
+        #    (원자료를 못 읽은 경우 포함 — **확인 불가는 통과가 아니다**).
+        for v in C.verify_disclaimers(sc["disclaimed"]):
+            if not v["ok"]:
+                undeclared.append((url, v.get("claim"),
+                                   f"⛔ 부인이 원자료와 안 맞는다: {v['why']}"))
     assert not fresh, "결속 없는 철회·금지 주장이 **새로** 나왔다 (data-claim 을 붙이거나 문장을 고쳐라):\n" + \
         "\n".join(f"  {u} · {i}\n      …{x[:140]}…" for u, i, x in fresh)
     assert not grew, "레거시 미결속 건수가 늘었다 (래칫은 줄어들기만 한다): " + str(grew)
@@ -3585,7 +3597,7 @@ def test_disclaim_cannot_hide_a_real_citation():
     n0, want = len(base["disclaimed"]), dec["n"]
     assert n0 == want, f"기준선이 선언과 다르다: {n0} ≠ {want}"
     # 기준선의 좌표도 선언과 같아야 한다 (여기가 아래 ③의 전제다)
-    assert sorted(s for _c, _x, s in base["disclaimed"]) == sorted(dec["where"]), \
+    assert sorted(s for _c, _x, s, _b in base["disclaimed"]) == sorted(dec["where"]), \
         "기준선 좌표가 선언과 다르다"
 
     # 부인 여는 태그의 **닫는 꺾쇠 뒤**에 심는다 — 속성이 늘어도 안 깨지게 정규식으로.
@@ -3616,10 +3628,43 @@ def test_disclaim_cannot_hide_a_real_citation():
     assert p3 != h, "src 속성이 없다 — 화면이 부인 자리의 계보를 안 낸다"
     sc3 = C.scan_binding_or_none(p3, cl) if hasattr(C, "scan_binding_or_none") else \
         C.scan_claim_bindings(p3, cl)
-    got3 = sorted(s for _c, _x, s in sc3["disclaimed"])
+    got3 = sorted(s for _c, _x, s, _b in sc3["disclaimed"])
     assert len(sc3["disclaimed"]) == want, "전제: 건수는 그대로여야 이 반례가 성립한다"
     assert got3 != sorted(dec["where"]), (
         "⛔ 그 자리의 의미가 바뀌었는데 좌표가 같다 — 건수만 보는 검사로 되돌아갔다")
+
+    # ④ ★★ Codex BI-4 P0-2 의 반례 — **좌표도 그대로 두고 표시 내용만 바꾼다.**
+    #    ③ 은 좌표를 건드려서 잡혔지만, 좌표를 안 건드리면 종전 검사는 전부 초록이었다
+    #    (실측: disclaimed 1 · unbound 0 · dangling 0 · 좌표까지 동일).
+    #    이제 `verify_disclaimers` 가 셀의 글을 원자료 값과 대므로 잡혀야 한다.
+    import re as _re4
+    p4 = _re4.sub(r'(data-claim-not-src="' + _re4.escape(only) + r'"[^>]*>)0\.199(<)',
+                  r'\g<1>b2o3 MD Ea = 0.199 eV\g<2>', h, count=1)
+    assert p4 != h, "전제: 선언 좌표의 셀에 `0.199` 가 그대로 들어 있어야 한다"
+    sc4 = C.scan_claim_bindings(p4, cl)
+    assert len(sc4["disclaimed"]) == want and len(sc4["unbound"]) == 0, \
+        "전제: 종전 지표는 그대로여야 이 반례가 성립한다 (그래서 종전 검사가 초록이었다)"
+    assert sorted(s for _c, _x, s, _b in sc4["disclaimed"]) == sorted(dec["where"]), \
+        "전제: 좌표도 그대로여야 한다 — 좌표가 바뀌면 ③ 이 잡는 것과 같은 사례다"
+    v4 = C.verify_disclaimers(sc4["disclaimed"])
+    assert v4 and not any(x["ok"] for x in v4), (
+        "⛔ 좌표는 같은데 **표시 내용이 다른 발화로 바뀌었다** — 원자료 대조가 안 걸렸다. "
+        f"판정: {[x['why'] for x in v4]}")
+
+    # ⑤ ⛔음성: 정상 화면은 **통과해야** 한다 (과잉차단도 결함이다)
+    v5 = C.verify_disclaimers(base["disclaimed"])
+    assert v5 and all(x["ok"] for x in v5), (
+        f"⛔ 정상 화면의 부인이 원자료와 안 맞는다: {[x['why'] for x in v5 if not x['ok']]}")
+
+    # ⑥ ⛔음성: **원자료를 못 읽으면 통과가 아니다** (BI-4 P0-1 과 같은 규율)
+    v6 = C.verify_disclaimers(base["disclaimed"], resolve=lambda ds: None)
+    assert v6 and not any(x["ok"] for x in v6), \
+        "⛔ 원자료를 못 읽었는데 부인이 통과했다 — 확인 불가가 승인이 됐다"
+
+    # ⑦ ⛔음성: 데이터셋 이름 없는 옛 2칸 좌표는 **검증 불가**로 떨어져야 한다
+    v7 = C.verify_disclaimers([({"id": "X"}, "ctx", "rank=25.0|window_gain", "0.199")])
+    assert not v7[0]["ok"] and "데이터셋" in v7[0]["why"], \
+        f"⛔ 데이터셋 없는 좌표가 통과했다: {v7[0]}"
 
 
 def test_disclaim_is_not_a_blanket_over_a_whole_table():

@@ -648,6 +648,19 @@ _STATE_MARK = {"retracted": "⛔ 철회 — 인용 금지",
 #   · 미탐 — 문자열 그대로 찾으니 `0.1990` 한 자리로 결속을 **벗어난다**
 #     (`<td>0.199</td>` unbound 1 vs `<td>0.1990</td>` unbound 0, 스캐너 직접 투입).
 #   ⇒ 숫자는 **문자열이 아니라 값**으로 본다. 부호·단위·출처를 조건으로 건다.
+#
+# ⛔⛔ 이 매처가 **못 잡는 것** (Codex BI-4 P1, 2026-09-09 — 실측)
+#   종전 회신은 *"`.199` 도 잡는다"* 고 적었다. **철회한다. 재현되지 않는다.**
+#   스캐너에 직접 넣어 잰 결과:
+#       `0.199` ✅ 1건 · `1.99e-1` ✅ 1건 · `0.1990` ✅ 1건
+#       `.199`  ⛔ 0건 — 정수부가 없으면 `_NUM_TOKEN` 이 `\d+` 를 요구해 안 걸린다
+#       `199 meV` ⛔ 0건 — **단위 환산을 안 한다** (eV↔meV)
+#       `0.<em>199</em>` ⛔ 0건 — 태그로 갈리면 `handle_data` 조각이 나뉜다
+#   ⚠ **정규식을 키워서 쫓지 않는다.** 표기의 가짓수는 끝이 없고, 하나 늘릴 때마다
+#     오탐이 같이 는다(§3-1 에서 우리가 자백한 "분모 부풀리기"가 그 길이다).
+#     닫는 방향은 **축 단위 금지 상속**이다 — 값 하나하나를 문자열로 쫓는 대신
+#     `(대상계 · 방법 · 보고량군 · 용도)` 로 금지를 선언하고 소비자가 그것을 상속한다.
+#     아직 안 했다. **그래서 이 셋은 지금 새는 구멍이고, 여기 적어 둔다.**
 _NUM_TOKEN = re.compile(r"[-−–+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 #: 값 바로 뒤의 단위 토큰 (`±0.034 eV` 처럼 오차막대를 건너뛴다)
 _UNIT_AFTER = re.compile(r"\s*(?:[±+]/?-?\s*[\d.]+\s*)?([A-Za-zμµΩ%]+(?:/[A-Za-z³]+)?)")
@@ -908,7 +921,12 @@ class _ClaimScanner(_HTMLParser):
             if x:
                 self.declared.append(x)
         if tag not in self.VOID:
-            self._stack.append((tag, cid, nid, nsrc))
+            # ⛔ BI-4 P0-2: 좌표만 들고 **그 자리의 글**을 버렸다. 그래서 같은 좌표에서
+            #   표시 내용을 통째로 갈아도 disclaimed 1 · unbound 0 으로 초록이었다
+            #   (Codex 재현: `0.199` → `b2o3 MD Ea = 0.199 eV`). 부인 프레임은 이제
+            #   자기 안의 텍스트를 모은다 — 나중에 원자료와 대조하기 위해서다.
+            self._stack.append({"tag": tag, "cid": cid, "nid": nid, "nsrc": nsrc,
+                                "buf": [] if nid else None})
 
     def handle_startendtag(self, tag, attrs):
         d = dict(attrs)
@@ -923,17 +941,21 @@ class _ClaimScanner(_HTMLParser):
         if tag in self.CODE:
             self._code = max(0, self._code - 1)
         for i in range(len(self._stack) - 1, -1, -1):
-            if self._stack[i][0] == tag:
+            if self._stack[i]["tag"] == tag:
                 del self._stack[i:]
                 break
 
     def handle_data(self, data):
         if self._skip or not data.strip():
             return
-        yes = {x for _t, c, _n, _s in self._stack if c for x in c.split()}
-        no = {x for _t, _c, n, _s in self._stack if n for x in n.split()}
-        # 가장 안쪽(=가장 구체적인) 부인 자리의 출처를 쓴다
-        nsrc = next((s for _t, _c, n, s in reversed(self._stack) if n and s), None)
+        # 부인 프레임들에 이 글을 넣어 둔다 (셀 전체가 여러 조각으로 올 수 있다)
+        for fr in self._stack:
+            if fr["buf"] is not None:
+                fr["buf"].append(data)
+        yes = {x for f in self._stack if f["cid"] for x in f["cid"].split()}
+        no = {x for f in self._stack if f["nid"] for x in f["nid"].split()}
+        # 가장 안쪽(=가장 구체적인) 부인 자리
+        frame = next((f for f in reversed(self._stack) if f["nid"]), None)
         prev, self._ctx = self._ctx, (self._ctx + data)[-CTX_BEFORE:]
         for a, b, cl, q in find_claim_hits(data, self._claims, self._origin, prev):
             ctx = " ".join(data[max(0, a - 90): b + 90].split())
@@ -947,7 +969,8 @@ class _ClaimScanner(_HTMLParser):
                 st = "suspect"
             else:
                 st = None
-            self.hits.append((cl, st, ctx, nsrc if st == "disclaimed" else None))
+            self.hits.append((cl, st, ctx,
+                              frame if st == "disclaimed" else None))
 
 
 def scan_claim_bindings(html: str, claims=None, reg=None, root=None,
@@ -989,13 +1012,135 @@ def scan_claim_bindings(html: str, claims=None, reg=None, root=None,
     sc = _ClaimScanner(usable, origin=origin)
     sc.feed(html)
     pick = lambda w: [(c, ctx) for c, s, ctx, _n in sc.hits if s == w]   # noqa: E731
-    # ⚠ `disclaimed` 만 3-튜플 `(claim, ctx, src)` 다 — 부인은 **어디의 무엇인지**를
+    # ⚠ `disclaimed` 만 4-튜플 `(claim, ctx, src, cell)` 다 — 부인은 **어디의 무엇인지**를
     #   같이 내야 검사가 양방향으로 대조할 수 있다 (BI-3 P0-2).
-    disc = [(c, ctx, nsrc) for c, s, ctx, nsrc in sc.hits if s == "disclaimed"]
+    # ⛔ BI-4 P0-2: `cell` = **그 부인 자리에 실제로 표시된 글**. 좌표만으로는 같은 칸의
+    #   내용이 바뀌어도 못 잡는다 (Codex 재현). `verify_disclaimers()` 가 이걸 원자료와 댄다.
+    disc = [(c, ctx, (fr or {}).get("nsrc"),
+             " ".join("".join((fr or {}).get("buf") or []).split()))
+            for c, s, ctx, fr in sc.hits if s == "disclaimed"]
     return {"bound": pick("bound"), "disclaimed": disc, "unbound": pick(None),
             "suspect": pick("suspect"), "skipped": pick("skipped"),
             "declared": sc.declared,
             "dangling": sorted({x for d in sc.declared for x in d.split() if x not in known})}
+
+
+#: `data-claim-not-src` 문법 — `"<데이터셋>|<키열>=<키값>|<열>"`.
+#: 데이터셋이 없는 옛 형식(`"<키열>=<키값>|<열>"`)도 읽지만 **검증 불가**로 판정한다.
+_NOTSRC_RE = re.compile(r"^(?:(?P<ds>[A-Za-z0-9_.:-]+)\|)?"
+                         r"(?P<kcol>[^=|]+)=(?P<kval>[^|]*)\|(?P<col>.+)$")
+
+
+def _num(s):
+    """문자열에서 **하나의** 수를 뽑는다. 수가 0개거나 2개 이상이면 None."""
+    m = re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", str(s))
+    if len(m) != 1:
+        return None
+    try:
+        return float(m[0])
+    except ValueError:
+        return None
+
+
+def verify_disclaimers(disc, resolve=None, root=None) -> list:
+    """부인이 **가리킨 자리의 실제 값**과 화면에 뜬 글을 댄다 (Codex BI-4 P0-2).
+
+    종전 검사는 **좌표와 건수**만 봤다. 그래서 같은 칸의 내용을 통째로 갈아도
+    `disclaimed=1 · unbound=0` 으로 초록이었다 (Codex 재현: `0.199` →
+    `b2o3 MD Ea = 0.199 eV`). 좌표가 맞다는 것은 **그 자리에 무엇이 떠 있는지**를
+    말해 주지 않는다.
+
+    검사 셋 — 하나라도 걸리면 그 부인은 `ok=False` 다:
+      ① **좌표 해독** — `data-claim-not-src` 가 문법에 맞고 데이터셋을 이름 댔는가
+      ② **행·열 실재** — 그 키값의 행이 원자료에 있고 그 열이 있는가
+      ③ **값·표시 일치** — 셀의 글이 그 원자료 값 **하나만** 담는가.
+         산문·단위·다른 주장이 섞이면 그건 **다른 발화**다 (그게 Codex 의 독약이다).
+
+    `resolve(dataset) -> [row dict, ...]` 를 주면 그걸 쓰고, 안 주면
+    `db/properties/<dataset>.csv` 를 읽는다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 산문을 이해하지 않는다. *"이 셀이 지정한 열에서 나온 수 하나인가"* 만 본다.
+      · 단위를 환산하지 않는다 — 셀에 단위가 붙어 있으면 **다른 발화로 보고 떨어뜨린다**.
+      · 원자료가 그날 이후 바뀐 것은 못 본다 (버전 고정은 별도 항목이다).
+    """
+    import csv as _csv
+    base = Path(root) if root else ROOT
+    cache: dict = {}
+
+    def _rows(ds):
+        if ds in cache:
+            return cache[ds]
+        if resolve is not None:
+            cache[ds] = resolve(ds) or []
+            return cache[ds]
+        f = base / "db/properties" / (ds + ".csv")
+        try:
+            # ⚠ 우리 CSV 는 머리에 `#` 주석줄을 단다 (codoping_ml_v2 실측) — 안 걸러내면
+            #   DictReader 가 그 줄을 헤더로 읽어 **전 행이 조용히 어긋난다**.
+            lines = [ln for ln in f.read_text(encoding="utf-8").splitlines()
+                     if not ln.lstrip().startswith("#")]
+            cache[ds] = list(_csv.DictReader(lines))
+        except OSError:
+            cache[ds] = None          # None = 못 읽었다 (빈 목록과 구분한다)
+        return cache[ds]
+
+    out = []
+    for item in disc:
+        cl, ctx, src, cell = (list(item) + [None] * 4)[:4]
+        rec = {"claim": cl.get("id") if isinstance(cl, dict) else cl,
+               "src": src, "cell": cell, "ok": False, "why": ""}
+        if not src:
+            rec["why"] = "좌표가 없다 — data-claim-not-src 미선언"
+            out.append(rec); continue
+        m = _NOTSRC_RE.match(src.strip())
+        if not m:
+            rec["why"] = f"좌표 문법이 아니다: {src!r}"
+            out.append(rec); continue
+        ds, kcol, kval, col = (m.group("ds"), m.group("kcol").strip(),
+                               m.group("kval").strip(), m.group("col").strip())
+        rec.update(dataset=ds, key_col=kcol, key_val=kval, col=col)
+        if not ds:
+            rec["why"] = ("좌표가 **데이터셋을 이름 대지 않았다** — 어느 원자료인지 모르면"
+                          " 대조할 수 없다 (옛 2칸 형식)")
+            out.append(rec); continue
+        rows = _rows(ds)
+        if rows is None:
+            rec["why"] = f"원자료를 못 읽었다: db/properties/{ds}.csv — **확인 불가는 통과가 아니다**"
+            out.append(rec); continue
+        kv = _num(kval)
+        hit = [r for r in rows
+               if str(r.get(kcol, "")).strip() == kval
+               or (kv is not None and _num(r.get(kcol)) == kv)]
+        if not hit:
+            rec["why"] = f"원자료에 {kcol}={kval} 행이 없다 ({ds}, {len(rows)}행)"
+            out.append(rec); continue
+        if len(hit) > 1:
+            rec["why"] = f"{kcol}={kval} 이 {len(hit)}행이라 행을 특정 못 한다"
+            out.append(rec); continue
+        if col not in hit[0]:
+            rec["why"] = f"원자료에 `{col}` 열이 없다 ({ds})"
+            out.append(rec); continue
+        raw = hit[0][col]
+        rec["raw"] = raw
+        rv, cv = _num(raw), _num(cell)
+        if cv is None:
+            rec["why"] = (f"셀에 수가 하나가 아니다 — 표시된 글: {str(cell)[:60]!r}. "
+                          "부인은 **그 열의 값 하나**에만 걸린다")
+            out.append(rec); continue
+        if rv is None or abs(rv - cv) > 1e-9 * max(1.0, abs(rv)):
+            rec["why"] = f"값이 다르다 — 원자료 {col}={raw!r} vs 셀 {cell!r}"
+            out.append(rec); continue
+        # ③ 셀이 **그 수만** 담는가 — 산문·단위가 붙으면 다른 발화다
+        rest = re.sub(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", "", str(cell)).strip()
+        if re.sub(r"[\s±,·|/()\[\]%–—-]", "", rest):
+            rec["why"] = (f"셀에 값 밖의 글이 붙어 있다: {rest[:40]!r} — "
+                          "부인한 자리와 다른 발화가 됐다")
+            out.append(rec); continue
+        rec["ok"] = True
+        rec["why"] = f"{ds}[{kcol}={kval}].{col} = {raw} 와 일치"
+        out.append(rec)
+    return out
 
 
 def retracted_values(reg=None, root=None) -> list:
@@ -1456,18 +1601,44 @@ def validate_hazards(root=None, reg=None) -> list:
                     continue
                 head = dotted.split(".")[0]
                 # 그 점표기가 가리키는 원자료 후보 — hazard 가 든 파일, 없으면 레지스트리 전체
-                cands = [z.get("source_path")] if z.get("source_path") else sorted(src)
+                explicit = bool(z.get("source_path"))
+                cands = [z.get("source_path")] if explicit else sorted(src)
+                # ⛔⛔ BI-4 P1 (2026-09-09) — 종전에는 **파일 없음 · 읽기 실패 · 최상위 키
+                #   없음** 을 전부 `continue` 로 넘겼다. 그래서 원자료가 하위 키만 잃으면
+                #   잡았지만 **`FINAL_for_paper` 자체를 개명하면 오류 0건**이었다 (Codex 재현).
+                #   즉 H3 가 막으려던 그 사고(2026-08-24 개명)의 **정확한 모양을 못 잡았다.**
+                #   ⇒ `source_path` 를 명시한 hazard 는 셋 다 오류다. 명시가 없는 경우만
+                #     "그 키를 가진 파일을 찾는" 휴리스틱으로 남긴다 (산문 오탐 방지).
                 for sp in cands:
                     if not sp or not str(sp).endswith(".json"):
                         continue
                     p = base / sp
                     if not p.exists():
+                        if explicit:
+                            bad.append(f"{tag}: {fld} 가 가리키는 **원자료가 없다** — {sp} "
+                                       f"({dotted!r}). 죽은 포인터다")
+                            break
                         continue
                     try:
                         doc = json.loads(p.read_text(encoding="utf-8"))
-                    except Exception:                                        # noqa: BLE001
+                    except Exception as ex:                                  # noqa: BLE001
+                        if explicit:
+                            bad.append(f"{tag}: {fld} 가 가리키는 **원자료를 못 읽었다** — "
+                                       f"{sp} ({type(ex).__name__}). 확인 불가는 통과가 아니다")
+                            break
                         continue
-                    if not isinstance(doc, dict) or head not in doc:
+                    if not isinstance(doc, dict):
+                        if explicit:
+                            bad.append(f"{tag}: {fld} 가 가리키는 원자료가 객체가 아니다 — "
+                                       f"{sp} ({type(doc).__name__})")
+                            break
+                        continue
+                    if head not in doc:
+                        if explicit:
+                            bad.append(f"{tag}: {fld} 가 {sp} 에 **없는 최상위 키**를 "
+                                       f"지목한다 — {head!r} (개명·삭제 의심). "
+                                       f"화면·원고가 그 지시를 따를 수 없다")
+                            break
                         continue
                     cur, ok = doc, True
                     for part in dotted.split("."):
@@ -1477,7 +1648,7 @@ def validate_hazards(root=None, reg=None) -> list:
                             ok = False
                             break
                     if not ok:
-                        bad.append(f"{tag}: {fld} 가 {sp} 에 **없는 키**를 지목한다 — "
+                        bad.append(f"{tag}: {fld} 가 {sp} 에 **없는 하위 키**를 지목한다 — "
                                    f"{dotted!r}. 화면·원고가 그 지시를 따를 수 없다")
                     break
     return bad

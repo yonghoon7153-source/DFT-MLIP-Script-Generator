@@ -47,7 +47,7 @@
   ]
  },
  "aqib2026_multifidelity_active_learning_alloy_design": {
-  "figures": 37,
+  "figures": 38,
   "generated": "2026-09-09",
   "pdfs": [
    "27e9937a-99._A_multifidelity_active_learning_framework_for_accelerated_alloy_design.pdf",
@@ -136,6 +136,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "★ 랩실 논문/05. Stabilizing the interface between high-Ni oxide cathode and Li6PS5Cl for all-solid-state batteries via dual-compatible halides.pdf"
+  ]
+ },
+ "chang2026_performance_based_mlip_selection_sse": {
+  "figures": 16,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "6a57d51c-105._PerformanceBased_Selection_of_Machine_Learning_Interatomic_Potentials_for_Studying_SolidState_Electrolytes.pdf",
+   "e4ff4110-105._Sup_PerformanceBased_Selection_of_Machine_Learning_Interatomic_Potentials_for_Studying_SolidState_Electrolytes.pdf"
   ]
  },
  "chen2011_percolation_micromodel_composite_electrode": {
@@ -341,6 +349,14 @@
    "DFT 먹인 논문/13. Energy Environ Materials - 2019 - He - Density Functional Theory for Battery Materials.pdf"
   ]
  },
+ "he2023_halogen_chemistry_solid_electrolytes": {
+  "figures": 8,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "102._Halogen_chemistry_of_solid_electrolytes_in_allsolidstate_batteries.pdf",
+   "102._Sup_Halogen_chemistry_of_solid_electrolytes_in_allsolidstate_batteries.pdf"
+  ]
+ },
  "hikima2022_operando_band_structure_assb": {
   "figures": 4,
   "generated": "2026-08-05",
@@ -406,12 +422,28 @@
    "4b4d549e-77._Sup_Machine_learning_pipelines_for_the_design_of_solidstate_electrolytes.pdf"
   ]
  },
+ "jang2025_thioarsenate_argyrodite_mlip_mechanism": {
+  "figures": 12,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "aab365ce-107._Mechanistic_insights_into_superionic_thioarsenate_argyrodite_solid_electrolytes_via_machine_learning_interatomic_potentials.pdf",
+   "34819e19-107._Sup_Mechanistic_insights_into_superionic_thioarsenate_argyrodite_solid_electrolytes_via_machine_learning_interatomic_potentials.pdf"
+  ]
+ },
  "jeon2026_concerted_li_motion_argyrodite_assi": {
   "figures": 35,
   "generated": "2026-09-09",
   "pdfs": [
    "89._Unraveling_the_concerted_motion_of_Li_ions_in_argyrodite_Li6xAs1_xSixS5I_solid_electrolytes.pdf",
    "89._Sup_Unraveling_the_concerted_motion_of_Li_ions_in_argyrodite_Li6xAs1_xSixS5I_solid_electrolytes.pdf"
+  ]
+ },
+ "jiang2022_se_doped_lpscl_high_throughput_dft": {
+  "figures": 23,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "c57b2ffb-100._Sedoped_Li6PS5Cl_and_Li5.5PS4.5Cl1.5_with_improved_ionic_conductivity_and_interfacial_compatibility_a_highthroughput_DFT_study.pdf",
+   "b669285a-100._Sup_Sedoped_Li6PS5Cl_and_Li5.5PS4.5Cl1.5_with_improved_ionic_conductivity_and_interfacial_compatibility_a_highthroughput_DFT_study.pdf"
   ]
  },
  "jun2022_argyrodite_ion_cage_size_descriptor": {
@@ -722,6 +754,13 @@
    "DFT 먹인 논문/26. Small - 2025 - Liang - Unraveling Lithium‐Ion Migration Mechanisms in Novel Quasi‐Layered Argyrodite Solid Electrolyte for.pdf"
   ]
  },
+ "liang2026_interface_bottleneck_solid_state_batteries": {
+  "figures": 6,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "103._Battery_Energy__2026__Liang__Overcoming_the_Interface_Bottleneck_in_Solid_State_Batteries__Electrolyte_Design__Interface.pdf"
+  ]
+ },
  "lim2025_virtual_calendering_framework": {
   "figures": 6,
   "generated": "2026-08-05",
@@ -926,6 +965,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DEM 논문/30. Advanced Materials - 2025 - Mun - Paving the Way for Next‐Generation All‐Solid‐State Batteries Dry Electrode Technology.pdf"
+  ]
+ },
+ "muy2025_li7ps6_dopant_engineering_conductivity": {
+  "figures": 13,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "1ef700ac-104._Optimizing_Ionic_Conductivity_of_Lithium_in_Li_PS__Argyrodite_via_Dopant_Engineering.pdf",
+   "6ca561e7-104._Sup_Optimizing_Ionic_Conductivity_of_Lithium_in_Li_PS__Argyrodite_via_Dopant_Engineering.pdf"
   ]
  },
  "nam2026_primer_layer_dry_electrode_collector": {
@@ -1467,6 +1514,13 @@
   "pdfs": [
    "61. Zhang2026_Minimum_AbInitio_Data_MLIP.pdf",
    "61. Sup) Zhang2026_Minimum_AbInitio_Data_MLIP.pdf"
+  ]
+ },
+ "zhao2021_hecs_descriptors_argyrodite_activation_energy": {
+  "figures": 8,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "5cc7c283-106._Machine_learning_prediction_of_activation_energy_in_cubic_Liargyrodites_with_hierarchically_encoding_crystal_structurebased_HECS_descriptors.pdf"
   ]
  },
  "zhou2026_high_entropy_lgps_multicationic": {

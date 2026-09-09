@@ -13,10 +13,13 @@
    감쌌다. 실측 td 600 · 텍스트노드 605 · 3800자를 부인 하나가 덮었고, 그 안에
    **진짜 철회 인용을 심어도 통과**했다(자유텍스트·숫자만 둘 다 재현). 부인은 담요가
    아니라 셀 단위 선언이어야 한다. #}
-{% macro gtable(t, cols, mo_col=None, modb={}, not_map={}) %}
+{# ⛔ BI-4 P0-2 — `not_src_ds` 는 **어느 원자료인가**. 좌표에 데이터셋 이름이 없으면
+   `canonical.verify_disclaimers()` 가 대조할 수 없고 그 부인은 미검증으로 떨어진다.
+   좌표 문법: `<데이터셋>|<키열>=<키값>|<열>` (데이터셋 = db/properties/<이름>.csv). #}
+{% macro gtable(t, cols, mo_col=None, modb={}, not_map={}, not_src_ds=None) %}
 <div class="tbl-scroll"><table class="data-table sortable"><thead><tr>
 {% for c in cols %}<th onclick="sortT(this,{{ loop.index0 }})" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">{{ c }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}" data-claim-not-src="{{ cols[0] }}={{ row[cols[0]] }}|{{ c }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+{% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}" data-claim-not-src="{% if not_src_ds %}{{ not_src_ds }}|{% endif %}{{ cols[0] }}={{ row[cols[0]] }}|{{ c }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
 </tbody></table></div>{% endmacro %}
 
 {# 값 충돌 레코드 → 사람이 읽는 한 줄. 원장은 str 인 것도 dict 인 것도 있어서
@@ -1328,7 +1331,8 @@
          정렬을 바꾸면 하나씩 나온다 — 그때마다 열을 여기 등록해야 한다. #}
     {{ gtable({'data': casc.codoping_v2.data[:40]}, casc.codoping_v2.columns,
               not_map={'window_gain': 'MD_Ea_eV@b2o3', 'uncertainty': 'MD_Ea_eV@b2o3',
-                       'ad_eps': 'MD_Ea_eV@b2o3', 'ml_score': 'MD_Ea_eV@b2o3'}) }}
+                       'ad_eps': 'MD_Ea_eV@b2o3', 'ml_score': 'MD_Ea_eV@b2o3'},
+              not_src_ds='codoping_ml_v2') }}
     <div class="muted" style="font-size:.74rem;margin-top:6px">상위 40쌍만 표시 (전체 {{ casc.codoping_v2.n }}쌍 → <a href="/api/csv/properties/codoping_ml_v2.csv">CSV 원본</a>) ·
       ml_score ± uncertainty = 모델 예측 ± 내부 LOOCV-잔차 전파 불확실도 · joint_window = pair 합동 ESW 창 · top_interaction = 기여 최대 교호작용 항.</div>
   </div>

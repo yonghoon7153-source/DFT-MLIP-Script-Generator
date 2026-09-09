@@ -47,8 +47,17 @@
   }
   function esc(s) { return NF().esc(s); }
   function inline(s) { return NF().inline(s); }
-  /* 표시는 서버가 그린 `html` 만 (BI-3 P0-3) — comments.js 의 disp 를 그대로 쓴다. */
-  function disp(x) { var f = NF(); return f.disp ? f.disp(x) : esc((x && x.text) || ""); }
+  /* 표시는 서버가 그린 `html` 만 (BI-3 P0-3) — comments.js 의 disp 를 그대로 쓴다.
+   * ⛔ 2026-09-09 (BI-4 P0-3): 종전 대체 경로가 `esc(x.text)` 를 **본문 자리에** 냈다.
+   *   `disp` 가 없다는 것은 결속 경로가 통째로 없다는 뜻인데 값은 그대로 나갔다.
+   *   ⇒ 값을 내보내지 않고 **실패를 말한다**. 이스케이프는 결속이 아니다. */
+  function disp(x) {
+    var f = NF();
+    if (f.disp) return f.disp(x);
+    return '<div class="cmt-unrendered" role="alert"><span class="claim-mark">'
+         + '⛔ 표시 실패 — 결속 렌더러(noteFmt.disp)가 없다. 내용 <b>인용 금지</b>.'
+         + '</span></div>';
+  }
   function autosize(ta) { return NF().autosize(ta); }
   function wrapSel(ta, mk) { return NF().wrapSel(ta, mk); }
   function norm(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }

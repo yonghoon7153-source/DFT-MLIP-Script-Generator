@@ -117,8 +117,14 @@ def run_segment(path, T_lo, T_hi, T_out, n_cm3=None):
     print(f"  sigma({T_out}K) = {sg_v.mean():.2f} +/- {sg_v.std(ddof=1):.2f} mS/cm   "
           f"[범위 {sg_v.min():.2f}–{sg_v.max():.2f}, {sg_v.max() / sg_v.min():.1f}배]")
     print("-" * 74)
+    # ⛔⛔ BI-4 P1 (2026-09-09) — 종전에는 여기서 "비교는 비율로만" 이라고 **권했다.**
+    #   그런데 정책 게이트를 우회해서 나온 출력에도 같은 문장이 붙었다. 마감 카드가
+    #   그 축의 **수송 비교 자체**를 금지하는데 이 도구가 비교 방법을 안내한 것이다.
+    #   ⇒ 권고를 지운다. 이 도구는 값을 내지 **쓰는 법을 말하지 않는다**.
     print("  ⛔ σ 절대값은 인용하지 않는다 (CLAUDE.md). MLIP D 과대 + H_R=1 이 겹쳐 있고,")
-    print(f"     위 표대로 시드만 바꿔도 {sg_v.max() / sg_v.min():.1f}배 흔들린다. 비교는 비율로만.")
+    print(f"     위 표대로 시드만 바꿔도 {sg_v.max() / sg_v.min():.1f}배 흔들린다.")
+    print("     ⚠ 비율 비교가 허용되는지는 **그 축의 마감 카드가 정한다** — 여기서 권하지 않는다")
+    print("       (`python3 tools/db/policy.py <원자료>` 로 확인해라).")
     print(f"  ⚠ {T_lo} K 아래 실측이 없다 — Ea={Ea_v.mean():.3f} 이 {T_out} K 까지")
     print("     이어진다는 것은 검증된 사실이 아니라 **가정**이다.")
     return dict(Ea_mean=float(Ea_v.mean()), Ea_std=float(Ea_v.std(ddof=1)),
@@ -203,10 +209,19 @@ if _a.segment:
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "db"))
     import policy as _pol                                              # noqa: E402
     _stamp = _pol.require_open(_a.segment, override=_a.policy_override)
+    _pol_state = _pol.policy_for_file(_a.segment)
     _r = run_segment(_a.segment, _a.T_lo, _a.T_hi, _a.T_out, _a.n_li)
+    # ⛔⛔ BI-4 P1 — 종전 반환값에는 **숫자만** 있었다. 스탬프는 화면에만 찍히고
+    #   json 을 읽는 쪽은 이 값이 인용 가능한지 알 방법이 없었다. 정책을 값과 같이 낸다.
+    _r["citable"] = (_pol_state["state"] == "open")
+    _r["policy"] = {"state": _pol_state["state"], "why": _pol_state["why"],
+                    "target": str(_a.segment),
+                    "checked_by": "tools/db/policy.py policy_for_file()"}
     if _stamp:
         _r["⛔_POLICY_OVERRIDE"] = _stamp
         print("\n" + "=" * 74 + f"\n {_stamp}\n" + "=" * 74)
+    if not _r["citable"]:
+        print(f"  ⛔ citable=false — 이 산출물은 인용 금지다 (state={_pol_state['state']}).")
     if _a.json_out:
         json.dump(_r, open(_a.json_out, "w"), ensure_ascii=False, indent=1)
         print(f"\n  → {_a.json_out}")
