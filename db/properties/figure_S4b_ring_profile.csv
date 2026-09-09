@@ -2,11 +2,19 @@
 # spin_pct = ring atoms only (the definition used in the main text); the six values sum to 79.7.
 # spin_pct_incl_ring_H = reference including the terminal alpha-H of ring 0 and ring 5; sums to 79.5,
 # the -0.2 difference being spin polarization on the hydrogen adjacent to the radical.
-# The hydrogen was removed from the sulfonate on ring 3. Source: gabia sdcp_n6b analyze_n6_v2.log
-ring_index,spin_pct,spin_pct_incl_ring_H,is_oxidation_site
-0,3.8,3.8,no
-1,7.3,7.3,no
-2,9.4,9.4,no
-3,15.9,15.9,yes
-4,23.3,23.3,no
-5,20.0,19.8,no
+# ⚠ RING NUMBERING — two conventions are given on purpose and must not be mixed:
+#   ring_no    = 1..6, numbered from one chain end. **This is what the figure and the manuscript use.**
+#   ring_index = 0..5, the machine index used in the source log and in
+#                sdcp_nseries_spin_2026_09_08.json (keys ring0..ring5).
+# The hydrogen was removed from the sulfonate on **ring_no 4** (= ring_index 3).
+# ⛔ 2026-09-09 correction: this header previously said "on ring 3" without stating the
+#   convention. Read as 1-based that is the wrong ring, and it made the oxidation site look
+#   disjoint from the three high-spin rings (ring_no 4,5,6). It is not — the site is one of them.
+# Source: gabia sdcp_n6b analyze_n6_v2.log
+ring_no,ring_index,spin_pct,spin_pct_incl_ring_H,is_oxidation_site
+1,0,3.8,3.8,no
+2,1,7.3,7.3,no
+3,2,9.4,9.4,no
+4,3,15.9,15.9,yes
+5,4,23.3,23.3,no
+6,5,20.0,19.8,no

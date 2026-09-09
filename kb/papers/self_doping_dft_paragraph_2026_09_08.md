@@ -76,7 +76,7 @@ electronic conductivity of 250 mS cm⁻¹ (Section X).
 | `The oxidized state is imposed by this construction` | DFT 로 **자발성**을 주장한다는 오독. H 를 손으로 뗀 계산이다 |
 | `follows from the infrared spectra above` | 자발성은 FT-IR 몫 — 역할 분담을 한 절로 |
 | `Counted over ring atoms only` → **Figure S4 캡션으로** | 7월 n=1–3 과 같은 분할. strict/extended 를 섞지 않는다 |
-| `rather than localized at the oxidation site` | ring4 23.3 을 "국재" 로 읽는 것. **자리는 ring3 확정**(2026-09-08) — 최대(ring4)와 다른 고리라 이 구절이 데이터로 받쳐진다 |
+| `rather than localized at the oxidation site` | ring4(=고리 5번) 23.3 을 "국재" 로 읽는 것. **자리는 ring3 = 고리 4번 확정**(2026-09-08) — 최대와 다른 고리라 이 구절이 데이터로 받쳐진다 |
 | `expected to be at least this delocalized` | 외삽 한계 — "폴리머에서 100%" 는 못 쓴다 |
 | `identify the carrier but not its mobility` | 전도도를 계산으로 주장하는 것 차단 |
 | `That transport was measured directly` | 계산이 못 하는 것을 **측정이 답한다** — 회피가 아니라 역할 분담임을 보인다 |
@@ -103,7 +103,7 @@ six repeat units.*
 ⚠ 그림이 지켜야 할 것 둘 (캡션이 설명하지 않으므로):
 1. **상자를 끈다** (VESTA `Objects → Unit cell` 해제) — 캡션에 상자 설명이 없다.
 2. **산화 자리를 실제로 표시한다** — S3 캡션 두 번째 문장이 그걸 약속한다.
-   n=2 A-ring · n=3 말단/내부 · **n=6 ring3** (탈양성자 SO₃ 는 O–H 가 없는 유일한 sulfonate).
+   n=2 A-ring · n=3 말단/내부 · **n=6 ring3 = 고리 4번** (탈양성자 SO₃ 는 O–H 가 없는 유일한 sulfonate).
 
 ## Methods 편입 + Note 2 (2026-09-08 · 외부 독자 감사 반영)
 
@@ -187,7 +187,7 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 > electron. The backbone share quoted in the main text counts ring atoms only, and is 79.7% at six
 > repeat units; counting the side-chain ether oxygens as well raises it to 91.6%, whereas counting
 > the ring hydrogens instead gives 79.5%. Rings are numbered from one chain end as in Figure S4, and
-> for six repeat units the hydrogen was removed from the sulfonate on ring 3. Each structure is a
+> for six repeat units the hydrogen was removed from the sulfonate on ring 4. Each structure is a
 > single self-consistent solution; no search for alternative spin-localized solutions or side-chain
 > conformers was performed, and the spin densities are reported directly rather than interpreted as
 > hole charge densities. The models are isolated gas-phase molecules, without solvent, external
@@ -212,10 +212,16 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
   ⚠ `Strict Convergence = False` 이므로 "tight" 라고 쓰지 않는다.
 - ⏳ **반복단위의 화학 표기** — 지금은 "the repeat unit defined in Figure 1" 로 가리킨다.
   Figure 1 이 그 구조를 실제로 정의하지 않으면 여기서 한 번 풀어 써야 한다.
-- ✅ **n=6 도핑 자리 = ring3** (2026-09-08). 라벨이 아니라 구조에서 찾았다 — 탈양성자
+- ✅ **n=6 도핑 자리 = ring3(0-기준) = 고리 4번(1-기준·원고 표기)** (2026-09-08). 라벨이 아니라 구조에서 찾았다 — 탈양성자
   sulfonate(S=72)에서 곁사슬을 따라가 원자 43(C)이 ring3 에 속한다 (`nseries_n6.py doping_site`).
-  스핀 최대는 ring4(23.3)라 **자리에서 한 칸 밀려 있다** — 본문의 `rather than localized at the
+  스핀 최대는 ring4 = 고리 5번(23.3)이라 **자리에서 한 칸 밀려 있다** — 본문의 `rather than localized at the
   oxidation site` 가 데이터로 받쳐진다.
+
+> ⚠ **고리 번호 규약 (2026-09-09 통일).** 원고·그림(Figure S4)은 **1-기준(고리 1–6)**,
+> 기계 자료(`figure_S4b_ring_profile.csv` 의 `ring_index`, `sdcp_nseries_spin_2026_09_08.json`
+> 의 `ring0..ring5`)는 **0-기준**이다. **ring3 = 고리 4번**이고 그 자리가 산화 자리다.
+> ⛔ 종전 Note 2 는 `on ring 3` 이라고만 써서, 1-기준으로 읽으면 산화 자리가 스핀이 몰린
+> 세 고리(4·5·6번)를 **비껴가는** 그림이 됐다. 실제로는 그 셋 중 하나다.
 
 ## SI 연결
 
@@ -235,7 +241,7 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
    ⏳ 시료 형태만 미확인: **박막이면 four-point-probe**, 펠릿이면 `four-terminal`/`van der Pauw`
    로 한 단어 교체.
 2. **삽입 위치** — FT-IR 절 **뒤**여야 한다. [1]의 `above` 가 그 전제다 (앞이면 `below` 로).
-3. ✅ **n=6 도핑 자리 = ring3** (해결). 선택: 본문에 `(ring 3)` 을 넣어 검증 가능하게 만들지,
+3. ✅ **n=6 도핑 자리 = ring3(0-기준) = 고리 4번(1-기준)** (해결). 선택: 본문에 `(ring 4)` 을 넣어 검증 가능하게 만들지,
    Figure S4 (c) 패널에 자리 표시를 넣을지 — 1저자 결정.
 
 ## 흡착 문단 — C-12 대기 상태로 동결 (2026-09-08)
