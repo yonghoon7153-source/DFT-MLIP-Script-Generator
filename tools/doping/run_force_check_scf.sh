@@ -34,7 +34,41 @@ _phys_cores() {
   getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
 }
 NP=${NP:-$(_phys_cores)}
-PWX=${PWX:-$HOME/apps/qe-7.4.1-cpu/bin/pw.x}
+# ⛔⛔ 2026-09-09 — 기본값이 **CPU 빌드**였다. `PWX` 를 안 넘기면 조용히 CPU 로 떨어져
+#   같은 스냅샷이 GPU 1.5분/it → CPU 11분/it 가 됐고, 그걸 "느리다" 로만 읽다가
+#   파일럿 비교가 통째로 어긋났다. 기본은 **GPU 빌드**고, CPU 는 **명시해야** 쓴다.
+#   ⚠ 조용한 폴백은 만들지 않는다 — 없으면 시작하지 않고 뭐가 없는지 말한다.
+_pick_pwx() {
+  local c
+  for c in "$HOME/apps/qe-7.4.1-gpu/bin/pw.x" /data/apps/qe-7.4.1-gpu/bin/pw.x \
+           "$HOME/apps/qe-gpu/bin/pw.x"; do
+    [ -x "$c" ] && { echo "$c"; return 0; }
+  done
+  return 1
+}
+if [ -z "${PWX:-}" ]; then
+  PWX=$(_pick_pwx) || {
+    echo "⛔ GPU 빌드 pw.x 를 못 찾았다 — **시작하지 않는다**."
+    echo "   찾아본 곳: \$HOME/apps/qe-7.4.1-gpu/bin/pw.x · /data/apps/qe-7.4.1-gpu/bin/pw.x"
+    echo "   · GPU 로 돌리려면:  PWX=<경로> $0 $ROOT"
+    echo "   · CPU 로 돌릴 거면 **일부러** 그렇게 적어라(느리다):"
+    echo "       ALLOW_CPU=1 PWX=\$HOME/apps/qe-7.4.1-cpu/bin/pw.x NP=8 OMP_NUM_THREADS=2 $0 $ROOT"
+    exit 2; }
+fi
+# CPU 빌드는 **의도 선언 없이는 못 쓴다** — 조용히 12배 느려지는 것을 막는다.
+if [[ "$PWX" != *gpu* ]] && [ "${ALLOW_CPU:-0}" != 1 ]; then
+  echo "⛔ CPU 빌드다 (pw.x=$PWX). 의도한 것이면 ALLOW_CPU=1 을 붙여라 — 시작하지 않는다."
+  echo "   ⚠ CPU 로 돌리면 스레드도 같이 정해라: NP=<물리코어> OMP_NUM_THREADS=<논리/NP>"
+  echo "     (안 정하면 랭크마다 OMP 가 전 코어를 잡아 8×16=128 스레드가 16코어에 올라간다"
+  echo "      — 2026-09-09 실측, 11분/iteration)"
+  exit 2
+fi
+# CPU 경로의 스레드 고정 (GPU 경로는 아래 ldd 블록이 1 로 박는다).
+if [[ "$PWX" != *gpu* ]] && [ -z "${OMP_NUM_THREADS:-}" ]; then
+  _lg=$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
+  export OMP_NUM_THREADS=$(( _lg / NP > 0 ? _lg / NP : 1 ))
+  echo "[$(date '+%m-%d %H:%M:%S')] ⚠ OMP_NUM_THREADS 미지정 → ${OMP_NUM_THREADS} 로 고정 (논리 ${_lg} / 랭크 ${NP})"
+fi
 DRY_RUN=${DRY_RUN:-0}
 
 ts() { date '+%m-%d %H:%M:%S'; }
