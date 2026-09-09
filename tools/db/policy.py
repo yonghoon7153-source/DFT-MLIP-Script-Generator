@@ -24,6 +24,16 @@
     축(예: b2o3 의 0 K DFT)을 쓰려는 경우도 일단 막고, 호출자가 사유를 대고 넘긴다.
   · 금지 서술의 **의미**를 해석하지 않는다. 카드가 닫혔다고 말하는지만 본다.
   · 마감 카드가 `근거_파일` 에 안 적어 둔 파일은 **못 잡는다** — 원장이 근거다.
+  · **대상이 무엇인지 알아내지 못한다** — 이름으로만 맞춘다. 그래서 아래 규칙이 있다.
+
+⛔⛔ 2026-09-09 — **없는 파일에 ✅ 를 줬다** (BI-4 P0-1 이 다른 축에서 재발)
+  `python3 tools/db/policy.py db/properties/modelc_md_arrhenius.json` 가
+  **✅ 열려 있음 (금지가 없음을 확인)** 을 찍었다. 그런데 그 파일은 저장소에 **없다.**
+  (`kb/reviews/codex_BI_reply_2026_09_09.md` §7-4 가 그 줄을 ✅ 경로의 **실측 예시**로
+  쓰고 있었다 — 기능이 아니라 구멍을 보여 주고 있었다. kb 린트의 깨진 경로 검사가 잡았다.)
+  원인: `state` 셋을 원장 쪽에만 걸었고 **대상 쪽에는 안 걸었다.**
+  ⇒ 규칙: **대상을 실재하는 파일로 못 붙이면 `policy_error`.**
+  *"그런 파일 못 찾았다"* 는 *"금지가 없다"* 가 아니다. 오타 한 글자가 초록불이 됐었다.
 """
 from __future__ import annotations
 
@@ -76,6 +86,31 @@ def closure_cards(root: Path = None, errors: list = None) -> list:
     return out
 
 
+def _resolve_target(base: Path, target) -> Path | None:
+    """`target` 을 **실재하는 파일**로 붙인다. 못 붙이면 `None`.
+
+    셋을 차례로 본다 — ① 절대경로 그대로 ② `base` 기준 상대경로
+    ③ `base/db` 안에서 **같은 이름**(근거_파일 꼬리 라벨 때문에 이름 매칭이 필요하다).
+
+    ⛔ 못 하는 것: 같은 이름이 db/ 안에 둘 이상이면 **어느 쪽인지 안 가린다** —
+    실재 여부만 확인하는 함수다. 정책 판정 자체가 이름 기반이라 그 이상은 의미가 없다.
+    """
+    s = str(target).strip()
+    if not s:
+        return None
+    p = Path(s)
+    if p.is_absolute() and p.is_file():
+        return p
+    if (base / p).is_file():
+        return base / p
+    db = base / "db"
+    if db.is_dir():
+        for hit in db.rglob(p.name):
+            if hit.is_file():
+                return hit
+    return None
+
+
 def policy_for_file(target, root: Path = None) -> dict:
     """이 원자료가 **마감/금지에 걸리는가** → `{state, closed, cards, hazards, why, errors}`.
 
@@ -92,10 +127,16 @@ def policy_for_file(target, root: Path = None) -> dict:
 
     `target` 은 repo 상대경로든 절대경로든 파일명이든 받는다 — 이름으로 맞춘다
     (근거_파일 항목이 `"db/properties/x.json ⛔라벨"` 처럼 꼬리를 달고 있어서).
+
+    ⛔ 그런데 **그 이름의 파일이 실재해야 한다** (2026-09-09). 못 붙이면 `policy_error` 다 —
+    없는 파일에 *"금지가 없음을 확인했다"* 를 찍던 것이 이 함수의 결함이었다.
     """
     base = Path(root) if root else REPO
     name = Path(str(target)).name
     errors: list = []
+    if not _resolve_target(base, target):
+        errors.append(f"대상 파일을 못 찾았다: {target} — 이름으로도 db/ 안에 없다 "
+                      "(오타이거나 지워진 파일이다)")
     cards = [c for c in closure_cards(base, errors=errors)
              if any(name in str(g) for g in c["근거"]) or name in str(c["범위"])]
 
@@ -226,6 +267,10 @@ def _selftest() -> int:
             {"id": "HZ-z", "level": "RESOLVED", "file": "db/properties/z_data.json",
              "what": "해소됨"},
         ]}, ensure_ascii=False), encoding="utf-8")
+        # 대상 파일들이 **실재해야** 한다 (2026-09-09 규칙) — 픽스처가 원장만 만들고
+        # 원자료를 안 만들던 것이 종전 selftest 의 공백이었다.
+        for n in ("x_data.json", "y_data.json", "z_data.json", "unrelated.json"):
+            (r / "db/properties" / n).write_text("{}", encoding="utf-8")
 
         # ⛔음성 ①: 마감 카드가 가리키는 원자료를 못 잡으면 실패
         if not policy_for_file("db/properties/x_data.json", root=r)["closed"]:
@@ -252,6 +297,30 @@ def _selftest() -> int:
         # ⛔음성 ⑦: 정상 파일은 state 가 정확히 open 이어야 한다
         if policy_for_file("z_data.json", root=r)["state"] != "open":
             print("⛔ selftest: 정상인데 open 이 아니다"); ok = False
+
+        # ── 2026-09-09: **없는 파일에 ✅ 를 주던 구멍** (BI-4 P0-1 재발) ──────
+        # ⛔음성 ⑮: 실재하지 않는 대상은 open 이면 안 된다
+        p = policy_for_file("db/properties/없는파일.json", root=r)
+        if p["state"] != "policy_error":
+            print(f"⛔ selftest: 없는 파일인데 state={p['state']} — "
+                  "'못 찾았다' 가 '금지 없다' 가 됐다"); ok = False
+        if not p["closed"]:
+            print("⛔ selftest: 없는 파일인데 closed=False — 옛 호출자가 그냥 통과한다")
+            ok = False
+        # ⛔음성 ⑯: require_open 이 **시작을 막아야** 한다
+        try:
+            require_open("없는파일.json", root=r)
+            print("⛔ selftest: 없는 파일인데 require_open 이 통과시켰다"); ok = False
+        except SystemExit:
+            pass
+        # ⛔음성 ⑰: 실재하는 무관한 파일은 **여전히 open** (과잉차단도 결함이다)
+        if policy_for_file("unrelated.json", root=r)["state"] != "open":
+            print("⛔ selftest: 실재하는 무관한 파일을 막았다 — 과잉차단"); ok = False
+        # ⛔음성 ⑱: db/ 아무 데나 있어도 이름으로 찾아야 한다 (하위 폴더)
+        (r / "db/structures").mkdir(parents=True, exist_ok=True)
+        (r / "db/structures/깊은곳.json").write_text("{}", encoding="utf-8")
+        if policy_for_file("깊은곳.json", root=r)["state"] != "open":
+            print("⛔ selftest: db/ 하위 폴더 파일을 못 찾았다"); ok = False
 
     # ── Codex BI-4 P0-1: **못 읽음 ≠ 금지 없음** ────────────────────────────
     hz = "db/properties/citation_hazards.json"

@@ -38,7 +38,7 @@ evidenceScope: multi-source-primary
 | AB | 2026-08-29 | `codex_AB_prompt_stageA_v9_regate_2026_08_29.md` | — | 회신 수령 (원문 파일 없음 — 근거: AD (Stage A v10)) | 판정 인용 7회 |
 | Q2 | 2026-08-29 | `codex_Q2_prompt_claim_and_normalization_2026_08_29.md` | — | 발송 대기 | 판정 인용 1회 |
 | S | 2026-08-29 | `codex_S_prompt_t13_msd_length_2026_08_29.md` | — | 회신 수령 (원문 파일 없음 — 근거: 판정 등재 db/properties/t13_msd_length_verdict_2026_08_29.json) | ⚠ 인용 15회 — 라벨 재사용이라 **증거 아님** |
-| T | 2026-08-29 | `codex_T_prompt_sdcp_binding_energy_path_2026_08_29.md` | — | 회신 수령 (원문 파일 없음 — 근거: T P0-1 술포네이트 기전 철회가 db 에 등재) | ⚠ 인용 18회 — 라벨 재사용이라 **증거 아님** |
+| T | 2026-08-29 | `codex_T_prompt_sdcp_binding_energy_path_2026_08_29.md` | — | 회신 수령 (원문 파일 없음 — 근거: T P0-1 술포네이트 기전 철회가 db 에 등재) | ⚠ 인용 19회 — 라벨 재사용이라 **증거 아님** |
 | U | 2026-08-29 | `codex_U_prompt_neutral_close_plan_2026_08_29.md` | — | 회신 수령 (원문 파일 없음 — 근거: U P0-2 가 회신 W 프롬프트에 인용) | ⚠ 인용 26회 — 라벨 재사용이라 **증거 아님** |
 | V | 2026-08-29 | `codex_V_prompt_closure_incar_audit_2026_08_29.md` | — | 발송 대기 | ⚠ 인용 14회 — 라벨 재사용이라 **증거 아님** |
 | W | 2026-08-29 | `codex_W_prompt_mlip_selector_validity_2026_08_29.md` | — | 발송 대기 | ⚠ 인용 10회 — 라벨 재사용이라 **증거 아님** |
@@ -60,7 +60,7 @@ evidenceScope: multi-source-primary
 | AT | 2026-08-31 | `codex_AT_prompt_c12_v17_2026_08_31.md` | `codex_AT_reply_c12_v17_2026_08_31.md` | 회신 수령 — `kb/reviews/codex_AT_reply_c12_v17_2026_08_31.md` | 회신 본문의 `요청:` 역링크; 판정 인용 5회 |
 | AU | 2026-08-31 | `codex_AU_prompt_c12_v18_2026_08_31.md` | `codex_AV_reply_c12_v18_2026_08_31.md` | 회신 수령 — `kb/reviews/codex_AV_reply_c12_v18_2026_08_31.md` | 회신 본문의 `요청:` 역링크 |
 | S | 2026-08-31 | `codex_S_prompt_backbone_polaron_estimand_2026_08_31.md` | — | 회신 수령 (원문 파일 없음 — 근거: 후속 T (폴라론 pilot seeds)) | ⚠ 인용 15회 — 라벨 재사용이라 **증거 아님** |
-| T | 2026-08-31 | `codex_T_prompt_polaron_pilot_seeds_2026_08_31.md` | `codex_T_reply_polaron_pilot_2026_08_31.md` | 회신 수령 — `kb/reviews/codex_T_reply_polaron_pilot_2026_08_31.md` | 같은 라벨 · 주제 토큰 일치 ['pilot', 'polaron']; ⚠ 인용 18회 — 라벨 재사용이라 **증거 아님** |
+| T | 2026-08-31 | `codex_T_prompt_polaron_pilot_seeds_2026_08_31.md` | `codex_T_reply_polaron_pilot_2026_08_31.md` | 회신 수령 — `kb/reviews/codex_T_reply_polaron_pilot_2026_08_31.md` | 같은 라벨 · 주제 토큰 일치 ['pilot', 'polaron']; ⚠ 인용 19회 — 라벨 재사용이라 **증거 아님** |
 | U | 2026-08-31 | `codex_U_prompt_polaron_S0_2026_08_31.md` | `codex_U_reply_polaron_S0_2026_09_01.md` | 회신 수령 — 후속 V (P0 9건 이행 완료) | 회신 본문의 `요청:` 역링크; ⚠ 인용 26회 — 라벨 재사용이라 **증거 아님** |
 | AW | 2026-09-01 | `codex_AW_prompt_webapp_audit_2026_09_01.md` | `codex_AW_reply_webapp_audit_2026_09_01.md` | 회신 수령 — NO-GO · `kb/reviews/codex_AW_reply_webapp_audit_2026_09_01.md` · 이행 중 | 회신 본문의 `요청:` 역링크; 판정 인용 6회 |
 | AX | 2026-09-01 | `codex_AX_prompt_lpsocl_600K_amendment_2026_09_01.md` | — | 발송 대기 | — |
@@ -76,7 +76,9 @@ evidenceScope: multi-source-primary
 | BG | 2026-09-07 | `codex_BG_prompt_webapp_aw_release_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 2회 |
 | BH | 2026-09-07 | `codex_BH_prompt_md_axis_audit_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 1회 |
 | BI | 2026-09-08 | `codex_BI_prompt_webapp_claim_binding_2026_09_08.md` | — | 발송 | — |
-| BJ | 2026-09-09 | `codex_BJ_prompt_cascade_redesign_2026_09_09.md` | — | 발송 | — |
+| BJ2 | 2026-09-09 | `codex_BJ2_prompt_cascade_redesign_2026_09_09.md` | — | 초안 | — |
+| BJ | 2026-09-09 | `codex_BJ_prompt_cascade_redesign_2026_09_09.md` | — | 회신됨-NO-GO | — |
+| BK | 2026-09-09 | `codex_BK_prompt_doping_question_2026_09_09.md` | — | 초안 | — |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 

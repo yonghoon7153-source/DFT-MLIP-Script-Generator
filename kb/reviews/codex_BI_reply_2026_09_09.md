@@ -579,9 +579,31 @@ b2o3_md_arrhenius.json → ⛔ 닫힘/금지
    · 마감 카드 db/properties/b2o3_md_closed_retrospective_2026_08_25.json — UMA-MD 전도도 축 전체
    · 인용위험 HZ-b2o3-md-ea (BLOCKED) — 축 전체 마감 (D · Ea · σ · 구간 Ea 전부 인용 불가)
 
-$ python3 tools/db/policy.py db/properties/modelc_md_arrhenius.json
-modelc_md_arrhenius.json → ✅ 열려 있음
+$ python3 tools/db/policy.py db/properties/comp2_md_arrhenius.json
+comp2_md_arrhenius.json → ✅ 열려 있음 (금지가 **없음을 확인**)      rc=0
+
+$ python3 tools/db/policy.py db/properties/modelc_md_arrhenius.json   # lint-skip-path: 일부러 없는 파일
+modelc_md_arrhenius.json → ⛔ 정책 확인 불가 — **허용이 아니다**      rc=3
+   · 대상 파일을 못 찾았다: 이름으로도 db/ 안에 없다 (오타이거나 지워진 파일이다)
 ```
+
+> ### ⛔ 정정 — **이 자리에서 P0-1 이 한 번 더 재발해 있었다** (2026-09-09 저녁)
+>
+> 위 세 번째 줄이 원래는 **`modelc_md_arrhenius.json → ✅ 열려 있음`** 이었다.
+> **그 파일은 저장소에 없다.** 즉 우리가 ✅ 경로의 실측 예시로 내민 줄이
+> **기능이 아니라 구멍**을 보여 주고 있었다 — 오타 한 글자가 초록불이 되는 경로다.
+>
+> 원인은 P0-1 과 **같은 결함을 다른 축에 남긴 것**이다. 우리는 `state` 셋을
+> **원장 쪽**(없음·깨짐·모양 아님)에만 걸고 **대상 쪽**에는 안 걸었다.
+> ⇒ 규칙을 하나 더 박았다: **대상을 실재하는 파일로 못 붙이면 `policy_error`.**
+> *"그런 파일 못 찾았다"* 는 *"금지가 없다"* 가 아니다.
+>
+> 잡은 것은 사람이 아니라 **`kb_wiki.py lint` 의 깨진 경로 검사**다 —
+> 이 회신문이 없는 경로를 인용한다고 에러를 냈다. 그래서 실측 예시를
+> 실재 파일(`comp2_md_arrhenius.json`)로 바꾸고, 없는 파일 줄은 **정책 오류 예시로**
+> 남긴다. selftest 에 음성 4경로를 추가했다(⑮ 없는 대상이 open 이면 실패 ·
+> ⑯ `require_open` 이 통과시키면 실패 · ⑰ **실재하는 무관 파일은 여전히 open**(과잉차단
+> 방지) · ⑱ `db/` 하위 폴더도 이름으로 찾는가). 지금 `--selftest` **PASS**.
 
 `nernst_einstein_300K.py` 는 `--segment` **맨 앞에서** `require_open()` 을 호출해 **시작 자체를
 안 한다**. 우회는 `--policy_override "<사유>"` 로만 되고, **그러면 산출물에 스탬프가 박힌다**
