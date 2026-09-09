@@ -565,6 +565,16 @@ def compare():
                                            D.canonical_provenance_flags().items()})
 
 
+#: `?archive=1` 없이는 **DOM 에 싣지 않는** cascade 산출물 (v3 묶음 E · 2026-09-09).
+#:  · ranked      — manifest `archive_only` (2026-08-16 Codex P0-5)
+#:  · champions   — v1 141행. manifest 미등재 = 미승인. v2 는 `casc.v2.champions`(🔁 탭)
+#:  · litransport — v1 47종판. 같은 사유
+#:  · synergy     — v1 휴리스틱 pair. explicit pair 라벨 0개
+#: ⛔ 이 목록을 **줄이는** 방향으로 고치지 말 것. `/api/file` 이 같은 파일에 403 을
+#:   내는 한(원장 미등재), 화면만 내보내면 사이트가 자기 정책을 어긴다.
+CASCADE_ARCHIVE_ONLY = ("ranked", "champions", "litransport", "synergy")
+
+
 @app.route("/cascade")
 def cascade_page():
     """감사 화면. **역사 47종 랭킹은 `?archive=1` 없이는 DOM 에 넣지 않는다.**
@@ -574,13 +584,21 @@ def cascade_page():
       `archive_only` 인데 기본 화면이 정책을 어기고 있었다. 보안 문제가 아니라
       **사이트가 "승인된 ranking 0종" 이라고 쓰면서 순위표를 같이 내보내는** 자기모순이다.
       `/cascade/diagnostic` 이 이미 `?view=diagnostic` 로 닫혀 있는 것과 같은 규칙을 쓴다.
+
+    ⛔ 2026-09-09 (v3 묶음 E · P0-12) — 게이트가 `ranked` **하나만** 비웠다. manifest 에
+      한 줄도 등재되지 않은 v1 산출물 셋(champions 141행 · litransport · synergy)이
+      기본 DOM 에 전량 실려 나갔다. 같은 파일을 `/api/file` 로 받으면 **403**(미등록 =
+      미승인)이라, 다운로드는 막고 화면은 내보내는 상태였다. 게이트를 **넓힌다** —
+      완화가 아니다. 데이터는 지우지 않고 `?archive=1` 에서 그대로 나간다.
     """
     casc = dict(D.load_cascade())
     archive = request.args.get("archive") == "1"
     diagnostic = request.args.get("view") == "diagnostic"
     # 값을 지우지 않는다 — 이 응답에서만 뺀다. 쿼리를 주면 그대로 나간다.
     if not archive:
-        casc["ranked"] = {**(casc.get("ranked") or {}), "data": [], "archive_gated": True}
+        for _k in CASCADE_ARCHIVE_ONLY:
+            if casc.get(_k):
+                casc[_k] = {**casc[_k], "data": [], "archive_gated": True}
     if not diagnostic and casc.get("themes"):
         # 90종 조합 랭킹은 diagnostic_only 다 (도펀트명 + norm 점수 + BVS 열까지 실린다).
         casc["themes"] = {**casc["themes"], "dopants": [], "diagnostic_gated": True}
@@ -589,10 +607,14 @@ def cascade_page():
     comp = ver.get("compounds")
     # ⚠ 2026-08-14 — 이 수치들은 **superseded 47종판**의 것이다. 최상단 타일은
     #    D.CASCADE_TRUTH(273/270/90/0)를 쓰고, 아래는 보관함 탭 안에서만 쓴다.
+    # ⚠ 게이트가 걸리면 **숫자를 내지 않는다**(None). 게이트 뒤의 0 은 "없다" 가 아니라
+    #   "이 응답에서 뺐다" 이고, 그걸 0 으로 찍으면 화면이 없는 것을 세는 꼴이 된다.
     stats = {
-        "dopants": len(ranked),
-        "pareto": sum(1 for r in ranked if str(r.get("pareto", "")).strip().upper() == "Y"),
-        "champions": len(casc.get("champions", {}).get("data", [])),
+        "archive_gated": not archive,
+        "dopants": len(ranked) if archive else None,
+        "pareto": (sum(1 for r in ranked
+                       if str(r.get("pareto", "")).strip().upper() == "Y") if archive else None),
+        "champions": (len(casc.get("champions", {}).get("data", [])) if archive else None),
         "verified": (len(comp) if isinstance(comp, (list, dict)) else None),
     }
     deep_map = {v: k for k, v in D.CASCADE_DOPANT.items()}
@@ -604,6 +626,8 @@ def cascade_page():
                            facc=D.CASCADE_FACTORIAL_CONTRACT, enrich=D.CASCADE_ENRICHMENT,
                            stages=D.CASCADE_STAGE_GROUPS, stagemap=D.CASCADE_STAGE_GATE_MAP,
                            lineage=D.METHOD_LINEAGE, lit_have=have,
+                           # 캠페인 지위 밴드 — 대시보드와 **같은 원장 파일**에서 읽는다
+                           band=D.cascade_campaign_band(),
                            mo_db=D.load_molecular_orbitals())
 
 

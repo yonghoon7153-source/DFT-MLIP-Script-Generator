@@ -543,6 +543,79 @@ def structures_for(cid: str) -> list[dict]:
                                 "viewable": sfx in (".cif", ".xyz")})
     return out
 
+
+#: 3D 로 열 수 있는 형식 우선순위 — 같은 stem 의 여러 파일 중 **무엇을 눌러야 하나**.
+#:   cif(격자+대칭) > vasp(격자) > xyz(원자만) > cube. .vesta 는 파서가 없어 여기 없다.
+_VIEW_RANK = {"cif": 0, "vasp": 1, "xyz": 2, "cube": 3}
+
+
+def structure_groups(cid: str) -> dict:
+    """`structures_for` 를 **폴더 → 같은 stem** 두 단계로 묶는다 (v3 묶음 D).
+
+    왜: 실측 버튼 수가 sdcp 95 · vgcf_hbn 64 · li3n 60 이고, 그 안에 같은 구조의
+      `.xyz`/`.vasp`/`.vesta` 3종 세트가 섞여 있어 **사람이 고를 수 없었다**.
+      .vesta 는 3Dmol 파서가 없어 눌러도 "파서 없음" 만 뜨는데 3D 줄에 같이 있었다.
+
+    반환 `{"total", "n_view", "groups":[{"folder","n","items":[…]}]}`
+      item = `{"stem", "view": {"name","fmt"}|None, "files":[{"name","ext","fmt"}], "vesta":[…]}`
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 어느 구조가 '대표' 인지 모른다 — 폴더·이름순으로 줄 뿐 과학적 우선순위가 아니다.
+      · 같은 stem 인데 내용이 다른 파일(변환 실패본 등)을 구분하지 못한다.
+    """
+    items: dict = {}
+    for s in structures_for(cid):
+        rel = s["name"]
+        folder, _, base = rel.rpartition("/")
+        stem = base.rsplit(".", 1)[0]
+        g = items.setdefault((folder, stem), {"stem": stem, "folder": folder,
+                                              "view": None, "files": [], "vesta": []})
+        ext = (s.get("ext") or "").lower()
+        if ext == "vesta":
+            g["vesta"].append({"name": rel, "ext": ext, "fmt": ""})
+        else:
+            g["files"].append({"name": rel, "ext": ext, "fmt": s.get("fmt", "")})
+            if s.get("fmt"):
+                cur = g["view"]
+                if cur is None or _VIEW_RANK.get(ext, 9) < _VIEW_RANK.get(cur["ext"], 9):
+                    g["view"] = {"name": rel, "ext": ext, "fmt": s["fmt"],
+                                 "viewable": bool(s.get("viewable"))}
+    by_folder: dict = {}
+    for (folder, _stem), g in items.items():
+        by_folder.setdefault(folder, []).append(g)
+    groups = []
+    for folder in sorted(by_folder, key=lambda f: (f != "", f.lower())):
+        rows = sorted(by_folder[folder], key=lambda g: g["stem"].lower())
+        groups.append({"folder": folder, "n": len(rows), "items": rows})
+    return {"total": sum(g["n"] for g in groups),          # 묶음(=구조) 수
+            "n_files": sum(len(v["files"]) + len(v["vesta"]) for v in items.values()),
+            "n_vesta": sum(len(v["vesta"]) for v in items.values()),
+            "n_view": sum(1 for v in items.values() if v["view"]),
+            "groups": groups}
+
+
+#: 칩 라벨을 짧게 — 파일 stem 에서 조성 토큰·상투어를 떼고 남는 말이 **구별에 쓰이는 부분**이다.
+_CSV_STOP = ("_origin", "_fig", "_data", "_table", "_csv")
+
+
+def _csv_short(fname: str, cid: str) -> str:
+    """CSV 파일명 → 칩에 쓸 짧은 이름. 못 줄이면 stem 을 그대로 돌려준다.
+
+    ⛔ 못 하는 것: 그 표가 무엇인지 모른다 — 이름을 깎을 뿐이다. 파일명이 나쁘면 결과도 나쁘다.
+    """
+    stem = fname.rsplit(".", 1)[0]
+    low = stem.lower()
+    for p in sorted((p.lower() for p in _PREFIX.get(cid, [cid])), key=len, reverse=True):
+        if low.startswith(p) and len(low) > len(p) + 1:
+            stem, low = stem[len(p):].lstrip("_-"), low[len(p):].lstrip("_-")
+            break
+    for s in _CSV_STOP:
+        if low.endswith(s) and len(low) > len(s) + 1:
+            stem = stem[: -len(s)]
+            break
+    stem = stem.replace("_", " ").strip()
+    return (stem[:26] + "…") if len(stem) > 27 else (stem or fname)
+
 # 사이트 차트에서 제외할 폐기 CSV (db엔 traceability로 남기되 사용자에겐 안 보이게).
 # ⚠ 하위폴더 이동으로는 못 막는다 — 아래 rglob("*")가 db/properties 를 재귀 탐색하기 때문.
 _SUPERSEDED_CSV = {
@@ -586,7 +659,10 @@ def _datafiles_for_c(cid: str, _sig_prop, _sig_spec) -> tuple:
                 # startswith는 최장 prefix 소유규칙 적용, 공유파일은 _infix_ 로 허용
                 if _prefix_starts(f.name, pref) or any(f"_{p.lower()}" in f.name.lower() for p in pref):
                     seen.add(f.name)
-                    out.append({"name": f.name, "rel": f.relative_to(DB).as_posix(), "kind": _csv_kind(f.name)})
+                    # `short` — 칩 라벨용. kind 만 쓰면 sdcp 15칩 중 11개가 전부 'data' 라
+                    #   눌러 보기 전에는 무엇인지 알 수 없었다 (실측).
+                    out.append({"name": f.name, "rel": f.relative_to(DB).as_posix(),
+                                "kind": _csv_kind(f.name), "short": _csv_short(f.name, cid)})
     return tuple(out)
 
 def _csv_kind(name: str) -> str:
@@ -2072,6 +2148,67 @@ def load_cascade() -> dict:
     return out
 
 
+#: 캠페인 지위 밴드가 읽는 원장 두 개. **대시보드(`_closure_and_prereg_cards`)와 같은
+#: 파일**이라 두 화면이 갈라질 수 없다 — 여기서 숫자를 새로 만들지 않는다.
+CASCADE_ESTIMAND_JSON = "cascade_d_rel_estimand_2026_09_08.json"
+CASCADE_SEAL_JSON = "cascade_seal_v2_2026_09_08.json"
+
+
+def cascade_campaign_band() -> dict:
+    """`/cascade` 최상단 **캠페인 지위 밴드** — 지위·보고량·남은 해제조건·봉인.
+
+    왜 필요한가: 화면이 말하는 최신 날짜가 2026-08-25 였다. 회신 AL 의 NO-GO(08-30)도,
+      09-08 에 비준된 보고량 카드도, 같은 날 봉인(v2_2026_09_08)도 **한 글자도 없었다**.
+      정작 대시보드에는 그 카드가 떠 있어서, 판정 대상 화면만 자기 지위를 몰랐다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 지위를 스스로 판정하지 않는다. 비준 카드·봉인 파일의 문장을 **옮길 뿐**이다.
+        'NO-GO' 라는 낱말도 우리가 붙이는 게 아니라 카드 본문에 있을 때만 싣는다.
+      · 해제조건이 실제로 충족됐는지 보지 않는다 — 카드가 '잔여' 라고 적은 것을 옮긴다.
+      · 봉인된 sha256 이 지금 파일과 같은지 **대조하지 않는다**. 봉인 사실만 표시한다.
+      · 카드가 없거나 `status != "ratified"` 면 `ok=False` 를 내고 **아무 값도 만들지
+        않는다** (fail-closed — 빈 밴드로 "없음" 을 흉내내지 않는다).
+    """
+    est = _load_json(DB / "properties" / CASCADE_ESTIMAND_JSON)
+    if not est:
+        return {"ok": False, "why": f"db/properties/{CASCADE_ESTIMAND_JSON} 을 못 읽었다"}
+    if est.get("status") != "ratified":
+        return {"ok": False, "why": f"보고량 카드가 비준 전이다 (status={est.get('status')!r})"}
+    why = est.get("왜_이_카드인가") or {}
+    left = (est.get("6_아직_안_닫은_것") or {}).get("해제조건_잔여") or ""
+    rat = est.get("ratification") or {}
+    # 지위 문장은 **카드 본문에서** 고른다 — 'NO-GO' 를 우리가 지어내지 않는다.
+    nogo = next((s for s in (str(why.get("맥락") or ""), str(est.get("지위") or ""))
+                 if "NO-GO" in s), "")
+    seal = _load_json(DB / "properties" / CASCADE_SEAL_JSON) or {}
+    band = {
+        "ok": True,
+        "state": "NO-GO hold" if (nogo and left) else ("비준됨" if not left else "진행 보류"),
+        "state_kind": "blocked" if (nogo and left) else "hold",
+        "nogo_text": nogo,
+        "estimand": (est.get("1_보고량_정의_해제조건6") or {}).get("보고량") or "",
+        "estimand_note": (est.get("1_보고량_정의_해제조건6") or {}).get("cell_conditioned_의_뜻") or "",
+        "ratified_at": rat.get("at") or est.get("date"),
+        "ratified_by": rat.get("by"),
+        "digest": str(rat.get("content_digest") or "")[:12],
+        "remaining": left,
+        "not_released": why.get("⛔_이_카드가_해제하지_않는_것") or "",
+        "gap": (est.get("6_아직_안_닫은_것") or {}).get("★_구조적_공백") or "",
+        "allowed": est.get("4_허용_서술_이대로만") or [],
+        "forbidden": est.get("5_금지_서술") or [],
+        "invalid_if": est.get("7_무효_조건") or [],
+        "record": f"db/properties/{CASCADE_ESTIMAND_JSON}",
+        "decision": "D-2026-09-08-cascade-d-rel-estimand",
+        "seal": ({"label": seal.get("label"), "at": seal.get("sealed_at"),
+                  "n_sources": len(seal.get("sources") or {}),
+                  "rules": sorted((seal.get("rules") or {}).keys()),
+                  "means": seal.get("⛔_봉인의_뜻") or "",
+                  "not_guaranteed": seal.get("⛔_이_봉인이_보장하지_않는_것") or [],
+                  "record": f"db/properties/{CASCADE_SEAL_JSON}"} if seal else None),
+    }
+    return band
+
+
 # ── 방법 계보 (스크리닝 문헌 → 우리 cascade) ────────────────────────
 #  각 항목의 paper 는 litdb/papers/<slug>.md — /api/paper/<slug> 로 뷰어 재사용.
 #  ⚠ 정직성: "우리가 이 문헌을 재현했다"가 아니라 "어느 축을 물려받고 어느 축을 바꿨나"를 적는다.
@@ -2270,9 +2407,50 @@ def icohp_for(cid: str):
                             if k != "note" and k not in cols:
                                 cols.append(k)
                     d["_comparison_cols"] = cols
+                d = _promote_corrected_bonds(d)
                 d["_curves"] = cohp_curves_for(cid)
                 return d
     return None
+
+
+#: 정정본이 사는 키 — 원장이 "Correct values below" 라고 가리키는 자리.
+_CORRECTED_BONDS_KEY = "bonds_4.0A_cutoff_for_comparison"
+#: 정정본 스키마(`icohp_eV`·`n_bonds`) → 공통 스키마. 이름만 다르고 뜻은 같다.
+_CORRECTED_FIELD = {"icohp_eV": "ICOHP_total_eV_per_bond", "n_bonds": "N"}
+
+
+def _promote_corrected_bonds(d: dict) -> dict:
+    """`_CORRECTION*` 이 있으면 **정정본을 표의 정본으로 올린다** (P0-05 · 2026-09-09).
+
+    실측 사고: `/composition/modelc_nd_doped` 의 ICOHP 표가 Li-S −2.493 · Li-Cl −2.265 를
+    경고 없이 찍고 있었다. 같은 파일의 `_CORRECTION_2026_06_18` 이 그 둘을 **CUTOFF
+    ARTIFACT** 로 부르고 정정값(−1.647 / −2.132)을 아래에 두는데, 템플릿은 headline 만
+    `headline_CORRECTED` 를 쓰고 표는 옛 dict 를 그대로 그렸다 — **한 화면이 자기를 부정했다.**
+
+    승격하면 옛 표는 `bonds_superseded` 로 옮겨 화면이 접어서 보인다(삭제 아님 — 이력이다).
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 어느 쪽이 물리적으로 옳은지 판정하지 않는다. 원장이 "Correct values below" 라고
+        적어 둔 것을 따를 뿐이다. 정정 문구가 없으면 아무것도 안 한다.
+      · 정정본에 없는 열(d̄ 평균거리·min/max)을 만들어 내지 않는다 — 빈칸으로 남긴다.
+    """
+    corr = [v for k, v in d.items() if k.startswith("_CORRECTION") and isinstance(v, str)]
+    src = d.get(_CORRECTED_BONDS_KEY)
+    if not corr or not isinstance(src, dict) or not isinstance(d.get("bonds"), dict):
+        return d
+    promoted = {}
+    for bond, v in src.items():
+        if not isinstance(v, dict):
+            continue
+        promoted[bond] = {_CORRECTED_FIELD.get(k, k): val for k, val in v.items()}
+    if not promoted:
+        return d
+    d = dict(d)
+    d["bonds_superseded"] = d["bonds"]
+    d["bonds"] = promoted
+    d["_promoted_from"] = _CORRECTED_BONDS_KEY
+    d["_promoted_why"] = " · ".join(corr)
+    return d
 
 
 # 3계 공유 BVSE 자료 — 어느 한 조성의 것이 아니라 **비교표**라서 조성 prefix 로는

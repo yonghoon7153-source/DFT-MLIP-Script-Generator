@@ -19,6 +19,31 @@
 {% for row in (t.data or []) %}<tr>{% for c in cols %}<td class="{% if row[c] is number %}num{% endif %}"{% if not_map.get(c) %} data-claim-not="{{ not_map[c] }}"{% endif %}>{% if mo_col and c == mo_col and row[c] in modb %}<span class="mo-click" role="button" tabindex="0" title="클릭 → 분자오비탈" onclick="openMO('{{ row[c] }}')" onkeydown="_kbd(event)">{{ row[c] }}</span>{% else %}{{ num(row[c]) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
 </tbody></table></div>{% endmacro %}
 
+{# 값 충돌 레코드 → 사람이 읽는 한 줄. 원장은 str 인 것도 dict 인 것도 있어서
+   `{{ c|bold }}` 하나로 찍으면 dict 는 **파이썬 repr 이 그대로 화면에 샌다**
+   (`{&#39;resolution&#39;: …}` 이 최상단 빨간 상자에 노출됐다 — 2026-09-09 P0-10).
+   ⛔ 이 매크로가 못 하는 것: 중첩 dict(`checked`) 의 수치는 안 보여준다. 원장 파일을
+      봐야 한다 — 화면에 dict 를 펴 붙이느니 안 싣는다. #}
+{# 게이트가 걸린 자리에서 **숫자 대신 '가려짐'** 을 찍는다.
+   ⛔ CLAUDE.md — 없는 것을 0 으로 표시하지 않는다. 게이트 뒤의 0 은 "없다" 가 아니라
+      "이 응답에서 뺐다" 다. 라우트가 None 을 넘기면(app.py stats) 여기서 자물쇠가 뜬다. #}
+{% macro gnum(v) %}{% if v is none %}<span class="mono muted" title="이 화면에서 가려져 있다 — ?archive=1 로 열린다">🔒 가려짐</span>{% else %}{{ v }}{% endif %}{% endmacro %}
+
+{# archive 게이트가 걸린 표 자리 — 표 대신 '보관함 열기' 버튼 하나만 남긴다.
+   ⛔ 이 상자를 '경고 배너 + DOM 에는 싣기' 로 되돌리지 말 것. 그게 정확히 2026-08-16
+      Codex P0-5 가 잡은 사고다(같은 파일을 /api/file 은 403 으로 막는다). #}
+{% macro archive_box(what, anchor) %}
+<div class="callout cal-danger" style="margin:0 0 12px;font-size:.84rem">
+  <b>🗄 보관함 — 기본 화면에서 내보내지 않는다</b>
+  <div class="muted" style="font-size:.9em;margin:6px 0 8px">{{ what }}
+    이 산출물은 <span class="mono">cascade_audit_manifest.json</span> 에 등재돼 있지 않다 —
+    <b>미등재는 미승인</b>으로 다룬다(같은 파일을 <span class="mono">/api/file</span> 로 받으면 403).</div>
+  <a class="btn" href="/cascade?archive=1#{{ anchor }}">보관함 열기 →</a>
+</div>
+{% endmacro %}
+
+{% macro conflict_txt(c) %}{% if c is string %}{{ c }}{% elif c is mapping %}{% for k, v in c.items() if v is string %}{{ '' if loop.first else ' · ' }}{{ v }}{% endfor %}{% else %}{{ c }}{% endif %}{% endmacro %}
+
 {# ⛔ 2026-08-14 (Codex 리뷰 P0-4) — 47종/수작업 축이 archive 표시 없이 current 탭처럼
    살아 있었다. 모든 남은 탭에 **무엇으로 만든 표인지 + 왜 결과가 아닌지**를 붙인다. #}
 {% macro tabstate(kind, source, why) %}
@@ -207,16 +232,41 @@
 </div>
 {% endif %}
 
+{# ══ 캠페인 지위 밴드 (v3 묶음 E · P0-13, 2026-09-09) ═════════════════════════
+   이 화면이 말하던 최신 날짜가 2026-08-25 였다 — 회신 AL 의 NO-GO(08-30)도, 09-08 에
+   비준된 보고량 카드도, 같은 날 봉인도 한 글자도 없었다. 값은 하드코딩이 아니라
+   `data.cascade_campaign_band()` 가 비준 카드·봉인 파일에서 읽어 온다. #}
+{% include "_campaign_band.html" %}
+
 {# ⚠ verified 서브셋 최상위에 _CONFLICT_UNRESOLVED_* 가 있는데 화면 어디에도 안 떴다.
    모든 verdict 가 "⚠ 잠정(값 충돌 미해소)" 로 시작하는데 대시보드는 그 도펀트를 1위로
-   올린다 — 충돌을 띄우지 않으면 사이트가 스스로 모순된다 (2026-07-29 감사). #}
-{% set _conf = [] %}{% for k, v in (casc.verified or {}).items() if k.startswith('_CONFLICT') %}{% set _ = _conf.append(v) %}{% endfor %}
+   올린다 — 충돌을 띄우지 않으면 사이트가 스스로 모순된다 (2026-07-29 감사).
+   ⛔ 2026-09-09 (P0-10) — 루프 조건이 `_CONFLICT` 였다. **2026-08-12 에 해소된**
+   `_CONFLICT_RESOLVED_2026_08_12` 까지 '미해소' 빨간 제목 아래로 끌려왔고, 그 값이
+   str 이 아니라 dict 라 `|bold` 가 **파이썬 repr 을 이스케이프해 화면에 노출**했다
+   (`{&#39;resolution&#39;: …}`). 정본 citation_hazards.json 도 이 건을 `RESOLVED` 로
+   등재한다. 그리고 꼬리말 '이 서브셋의 verdict 는 전부 잠정' 은 원장에 근거가 없다
+   (doping_cascade_verified.json 안 '잠정' 은 그 충돌 문자열 자체 1회뿐) — 삭제한다.
+   해소분은 지우지 않고 **회색으로 접는다.** #}
+{% set _conf = [] %}{% set _done = [] %}
+{% for k, v in (casc.verified or {}).items() if k.startswith('_CONFLICT') %}
+  {% set _ = (_conf if k.startswith('_CONFLICT_UNRESOLVED') else _done).append((k, v)) %}
+{% endfor %}
 {% if _conf %}
 <div class="callout cal-danger" style="margin:10px 0;font-size:.82rem">
   <b>⚠ verified 서브셋에 미해소 값 충돌이 있다</b>
-  <ul style="margin:6px 0 0;padding-left:18px">{% for c in _conf %}<li>{{ c|bold }}</li>{% endfor %}</ul>
-  <div class="muted" style="margin-top:6px;font-size:.94em">그래서 이 서브셋의 verdict 는 전부 <b>잠정</b>이다 — 순위를 확정으로 읽지 말 것.</div>
+  <ul style="margin:6px 0 0;padding-left:18px">
+    {# dict 가 섞여 들어와도 repr 을 흘리지 않는다 — 사람이 읽을 절만 뽑아 쓴다 #}
+    {% for k, c in _conf %}<li>{{ conflict_txt(c)|bold }}</li>{% endfor %}</ul>
 </div>
+{% endif %}
+{% if _done %}
+<details class="v3-fold card" style="margin:10px 0;font-size:.82rem;border-left:4px solid var(--muted)">
+  <summary style="font-weight:700">🗄 해소된 값 충돌 {{ _done|length }}건 — 기록으로만 남긴다</summary>
+  <ul style="margin:8px 0 0;padding-left:18px;line-height:1.6">
+    {% for k, c in _done %}<li><span class="mono muted">{{ k }}</span> — {{ conflict_txt(c)|bold }}</li>{% endfor %}
+  </ul>
+</details>
 {% endif %}
 <div class="tabs" id="tabs">
   {# 순서 = 신뢰도 순. 승인된 결과가 없으므로 **감사 화면이 기본**이다 (2026-08-14). #}
@@ -646,7 +696,7 @@
 <div class="tab-panel" id="tab-board">
   <div class="callout cal-danger" style="margin:0 0 12px;font-size:.84rem">
     <b>🗄 이 탭은 superseded 보관함이다 — 결과로 인용하지 말 것.</b>
-    아래 {{ stats.dopants }}종 리더보드 · Pareto {{ stats.pareto }}건 · champion {{ stats.champions }}행은
+    아래 {{ gnum(stats.dopants) }}종 리더보드 · Pareto {{ gnum(stats.pareto) }}건 · champion {{ gnum(stats.champions) }}행은
     <b>2026-06-29 에 멈춘 취합 경계</b>의 산물이다. 계산은 2026-07-11 에 270/273 으로 끝나 있었고,
     빠져 있던 43종도 STAGE_12 까지 완주해 있었다. 현행 상태는 <b>📋 현황·감사</b> 탭.
   </div>
@@ -666,21 +716,24 @@
       <b>ox_V는 47개 중 19개가 2.14로 축퇴</b>(호스트가 pin)라 변별력이 약해. <b>score 차 ~0.02 이내는 사실상 동점</b>.
       실제 신뢰는 <b>✓검증</b> 행(Nd2O3·B2O3)의 조성 페이지 DFT값만.<br>또 score 의 soft+ductile 가중 0.35 는 <b>'연질일수록 좋다'는 단조 가정</b>인데, bucci2017은 compliant SE(E≈15 GPa)가 micro-cracking에 더 취약하다고 반증한다 — 순위를 물성 최적점으로 읽지 말 것.</div>
     </div>
+    {# ⛔ 2026-09-09 (P0-11) — 이 안내는 예전에 `<tbody>` 안 `<tr colspan=10>` 이었다.
+       데이터 행과 섞여서 딥링크 JS 의 `r.cells[1]` 이 undefined 로 죽었고, 그 한 줄이
+       같은 script 블록의 THEMES/TDOP 를 통째로 미할당으로 만들었다. 표 **밖**으로 뺀다. #}
+    {% if casc.ranked.archive_gated %}
+    <div class="callout cal-danger" style="margin:0 0 12px;font-size:.84rem">
+      <b>🗄 보관함 — 기본 화면에서 내보내지 않는다</b>
+      <div class="muted" style="font-size:.9em;margin:6px 0 8px">
+        역사 47종 rank·score 는 <span class="mono">archive_only</span> 산출물이다.
+        승인된 current ranking 은 <b>0종</b> — 이 표는 결과가 아니라 2026-06-29 취합 경계의 기록이다.</div>
+      <a class="btn" href="/cascade?archive=1#board">보관함 열기 (superseded 47종) →</a>
+    </div>
+    {% endif %}
     <div class="tbl-scroll"><table class="data-table sortable" id="board-tbl"><thead><tr>
       <th onclick="sortT(this,0)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">rank</th><th onclick="sortT(this,1)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">dopant</th>
       <th onclick="sortT(this,2)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">group</th><th onclick="sortT(this,3)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">score</th>
       <th onclick="sortT(this,4)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">Δe</th><th onclick="sortT(this,5)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">ox_V</th>
       <th onclick="sortT(this,6)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">red_V</th><th onclick="sortT(this,7)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">E (GPa)</th>
       <th onclick="sortT(this,8)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">Pugh B/G</th><th onclick="sortT(this,9)" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">Pareto</th></tr></thead><tbody>
-    {% if casc.ranked.archive_gated %}
-    <tr><td colspan="10" style="padding:14px;text-align:center">
-      <div style="color:var(--red);font-weight:700">🗄 보관함 — 기본 화면에서 내보내지 않는다</div>
-      <div class="muted" style="font-size:.82rem;margin:6px 0 8px">
-        역사 47종 rank·score 는 <span class="mono">archive_only</span> 산출물이다.
-        승인된 current ranking 은 <b>0종</b> — 이 표는 결과가 아니라 2026-06-29 취합 경계의 기록이다.</div>
-      <a class="btn" href="/cascade?archive=1#board">보관함 열기 (superseded 47종) →</a>
-    </td></tr>
-    {% endif %}
     {% for r in (casc.ranked.data or []) %}
     <tr>
       <td class="num">{{ r.rank|int }}</td>
@@ -1495,9 +1548,19 @@ function filtRows(tid,q){q=q.toLowerCase();var n=0;
     e.textContent=n?'':'검색 결과 없음 — 검색어를 지워보세요.';e.style.display=n?'none':'';}
 }
 // 딥링크(#Nd2O3) 도착 시 해당 행 하이라이트
-if(location.hash){var d=decodeURIComponent(location.hash.slice(1)).toLowerCase();
-  document.querySelectorAll('#board-tbl tbody tr').forEach(function(r){
-    if(r.cells[1].innerText.toLowerCase().indexOf(d)>=0){r.classList.add('row-hi');r.scrollIntoView({block:'center'});}});}
+// ⛔⛔ 2026-09-09 (P0-11) — 여기가 **테마 탭 전체를 죽이고 있었다.** 기본 화면과
+//   ?view=diagnostic 에서는 #board-tbl 의 tbody 가 보관함 안내 행 하나(colspan)뿐이라
+//   `r.cells[1]` 이 undefined → TypeError 로 이 <script> 블록이 통째로 중단됐고,
+//   바로 아래 THEMES/TDOP 할당이 미실행으로 남아 🎯 테마 탭이 안 돌았다. 페이지가
+//   스스로 뿌리는 딥링크 칩 48개가 전부 그리로 간다. 바로 위 주석이 같은 실패 모드를
+//   이미 적어 뒀는데(Plotly 가드) 이 줄만 빠져 있었다.
+//   ⇒ ① cells 길이 가드 ② try/catch 로 블록 격리. 안내 행은 tbody 밖으로 뺐다.
+try{
+  if(location.hash){var d=decodeURIComponent(location.hash.slice(1)).toLowerCase();
+    document.querySelectorAll('#board-tbl tbody tr').forEach(function(r){
+      if(r.cells.length>1 && r.cells[1].innerText.toLowerCase().indexOf(d)>=0){
+        r.classList.add('row-hi');r.scrollIntoView({block:'center'});}});}
+}catch(e){/* 딥링크 하이라이트 실패가 아래 테마 탭 배선을 죽이면 안 된다 */}
 
 // ── 🎯 테마 조합 — 선택 테마 norm 기하평균 랭킹 + (정확히 2개) 산점도 ──
 var THEMES={{ (casc.themes.themes if casc.themes else {})|tojson }};
