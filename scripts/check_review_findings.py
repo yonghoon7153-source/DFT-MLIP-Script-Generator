@@ -145,7 +145,10 @@ BAN_ALLOW_ALWAYS = ('docs/reviews/claims.json',
                     #   인용해야 하므로 `findings.json` 과 같은 층이다 (등록부·감사 원문).
                     'docs/data/audit_20260909/audit1_scopes.json',
                     'docs/data/audit_20260909/audit1_followups.json',
-                    'docs/data/audit_20260909/audit1_ground_truth.md')
+                    'docs/data/audit_20260909/audit1_ground_truth.md',
+                    #  갭 감사 부분 결과 (2026-09-09 보류 시점 박제) — 같은 이유:
+                    #  누수를 **신고**하려면 그 값을 인용해야 한다.
+                    'docs/data/audit_20260909/gap_partial_buckets.json')
 
 #: ⚠⚠ 2026-09-09 (전수 감사 P1) — **생성기·사용자출력에는 파일 전체 면제를 주지 않는다.**
 #:   위 113-123 줄이 이미 *"생성기에는 파일 전체 면제를 주지 않는다"* 라고 적어 놨는데

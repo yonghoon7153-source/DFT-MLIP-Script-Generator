@@ -816,11 +816,22 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         electronic_active_pct = max(10, phi_am / 0.18 * 50)
 
     # ── Conductive Additive Effect ──
-    # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024
+    # ⚠⚠ 출처 미확인 (2026-09-09 전수 감사 · 결함 AUD-02).  아래 세 값이 인용하는
+    #    **"Bielefeld 2023" 은 이 리포 어디에도 없다** — 정본 litdb 에 있는 것은
+    #    bielefeld2019(구조모델·σ 안 풂) · bielefeld2020(바인더 연속체 σ) 둘뿐이다.
+    #    그리고 C65 4 wt% 값은 리포 자신의 실측 앵커와 **51배 어긋난다**:
+    #      docs/data/reisacher2023_percolation.csv (LPSCl = 우리와 같은 SE, + C65)
+    #        4 wt% → 1.36e-3 S/cm = 1.36 mS/cm   ← 실측 (CM-4, 퍼콜레이션 무릎)
+    #        5 wt% → 1.02e-1 S/cm = 102 mS/cm    ← 무릎 바로 위
+    #    아래의 70 mS/cm 는 4 wt% 가 아니라 **5 wt% 쪽 크기**다.  이 구간은 두 자릿수가
+    #    뛰는 자리라 한 칸 오차가 100배 오차다.
+    #    ⇒ 값을 **바꾸지 않고 라벨만 단다** (어느 값이 맞는지는 저자 판단 소관).
+    #    그때까지 이 경로의 σ_el 은 `UNVERIFIED_PROVENANCE` 로 표시된다.
+    # Ref: Minnmann 2021, Kang 2024 (+ 출처 미확인 항목은 위 경고 참조)
     # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
         # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
-        # σ_el ≈ 0.4 mS/cm (Bielefeld 2023) — NOT percolating, just local enhancement
+        # σ_el ≈ 0.4 mS/cm — ⚠ 출처 미확인 (AUD-02, 위 경고).  NOT percolating, local enhancement
         # But bridges isolated AM → dead AM reduced by ~10% (Minnmann 2021: +13% capacity)
         sigma_electronic = max(sigma_electronic, 0.4)
         sigma_ionic_final *= 0.99
@@ -832,7 +843,8 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         electronic_active_pct = min(100, electronic_active_pct + 5)
     elif additive == 'c65_4wt':
         # C65 4wt%: AT percolation threshold — full electronic network!
-        # σ_el ≈ 70 mS/cm (Bielefeld 2023, directly measured)
+        # σ_el ≈ 70 mS/cm — ⚠ 출처 미확인 (AUD-02).  옛 주석의 "directly measured" 는
+        #   근거를 못 찾았고, 리포 실측(Reisacher 2023 LPSCl+C65)은 같은 4 wt% 에서 1.36 mS/cm 다.
         sigma_electronic = max(sigma_electronic, 70)
         sigma_ionic_final *= 0.85
         electronic_active_pct = 100.0

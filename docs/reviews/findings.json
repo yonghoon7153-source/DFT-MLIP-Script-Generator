@@ -1718,6 +1718,19 @@
    "evidence_tests": [
     "scripts/check_review_findings.py --selftest"
    ]
+  },
+  {
+   "id": "AUD-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/webapp_v3_design.md",
+   "title": "예측기 C65 첨가제 값이 **리포에 없는 논문**을 인용하고, 리포 자신의 실측과 51배 어긋난다",
+   "note": "`webapp/predictor_engine.py` 의 도전재 분기가 세 곳에서 **\"Bielefeld 2023\"** 을 인용한다 (VGCF 0.4 mS/cm · C65 4 wt% 70 mS/cm, 후자는 *\"directly measured\"* 라고까지 적혀 있다).\n★ **그 논문이 이 리포에 없다.** 정본 litdb 에 있는 것은 `bielefeld2019_microstructural_modeling_composite_cathode`(σ 를 아예 안 푼다 — constriction 은 future work 로 명시) 와 `bielefeld2020_effective_ionic_conductivity_binder`(바인더 연속체 σ) 둘뿐이고, 어느 쪽도 2023 이 아니며 C65 전자전도 측정이 아니다.\n★★ **리포 자신의 실측 앵커와 51배 어긋난다.** `docs/data/reisacher2023_percolation.csv` 는 **우리와 같은 SE**(Li6PS5Cl) + C65 매트릭스의 EIS·DC-분극 실측이다 (Batteries 2023, 9(12), 595, open access):\n```\nC65 4 wt% (CM-4, 퍼콜레이션 무릎) → 1.36e-3 S/cm =   1.36 mS/cm   ← 실측\nC65 5 wt% (CM-5, 무릎 바로 위)   → 1.02e-1 S/cm = 102    mS/cm\n코드                             →                70    mS/cm  @ 4 wt%\n```\n⇒ 70 은 4 wt% 값이 아니라 **5 wt% 쪽 크기**다.  하필 이 구간이 **두 자릿수가 뛰는 무릎**이라 한 칸 오차가 100배 오차가 된다.\n⚠ 이 값은 사용자에게 보이는 예측기 출력(`/predictor` 의 `c65_4wt` 옵션, 화면 라벨 *\"percolation! σ_el ~70\"*)을 직접 정한다.\n★ 조치 (2026-09-09): **값을 바꾸지 않고 라벨만 달았다** — 어느 값이 맞는지는 저자 판단 소관이고, 내가 임의로 고르면 그것이 또 하나의 출처 없는 값이 된다.  세 주석에 출처 미확인 경고 + Reisacher 실측 대조를 넣었다.\n⬜ **결정 필요**: (a) Reisacher 실측(1.36 @4 wt% · 102 @5 wt%)으로 갈아탄다 — 같은 SE 라 재료 보정 없이 전이 가능하고 리포가 이미 `_CARB_PC_WT=4.0` 으로 그 p_c 를 쓰고 있다 · (b) 진짜 출처를 찾아 고정한다 · (c) 그 분기를 내린다.\n⚠ 같은 함수의 VGCF 0.4 mS/cm 도 같은 출처를 달고 있어 함께 판단해야 한다.",
+   "evidence_tests": [
+    "scripts/check_review_findings.py --selftest"
+   ]
   }
  ]
 }
