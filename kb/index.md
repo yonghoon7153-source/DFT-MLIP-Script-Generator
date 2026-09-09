@@ -1,16 +1,18 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 379
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 381
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 184건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 186건)
 - 2026-09-09 · `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 · SUPERSEDED (문턱) / 유효 (시드·정지 규칙)
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
+- 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
 - 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
 - 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 아침 (Codex BI NO-GO + v3 재편) · 대기
+- 2026-09-09 · `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09 · 진행
 - 2026-09-08 · `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 · 진행
 - 2026-09-08 · `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건 · 발송
 - 2026-09-08 · `kb/papers/self_doping_dft_paragraph_2026_09_08.md` — 원고 자가도핑 DFT 문단 — 스핀 하나로 좁힌 5문단 (2·3·6 계열) · 1저자 승인 — 삽입 위치 대기
@@ -25,8 +27,6 @@
 - 2026-09-04 · `kb/reviews/internal_review_AX_lpsocl_600K_2026_09_04.md` — 내부 리뷰 AX — LPSOCl 600 K 개정 (Codex 대체 · 자체 적대적 리뷰) · 판정 완료
 - 2026-09-04 · `kb/papers/dft_sentences_for_manuscript_v6_2026_09_04.md` — 원고 v6 DFT 문장 — 삽입안 + 기존 문장 P0 2건 · 1저자 확인 대기
 - 2026-09-03 · `kb/methodology/zn_cu_hull_estimand_2026_09_03.md` — 보고량 카드 — Cu–Zn convex hull (Zn ALZIB C1 후속) · 제안
-- 2026-09-03 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
-- 2026-09-03 · `kb/reviews/codex_BF_prompt_c12_v29_2026_09_03.md` — 리뷰 요청 BF — C-12 v29 (회신 BE P0 4건 + P1 3건 이행 · clean tree 재생성) · 발송 대기
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -204,9 +204,10 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (105)
+## reviews/ (107)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
 - `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)  (2026-09-03 · 자동생성)
+- `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09  (2026-09-09 · 진행)
 - `kb/reviews/codex_AA_prompt_stageA_v5_regate_2026_08_29.md` — Codex 재검토 요청 AA — 회신 Z 의 P0 8건 처리 후 Stage A v5 재게이트  (2026-08-29 · 발송 완료 — 회신 AA 접수, 후속은 codex_AB_prompt_…)
 - `kb/reviews/codex_AB_prompt_stageA_v9_regate_2026_08_29.md` — Codex 재검토 요청 AB — 회신 AA 의 P0 5건 + Q2 처리, 그리고 자체검토에서 나온 넷  (2026-08-29 · 회신 수령 (원문 파일 없음 — 근거: AD (Stage A v10)))
 - `kb/reviews/codex_AC_prompt_manuscript_v8_crosscheck_2026_08_30.md` — 회신 AC 요청 — 원고 v6 · SI v6 대조 (Methods/Table v8)  (2026-08-30 · 발송전)
@@ -299,6 +300,7 @@
 - `kb/reviews/internal_Z_reply_polaron_S0_2026_09_03.md` — 회신 Z — 폴라론 S0 내부 적대적 리뷰 (NO-GO · P0 4 · P1 12)  (2026-09-03 · 회신반영)
 - `kb/reviews/internal_lens_review_c12_v34_2026_09_03.md` — 내부 6렌즈 리뷰 — C-12 v34 (발송 전 마지막 리뷰) · NO-GO → v35 ✔읽음  (2026-09-03 · 진행)
 - `kb/reviews/internal_review_AX_lpsocl_600K_2026_09_04.md` — 내부 리뷰 AX — LPSOCl 600 K 개정 (Codex 대체 · 자체 적대적 리뷰)  (2026-09-04 · 판정 완료)
+- `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09  (2026-09-09 · 진행)
 - `kb/reviews/section3_review_candidates.md` — 📋 §3 리뷰 코멘트 후보 — 소거법 작업용 (ECER-D-26-00097)
 - `kb/reviews/section3_review_comments_compressed.md` — Comments on Section 3 (Intrinsic Stability of Sulfide SEs) — 압축판 v2
 - `kb/reviews/sei_neb_li3nd_rereview_request_2026_08_11.md` — 재리뷰 요청 — SEI NEB 6종 · Li₃Nd 금속 분기 · P2 범위 축소 (착수 직전)  (2026-08-11 · 회신 대기)
