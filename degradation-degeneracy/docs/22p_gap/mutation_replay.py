@@ -1321,6 +1321,34 @@ MUTANTS = [
      '            \u0022inputs\u0022: inputs,\n'
      '            \u0022startup\u0022: {}}',
      "evidence_binds_the_execution_environment"),
+    # ══ 61차 — 이 라운드가 세운 방어 ══════════════════════════════════════
+    #   판정 7건을 닫으면서 만든 층들이다. 축이 없으면 그 층은 "있는 척" 이
+    #   될 수 있고, 이 저장소는 그것을 네 라운드 연속 실측했다.
+    ("derived-manifests-are-outside-the-identity-g61", PRESERVE,     # P0-1
+     "    for name in RUN_IDENTITY_MANIFESTS:\n"
+     "        if name not in present:",
+     "    for name in RUN_MANIFEST_SCHEMA:\n"
+     "        if name not in present:",
+     "a_resumed_run_survives_a_report_refresh or "
+     "the_derived_manifest_never_enters_the_identity"),
+    ("records-keep-the-logical-input-g61", FITTING,                  # P0-2
+     '        "run_type": "fit", "input": str(_log_in),',
+     '        "run_type": "fit", "input": str(in_dir),',
+     "the_sealed_input_path_exists_after_a_successful_fit"),
+    ("records-keep-the-logical-output-g61", FITTING,                 # P0-2
+     '        "fits_parquet": str(_log_out / path.relative_to(out_dir)),',
+     '        "fits_parquet": str(path),',
+     "the_sealed_output_path_exists_after_a_successful_fit or "
+     "no_durable_record_mentions_a_process_local_handle"),
+    ("the-run-lock-is-released-g61", FITTING,                        # P1-1
+     '        release_run_lock(write_root, ".fit.lock")',
+     "        pass",
+     "the_run_lock_is_gone_after_a_successful_fit"),
+    ("lock-release-failure-is-not-swallowed-g61", IO,                # P1-1
+     "    path.unlink()                   # 실패하면 그대로 올린다 (삼키지 않는다)",
+     "    try:\n        path.unlink()\n    except OSError:\n        pass",
+     "a_failed_lock_release_is_not_swallowed"),
+
     # γ (61차 P1-2·P1-3) — 이번 라운드가 세운 층.
     #   선언 자신이 preimage 로 세어지지 않게 철자를 escape 한다.
     ("importable-roots-keep-the-search-order-g61", MR,               # P1-2
@@ -1354,6 +1382,30 @@ MUTANTS = [
 #: 여러 지점을 **함께** 되돌려야 관측되는 변이 (심층 방어라 하나만 지우면
 #: 다른 하나가 가린다). 41·42·43차에 실측했다.
 MULTI = [
+    # 두 자리가 **같은 성질**을 지킨다 (`_own_shadows` 는 안 묶고,
+    # `_scoped_shadows` 는 자식 scope 를 준다). 하나만 되돌리면 다른 하나가
+    # 덮으므로 함께 되돌린다.
+    ("comprehensions-are-their-own-scope-g61", RP, [                 # P1-4
+        # `_own_shadows` — 61차 이전의 문장을 그대로 되살린다. 단순히 `if False`
+        # 로 두면 comprehension 안으로 **들어가기만** 하고 target 은 안 묶여서
+        # 결함이 복원되지 않는다 (실측: 변이 rc 0). 축은 "지운 검사" 가 아니라
+        # **"고치기 전 코드"** 를 되돌려야 한다.
+        ("            if _is_comprehension(sub):\n"
+         "                # ★ 61차 P1-4 — comprehension 은 **자식 scope** 다. 그 target 은\n"
+         "                #   바깥에 안 샌다 (Python 3). 예전 판은 여기서 그것을 감싸는\n"
+         "                #   함수의 shadow 에 합쳤고, 그래서 분석기가 실제 Python 과\n"
+         "                #   반대를 말했다 (리뷰어 실측: `return value` 자리의 shadow 에\n"
+         "                #   comprehension target 이 들어 있었다).\n"
+         "                continue",
+         "            if isinstance(sub, ast.comprehension):\n"
+         "                out |= set(_target_names(sub.target))"),
+        ("        if _is_comprehension(sub):\n"
+         "            inner = frozenset(here | _comprehension_targets(sub))",
+         "        if False:\n"
+         "            inner = frozenset(here | _comprehension_targets(sub))"),
+     ], "the_analyzer_does_not_shadow_the_enclosing_scope or "
+        "the_target_is_still_shadowed_inside_the_comprehension or "
+        "the_outermost_iterable_is_evaluated_in_the_enclosing_scope"),
     # ★ 55차 P0-4 · 57차 P0-4 — 얼린 tree 의 **자식**을 bind mount 한 별칭.
     #   56차까지는 자리가 하나였다 (`real = _through_bind_mounts(dest)`).
     #   57차가 목적지를 파일시스템 좌표로 옮기면서 자리가 **둘**이 됐다:
@@ -3437,6 +3489,60 @@ EXPECT: dict = {
         "witness": {
             "tests/test_docs_lint.py::test_the_evidence_tree_digest_does_not_depend_on_the_checkout_path": "같은 바이트를 다른 경로로 읽었더니 digest 가 달라졌다"
         }
+    },
+    # ══ 61차 — `--emit-expect` 관측값. 실행마다 달라지는 꼬리는 손으로 잘라
+    #    안정한 접두만 남긴다.
+    "derived-manifests-are-outside-the-identity-g61": {
+            "fail": [
+                    "tests/test_temporal_seal_61.py::test_a_resumed_run_survives_a_report_refresh",
+                    "tests/test_temporal_seal_61.py::test_the_derived_manifest_never_enters_the_identity"
+            ],
+            "witness": {
+                    "tests/test_temporal_seal_61.py::test_a_resumed_run_survives_a_report_refresh": "tools.preserve.PreserveError: [promote]",
+                    "tests/test_temporal_seal_61.py::test_the_derived_manifest_never_enters_the_identity": "tools.preserve.PreserveError: [promote]"
+            }
+    },
+    "records-keep-the-logical-input-g61": {
+            "fail": [
+                    "tests/test_logical_paths_61.py::test_the_sealed_input_path_exists_after_a_successful_fit"
+            ],
+            "witness": {
+                    "tests/test_logical_paths_61.py::test_the_sealed_input_path_exists_after_a_successful_fit": "AssertionError: 봉인된 입력 경로가 성공 뒤에 존재하지 않는다"
+            }
+    },
+    "records-keep-the-logical-output-g61": {
+            "fail": [
+                    "tests/test_logical_paths_61.py::test_no_durable_record_mentions_a_process_local_handle",
+                    "tests/test_logical_paths_61.py::test_the_sealed_output_path_exists_after_a_successful_fit"
+            ],
+            "witness": {
+                    "tests/test_logical_paths_61.py::test_no_durable_record_mentions_a_process_local_handle": "AssertionError: 굳은 기록이 프로세스 지역 handle 경로를 담았다: ['manifest.yaml'] (61차 P0-2)",
+                    "tests/test_logical_paths_61.py::test_the_sealed_output_path_exists_after_a_successful_fit": "AssertionError: manifest.fits_parquet 이 handle 경로다"
+            }
+    },
+    "the-run-lock-is-released-g61": {
+            "fail": [
+                    "tests/test_logical_paths_61.py::test_the_run_lock_is_gone_after_a_successful_fit"
+            ],
+            "witness": {
+                    "tests/test_logical_paths_61.py::test_the_run_lock_is_gone_after_a_successful_fit": "AssertionError: 성공한 실행이 .fit.lock 을 남겼다"
+            }
+    },
+    "lock-release-failure-is-not-swallowed-g61": {
+            "fail": [
+                    "tests/test_logical_paths_61.py::test_a_failed_lock_release_is_not_swallowed"
+            ],
+            "witness": {
+                    "tests/test_logical_paths_61.py::test_a_failed_lock_release_is_not_swallowed": "Failed: DID NOT RAISE OSError"
+            }
+    },
+    "comprehensions-are-their-own-scope-g61": {
+            "fail": [
+                    "tests/test_scope_model_61.py::test_the_analyzer_does_not_shadow_the_enclosing_scope"
+            ],
+            "witness": {
+                    "tests/test_scope_model_61.py::test_the_analyzer_does_not_shadow_the_enclosing_scope": "AssertionError: 바깥 scope 의 load 가 comprehension target 으로 가려졌다: ['value'] — 분석기가 Python 과 반대를 말한다 (61차 P1-4)"
+            }
     },
     # γ (61차 P1-2·P1-3) — `--emit-expect` 관측값. 실행마다 달라지는 꼬리는
     #   손으로 잘라 안정한 접두만 남긴다 (이 저장소의 규칙).
