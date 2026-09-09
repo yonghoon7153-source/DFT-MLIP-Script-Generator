@@ -33,7 +33,7 @@ _phys_cores() {
   fi
   getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
 }
-NP=${NP:-$(_phys_cores)}
+# ⚠ NP 기본값은 **pw.x 종류를 정한 뒤에** 잡는다 (아래) — GPU 는 1, CPU 는 물리코어.
 # ⛔⛔ 2026-09-09 — 기본값이 **CPU 빌드**였다. `PWX` 를 안 넘기면 조용히 CPU 로 떨어져
 #   같은 스냅샷이 GPU 1.5분/it → CPU 11분/it 가 됐고, 그걸 "느리다" 로만 읽다가
 #   파일럿 비교가 통째로 어긋났다. 기본은 **GPU 빌드**고, CPU 는 **명시해야** 쓴다.
@@ -69,6 +69,21 @@ if [[ "$PWX" != *gpu* ]] && [ -z "${OMP_NUM_THREADS:-}" ]; then
   export OMP_NUM_THREADS=$(( _lg / NP > 0 ? _lg / NP : 1 ))
   echo "[$(date '+%m-%d %H:%M:%S')] ⚠ OMP_NUM_THREADS 미지정 → ${OMP_NUM_THREADS} 로 고정 (논리 ${_lg} / 랭크 ${NP})"
 fi
+# ⛔⛔ 2026-09-09 실측 — GPU 빌드인데 NP 기본값이 물리코어(8)라 GPU 하나에 8랭크가
+#   붙어 **19초 만에 즉사**했다(Exit code 1). 어제 성공한 런은 `랭크 1` 이었다.
+#   GPU 빌드는 **GPU 하나당 랭크 하나**가 이 repo 의 검증된 관례다(아래 -nk 1 과 같은 줄).
+if [[ "$PWX" == *gpu* ]]; then
+  if [ -z "${NP:-}" ]; then
+    NP=1
+    echo "[$(date '+%m-%d %H:%M:%S')] GPU 빌드 → 랭크 1 (GPU 하나당 랭크 하나)"
+  elif [ "$NP" != 1 ]; then
+    echo "⛔ GPU 빌드인데 NP=$NP 다. GPU 하나에 여러 랭크를 붙이면 즉사한다"
+    echo "   (2026-09-09 실측: np 8 → 19초 만에 Exit code 1)."
+    echo "   여러 GPU 를 쓸 거면 FORCE_MULTIRANK=1 을 붙여라 — 그게 아니면 NP=1."
+    [ "${FORCE_MULTIRANK:-0}" = 1 ] || exit 2
+  fi
+fi
+NP=${NP:-$(_phys_cores)}
 DRY_RUN=${DRY_RUN:-0}
 
 ts() { date '+%m-%d %H:%M:%S'; }
