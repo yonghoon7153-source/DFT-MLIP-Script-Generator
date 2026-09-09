@@ -3,8 +3,13 @@
 > 작성 2026-09-09 · litdb-curator (동시 4개 실행 중이라 `INDEX.md`·`comparison_vs_ours.md` 직접 편집 금지)
 > **이 파일을 사람이 확인한 뒤 아래 3덩이를 각각 옮겨 붙이고, 이 파일을 지운다.**
 >
-> ⚠ **충돌 주의**: 오늘 **MLIP 불확실도 논문 3편(#78 `committee models for MD/thermodynamic averages` · #80 `ensemble-based UQ for NNIP 비교연구` · #81 `Uncertainty in the era of ML for atomistic modeling`)** 이 같이 들어왔다.
-> 이 편(#79)은 그 다발의 **네 번째**다. 아래 §2 에서 `J-11` 절을 새로 제안하는데, **형제 에이전트가 같은 번호를 잡았을 수 있다** — 병합할 때 절 번호를 먼저 대조할 것.
+> ⚠ **같은 다발 4편**: 오늘 MLIP 불확실도 논문이 함께 들어왔다 —
+> `#78 imbalzano2021_committee_uq_md_thermodynamic_averages` · **`#79 = 이 편`** ·
+> `#80 kurniawan2025_comparative_ensemble_uq_nnip` · `#81 grasselli2025_uncertainty_era_ml_atomistic`.
+> **2026-09-09 확인**: 형제 3편의 pending 파일은 전부 **`J-7`(방법 원전)** 에만 붙이고 있고
+> **`J-11` 을 잡은 편은 없다** ⇒ 아래 §2-c 의 절 번호는 지금 비어 있다.
+> 다만 **병합하는 사람이 네 편을 J-11 한 절로 모으는 편이 낫다** — 넷이 같은 질문
+> ("MLIP 예측을 얼마나 믿나")에 답하는데 J-7 에 흩어 두면 축이 안 보인다.
 
 ---
 
