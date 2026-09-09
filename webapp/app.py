@@ -90,10 +90,20 @@ _MDL_BOLD = re.compile(r"\*\*(?![\s)\]}>,.;:!?])(.{1,%d}?)(?<![\s([{<])\*\*" % _
 _MDL_CODE = re.compile(r"`([^`]+)`")
 #: Obsidian 식 하이라이트 — 1저자 메모가 실제로 쓴다 (2026-09-08). 표준 md 는 아니다.
 _MDL_MARK = re.compile(r"==(?!\s)(.{1,%d}?)(?<!\s)==" % _MDL_MAXB, re.S)
+#: 취소선 — 철회 표기에 실제로 쓴다(`<s>0.199</s> ⛔ 철회`). 볼드와 **같은 가드**를 쓴다.
+_MDL_STRIKE = re.compile(r"~~(?!\s)(.{1,%d}?)(?<!\s)~~" % _MDL_MAXB, re.S)
+#: 이탤릭 — **단어경계를 요구한다.** 이게 없으면 실측 충돌이 난다:
+#:   `D*(design) / D*(host)` 의 두 별표가 짝지어져 `(design) / D` 가 통째로 기울어진다.
+#:   ⇒ 여는 별표 앞은 **단어문자가 아니어야** 하고(`D*` 는 열지 않는다),
+#:      닫는 별표 뒤도 단어문자가 아니어야 한다. 볼드 가드 ②③ 는 그대로 물려받는다.
+_MDL_ITAL = re.compile(
+    r"(?<![\w*])\*(?![\s*)\]}>,.;:!?])(.{1,%d}?)(?<![\s([{<*])\*(?![\w*])" % _MDL_MAXB, re.S)
 
 
 def _mdlite(text: str) -> Markup:
-    s = str(escape(text or ""))
+    # ⚠ `text or ""` 였다 — **실측 0 이 화면에서 사라졌다**(0 은 falsy 라 빈 문자열이 됐고,
+    #   읽는 사람에게는 '측정 안 함' 과 구분이 안 됐다). None 만 빈 문자열로 본다.
+    s = "" if text is None else str(escape(text))
     spans = []                                   # ① 코드 스팬 격리
 
     def _stash(m):
@@ -103,6 +113,10 @@ def _mdlite(text: str) -> Markup:
     s = _MDL_CODE.sub(_stash, s)
     s = _MDL_BOLD.sub(r"<strong>\1</strong>", s)
     s = _MDL_MARK.sub(r"<mark>\1</mark>", s)
+    # ⚠ 취소선·이탤릭은 **코드 스팬 격리 뒤·복원 앞**이다. `` `~~x~~` `` 안의 물결과
+    #   `` `a*b` `` 안의 별표는 데이터다. 볼드를 먼저 걸어야 `**` 가 이탤릭에 안 먹힌다.
+    s = _MDL_STRIKE.sub(r"<s>\1</s>", s)
+    s = _MDL_ITAL.sub(r"<em>\1</em>", s)
     s = re.sub(r"\x00(\d+)\x00",
                lambda m: '<code class="mono">%s</code>' % spans[int(m.group(1))], s)
     # ② 표 (2026-09-08) — 카드 본문이 `| a | b |` 를 쓰는데 mdlite 가 표를 몰라서
@@ -136,7 +150,11 @@ def _mdlite(text: str) -> Markup:
     # ③ 줄바꿈 (2026-08-20) — 카드가 여러 문장이면 한 덩어리로 뭉개져 안 읽힌다.
     #   escape 를 이미 지났으므로 주입 위험 없음.
     s = "\n".join(out).replace("\n", "<br>").replace("<br><table", "<table").replace("</table><br>", "</table>")
-    return Markup(s)
+    # ④ 결속 (v3 묶음 F · P0-4, 2026-09-09) — 종전 `_mdlite` 는 **결속을 안 탔다.**
+    #   템플릿 8개 73곳이 이 경로인데, 그때 unbound 가 0 이었던 건 그 73곳에 결속 대상
+    #   문자열이 **없어서**였다. 즉 검사가 초록인 이유가 "지켜서" 가 아니라 "안 마주쳐서"
+    #   였다는 뜻이라 다음 카드 한 장이면 조용히 뚫린다. `md_html` 과 **같은 판정기**를 태운다.
+    return Markup(_bind_claims(s))
 
 
 app.jinja_env.filters['mdlite'] = _mdlite
@@ -146,6 +164,64 @@ try:
     import markdown as _md
 except Exception:
     _md = None
+
+
+# ── kb frontmatter (v3 묶음 F · P0-34, 2026-09-09) ───────────────────────────
+#   kb_wiki 규약을 지킨 문서일수록 화면이 깨졌다: 선행 YAML 15줄이 본문으로 렌더돼
+#   /sdcp·/sdcp/self-doping 첫 화면이 `verifiedBy: …` 로 시작하고 목차 1번 항목이 됐다.
+#   ⇒ **떼되 버리지 않는다.** updated·status·confidence 는 헤더 배지로 되살린다.
+_FM_RE = re.compile(r"\A﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+#: 배지로 올릴 키와 그 라벨. 순서가 화면 순서다. 나머지 frontmatter 는 조용히 버린다.
+_FM_BADGES = (("updated", "갱신"), ("status", "상태"), ("confidence", "확신도"),
+              ("verificationStatus", "검증"), ("verifiedAt", "검증일"))
+
+
+def split_frontmatter(text: str):
+    """선행 YAML frontmatter 를 본문에서 뗀다 → `(meta, body)`.
+
+    ⛔ 이 함수가 **못 하는 것**: YAML 을 파싱하지 않는다. `key: value` 한 줄짜리
+      최상위 항목만 읽고 중첩 매핑·여러 줄 값·리스트 원소는 값 문자열 그대로 둔다.
+      frontmatter 가 없으면 `({}, 원문)` 을 그대로 돌려준다 — 본문을 절대 안 자른다.
+    """
+    m = _FM_RE.match(text or "")
+    if not m:
+        return {}, (text or "")
+    meta = {}
+    for ln in m.group(1).split("\n"):
+        if ln[:1] in (" ", "\t", "-", "#") or ":" not in ln:
+            continue                              # 중첩·리스트·주석은 안 읽는다
+        k, _, v = ln.partition(":")
+        meta[k.strip()] = v.strip().strip('"').strip("'")
+    return meta, (text or "")[m.end():]
+
+
+def doc_badges(meta: dict) -> list:
+    """frontmatter → 헤더 배지 [(라벨, 값), …]. **없는 것을 채우지 않는다.**
+
+    갱신일이 없으면 오늘로 메우지 않고 `('갱신', None)` 을 내보내 화면이
+    '미기재' 라고 말하게 한다 (0 이나 today 로 채우면 그건 거짓말이다).
+    """
+    if not meta:
+        return []
+    out = [(lab, meta.get(k)) for k, lab in _FM_BADGES if meta.get(k)]
+    if not meta.get("updated") and not meta.get("date"):
+        out.insert(0, ("갱신", None))
+    elif not meta.get("updated"):
+        out.insert(0, ("갱신", meta.get("date")))
+    return out
+
+
+def _md_slugify(value, separator):
+    """제목 → 앵커 id. **한글을 보존한다.**
+
+    python-markdown 기본 slugify 는 비-ASCII 를 통째로 버려서 우리 문서의 한국어
+    제목이 전부 빈 id 가 된다(그래서 `/concept/dft#12-활성화-…` 딥링크가 죽었다).
+    `slugify_unicode` 와 같은 규칙 — 유니코드 정규화 후 단어문자만 남긴다.
+    """
+    import unicodedata
+    v = unicodedata.normalize("NFKD", str(value))
+    v = re.sub(r"[^\w\s-]", "", v).strip().lower()
+    return re.sub(r"[%s\s]+" % re.escape(separator), separator, v)
 
 
 def md_html(text: str, extensions=("tables", "fenced_code"), origin="internal") -> str:
@@ -162,9 +238,12 @@ def md_html(text: str, extensions=("tables", "fenced_code"), origin="internal") 
       litdb digest 는 논문 에이전트가 외부 PDF 를 요약해 쓰는 파일이라 입력이 100% 신뢰
       대상이 아니므로, 렌더 결과의 href/src 를 **허용 scheme 만 통과**시킨다.
     """
+    _, text = split_frontmatter(text)            # ← P0-34: YAML 15줄이 본문으로 새던 자리
     if _md is None:
         return "<pre>" + (text or "") + "</pre>"
-    md = _md.Markdown(extensions=list(extensions))
+    md = _md.Markdown(extensions=list(extensions),
+                      extension_configs={"toc": {"slugify": _md_slugify}}
+                      if "toc" in extensions else {})
     for name in ("html_block",):
         try:
             md.preprocessors.deregister(name)
