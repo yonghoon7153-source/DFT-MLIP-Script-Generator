@@ -983,7 +983,7 @@ def governance_page():
             if D.safe_repo_path(head) is not None:
                 url = "/api/file/" + head
             elif D.safe_kb_doc(head) is not None:
-                url = "/" + head                      # /kb/<path>
+                url = "/kb?path=" + head              # kb 마크다운 읽기 화면
             docs.append({"role": role, "path": ref, "url": url, "frag": frag})
         d["_docs"] = docs
     # 최신 결정이 위 — id 가 `D-YYYY-MM-DD-slug` 라 문자열 역순이 곧 날짜 역순이다.
