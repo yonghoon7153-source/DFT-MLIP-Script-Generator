@@ -236,6 +236,84 @@ Methods 는 "four layers, 192 atoms" 까지만 말한다. 넣으려면 `with mor
 >   안 올라간다 — 약해진 근거지만 성립한다. 문구를 더 좁히려면 `delocalized over the
 >   conjugated backbone` 으로 바꾼다.
 
+## ⏳ 흡착 문단 — **보류 초안** (2026-09-09 · 1저자: "값은 나중에 고친다")
+
+> 원고 초안이 이 문단을 들고 있다. **지금 상태로는 못 내보낸다.** 다만 **두 갈래를 갈라야
+> 한다** — 하나는 곧 풀리고 하나는 안 풀린다.
+
+### 갈래 A — 값·부등호: **보류다. 곧 복권된다** ⏳
+
+`HZ-sdcp-wave1-absolute-eads` (**BLOCKED**) · 마감 카드 상태
+`closed_for_scope_pending_spin_equivalence`.
+막고 있는 것: **절대값 · 0.346 eV · 부등호 방향 서술 전부**.
+
+원인은 하나다 — 기체 기준 분자가 `NUPDOWN=0` 제약이라
+`δ_m = E_M^{M=0} − E_M^{free}` 가 절대 E_ads 에 남는다 (자세차에는 소거된다).
+
+**해제 조건 (카드 §해제_조건_spin_equivalence_짝검사 — 3단계다):**
+
+| 단계 | 무엇을 | 무엇이 풀리나 |
+|---|---|---|
+| 1 | 기준 분자 **3종**(box24·기하 고정)을 **free-spin `NUPDOWN=−1` + `LREAL=F`** 로 재실행 | **δ_m 확정**만. 값은 아직 안 풀린다 |
+| 2 | 관련 SDCP/PTFE **complex 를 `LREAL=F`** 로 재실행 | **ΔΔE_ads(조각 간 대비)** — slab 이 대수적으로 소거된다 |
+| 3 | **matching slab F** 추가 | **절대 E_ads** — 원고가 인용하는 `−0.77 / −0.41` 이 여기서 풀린다 |
+
+⚠ 회신 P 3·4번: `LREAL` 은 **F 유지** — 분자 T 재실행은 all-T 값을 만들 뿐 all-F 정본을
+못 잰다. 분자 T 계산은 생략.
+
+⛔ **정정 (2026-09-09).** 조율 세션이 처음에 *"분자 3점이면 이 문단 전체가 살아난다"* 고
+말했는데 **틀렸다.** 분자 3점은 **1단계뿐**이고 δ_m 만 준다. 원고가 쓰는 것은
+**절대 E_ads** 라 **3단계까지** 가야 한다. 1단계만 하고 값을 되살리면 회신 O 가 반려한
+그 자리로 돌아간다.
+
+**도구:** `tools/sdcp/vasp_handoff_bundle.py --closure` 가 정본이다.
+⛔ `tools/sdcp/make_allF_static_bundle.py` 는 **2026-08-29 폐기** — 부격자 씨앗을 스스로
+만들려다 슬랩 인덱스와 복합체 원자 순서가 어긋나는 문제가 있었다(2026-08-12 에 "파일
+순서로 반 갈랐더니 24/48 일치 = 동전 던지기" 이력). 정본 생성기가 `_assert_slab_lineage` +
+순열 재매핑으로 처리한다.
+
+⇒ 그때 이 문장이 복권된다 (그때 수치로):
+
+> The SDCP fragment gives an adsorption energy of **[δ_m 복구값]**, more negative than the
+> **[δ_m 복구값]** obtained for PTFE (Figure 2e).
+
+⚠ 복권돼도 남는 제약 — 카드 ⛔_금지_서술 그대로:
+`'PTFE 보다 이긴다'·'약 2배 강하다'` 금지(per-분자 전자에너지 차 이상 금지) ·
+PTFE **고분자**로 확장 금지(조각 vs 조각) · 접착력·계면저항·피복률 확장 금지 ·
+자리 불문 금지(자리대비는 30 meV 해상도에서 미해결).
+
+### 갈래 B — 기전 문장: **보류가 아니라 반증됐다** ⛔ 안 돌아온다
+
+초안의 두 문장:
+1. *"the acidic O–H of the sulfonate is directed at a surface oxygen"*
+2. *"The polar sulfonate moiety therefore engages the exposed surface sites of NCM far more
+   effectively than the non-polar fluorocarbon chain."*
+
+**우리 좌표가 정반대다** (`db/structures/sdcp_wave1/sdcp_neutral__*.vasp` 네 자세 직접 측정,
+2026-08-29 회신 T P0-1 · 우리가 독립 재현):
+
+| | 실측 |
+|---|---|
+| 산성 O–H 의 **H ↔ 슬랩** | **7.083 / 7.099 / 7.158 / 7.170 Å** |
+| 술포네이트 O ↔ 슬랩 Li | 4.88–5.39 Å |
+| **실제 최단 접촉** | **탄소결합 H ··· 슬랩 O/Ni 2.441–2.462 Å** |
+
+⇒ **δ_m 을 고쳐도 이 둘은 복권되지 않는다.** 값의 보류와 기전의 반증은 다른 사건이다.
+`HZ-sdcp-sulfonate-mechanism`(CONDITIONAL): *"기전 문장을 쓰지 않는다. C-12 가 회수되면
+그 DFT 로 판정한다"* — 즉 기전은 **C-12 회수**를 기다리지 δ_m 을 기다리는 게 아니다.
+
+**대체 문장 (지금도 쓸 수 있다 — 기하는 보류 대상이 아니다):**
+
+> In the optimized geometries the closest contacts to the slab are carbon-bound hydrogens at
+> 2.44–2.46 Å, with the sulfonate oxygens 4.9–5.4 Å from the nearest surface Li (Figure 2f);
+> the calculations do not identify the sulfonate as the contacting group.
+
+### 그때까지 Figure 2e 는?
+
+에너지 막대라 갈래 A 에 묶인다. 셋 중 하나 — ① 2e 를 빼고 2f(기하)만 · ② δ_m 3점을 돌려
+풀고 그대로 · ③ 보류 표시를 달고 둔다. **1저자 결정: 값을 고쳐서 살린다(②)** — 그래서
+이 절을 지우지 않고 보류 초안으로 둔다.
+
 ## SI 연결
 
 - **Figure S3** = 구조 (n=2 · n=3 end/mid · n=6) — `db/structures/si_figure_S3/` (xyz+vasp+vesta).
