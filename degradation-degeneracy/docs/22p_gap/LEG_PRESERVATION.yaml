@@ -499,7 +499,7 @@ cohorts:
     별 shadow · 이름 공간 고정점) — 세대 전환'
 - cohort_id: g15_2026_09_08
   dir: docs/22p_gap/proj_g15
-  status: active
+  status: frozen
   legs:
   - paired_fixed5_v4
   prospective_legs: []
@@ -517,6 +517,34 @@ cohorts:
     src_scoring_py_sha256: 69e69cb046f4b4ae
     analysis_spec_sha256: 43d74dd385b1f66d28cc371dd7ebbd00fc0289323e0a515114eb2b8d45d56271
     producer_semantic_sha256: 6518c2fa47f1e8c4
+  runtime:
+    python: 3.11.15
+    pandas: 3.0.5
+    pyarrow: 25.0.1
+    numpy: 2.4.6
+    yaml: 6.0.3
+  frozen_reason: 61차 게이트 리뷰가 새 P0 2건·P1 4건·P2 1건을 냈고 전부 코드에서 닫혔다. producer analyzer 가 움직였다 — comprehension
+    을 자식 scope 로 다루고(P1-4), 그 과정에서 계산 경로가 바뀌었다. 활성 cohort 가 현행 트리를 안 따라가므로 다음 세대로 넘긴다.
+- cohort_id: g16_2026_09_09
+  dir: docs/22p_gap/proj_g16
+  status: active
+  legs:
+  - paired_fixed5_v4
+  prospective_legs: []
+  cross_leg_comparison: not_applicable_single_leg
+  무엇이_달라졌나: 61차 게이트 리뷰가 새 P0 2건 · P1 4건 · P2 1건을 냈고 전부 코드에서 닫혔다. 가장 강한 반례 둘은 공격이 아니라 **정상 production 순서**였다
+    — ① 이미 report 가 있는 run 을 resume 하면 봉인이 그 옛 report 를 흡수하고, 이어지는 정상 report 갱신이 봉인을 stale 로 만들어 승격이 거부됐다.
+    ② fit 이 논리 경로를 `/proc/self/fd/N` 으로 대체한 뒤 그것을 durable manifest·summary·phase receipt 에 적었고, 성공하면 그
+    경로가 사라졌다. 이 cohort 의 pin 을 움직인 것은 P1-4 다 — analyzer 가 comprehension 을 **자식 scope** 로 다루도록 고쳐졌다 (Python
+    3 에서 comprehension target 은 바깥에 안 샌다). **계산식은 안 바뀌었다** — `src_scoring_py_sha256` 가 그대로이고, 아래 행 바이트가
+    그 사실을 말한다.
+  pin:
+    schema_version: 3
+    compute_sha256: fa5b9324c01ab7f0
+    row_projection_py_sha256: 0e22767966646d49
+    src_scoring_py_sha256: 69e69cb046f4b4ae
+    analysis_spec_sha256: 43d74dd385b1f66d28cc371dd7ebbd00fc0289323e0a515114eb2b8d45d56271
+    producer_semantic_sha256: 2e2ddce417ecf0db
   runtime:
     python: 3.11.15
     pandas: 3.0.5
@@ -613,18 +641,25 @@ legs:
     payload_index_sha256: eeb8ae8911083c992710ace2c8f255682b64930a03929f12ae72796ade174716
     member_rehash_by: tools.archive_bundle.check
     verification_receipt: docs/22p_gap/receipts/paired_fixed5_v4.validate.yaml
-    verification_receipt_core_sha256: d15881088e022ce6417b54a4d489094e75c125e9f9db6e5f5f2a47db0bdd93ff
+    verification_receipt_core_sha256: fc1cf9c0ef22490f05b2f5291afeb6fa3b2546637463a92a036f7a0d43817009
     verification_receipt_generator: docs/22p_gap/make_receipt.py
     empty_root_restore: true
     rescored_from_restored_fits: true
     validator_identity:
-      source_digest: d29650980daf6b9a
+      source_digest: 4227b40871fa0c10
       n_checks: 34
       ok: true
     leg_source_digest: d50295f980ccaa81
     fits_sha256: e033b19510ddbed951cfebe7e28793f19c5f0da915268b0731a30c56f0b3b064
     fits_봉인일치: true
     cohorts:
+    - g10_2026_09_01
+    - g11_2026_09_02
+    - g12_2026_09_03
+    - g13_2026_09_07
+    - g14_2026_09_08
+    - g15_2026_09_08
+    - g16_2026_09_09
     - g1_2026_08_20
     - g2_2026_08_25
     - g3_2026_08_28
@@ -634,12 +669,6 @@ legs:
     - g7_2026_09_01
     - g8_2026_09_01
     - g9_2026_09_01
-    - g10_2026_09_01
-    - g11_2026_09_02
-    - g12_2026_09_03
-    - g13_2026_09_07
-    - g14_2026_09_08
-    - g15_2026_09_08
     regeneration_capability: available_raw_present
   claim_roles:
   - claim_id: LEGACY_PAIRED_FIXED5
