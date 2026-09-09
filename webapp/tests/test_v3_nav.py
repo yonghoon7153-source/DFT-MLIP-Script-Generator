@@ -228,6 +228,24 @@ def test_planned_rule_is_derived_not_a_hardcoded_list():
     assert cg2["planned"] == [], "자료가 붙었는데도 '자료 없음' 으로 남아 있다"
 
 
+def test_campaign_slug_needs_token_boundaries():
+    """★ 음성 경로 — 캠페인 슬러그가 낱말 안쪽에 걸리면 없는 배지가 생긴다.
+
+    실측: 슬러그 'nd' 가 `hash-bou**nd**-carry` · `cascade_d_rel_estima**nd**` 에
+    걸려 Nd/O 캠페인에 '결정 3 · 카드 2' 라는 가짜 배지가 떴다.
+    """
+    rx = NAV._slug_re("nd")
+    for wrong in ("d-2026-08-20-hash-bound-carry", "cascade_d_rel_estimand_2026_09_08.json"):
+        assert not rx.search(wrong), f"토큰 경계가 없다 — '{wrong}' 에 걸렸다"
+    for right in ("d-2026-09-09-nd-anneal", "modelc_nd_doped_closed.json", "nd_survey"):
+        assert rx.search(right), right
+    # 배지는 없으면 안 단다 (0 으로 찍지 않는다)
+    row = [it for sec in NAV.sidebar() for it in sec["links"]
+           if it["url"] == "/composition/modelc_nd_doped"][0]
+    st = NAV.campaign_status("nd")
+    assert (row.get("badge") is None) == (st["decisions"] == 0 and st["cards"] == 0)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 3) 온보딩 — 숫자는 전부 db 파생, 못 읽으면 0 이 아니라 '못 읽음'
 # ═══════════════════════════════════════════════════════════════════════════

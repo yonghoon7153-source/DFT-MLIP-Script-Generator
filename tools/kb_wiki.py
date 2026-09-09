@@ -25,9 +25,11 @@ REPO = Path(__file__).resolve().parent.parent
 KB = REPO / "kb"
 
 #: index 에 전 파일을 나열하는 디렉터리 (관리 대상)
+#   ⚠ 2026-09-09 — `fairchem` 추가. 11개 문서가 2026-08-25 에 들어왔는데 어느 목록에도
+#   없어서 `grep -c fairchem kb/index.md` = 0 이었다. 색인 밖 문서는 없는 문서다.
 MANAGED = ["concepts", "physics", "methodology", "results", "reviews", "reports",
            "projects", "questions", "syntheses", "platforms", "descriptors",
-           "papers", "literature_db", "seminars"]
+           "papers", "literature_db", "seminars", "fairchem"]
 #: 개수만 표시 (생성물·대용량)
 SUMMARIZED = ["elements", "templates"]
 
@@ -181,6 +183,26 @@ def cmd_lint():
             errors.append(f"kb/index.md 가 낡음 (기록 {m.group(1) if m else '?'} vs 실제 "
                           f"{len(pages)}) — python3 tools/kb_wiki.py index 재실행")
 
+    # kb/reviews/INDEX.md 신선도 (경고).
+    #   왜 (2026-09-09): INDEX 는 `reviews --write` 생성물인데 **아무도 신선도를 안 봤다.**
+    #   실제로 BG·BH·BI 프롬프트가 실물엔 있고 INDEX 엔 없는 채로 굳어 있었고, 같은 이유로
+    #   INDEX 의 모순 목록(5건)과 lint 의 모순(3건)이 서로 다른 말을 했다.
+    #   ⛔ 여기서 자동 재생성하지 않는다 — 회신 원문/색인은 사람이 확인하고 쓴다.
+    rev_idx = KB / "reviews" / "INDEX.md"
+    if rev_idx.is_file():
+        try:
+            prompts_now, _contra = review_chain()
+            idx_txt = rev_idx.read_text(errors="ignore")
+            missing_rev = [n for n in prompts_now if n not in idx_txt]
+            if missing_rev:
+                warnings.append(
+                    f"kb/reviews/INDEX.md 가 낡음 — 색인에 없는 프롬프트 {len(missing_rev)}건: "
+                    + ", ".join(sorted(missing_rev)[:3])
+                    + ("…" if len(missing_rev) > 3 else "")
+                    + " → python3 tools/kb_wiki.py reviews --write")
+        except Exception as e:                       # 색인 검사가 lint 를 죽이지 않게
+            warnings.append(f"kb/reviews/INDEX.md 신선도 검사 실패: {e}")
+
     # litdb INDEX 커버리지 (경고 — litdb 는 자체 관리).
     # INDEX 가 여럿이다 (INDEX.md=DFT/전지 · INDEX_DEM.md=DEM …) — 전부 합쳐서 본다.
     idx_files = sorted((REPO / "litdb").glob("INDEX*.md"))
@@ -215,13 +237,73 @@ def cmd_lint():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+def _fm_of(p):
+    fm, _ = parse_fm(p.read_text(errors="ignore"))
+    return fm or {}
+
+
+def _mark_of(p, fm):
+    """index 한 줄에 붙는 표시. ⚠ 2026-09-09 — `explored` 를 **반전**했다.
+
+    종전에는 `explored: false` 에 ○미열람을 붙였는데 실측 146/147 이 false 라
+    표시가 목록 전체에 붙어 표시 구실을 못 했다. **적은 쪽이 신호다** — 사람이 읽은
+    것에만 ✔ 를 붙인다. (`explored` 는 사람만 true 로 바꾼다 — SCHEMA.)
+    """
+    mark = ""
+    vs = fm.get("verificationStatus", "")
+    if vs == "retracted":
+        mark += " ⛔철회"
+    elif vs == "disputed":
+        mark += " ⚠disputed"
+    if fm.get("explored") == "true":
+        mark += " ✔읽음"
+    if p.parent.name == "questions":
+        mark += f" [{fm.get('status', '?')}]"
+    return mark
+
+
+def _meta_of(fm):
+    """`updated` 와 `status` 를 한 줄 꼬리로. 없으면 빈 문자열 (레거시는 조용히 넘어간다)."""
+    up = (fm.get("updated") or fm.get("date") or "").strip()
+    st = (fm.get("status") or "").strip().strip('"')
+    if len(st) > 40:
+        st = st[:38] + "…"
+    bits = " · ".join(x for x in (up, st) if x)
+    return f"  ({bits})" if bits else ""
+
+
 def cmd_index():
     pages = all_pages()
     lines = ["# kb 카탈로그 (생성물 — 손으로 고치지 말 것)", "",
              f"> `python3 tools/kb_wiki.py index` 가 만든다 · {datetime.date.today()} · "
              f"managed-files: {len(pages)}", "",
-             "규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · "
-             "원장: kb/open_items.md · 문헌: litdb/INDEX.md", ""]
+             "규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · "
+             "논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md", "",
+             "값 = `db/properties/canonical_registry.json` · 금지 = "
+             "`db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · "
+             "리뷰 = `kb/reviews/INDEX.md`", ""]
+
+    # ── 최근 갱신 (updated 기준) ────────────────────────────────────────────
+    #   왜: 목록이 폴더별 알파벳순이라 '최근 2주에 뭐가 바뀌었나' 를 못 본다.
+    #   실제로 제일 크게 소리치는 문서(대문자 파일명)가 제일 낡은 일이 벌어졌다.
+    dated = []
+    for p in pages:
+        fm = _fm_of(p)
+        up = (fm.get("updated") or fm.get("date") or "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", up):
+            dated.append((up, p, fm))
+    dated.sort(key=lambda x: x[0], reverse=True)
+    if dated:
+        lines.append(f"## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 {len(dated)}건)")
+        for up, p, fm in dated[:20]:
+            st = (fm.get("status") or "").strip().strip('"')
+            if len(st) > 40:
+                st = st[:38] + "…"
+            lines.append(f"- {up} · `kb/{p.parent.name}/{p.name}` — {title_of(p, fm)}"
+                         + (f" · {st}" if st else "") + _mark_of(p, fm))
+        lines += ["", "⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 "
+                  "(날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).", ""]
+
     for d in MANAGED:
         dd = KB / d
         if not dd.is_dir():
@@ -231,20 +313,9 @@ def cmd_index():
             continue
         lines.append(f"## {d}/ ({len(files)})")
         for p in files:
-            fm, _ = parse_fm(p.read_text(errors="ignore"))
-            t = title_of(p, fm)
-            mark = ""
-            if fm:
-                vs = fm.get("verificationStatus", "")
-                if vs == "retracted":
-                    mark = " ⛔철회"
-                elif vs == "disputed":
-                    mark = " ⚠disputed"
-                if fm.get("explored") == "false":
-                    mark += " ○미열람"
-                if p.parent.name == "questions":
-                    mark += f" [{fm.get('status', '?')}]"
-            lines.append(f"- `kb/{d}/{p.name}` — {t}{mark}")
+            fm = _fm_of(p)
+            lines.append(f"- `kb/{d}/{p.name}` — {title_of(p, fm)}"
+                         f"{_mark_of(p, fm)}{_meta_of(fm)}")
         lines.append("")
     for d in SUMMARIZED:
         dd = KB / d

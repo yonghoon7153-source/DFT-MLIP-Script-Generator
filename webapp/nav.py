@@ -247,21 +247,33 @@ def _composition_groups(D) -> dict:
 # ─────────────────────────────────────────────────────────────────────────
 # 3) 캠페인 지위 배지 — db 에 있는 것만 센다
 # ─────────────────────────────────────────────────────────────────────────
+def _slug_re(slug: str):
+    """슬러그를 **토큰 경계**로 찾는 정규식.
+
+    ⚠ 단순 부분문자열이면 `nd` 가 `hash-bou**nd**-carry` · `cascade_d_rel_estima**nd**`
+      에 걸려 없는 배지가 생긴다(실측). 앞뒤가 영숫자가 아닐 때만 센다.
+    """
+    return re.compile(r"(?<![a-z0-9])" + re.escape(slug.lower()) + r"(?![a-z0-9])")
+
+
 def campaign_status(slug: str, root=None) -> dict:
     """캠페인 슬러그 → {"decisions": n, "cards": n}. 손으로 쓴 요약은 반드시 낡는다.
 
       · decisions = 결정 원장에서 **살아 있는**(state=active) 것 중 id 에 슬러그가 든 수
       · cards     = db/properties 의 마감/보고량/사전등록 카드 파일 수
 
-    ⛔ 못 하는 것: 그 결정이 이 캠페인에 **정말** 적용되는지 못 본다 — id 문자열
+    ⛔ 못 하는 것: 그 결정이 이 캠페인에 **정말** 적용되는지 못 본다 — id 토큰
       매칭이다. 그래서 배지는 숫자만 내고 판정 문구는 내지 않는다.
+    ⛔ 또 못 하는 것: 슬러그가 원장 id 어휘와 다르면 조용히 0 이 된다(배지가 안 뜬다).
+      없는 것을 0 으로 찍는 것보다는 낫지만, 배지가 안 보이면 슬러그부터 의심할 것.
     """
     base = Path(root) if root else ROOT
+    rx = _slug_re(slug)
     out = {"decisions": 0, "cards": 0}
     try:
         import canonical as C
         for d in C.decisions(root=str(base)).values():
-            if slug in str(d.get("id", "")).lower() and C.decision_state(d) == "active":
+            if rx.search(str(d.get("id", "")).lower()) and C.decision_state(d) == "active":
                 out["decisions"] += 1
     except Exception:                                    # noqa: BLE001
         pass
@@ -269,7 +281,7 @@ def campaign_status(slug: str, root=None) -> dict:
         p = base / "db" / "properties"
         pat = re.compile(r"(closed|estimand|prereg)", re.I)
         out["cards"] = sum(1 for f in p.glob("*.json")
-                           if slug in f.name.lower() and pat.search(f.name))
+                           if rx.search(f.name.lower()) and pat.search(f.name))
     except Exception:                                    # noqa: BLE001
         pass
     return out

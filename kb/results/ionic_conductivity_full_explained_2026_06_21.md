@@ -1,3 +1,22 @@
+> # ⛔ σ "4배" · 절대 σ · 조성 간 Ea 대조는 **인용 금지** (배너 2026-09-09)
+>
+> 이 카드는 comp1↔modelc 의 **σ 비(~4×)와 절대 σ(3.35 → 13.96 mS/cm)** 를 헤드라인으로 쓴다.
+> 값은 **이력으로 보존**하되, 지금은 아래가 이긴다:
+> - **σ 절대값 인용 금지** (CLAUDE.md 데이터 규율 — Nernst–Einstein Haven=1 은 **상한**이다).
+>   정본 `db/properties/li_transport.json` 스스로 같은 ~14 를 *"실험보다 3–5배 높다"* 고 적는다.
+>   ⇒ *"실험 x=0.6 = 11.34 mS/cm 와 일치"* 류의 문장은 **다른 조성의 실험값을 골라 맞춘 것**이라 쓰지 않는다.
+> - **조성 간 순위·비 금지** — `canonical_registry.json` 의 `MD_Ea_eV_singleseed@comp1`(0.2532)은
+>   **단일시드 · `provisional`** 이고 `prohibitions` 에 `absolute_sigma` · `cross_composition_ranking` ·
+>   `cite_until_beta_gate_passes` 가 걸려 있다. 계간 Ea 직접 비교는 `HZ-cross-system-Ea` = **BLOCKED**.
+>   (`md_axis_status_2026_09_07.md` §0: *"지금 이 축에서 원고에 넣을 수 있는 활성화에너지는 0개"*.)
+> - **방법 라벨**: 여기서 "AIMD" 라고 쓴 것은 실제로 **MLIP-MD (UMA-s-1p1, task=omat)** 다.
+>   ab initio MD 논문과 나란히 놓으면 방법 오기가 된다 (2026-07-27 정정).
+> - ✅ **살아 있는 것**: 구조 관측(anti-site Cl · Li 공공 · Voronoi/BVSE 기하)과 **계 내부** 서술.
+>   ⚠ "장벽↓ + 캐리어↑" 기전은 두 조성의 Ea·D₀ 대조 위에 서 있으므로, **조성 간 정량 대조로는
+>   쓰지 않는다** — 기전을 말하려면 축이 먼저 열려야 한다.
+>
+> ⛔ 아래 본문은 지우지 않는다 (kb/SCHEMA.md Update Policy).
+
 # 이온전도도 완전 정리 — LPSCl(comp1) vs LPSCl₁.₆(modelc)
 
 > **목적**: comp1(LPSCl)보다 modelc(LPSCl₁.₆)가 왜 Li⁺ 전도가 ~4배 빠른지를

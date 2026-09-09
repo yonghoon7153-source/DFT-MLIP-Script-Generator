@@ -3545,12 +3545,18 @@ def compute_preview(cid: str, calc: str) -> dict:
         #      Nd PP 는 Nd.pbe-spdn-kjpaw_psl.1.0.0.UPF 하나뿐이고 frozen-4f(z≈11,
         #      4f 가 core)라 **U 를 걸 대상이 없다** — QE 가 죽거나 조용히 무시한다.
         #   → 무조건 권하지 않고 **PP 조건부**로 말한다. 가드 문구는 생성기와 같은 것.
-        hub_block = ("HUBBARD (ortho-atomic)\n"
-                     "  U Nd-4f 6.0\n\n"
-                     "! ⚠ 위 두 줄과 아래 nspin 은 **z≈14 (4f 를 원자가에 둔) PP 일 때만** 쓴다.\n"
-                     f"!   z≈14: {PSEUDO_LIB['Nd']}\n"
-                     f"!   z≈11 frozen-4f: {PSEUDO_ND_FROZEN}  ← 이거면 U·nspin 을 **뺀다**\n"
-                     "!   확인:  grep -a -m1 'z_valence' <PP>   (z < 12 이면 frozen-4f)\n")
+        hub_block = (
+            "! ══ Nd 4f — **PP 를 먼저 확인하고** 아래 둘 중 하나를 고른다 ═══════════\n"
+            "!   확인:  grep -a -m1 'z_valence' <pseudo_dir>/<Nd PP>\n"
+            f"!   (A) z≈14 = 4f 가 원자가 ({PSEUDO_LIB['Nd']})\n"
+            "!       → &SYSTEM 에  nspin = 2  와 starting_magnetization(<Nd 종번호>) = 0.3\n"
+            "!         을 넣고, 아래 HUBBARD 카드의 주석을 푼다\n"
+            f"!   (B) z≈11 = frozen-4f ({PSEUDO_ND_FROZEN}) — gabia 2026-09-08 실측\n"
+            "!       → 4f 가 core 에 있어 **U 를 걸 대상이 없다**. nspin·HUBBARD 를 넣지 않는다\n"
+            "!         (넣으면 QE 가 죽거나 조용히 무시한다)\n"
+            "! HUBBARD (ortho-atomic)\n"
+            "!   U Nd-4f 6.0\n"
+            "! ══════════════════════════════════════════════════════════════════\n\n")
         warn.append(
             "Nd 4f 처방은 **PP 조건부**다. z≈14 PP(4f 를 원자가에 둔 것)면 "
             "`nspin = 2` + 독립 카드 `HUBBARD (ortho-atomic)` / `  U Nd-4f 6.0`. "
@@ -3667,31 +3673,47 @@ export OMP_NUM_THREADS=1   # libnvomp + libgomp 동시 링크 시 필수 (아니
 grep -a "JOB DONE" {prefix}.out && echo "완료"
 """
 
+#: ⛔ 2026-09-08 — `_md_template()` 은 **삭제**했다. MD 스크립트를 화면이 새로 짓던
+#:   함수인데 세 가지가 틀렸다: 존재하지 않는 fairchem API(`OCPCalculator`) · 궤적 저장
+#:   없음 · 9회 루프가 `atoms` 하나를 재사용해 시드가 독립이 아님.
+#:   ★ 교훈은 "그 스크립트를 고치자" 가 아니다 — **화면이 두 번째 MD 구현을 갖고 있던 것**
+#:     자체가 문제였다. 정본 드라이버 하나만 부른다 (아래 _runner_uma).
+#:     정본 러너 실물: tools/ionic/run_arrhenius_6pt.sh · tools/modelc_v3/run_highT_reseed.sh
+
 def _runner_uma(cid, prefix, st):
+    """MLIP-MD 붙여넣기 블록 — **정본 드라이버를 부른다.** 스크립트를 짓지 않는다.
+
+    창(2–50 ps)·궤적(--save_traj)·시드를 전부 명시한다. 기본값에 기대지 않는 이유:
+    기본값은 기록이 아니다 — run_b2o3_md.sh 가 창을 안 적어 5–40 ps 로 돌던 것이
+    2026-09-08 에 드러났다.
+    """
     return f"""#!/bin/bash
-# {cid} MLIP-MD — {st['server']} (uma env)
-set -e
-pgrep -f "md_{cid}.py" && {{ echo "이미 실행중"; exit 1; }}
-nvidia-smi | grep -q pw.x && {{ echo "pw.x 실행중 — VRAM 충돌 회피, 대기"; exit 1; }}
-conda run -n uma python md_{cid}.py 2>&1 | tee md_{cid}.log
-"""
+# {cid} MLIP-MD (아레니우스 3점 × 3시드) — {st['server']} · uma env
+# ⚠ 붙여넣기 전에: conda activate uma   ·   repo 루트에서 실행
+set -euo pipefail
+REPO=${{REPO:-$PWD}}
+OUT=${{OUT:-runs/{prefix}}}
+XYZ=${{XYZ:-db/structures/{st['struct']}}}
+DRIVER=$REPO/tools/modelc_v3/disorder_ensemble_diffusion.py   # ← 정본. 여기만 고친다
 
-def _md_template(cid, comp, st):
-    return f"""# {cid} ({comp['formula']}) — UMA MLIP-MD (Langevin NVT)
-from ase.io import read
-from ase.md.langevin import Langevin
-from ase import units
-from fairchem.core import OCPCalculator   # UMA-s-1p1
+pgrep -f "disorder_ensemble_diffusion.py.*{cid}" && {{ echo "이미 실행중"; exit 1; }}   # 중복실행 가드
+nvidia-smi | grep -q pw.x && {{ echo "pw.x 실행중 — VRAM 충돌 회피, 대기"; exit 1; }}   # pw.x·UMA 동시금지
+[ -f "$XYZ" ] || {{ echo "⛔ 구조가 없다: $XYZ"; exit 2; }}
 
-atoms = read('db/structures/{st['struct']}')
-atoms.calc = OCPCalculator(model_name='uma-s-1p1', task='omat')
-
-for T in (600, 800, 1000):            # 아레니우스 3점
-    for seed in (1, 2, 3):            # 멀티시드
-        dyn = Langevin(atoms, timestep=2*units.fs, temperature_K=T,
-                       friction=0.02, rng=__import__('numpy').random.default_rng(seed))
-        dyn.run(2500)                 # 5 ps 평형
-        # 생산 200 ps + MSD(2–50ps) 저장 …
+# ⛔ 규약을 **전부 적는다.** 기본값에 기대면 나중에 "이 D 는 어느 창이었나" 를 못 답한다.
+#    · MSD 창 2–50 ps · 자유절편 D · dt 2 fs · friction 0.02 · equilib 5 ps · prod 200 ps
+#    · --save_traj 없으면 소급 재측정이 원리적으로 불가 (2026-07 12런 · 2026-08 21런 유실)
+for S in 1 2 3; do                      # 시드는 **호출을 나눠서** 준다 (프로세스 재사용 금지)
+  python3 "$DRIVER" \\
+    --v0_xyz "$XYZ" --label {cid} --out_root "$OUT/seed$S" \\
+    --disorder_levels 0.0 --n_configs 1 \\
+    --temperatures 600 800 1000 \\
+    --equilib_ps 5 --prod_ps 200 --timestep_fs 2.0 --friction 0.02 \\
+    --save_fs 100 --fit_window_ps 2 50 --seed "$S" --save_traj \\
+    --device cuda 2>&1 | tee -a "md_{cid}.log"
+done
+echo "→ $OUT/seed*/ensemble_results.json  (다음: tools/ionic/msd_diffusive_check.py 로 게이트)"
+# ⚠ σ 절대값은 인용 금지. 비율도 멀티시드 판정만 (CLAUDE.md 데이터 규율).
 """
 
 

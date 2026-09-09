@@ -21,7 +21,12 @@
 kb 디렉터리 ↔ 타입: `concepts`(개념) `physics`(물리 노트) `methodology`(방법·결정 기록)
 `results`(우리 결과 해석) `reviews`(리뷰 왕복) `reports`(대외 문서) `projects`(프로젝트)
 `questions`(research-question) `syntheses`(논지 방어) `platforms` `descriptors` `papers`
-`literature_db`(구세대 — 신규 금지, litdb/ 로) `seminars` `elements`(생성물) `templates`.
+`literature_db`(구세대 — 신규 금지, litdb/ 로) `seminars` `fairchem`(외부 코드베이스 조사)
+`elements`(생성물) `templates`.
+
+⚠ `fairchem` 은 2026-08-25 에 11개 문서가 들어왔는데 `tools/kb_wiki.py` 의 `MANAGED` 에 없어서
+**색인·lint 밖**에 있었다(`grep -c fairchem kb/index.md` = 0). 2026-09-09 에 편입했다 —
+**새 디렉터리를 만들면 `MANAGED` 에 같이 넣는다.** 색인 밖 문서는 없는 문서다.
 
 ## Frontmatter
 

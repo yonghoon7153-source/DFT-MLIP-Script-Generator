@@ -39,11 +39,24 @@
   <div class="rule"><b>MD 는 <code>--save_traj</code> 없이 돌리지 않는다</b>
     궤적이 없으면 나중에 다른 잣대(MTO 등)로 다시 재는 것이 <b>원리적으로 불가</b>하다.
     2026-07 에 12런, 2026-08 에 21런이 궤적 없이 끝났고 <b>둘 다 화면상으로는 정상 완료</b>였다.
-    (지금 18런을 다시 돌리는 중 — 이틀)</div>
+    (지금 18런을 다시 돌리는 중 — 이틀)
+    {# ⛔ 2026-09-08 — 이 줄을 가르치면서 정작 이 화면이 만든 MD 스크립트에는 궤적 저장이
+       없었다(게다가 존재하지 않는 fairchem API 를 불렀다). 이제 스크립트를 짓지 않고
+       정본 드라이버를 부른다 — 규율과 산출물이 갈라지는 경로 자체를 없앤 것이다. #}
+    <br>→ 아래 MD 블록은 스크립트를 새로 짓지 않고
+    <code>tools/modelc_v3/disorder_ensemble_diffusion.py</code> 를 부른다.
+    창·궤적·시드를 <b>인자로 전부 적는다</b> — 기본값은 기록이 아니다.</div>
 
   <div class="rule"><b>MSD 창은 2–50 ps 고정 · D 는 자유절편</b>
     창을 바꾸면 D 가 1.75배까지 움직인다. 창을 옮겨 좋은 값을 고르는 것은 결과가 아니다.
-    (<code>tools/convention_check.py</code> 가 여러 파일에 복사된 이 규약이 갈라졌는지 매번 본다)</div>
+    (<code>tools/convention_check.py</code> 가 여러 파일에 복사된 이 규약이 갈라졌는지 매번 본다 —
+    2026-09-08 부터 <b>argparse 기본값</b>도 본다. 그전까지 드라이버 두 개가 5–40 / 2–20 으로
+    돌고 있었는데 검사는 "0 위반" 이었다)</div>
+
+  <div class="rule"><b>레시피가 없는 조성에는 입력을 만들지 않는다</b>
+    옛 화면은 등록 안 된 조성에도 기본 설정을 씌워 <b>경고 한 줄 없이</b> 입력을 내줬고,
+    그 구조 파일은 <code>db/structures</code> 에 없었다(6개 조성). 추측한 설정으로 만든 입력은
+    "돌려 보면 알겠지" 가 아니라 <b>틀린 것을 정본처럼</b> 주는 것이다. 지금은 거절하고 사유를 말한다.</div>
 
   <div class="rule"><b>아레니우스는 600/800/1000 K 3점 — 400/500 K 는 쓰지 않는다</b>
     저온점은 노이즈 지배다(2026-07-02 판정: 400 K 에서 b2o3&lt;modelc 물리적 역전,
@@ -105,8 +118,14 @@
   링크된 <code>libmpi</code> 에서 <code>OPAL_PREFIX</code>·<code>LD_LIBRARY_PATH</code> 를 유도하고,
   <code>libnvomp</code> 와 <code>libgomp</code> 가 <b>둘 다</b> 링크돼 있으면
   <code>OMP_NUM_THREADS=1</code> 이 필수다(아니면 <code>libgomp: TODO</code> 로 즉사).
-  못 읽으면 <b>시작하지 않는다</b> — 정본 러너
-  <code>tools/doping/run_force_check_scf.sh</code> 가 이 전부를 강제한다.</div>
+  못 읽으면 <b>시작하지 않는다</b> — 공용 함수
+  <code>tools/lib/qe_gpu_runtime.sh</code> (<code>qe_gpu_require</code>) 가 이 전부를 강제하고,
+  <code>tools/doping/run_force_check_scf.sh</code> 가 그 원본이다.
+  <br>⚠ <b>의사퍼텐셜은 서버마다 다르다.</b> 생성된 입력의 <code>pseudo_dir</code> 은 값만 있고
+  안내는 <code>!</code> 주석으로 <b>따옴표 밖</b>에 둔다 — 주석이 문자열 안에 있으면 QE 가 경로
+  전체를 리터럴로 읽는다(2026-09-08 정정: 세 서버 중 둘에서만 조용히 깨졌다).
+  Nd 처방은 <b>PP 조건부</b>다: <code>z_valence</code> 가 ≈14 면 <code>nspin = 2</code> +
+  독립 <code>HUBBARD</code> 카드, ≈11(frozen-4f)이면 U 를 걸 대상이 없으니 <b>뺀다</b>.</div>
 </div>
 
 <script>
@@ -126,8 +145,14 @@ function genCompute(){
   fetch('/api/compute-preview?cid='+cid+'&calc='+curCalc).then(function(r){return r.json();}).then(function(d){
     if(d.error){out.innerHTML='<div class="card">에러: '+d.error+'</div>';return;}
     var warn=(d.warn&&d.warn.length)?d.warn.map(function(w){return '<div class="callout cal-warning"><div class="cal-t">⚠ 주의</div><div class="cal-b">'+_esc(w)+'</div></div>';}).join(''):'';
-    var code = d.input ? ('<div class="code-grid">'+panel('input',d.input_name,d.input)+panel('runner',d.runner_name,d.runner)+'</div>')
-                       : '<div class="callout cal-important"><div class="cal-b">이 조성·계산 조합은 <b>스크립트를 생성하지 않아</b> (위 사유). 올바른 도구로 진행해.</div></div>';
+    // ⛔ 2026-09-08 — 여기는 `d.input` 만 봤다. MD 갈래가 입력파일 없이 **러너만** 내주게
+    //   바뀌면서(정본 드라이버 호출) 그 러너가 화면에서 통째로 사라졌었다.
+    //   두 산출물은 독립이다 — 있는 것만 그린다.
+    var panes='';
+    if(d.input) panes+=panel('input',d.input_name,d.input);
+    if(d.runner) panes+=panel('runner',d.runner_name,d.runner);
+    var code = panes ? ('<div class="code-grid">'+panes+'</div>')
+                     : '<div class="callout cal-important"><div class="cal-b">이 조성·계산 조합은 <b>스크립트를 생성하지 않아</b> (위 사유). 올바른 도구로 진행해.</div></div>';
     out.innerHTML=
       '<div class="cmp-meta">'+
         '<span class="cmp-badge">🖥 '+_esc(d.server)+'</span>'+
