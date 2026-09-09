@@ -37,16 +37,17 @@
    "caption": "Fig. 2 | Performance on test datasets. a, b Mean absolute errors (MAEs) of energy and force near equilibrium, compared to DFT calculations on the test datasets. Each color corresponds to one of the 41 distinct training systems. c, d Energy and force MAEs of DPA-SSE on heating trajectories of representative sulﬁde electrolytes from 150 K to 1150 K. For comparison, results from universal force ﬁelds ﬁne-tuned on the DPA-SSE dataset are also shown.",
    "rotated_deg": 0,
    "bbox": [
-    33.7,
-    365.0,
-    546.5,
-    506.9
+    205,
+    38,
+    580,
+    338
    ],
-   "w": 2137,
-   "h": 593,
+   "w": null,
+   "h": null,
    "dpi": 300,
    "src": "dc978d7f-90._A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
-   "blank": 0.868
+   "blank": 0.868,
+   "note": "auto caption-anchor crop was misaligned on this 2-column page (f2 had rendered Fig.3's panels) -> manually re-cropped from page 4 (digest agent, 2026-09-09)"
   },
   {
    "key": "f3",
@@ -57,16 +58,17 @@
    "caption": "Fig. 3 | Generalizability to solid solutions. Meanabsoluteerroranderrordistribution of a energy and b forces of Li10Ge1−x−ySnxSiyP2S12 (LXPS) and Li6PS5Cl1−x−yBrxIy (LPSX) solid solutions. These compounds are not present in the training sets. c The t-distributed stochastic neighbor embedding (t-SNE) representation of the training set",
    "rotated_deg": 0,
    "bbox": [
-    33.7,
-    148.5,
-    567.3,
-    506.9
+    42,
+    358,
+    568,
+    505
    ],
-   "w": 2224,
-   "h": 1495,
+   "w": null,
+   "h": null,
    "dpi": 300,
    "src": "dc978d7f-90._A_pretrained_deep_potential_model_for_sulfide_solid_electrolytes_with_broad_coverage_and_high_accuracy.pdf",
-   "blank": 0.873
+   "blank": 0.873,
+   "note": "auto caption-anchor crop was misaligned on this 2-column page (f2 had rendered Fig.3's panels) -> manually re-cropped from page 4 (digest agent, 2026-09-09)"
   },
   {
    "key": "f4",

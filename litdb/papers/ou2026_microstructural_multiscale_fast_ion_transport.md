@@ -973,6 +973,15 @@ MSD 는 다중원점 시간평균이 아니라 **프레임 0 하나를 원점으
 - "GB formation energies in sulfide argyrodites (**5–24 meV Å⁻²**) are 2–4× lower than in garnet oxides (25–56 meV Å⁻²), consistent with abundant, randomly oriented grain boundaries in synthesized sulfide pellets."
 - "A quality-level-based **local active-learning** scheme reduces the number of DFT-labelled configurations needed to fit a GB-capable moment tensor potential by **≈5×** relative to structure-level active learning (441 vs 2372 configurations, 5 independent campaigns; *digest recalculation from the paper's Source Data*)."
 - ⚠ **조건부**: "The predicted room-temperature conductivity of dense 50 %-anion-disordered Li₆PS₅Cl (**29.5 mS cm⁻¹**) agrees with QENS (31.0 mS cm⁻¹) but exceeds the best EIS value by ~6×" — **반드시 "modified NE 변환 · Λ 가정 · 치밀 가정" 을 함께 적는다.**
+- ⚠ **인용 시 반드시 붙일 단서 (리뷰어가 물을 것)**: "Reported grain-boundary diffusivities are **not measured
+  region-resolved quantities**; they are obtained by inverting a volume-weighted parallel two-phase model,
+  `D_GB = (D_cell − (1−f)·D_bulk)/f`, with the GB volume fraction fixed by an **assumed 2.5 nm GB width**
+  (*f* = 0.676 for their 10 nm cell). Our own re-inversion shows the headline ratio `D_GB/D_bulk = 0.44`
+  becomes 0.18 at a 1.5 nm width and is undefined (negative) at 1.0 nm." — **digest §14-④ 근거, 저자 코드 실측.**
+- ⭐ **우리 규약 방어용**: "Even a state-of-the-art multiscale study of the same material family extracts
+  Li diffusivities with the Einstein exponent **fixed to unity** and a single time origin, and its reported
+  activation energies carry **no MD-seed error bars** — which is why we keep a fixed 2–50 ps window with a
+  free intercept and a mandatory 3-seed spread." (⛔ 논문 본문에는 없다 — **저자 배포 코드에서만 확인된다**.)
 
 ## 13. 기법 미니 용어집 (우리 팀 새 개념 위주)
 

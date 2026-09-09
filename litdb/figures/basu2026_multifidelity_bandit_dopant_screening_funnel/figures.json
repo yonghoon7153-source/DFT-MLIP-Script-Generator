@@ -198,35 +198,37 @@
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    165.1,
+    410.0,
     529.3,
-    323.1
+    685.0
    ],
    "w": 1931,
-   "h": 660,
+   "h": 1147,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.914
+   "blank": 0.914,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "fS3",
    "kind": "figure",
    "label": "S3",
-   "page": 25,
+   "page": 26,
    "file": "fig_S3.png",
    "caption": "Supplementary Figure 3: Information accumulation log det Vt growth for OFUL and MF-OFUL. Despite slower per-step accumulation (pseudo- weighted updates at w = 0.2), MF-OFUL reaches a higher total (∼103 versus ∼89) by evaluating 7× more candidates.",
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    416.7,
+    66.0,
     529.3,
-    682.8
+    332.0
    ],
    "w": 1931,
    "h": 1109,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.931
+   "blank": 0.931,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "fS4",
@@ -238,35 +240,37 @@
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    66.0,
+    412.0,
     529.3,
-    332.1
+    678.0
    ],
    "w": 1931,
-   "h": 1110,
+   "h": 1109,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.976
+   "blank": 0.976,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "fS5",
    "kind": "figure",
    "label": "S5",
-   "page": 26,
+   "page": 27,
    "file": "fig_S5.png",
    "caption": "Supplementary Figure 5: Convergence study 2×2 grid showing simple regret (mean ± std over 5 seeds) across four parameter sweeps: (a) pool size (250–2,000), (b) DFT budget (40–120), (c) feature dimensionality (10–40), (d) noise level (σ = 0.1–1.0). MF-OFUL ranks first across all 15 conditions.",
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    412.1,
+    66.0,
     529.3,
-    678.5
+    421.0
    ],
    "w": 1931,
-   "h": 1111,
+   "h": 1480,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.951
+   "blank": 0.951,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "fS6",
@@ -278,35 +282,37 @@
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    66.0,
+    501.0,
     529.3,
-    421.2
+    683.0
    ],
    "w": 1931,
-   "h": 1481,
+   "h": 759,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.611
+   "blank": 0.611,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "fS7",
    "kind": "figure",
    "label": "S7",
-   "page": 27,
+   "page": 28,
    "file": "fig_S7.png",
    "caption": "Supplementary Figure 7: Per-host simple regret Simple regret by host (6 panels) for all methods. MF-OFUL achieves the lowest regret on 5 of 6 hosts; the exception is the host with the weakest linear signal.",
    "rotated_deg": 0,
    "bbox": [
     66.0,
-    501.1,
+    66.0,
     529.3,
-    682.8
+    247.0
    ],
    "w": 1931,
-   "h": 757,
+   "h": 755,
    "dpi": 300,
    "src": "838982bf-95._Accelerated_Dopant_Screening_in_Oxide_Semiconductors_via_MultiFidelity_Contextual_Bandits_and_a_ThreeTier_DFT_Validation_Funnel.pdf",
-   "blank": 0.844
+   "blank": 0.844,
+   "note": "⚠ 자동 크로핑 오류 수정 (2026-09-09): 이 preprint 의 SI 는 **캡션이 그림 위**에 있어 extract_figures 의 \"그림은 캡션 위\" 규칙이 매번 한 칸 앞 그림을 잡았다 → 손으로 재지정"
   },
   {
    "key": "t1",
