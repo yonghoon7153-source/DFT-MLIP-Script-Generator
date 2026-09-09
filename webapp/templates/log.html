@@ -3,7 +3,15 @@
 {% block content %}
 <div class="page-header">
   <div><h1>Work Log · 작업 기록</h1>
-    <div class="sub">결정·계산등록·결과·메모를 남기면 <code>webapp/journal.jsonl</code>에 저장 (db와 함께 커밋)</div></div>
+    {# ⚠ 이게 **수기 일지**라는 말을 화면이 해야 한다. 안 하면 빈 구간이
+       "그때 일이 없었다" 로 읽힌다 — 실제로는 커밋 806개가 있던 구간이다. #}
+    <div class="sub">손으로 남기는 일지다 — <b>전수 기록이 아니다.</b>
+      결정·계산등록·결과·메모를 남기면 <code>webapp/journal.jsonl</code>에 저장 (db와 함께 커밋)</div></div>
+  <div class="page-actions">
+    {# 저널 본문이 결정 ID 를 맨 글자로 인용한다. 갈 데를 준다. #}
+    <a class="btn" href="/governance">⚖ 판정 원장</a>
+    <a class="btn" href="/todo">📋 미결</a>
+    <a class="btn" href="/notes">📝 메모</a></div>
 </div>
 
 {# 하위 페이지 — 작업 기록의 한 갈래다. 사이드바에만 두면 여기 들어온 사람이 못 본다. #}
@@ -12,9 +20,19 @@
   <p style="margin:4px 0"><a href="/requests"><b>✉ 1저자 요청 대장</b></a>
     <span class="muted">— 요청 10건의 상태(완료/부분/막힘)와 무엇이 막고 있는지.
     kb/reports/paper_first_author_requests_2026_08.md</span></p>
+  {# ⛔ 이 카드의 숫자는 원본 explainer 의 **판정문**이어야 한다 (2026-09-09 정정).
+     종전 문구 "게이트 오탐 30→0 · 자기 basin 벌점 50 meV · ptfe_dimer 2-seed
+     0.1 meV 일치" 는 셋 다 그 문서가 **금지한 표현**이었다:
+       ① 30→0 은 INCAR 불일치지 게이트가 아니다 — 게이트는 0/30 → 17/30 이고
+          남은 13건은 진짜 물리 문제다 (explainer L223-224).
+       ② basin 어긋남 ~50 meV 는 **진단값이지 측정이 아니다** (L165, 교차리뷰 정정).
+       ③ k-점 미검증이라 **"0.1 meV 정확도" 라는 말을 쓰지 않는다** (L199).
+     요약이 원문 단서를 떼고 숫자만 옮기면 그게 곧 낡은 인용이다. #}
   <p style="margin:4px 0"><a href="/sdcp"><b>🧪 SDCP wave1 — 바인더가 앉는 자리</b></a>
-    <span class="muted">— VASP 외주 30잡 회수·해석. 게이트 오탐 30→0, 자기 basin 벌점
-    50 meV, ptfe_dimer 2-seed 0.1 meV 일치.
+    <span class="muted">— VASP 외주 30잡 회수·해석. INCAR 불일치 30→0 ·
+    게이트 <b>0/30 → 17/30</b>(남은 13건은 물리 문제) ·
+    basin 어긋남 ~50 meV <b>진단값</b>(측정 아님) ·
+    ptfe_dimer 두 branch 0.09 meV(<b>정확도 주장 아님</b> — k-점 미검증).
     kb/results/sdcp_wave1_explainer_2026_08_25.md</span></p>
 </div>
 

@@ -1,16 +1,45 @@
-# 📚 LITDB — Argyrodite SE 문헌 단일 시스템
+# 📚 LITDB — 문헌 단일 시스템 (**SE·DFT 축 + DEM·MPM 축, 두 트랙**)
 
 > **앞으로 논문은 여기서만 본다.** 여러 곳(db/literature, kb/papers, db/properties, Excel)에 흩어진 문헌을 한 곳에서 생각·참고·비교하기 위한 통합 MD 시스템.
 
-## 폴더 구조
-| 파일/폴더 | 역할 |
-|---|---|
-| `INDEX.md` | 전체 논문 마스터 표 (Excel 자동 생성). "무슨 논문 있나" 한눈에. |
-| `papers/<slug>.md` | **논문 1편 = digest 1개.** 표준 양식 = `papers/_TEMPLATE.md` |
-| `our_dft_baseline.md` | 우리 comp1/modelc DFT 기준값 — 모든 비교의 기준점 |
-| `comparison_vs_ours.md` | 문헌 물성 ↔ 우리 DFT **차이 + 적용 인사이트** |
-| `properties/*.md` | 물성별 교차표 (ionic / oxidation / mechanical / electronic) |
-| `figures/<slug>/` | **논문 PDF 에서 잘라낸 그림·표** + `figures.json` (색인). 아래 §🖼 참고 |
+## 왜 트랙이 둘인가
+`INDEX.md` 는 argyrodite 전해질 축이라 접촉역학·MPM·건식전극 digest 가 들어갈 자리가
+없다. 그래서 한때 64편이 **어느 인덱스에도 없었다**(open_items #7). 축을 나눠 그 구멍을
+닫았고, 한 분모로 세면 “159편 중 98편 미언급” 같은 **가짜 미결**이 나온다
+(`comparison_vs_ours.md:8`). 분리는 실측 근거가 있는 결정이다 — 합치지 말 것.
+
+⚠ 이 표의 **편수는 적지 않는다.** 손으로 쓴 수는 반드시 낡는다(README 자신이 세 번 틀렸다).
+현재값은 `python3 tools/litdb/build_index.py --check` 로 본다.
+
+## 폴더 구조 (실물)
+| 파일/폴더 | 트랙 | 역할 |
+|---|---|---|
+| `papers/<slug>.md` | 공통 | **논문 1편 = digest 1개.** 표준 양식 = `papers/_TEMPLATE.md` |
+| `INDEX.md` | SE·DFT | 마스터 표. **손으로 쓴 분석 산문** — 자동 append 금지(`_INDEX_proposals.md` 머리말) |
+| `INDEX_DEM.md` | DEM·MPM | `tools/litdb/build_index.py` **생성물** — 손편집 금지, 고칠 게 있으면 도구를 고치고 재생성 |
+| `INDEX_DEM_snapshot_2026-07-16.md` | DEM·MPM | 동결본. 정본은 `INDEX_DEM.md` |
+| `_INDEX_proposals.md` | 공통 | INDEX 승격 **대기열**. ⛔ 여기서 INDEX 로 옮기는 것은 **사람이 한다** |
+| `our_dft_baseline.md` | SE·DFT | 우리 comp1/modelc DFT 기준값 — 이 축 모든 비교의 기준점 |
+| `our_dem_baseline.md` | DEM·MPM | ⛔ **아직 값이 없다**(자리표시). 그 파일 §2–3 참조 |
+| `comparison_vs_ours.md` | SE·DFT | 문헌 물성 ↔ 우리 DFT **차이 + 적용 인사이트** (축 A–L) |
+| `comparison_vs_ours_DEM.md` | DEM·MPM | 같은 것의 DEM 판 (축 A–G) |
+| `talks/` | 공통 | 학회 **발표덱** digest + `README.md`(3단 인용 등급). ⚠ 논문 수에 합산하지 않는다 |
+| `surveys/` | 공통 | 주제 서베이 2편 (Nd 치환 54편 · halogen-rich MD 셋업) |
+| `concepts/` | 공통 | 논문이 아닌 개념 정리 (예: `dos_vbm_efermi_methods.md`) |
+| `figures/<slug>/` | 공통 | **논문 PDF 에서 잘라낸 그림·표** + `figures.json`·`_sources.json`. 아래 §🖼 참고 |
+| `inbox/` | 공통 | 아직 안 먹인 PDF 대기함 (`litfig --inbox` 가 읽는다) |
+| `topics.json` | 공통 | 주제 태그 **손 큐레이션** — /literature 칩의 유일한 출처 |
+| `pdf_map.tsv` | 공통 | slug ↔ PDF 파일명 예외 대응(자동 매칭이 틀리는 것만) |
+| `positioning_vs_geodict.md` · `yonsei_dtbl_lab_triage_2026.md` | 공통 | 단발 조사 문서 |
+
+⛔ `properties/*.md` 는 **없다.** 물성 교차표는 `db/properties/` 의 원장(JSON/CSV)이
+맡는다 — 지위(status·citable·prohibitions)가 붙는 곳이 거기라서다.
+
+### papers/ 에 논문이 아닌 것이 두 종류 섞여 있다 (규약)
+- `<slug>__seminar_*.md` = 그 digest 의 **동반 발표대본**(2026-08-28 규약). 본체에서
+  링크되고, digest 로 세지 않는다(`webapp/data.py:list_papers` 가 제외). `talks/` 와
+  다른 점: 저 폴더는 **남의 학회 발표**, 이쪽은 **우리가 그 논문을 발표한 대본**이다.
+- 묘비 스텁 = `# → superseded by …` 3줄. 논문이 합쳐졌을 때 옛 slug 를 살려 두는 것.
 
 ## 논문 "먹이는" 워크플로우  (= `litdb-curator` 에이전트)
 **트리거: PDF 업로드 후 "논문 에이전트 실행해줘"** (또는 "이 논문 litdb에 넣어줘", "이 논문 정리해줘", "feed this paper")
@@ -22,14 +51,18 @@
    - **Post-processing** — 어떤 후처리(NEB/Bader/COHP/grand-potential…)를 어떻게 적용·기록했나
    - **우리 DFT 대비** — 같은 점 / 다른 점 / 왜
    - **적용 인사이트** — 내 연구에 어떻게 쓰나
-3. `INDEX.md` status → ✅, `comparison_vs_ours.md` · `properties/` 갱신
+3. **트랙을 먼저 정한다.** SE 면 `INDEX.md` status → ✅ + `comparison_vs_ours.md`,
+   DEM 이면 `python3 tools/litdb/build_index.py` 재생성 + `comparison_vs_ours_DEM.md`.
+   실물(PDF)을 아직 못 봤으면 어느 INDEX 도 아니고 `_INDEX_proposals.md` 대기열이다.
+   (⛔ `properties/` 는 없다 — 물성 원장은 `db/properties/`)
 4. 사용자와 인사이트 공유 → 합의된 결론만 deck/paper로
 
 ## 통합 대상 (흩어져 있던 기존 DB → 점진 흡수)
 - `db/literature/` : argyrodite_computational_littable.csv, argyrodite_dft_littable.csv, refs.json, 개별 MD 7편(damore/fadillah/lee/li/pustorino/sundar/zhao)
 - `db/properties/` : **literature_tensions_audit.json**, oxidation_stability.json, electronic/elastic/eos/diffusion.json
 - `kb/papers/` : verified_refs_2026_05.md, computational_methods_draft.md, narrative_with_literature_steps.md …
-> 흡수 원칙: 각 항목을 해당 `papers/<slug>.md` 또는 `properties/*.md`로 옮기고, 출처 파일은 INDEX에 "통합됨"으로 표기.
+> 흡수 원칙: 각 항목을 해당 `papers/<slug>.md` 로 옮기고(물성 원장이 필요하면
+> `db/properties/`), 출처 파일은 INDEX 에 "통합됨"으로 표기.
 
 ## status 범례
 ✅ digest 완료 · ⬜ PDF만(미digest) · 📄 Excel 메타만
@@ -87,9 +120,9 @@ litfig --clean \
   본문 없이 SI만 / 극단 세로비). '번호 구멍'은 대개 정상이다(전면 그림·PDF 에 그림 없음).
   진단이 필요하면 `litfig --slug <slug> --why` 로 캡션별 판정을 좌표째로 본다.
 
-**현황 (2026-08-06)**: 논문 **112편 / 그림 1,593장** (본문 882 + SI 472 + 표 239),
-audit 깨끗 86편. digest 159편 중 112편(70%)에 그림이 붙었다 — 나머지는 PDF 가 로컬에 없다.
-자동 매칭 83편 + `pdf_map.tsv` 수동 지정 29편. 작업트리 432 MB.
+**현황** — ⚠ 숫자를 여기 손으로 적지 않는다. 2026-08-06 판("112편 / 1,593장 / 432 MB")은
+2026-09-09 실측에서 전부 틀렸고, 그 사이 아무도 못 따라갔다. 지금 값은 도구에게 묻는다:
+`litfig --audit` (그림 쪽) · `python3 tools/litdb/build_index.py --check` (digest·편입 쪽).
 
 > 추출기를 고친 뒤에는 **전체 재생성 대신 `--refresh`** 를 쓴다 — 장수가 달라지는 논문만
 > 골라 다시 뽑아 히스토리가 필요한 만큼만 는다. (실측: 스캔본 판정 수정으로 20편에서

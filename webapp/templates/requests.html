@@ -29,6 +29,9 @@
       대상 계 LPSCl1.6 (modelc) · LPSOCl (+O) · B₂O₃-doped</div></div>
   <div class="page-actions"><a class="btn" href="/log">✎ Work Log</a>
     <a class="btn" href="/todo">미결 리스트</a>
+    {# 이 문서가 인용을 권하는 값이 살아 있는지는 **판정 원장**이 정한다.
+       조사 no-link-to-governance-ledger — 기록 화면 셋 어디에도 링크가 없었다. #}
+    <a class="btn" href="/governance">⚖ 판정 원장</a>
     <a class="btn" href="/">▦ Dashboard</a></div>
 </div>
 
@@ -69,5 +72,9 @@
 </div>
 {% endif %}
 
-<div class="card doc">{{ content|safe }}</div>
+{# 묶음 H · P0 — 마감된 축의 수에 표식. 이 문서 §15-4 는 "✅ 쓸 수 있는 것:
+   저온 구간 Ea = 0.2241 ± 0.0606 eV" 를 취소선 없이 권하고 있었고, 그 값은
+   D-2026-09-07-b2o3-md-closure-retrospective 가 축 전체와 함께 닫은 값이다.
+   ⛔ 원문(kb md)은 고치지 않는다 — 표식만 얹는다. 원문 정정은 1저자 몫이다. #}
+<div class="card doc">{{ content|closedaxis|safe }}</div>
 {% endblock %}

@@ -837,9 +837,11 @@ def todo():
     # ⚠ 날짜를 하드코딩하지 않는다 — 원장 파일이 늘어도 이 문구는 그대로 맞다.
     banner = {"url": "/ledger", "label": "🧾 T·Q 원장",
               "text": "이 리스트의 T 번호가 오늘 어디까지 움직였는지는 하루치 원장에서 본다"}
+    # 묶음 H · P0 — 마감된 축의 수에 표식(`records_view.mark_closed_axis`).
+    #   `/todo` 는 "대신 쓸 것은 저온 구간 Ea 다" 를 초록인 채로 권하고 있었다.
     return render_template("doc.html", active="todo",
                            title="📋 미결 리스트 (Open Items)",
-                           content=html, banner=banner,
+                           content=RV.mark_closed_axis(html), banner=banner,
                            subtitle="kb/open_items.md · 판정 대기 · PDF 확보 대기 · ML 후속 · 심포지엄 대응")
 
 
@@ -1882,10 +1884,18 @@ def api_log():
 
 @app.route("/api/handoff/<hid>")
 def api_handoff(hid):
+    """handoff 문서 본문 (모달용).
+
+    ⚠ 없는 hid 도 **JSON 으로** 답한다. Flask 기본 404 는 HTML 이라 모달의
+      `r.json()` 이 던지고 '로딩...' 상태로 굳었다 (조사 handoff-modal-404-hangs).
+    ⚠ 마감된 축의 수에는 표식을 얹는다 — 이 경로가 실제 누출 지점이었다
+      (`/api/handoff/b2o3_arrhenius_curvature_2026_08_23` 의 "✅ 600→800 구간 Ea = 0.222 eV").
+    """
     f = D.KB / "results" / f"{hid}.md"
     if not f.exists():
-        abort(404)
-    html = md_html(f.read_text(encoding="utf-8", errors="ignore"))
+        return jsonify({"id": hid, "error": f"문서를 못 읽었다 — kb/results/{hid}.md 없음",
+                        "html": ""}), 404
+    html = RV.mark_closed_axis(md_html(f.read_text(encoding="utf-8", errors="ignore")))
     return jsonify({"id": hid, "html": html})
 
 
