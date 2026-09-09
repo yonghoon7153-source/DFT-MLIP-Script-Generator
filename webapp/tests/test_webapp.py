@@ -3827,3 +3827,55 @@ def test_unverified_surfaces_are_declared_and_do_not_grow():
         assert not js, (
             f"⛔ 벤더 JS 가 생겼다: {js} — 이제 브라우저 검증을 켤 수 있다. "
             f"_UNVERIFIED_SURFACES 를 다시 보라 (더 이상 '못 한다' 가 아니다)")
+
+
+def test_figure_comment_deeplink_carries_the_figure_key():
+    """⛔ 그림 코멘트 딥링크가 **그 그림까지** 데려가는가 (1저자 실사용 보고 2026-09-09).
+
+    종전 `note_url` 주석이 *"파일·그림 코멘트는 붙일 자리가 없어 문서만 연다"* 였는데
+    **자리는 있었다** — `figref.js` 가 그림 칸마다 `data-fig="<키>"` 를 달고,
+    `rel` → 키 매핑(`_fig_keys`)도 있었다. 셋이 다 있는데 아무도 안 이었다.
+    """
+    figs = [c for c in D.comment_all() if not c.get("anchor")
+            and str(c.get("rel", "")).startswith("litdb/figures/")]
+    if not figs:
+        pytest.skip("그림 코멘트가 없다")
+    linked = [c for c in figs if "fig=" in D.note_url(c)]
+    assert linked, "⛔ 그림 코멘트 딥링크에 fig= 가 하나도 없다 — 자리를 다시 잃었다"
+    # 대부분은 붙어야 한다 (figures.json 에 없는 파일만 예외)
+    assert len(linked) >= len(figs) * 0.8, (
+        f"⛔ 그림 코멘트 {len(figs)}건 중 {len(linked)}건만 딥링크가 붙었다 — "
+        f"figures.json 매핑이 깨졌는지 보라")
+    # ⛔음성: 여백 메모는 fig= 가 아니라 note= 여야 한다 (두 체계를 섞으면 안 된다)
+    for c in D.comment_all():
+        if c.get("anchor"):
+            u = D.note_url(c)
+            assert "note=" in u and "fig=" not in u, f"여백 메모에 fig= 가 붙었다: {u}"
+            break
+    # ⛔음성: figures.json 에 없는 파일은 **조용히 문서만** 연다 (틀린 자리로 데려가지 않는다)
+    fake = {"url": "/literature?open=zzz", "anchor": "",
+            "rel": "litdb/figures/없는슬러그/fig_99.png"}
+    assert D.note_url(fake) == "/literature?open=zzz"
+
+
+def test_note_bold_is_lenient_about_one_sided_space():
+    """메모의 `**굵게**` — 한쪽만 띈 것도 굵게, **양쪽 다 띈 것은 아니다**.
+
+    1저자 실사용에서 `suggests** low multicollinearity**` 가 안 먹었다.
+    CommonMark 로는 굵게가 아닌 게 맞지만 **여기는 메모장이지 문서 규격이 아니다**.
+    다만 `10 ** 3 and 2 ** 4`(양쪽 다 띔)까지 굵어지면 안 된다 — 그게 원래 가드의 목적이다.
+    """
+    for text, want, why in (
+        ("distribution suggests** low multicollinearity**, indicating", True, "여는 쪽만 띔"),
+        ("** Li-S4 sublattice volume + CSM**: 사면체", True, "여는 쪽만 띔(문두)"),
+        ("**정상 굵게** 는 되나", True, "양쪽 다 붙음"),
+        ("**닫는 쪽만 띔 ** 이건?", True, "닫는 쪽만 띔"),
+        ("10 ** 3 and 2 ** 4 는 거듭제곱", False, "⛔음성: 양쪽 다 띔"),
+        ("경로는 src/**/*.py 다", False, "⛔음성: globstar"),
+        ("각주(**)를 보라", False, "⛔음성: 닫는 문장부호"),
+    ):
+        h = str(A._mdlite(text))
+        assert ("<strong>" in h) is want, f"{why}: {text!r} → {h!r}"
+    # 안쪽 공백은 **지우지 말고 태그 밖으로** — 지우면 낱말이 붙는다
+    h = str(A._mdlite("suggests** low x**"))
+    assert "suggests <strong>low x</strong>" in h, f"공백이 사라져 낱말이 붙었다: {h!r}"

@@ -6679,13 +6679,28 @@ def comment_origin(rel: str) -> dict:
 def note_url(c: dict) -> str:
     """메모 한 건의 **딥링크** — 그 문서를 열고 그 메모 자리까지 데려간다.
 
-    여백 메모만 `?note=<id>` 를 붙인다(docnote.js 가 그걸 읽는다). 파일·그림
-    코멘트는 붙일 자리가 없어 문서만 연다.
+    · 여백 메모 → `?note=<id>` (docnote.js 가 읽는다)
+    · **그림 코멘트 → `?fig=<키>`** (figref.js 가 `[data-fig]` 로 데려간다)
+
+    ⛔ 2026-09-09 (1저자 실사용 보고) — 종전 주석이 *"파일·그림 코멘트는 **붙일 자리가
+      없어** 문서만 연다"* 였는데 **자리는 있었다.** `figref.js:392` 가 그림 칸마다
+      `data-fig="<키>"` 를 달아 두고, `rel`(`litdb/figures/<slug>/fig_S1.png`)에서
+      그 키를 뽑는 함수(`_fig_keys`)도 이미 있었다. 셋이 다 있는데 **아무도 안 이었다.**
+      ⇒ 그림 코멘트를 눌러도 그림으로 안 내려갔다.
+
+    ⛔ 못 하는 것: `figures.json` 에 없는 파일(수동 추가·개명)은 키를 못 찾는다 —
+      그때는 종전처럼 문서만 연다(조용히 틀린 자리로 데려가지 않는다).
     """
     u = c.get("url") or "/"
-    if not c.get("anchor"):
-        return u
-    return u + ("&" if "?" in u else "?") + "note=" + _urlquote(str(c.get("id", "")))
+    if c.get("anchor"):
+        return u + ("&" if "?" in u else "?") + "note=" + _urlquote(str(c.get("id", "")))
+    rel = str(c.get("rel") or "")
+    m = re.match(r"litdb/figures/([^/]+)/(.+)$", rel)
+    if m:
+        key = _fig_keys(m.group(1)).get(m.group(2))
+        if key:
+            return u + ("&" if "?" in u else "?") + "fig=" + _urlquote(str(key))
+    return u
 
 
 def notes_by_date() -> list[dict]:

@@ -85,8 +85,40 @@ def _sec_headers(resp):
 #          MAXB 자를 넘으면 짝짓기를 포기한다. 우리 문장의 강조는 한 절을 안 넘는다.
 #       ③ 여는 별표 바로 뒤가 **닫는 문장부호**(`) ] , . ;` 등)면 강조가 아니다 —
 #          `globstar(**)` 가 정확히 그 꼴이다. 강조는 항상 내용어로 시작한다.
+#       ④ ⛔ 2026-09-09 (1저자 실사용 보고) — ②의 "여는 별표 뒤가 공백이면 안 된다" 가
+#          **너무 좁았다.** 실측으로 안 먹은 것들:
+#            `suggests** low multicollinearity**`   ← 여는 쪽만 띄었다
+#            `** Li-S₄ sublattice volume + CSM**`   ← 여는 쪽만 띄었다
+#          CommonMark 로는 둘 다 굵게가 아닌 게 맞다(left-flanking 규칙). 그런데 **여기는
+#          메모장이지 문서 규격이 아니다** — 규칙보다 의도가 우선이다.
+#          ⇒ 규칙을 **"양쪽 다 띄면 안 된다"** 로 바꾼다. 한쪽만 띈 것은 강조로 본다.
+#            그러면 `10 ** 3 and 2 ** 4`(양쪽 다 띔)는 **여전히 안 걸린다** — ②의
+#            원래 목적(문장 통째 굵어짐)이 지켜진다.
 _MDL_MAXB = 300
-_MDL_BOLD = re.compile(r"\*\*(?![\s)\]}>,.;:!?])(.{1,%d}?)(?<![\s([{<])\*\*" % _MDL_MAXB, re.S)
+#: ⚠ body 는 **순수 lazy** 여야 한다. 처음에 `(\S(?:.{0,N}?\S)?)` 로 썼다가
+#:   `(?:…)?` 가 greedy 라 body 가 **첫 유효 닫힘에서 안 멈추고 늘어났다** —
+#:   실측: `**힘**: 4.64 … **step` 이 첫 `**` 부터 **세 번째** `**` 까지 한 덩어리로
+#:   잡혀 `힘**:` 가 화면에 남았다 (2026-09-09 전체시험에서 잡혔다).
+#:   ⇒ 정규식은 옛것 그대로 두고 **판정만 콜백으로** 옮긴다.
+_MDL_BOLD = re.compile(r"\*\*(?![)\]}>,.;:!?])(.{1,%d}?)\*\*" % _MDL_MAXB, re.S)
+
+
+def _mdl_bold_sub(m):
+    """양쪽이 **다** 띄어져 있으면 강조가 아니다 — 원문 그대로 돌려준다.
+
+    ⚠ 안쪽 공백은 **지우지 않고 태그 밖으로 내보낸다.** 지우면
+    `suggests** low x**` 가 `suggests<strong>low x</strong>` = "suggestslow" 로 붙는다
+    (2026-09-09 자체시험에서 잡았다). 사용자가 띈 자리는 낱말 사이지 강조 안이 아니다.
+    """
+    raw = m.group(1)
+    body = raw.strip(" \t\r\n")
+    if not body or body.startswith("*") or body.endswith("*"):
+        return m.group(0)                      # 빈 강조·`***` 꼴은 강조가 아니다
+    lead = raw[:len(raw) - len(raw.lstrip(" \t"))]
+    tail = raw[len(raw.rstrip(" \t")):]
+    if lead and tail:
+        return m.group(0)                      # 양쪽 다 띔 → 문장 통째 굵어짐 방지
+    return "%s<strong>%s</strong>%s" % (lead, body, tail)
 _MDL_CODE = re.compile(r"`([^`]+)`")
 #: Obsidian 식 하이라이트 — 1저자 메모가 실제로 쓴다 (2026-09-08). 표준 md 는 아니다.
 _MDL_MARK = re.compile(r"==(?!\s)(.{1,%d}?)(?<!\s)==" % _MDL_MAXB, re.S)
@@ -111,7 +143,7 @@ def _mdlite(text: str) -> Markup:
         return "\x00%d\x00" % (len(spans) - 1)
 
     s = _MDL_CODE.sub(_stash, s)
-    s = _MDL_BOLD.sub(r"<strong>\1</strong>", s)
+    s = _MDL_BOLD.sub(_mdl_bold_sub, s)
     s = _MDL_MARK.sub(r"<mark>\1</mark>", s)
     # ⚠ 취소선·이탤릭은 **코드 스팬 격리 뒤·복원 앞**이다. `` `~~x~~` `` 안의 물결과
     #   `` `a*b` `` 안의 별표는 데이터다. 볼드를 먼저 걸어야 `**` 가 이탤릭에 안 먹힌다.

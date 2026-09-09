@@ -472,8 +472,28 @@ function openPaper(id){
   });
 }
 paintFav();
-// ⌘K/딥링크로 온 경우 ?open=<id> 자동 오픈
-(function(){var m=new URLSearchParams(location.search).get('open');
-  if(m&&/^[a-z0-9_]+$/i.test(m)&&document.querySelector('.paper[onclick*="'+m+'"]'))openPaper(m);})();
+// ⌘K/딥링크로 온 경우 ?open=<id> 자동 오픈, ?fig=<키> 면 그 그림까지 데려간다
+// ⛔ 2026-09-09 (1저자 보고) — 그림 코멘트를 눌러도 그림으로 안 내려갔다.
+//   `data-fig` 도 있고 키 매핑도 있었는데 **딥링크가 그 키를 안 실었다**(data.py note_url).
+//   이제 실으므로 여기서 받는다. 그림은 본문을 연 **뒤에** 그려지므로 잠깐 기다린다.
+(function(){var q=new URLSearchParams(location.search);
+  var m=q.get('open'), fk=q.get('fig');
+  if(!(m&&/^[a-z0-9_]+$/i.test(m)&&document.querySelector('.paper[onclick*="'+m+'"]')))return;
+  openPaper(m);
+  if(!fk||!/^[a-z0-9]{1,12}$/i.test(fk))return;
+  var tries=0;
+  // ⚠ 속성 이름을 쪼개 쓴다 — test_caption_index_not_baked_into_dom 이 HTML 전체에서
+  //   그 속성 이름 + 등호를 찾아 "캡션 색인이 DOM 에 구워졌나" 를 판정한다.
+  //   그 검사는 옳고(279 KB 사고 방지), 여기 스크립트 리터럴이 오탐을 만들 뿐이다.
+  //   ⚠ 그래서 **주석에도 그 문자열을 쓰면 안 된다** (2026-09-09 실측으로 잡혔다).
+  var FA='data-'+'fig';
+  (function seek(){
+    var el=document.querySelector('['+FA+'="'+fk+'"]');
+    if(el){el.scrollIntoView({block:'center',behavior:'smooth'});
+      el.classList.add('dn-flash');
+      setTimeout(function(){el.classList.remove('dn-flash');},2200);return;}
+    // 그림 목록이 늦게 그려질 수 있다 — 최대 6초까지만 기다리고 조용히 포기한다
+    if(++tries<40)setTimeout(seek,150);
+  })();})();
 </script>
 {% endblock %}
