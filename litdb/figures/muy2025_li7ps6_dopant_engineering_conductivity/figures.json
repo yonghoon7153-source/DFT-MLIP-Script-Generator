@@ -267,6 +267,27 @@
    "dpi": 300,
    "src": "6ca561e7-104._Sup_Optimizing_Ionic_Conductivity_of_Lithium_in_Li_PS__Argyrodite_via_Dopant_Engineering.pdf",
    "blank": 0.623
+  },
+  {
+   "key": "fS8",
+   "kind": "figure",
+   "label": "S8",
+   "page": 6,
+   "file": "fig_S8.png",
+   "caption": "(SI 원문에 캡션이 없다 — 이 항목의 설명은 우리 digest 의 판독이다) FIG. S8. 두 조성(a),(b)의 확산계수 아레니우스: 파란 점 5개 = 생산 온도 1250/1000/833/714/625 K, 주황 점 2개 = 직접 계산한 400 K·300 K 검증점, 점선 = 파란 5점 아레니우스 적합의 외삽. ⚠ 조성이 명시돼 있지 않고 y축(Diffusivity)에 단위가 없다.",
+   "rotated_deg": 0,
+   "bbox": [
+    60,
+    55,
+    530,
+    290
+   ],
+   "w": 1880,
+   "h": 940,
+   "dpi": 300,
+   "src": "6ca561e7-104._Sup_Optimizing_Ionic_Conductivity_of_Lithium_in_Li_PS__Argyrodite_via_Dopant_Engineering.pdf",
+   "blank": 0.0,
+   "note": "⚠ 자동 추출 대상이 아니었다 — 이 그림은 **SI 에 캡션이 아예 없어서** extract_figures.py 의 캡션 앵커가 잡지 못했다. litdb-curator 가 SI p.6 좌표(60,55,530,290)로 수동 렌더했다 (2026-09-09). 캡션 텍스트는 원문이 아니라 우리 판독이다."
   }
  ]
 }

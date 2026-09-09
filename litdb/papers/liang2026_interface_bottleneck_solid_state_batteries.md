@@ -555,7 +555,7 @@ Merchant et al. **[93]** 은 **상분리에너지(=hull 안정성)** 를 r²SCAN
 
 | 정량량 | 어디서 | 값의 예 | 우리 대응 |
 |---|---|---|---|
-| ① **대전위 pseudo-binary 상호반응에너지** `ΔE_rxn` [meV/atom] vs x, **전위 고정** | `Fig. 6b–f` **[91]** | LPSCl↔LiP(OF)₂: **−145**(무전위) / **−47**(2.8 V) / **−95**(4.3 V); NCM↔LiP(OF)₂: **−395**(2.8 V) / **−108**(4.3 V) (figure-read) | ★ **우리 T9 `dE_LPSCl`·`dE_LCO_full` 과 같은 구성**(닫힌계 pseudo-binary, Richards/Ong 2016 eq 2) |
+| ① **대전위 pseudo-binary 상호반응에너지** `ΔE_rxn` [meV/atom] vs x, **전위 고정** | `Fig. 6b–f` **[91]** | LPSCl↔LiP(OF)₂: **−145**(무전위) / **−43**(2.8 V, 원전값) / **−96**(4.3 V); NCM↔LiP(OF)₂: **−395**(2.8 V) / **−108**(4.3 V) — §5-1 에서 원전과 교차검증 | ★ **우리 T9 `dE_LPSCl`·`dE_LCO_full` 과 같은 구성**(닫힌계 pseudo-binary, Richards/Ong 2016 eq 2). **게이트 `\|ΔE_rxn\| < 100 meV/atom` 은 리뷰가 안 옮긴다** — 원전은 Xiao 2019 filter 4 |
 | ② **전기화학 안정창** (대전위 Li-content vs V) | `Fig. 6a` **[91]** | LiP(OF)₂ **2.6–4.9 V**, 양쪽 분해산물 명시 | 우리 ESW(comp1/modelc onset 2.256 V) |
 | ③ **CCD / 임계 스트리핑 전류** [mA cm⁻²] | `Fig. 4a`, §3.2.2 | 0.15/0.25/0.45/0.35; 0.2 @3 MPa; >1.6; >2 | ⛔ 우리 축 없음 (실험량) |
 | ④ **면적비저항** [원문 Ω cm³] | §3.1, §3.2.3 | Li₃PO₄ 코팅 ~5–10; Li\|LLZO 고유 ~10⁻¹ | ⛔ 우리 축 없음 |

@@ -215,10 +215,25 @@ argyrodite 에서는 그것이 **"4a/4d 자리에 걸친 S²⁻/X⁻ 무질서 �
 | **I⁻** | 206 pm | +36 pm | **없다(질서)** | "**there is no anionic site disorder in Li₆PS₅I**, in which I and S are **orderly located in 4a and 4d sites**, respectively" | 본문-ref 115, 131 |
 
 **⇒ 리뷰가 명시한 인과**: 반경 차 → 무질서 여부 → 케이지 연결 여부 → σ.
-Li₆PS₅Cl·Br 는 10⁻²–10⁻³ S cm⁻¹, Li₆PS₅I 는 **~10⁻⁶ S cm⁻¹** 인데 "결정구조는 비슷하다"(본문-ref 115).
+본문(p832)은 Li₆PS₅Cl·Br 를 10⁻²–10⁻³ S cm⁻¹, Li₆PS₅I 를 **"only about 10⁻⁶ S cm⁻¹"** 이라 쓰면서
+"결정구조는 비슷하다"고 대비시킨다(본문-ref 115).
 그리고 리뷰는 **"할로겐이 도입하는 Li 공공의 정도로는 이 수 자릿수 차이를 설명 못 한다 — 원자 점유(atomic occupancy)에서 더 파고들어야 한다"** 고 못박는다. (원문: *"The degree to which the three halogen anions introduce Li vacancies does not account for the several-orders-of-magnitude difference … which should be further explored from the atomic occupancy."*)
 
+> 🔴🔴 **그런데 그 10⁻⁶ 이 자기 SI 와 220배 어긋난다.**
+> **본문 p832: Li₆PS₅I ≈ 10⁻⁶ S cm⁻¹** ↔ **`Table S1`(SI-ref 18, Rao & Adams 2011): Li₆PS₅I = 2.2×10⁻⁴ S cm⁻¹, Ea 0.26 eV.**
+> 같은 논문 안에서 **같은 물질의 σ 가 220× 차이**나고, 하필 **argyrodite 절의 핵심 논증
+> ("several-orders-of-magnitude difference")이 그 10⁻⁶ 위에 서 있다.**
+> (본문의 "Cl·Br 10⁻²–10⁻³" 도 자기 표의 Li₆PS₅Cl 7.4×10⁻⁴ 를 벗어난다.)
+> ⇒ **"Li₆PS₅I 는 10⁻⁶ 이라 수 자릿수 느리다" 를 이 리뷰로 인용하면 안 된다.**
+> 안전한 서술은 **`Table S1` 기준 "Cl/Br 대비 I 는 한 자릿수 이상 낮다"**(2.2×10⁻⁴ vs 1.9–6.8×10⁻³)까지다.
+> ✅ 참고: 우리 `deklerk2016` digest 는 이 차이의 **기전**(all-4a → inter-cage 0)을 갖고 있으므로,
+> **기전은 de Klerk 로, 값은 원 실험 논문으로** 나눠 인용하면 이 함정을 피한다.
+
 ### 7c. 자리 분포가 점프 종류를 켜고 끈다 (★ 우리 disorder ensemble 의 문헌 근거)
+
+리뷰는 먼저 점프를 3종으로 정의한다 (`Fig. 4d`) — **doublet(48h–24g–48h) · intra-cage(48h–48h) · inter-cage(48h–48h)**,
+그리고 *"this jump process(inter-cage) has been revealed to dominate the macroscopic long-range ion transport"* 라고
+**율속을 inter-cage 로 지목**한다(본문-refs 132–134). 그 다음에:
 
 리뷰 본문 (p834, 본문-ref **135 = de Klerk 2016** 인용):
 
@@ -540,6 +555,12 @@ SI 는 6쪽이고 내용물은 **`Table S1` 하나뿐**이다. 그런데 그 하
     *Batteries & Supercaps* 6, e202200553 (2023)** ⇒ 획득 대상.
 12. **`Fig. 4b` 범례의 `S/X (4a)` / `X/S (4d)` 순서**는 "다수/소수" 로 읽어야 앞뒤가 맞는데,
     **본문이 그 규약을 설명하지 않는다.** 원점 선택(4c vs 4d)을 아는 독자만 해독할 수 있다.
+13. 🔴🔴 **본문과 자기 SI 가 220배 어긋난다 (가장 심각한 결함).**
+    **본문 p832 "Li₆PS₅I is only about 10⁻⁶ S cm⁻¹"** ↔ **`Table S1` SI-18 "Li₆PS₅I 2.2×10⁻⁴ S cm⁻¹"**.
+    본문의 "Cl·Br = 10⁻²–10⁻³" 도 자기 표의 Li₆PS₅Cl 7.4×10⁻⁴ 를 벗어난다.
+    **argyrodite 절 전체의 출발 논증("several-orders-of-magnitude difference")이 이 10⁻⁶ 위에 서 있으므로**,
+    결함이 주변부가 아니라 **핵심 주장에 걸린다.** ⇒ 이 리뷰에서 **Li₆PS₅X 의 σ 대비를 인용할 때는
+    반드시 `Table S1` 값을 쓰고 본문 서술은 버린다.**
 
 ---
 
@@ -571,6 +592,10 @@ bbox 는 **캡션 x 범위가 아니라 페이지 본문폭**을 기본값으로
 | **4** | *"과잉 Cl 의 다수는 격자가 아니라 입계 LiCl 나노쉘로 간다"* — **우리 모델 한계 선언용** | p836 | **Zeng D. et al., *Nat. Commun.* 13, 1909 (2022)** (본문-ref 185, OA) | ❌ 확보 필요 |
 | **5** | *"희토류 HSE 연구는 초기 단계"* — **ndo_lpscl16 의 gap 문장** | p838 | **리뷰 자신을 인용하면 된다** (He 2023, Nat. Rev. Chem. 7, 826) | ✅ 이 파일 |
 | 보 | argyrodite 할로겐-rich 전용 리뷰 | 본문-ref 18 | **Peng, Yu, Cheng & Xie, *Batteries & Supercaps* 6, e202200553 (2023)** | ❌ 확보 권장 |
+
+> ★ **보너스 — Ea 만 보고 판단하지 말라는 근거**: 이중할로겐 도식(`Fig. 5b`)이 **분극률↑ → Ea↓(이득)과
+> Arrhenius 전인자 σ₀↓(손해)를 동시에** 그려 놓았고, 무질서↓ 도 "adverse effect" 로 빨갛게 표시했다.
+> 우리가 Arrhenius 를 보고할 때 **Ea 와 σ₀ 를 분리해 말해야 하는 이유**를 리뷰 그림이 직접 준다.
 
 > ⚠ **위 1–4 는 우리가 아직 원문을 안 봤다.** He 2023 을 근거로 인용하면 **2차 인용**이 된다.
 > 원고에 넣기 전에 반드시 로컬 PDF 로 확인한다 (2026-07 Kim/Cui 교훈).

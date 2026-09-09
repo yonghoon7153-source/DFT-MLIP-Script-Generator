@@ -145,10 +145,69 @@ _MKEY_RE = {gid: re.compile("|".join(rf"\b{re.escape(k.strip())}\b" for k in key
             for gid, keys in METHOD_KEYS.items()}
 
 
-def scan_methods(text):
-    """⚠ 단어경계 필수 — `elf` 를 부분일치로 찾으면 'itself' 가 걸린다(실측)."""
+#: ⛔⛔ 부정 표지 — 이 낱말이 낱말 근처에 있으면 그 등장은 **"안 했다"** 는 뜻이다.
+#:   실측 사고 (2026-09-09, ren2026 digest): digest 가 *"Bader·COHP 0건"*, *"ESW 0회"*,
+#:   *"MLIP 을 하나도 안 한다"* 라고 **없다고 쓴 문장**을 이 스캐너가 키워드로 긁어가
+#:   `methods: bader, cohp, elf, esw, bvse, mlip …` 을 달았다. 그 결과 웹앱 Glossary 의
+#:   Bader/COHP/ELF 페이지에 **그 기법을 쓴 적 없는 논문이 링크됐다.**
+#:   ⚠ **비판적으로 쓴 digest 일수록 더 오염된다** — 없는 것을 꼼꼼히 적을수록 태그가 는다.
+_NEG_HINT = re.compile(
+    r"(?:0\s*(?:건|회|개|장|편|줄)|없다|없음|없고|없는|안\s*했|안\s*한다|안\s*쓴|"
+    r"미시행|미실시|미보고|미수행|하지\s*않|못\s*한다|못\s*했|⛔|"
+    r"\bno\b|\bnot\b|\bnone\b|\bzero\b|\babsent\b|\bwithout\b)")
+#: 부정을 찾는 범위의 **경계**. 글자수 창이 아니라 **문장**이다.
+#:   ⚠ 처음에는 ±N 자 창으로 짰는데 **결과가 창에 3배 민감했다** (실측 2026-09-09,
+#:     litdb 246편: 창 20 → 제거 89태그 · 40 → 168 · 60 → 229 · 80 → 270).
+#:     그러면 "몇 자로 볼까" 가 답을 정하는 임의 손잡이가 된다. 경계는 문장이어야 한다.
+_SENT_SPLIT = re.compile(r"(?:\n|(?<=[.!?。])\s|(?<=다)\s{2,}|(?<=다\.)\s)")
+#: 아무리 길어도 이만큼은 안 넘는다 (표·목록에서 한 '문장' 이 통째로 길어지는 것 대비)
+_SENT_CAP = 300
+
+
+def _clauses(low: str):
+    """(시작offset, 문장) 목록. 문장이 너무 길면 `_SENT_CAP` 로 잘라 준다."""
+    out, pos = [], 0
+    for piece in _SENT_SPLIT.split(low):
+        if piece is None:
+            continue
+        i = low.find(piece, pos) if piece else pos
+        if i < 0:
+            i = pos
+        for k in range(0, max(1, len(piece)), _SENT_CAP):
+            out.append((i + k, piece[k:k + _SENT_CAP]))
+        pos = i + len(piece)
+    return out
+
+
+def scan_methods(text, keep_negated: bool = False):
+    """본문에서 **실제로 쓴** 기법만 고른다 → `{gid}`.
+
+    ⚠ 단어경계 필수 — `elf` 를 부분일치로 찾으면 'itself' 가 걸린다(실측).
+    ⛔ 그리고 **부정문을 읽는다** — 낱말이 든 **문장 안에** 부정 표지가 있으면 그 등장은
+      세지 않는다. 부정 아닌 등장이 **하나라도** 있어야 태그가 붙는다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 문장 구조를 이해하지 않는다. 한 문장이 섞여 있으면 — *"NEB 로 장벽을 냈고
+        COHP 는 미시행"* — **둘 다 끊는다.** 즉 혼합 문장에서는 **과소**로 틀린다.
+        과대(안 한 기법을 달기)보다 과소가 낫다고 보고 그쪽으로 틀리게 했다.
+      · 표·코드블록·인용문을 구분하지 않는다.
+      · **이 판정으로 기존 태그를 자동 삭제하지 않는다** — `--audit_negation` 이
+        목록만 낸다. 휴리스틱으로 229개를 조용히 지우는 것은 이 도구가 고치려는
+        결함(기계가 임의로 정하고 사람이 안 본다)과 같은 부류다.
+    """
     low = text.lower()
-    return {gid for gid, rx in _MKEY_RE.items() if rx.search(low)}
+    out = set()
+    for gid, rx in _MKEY_RE.items():
+        hit = False
+        for off, sent in _clauses(low):
+            if rx.search(sent) and not _NEG_HINT.search(sent):
+                hit = True
+                break
+        if hit:
+            out.add(gid)
+        elif keep_negated and rx.search(low):
+            out.add(gid)                      # 진단용 — 종전(부정 무시) 동작
+    return out
 
 
 def existing_tags(head_lines):
@@ -178,6 +237,52 @@ def insert_after_title(lines, block):
     return out + lines[j:]
 
 
+def _selftest_negation() -> int:
+    """부정문 판정 자체시험 — **음성 경로 포함**. 양성만 있는 selftest 는 아무것도 보증 못 한다."""
+    cases = [
+        ("Bader 전하 분석을 수행했다", {"bader"}, "양성"),
+        ("Bader·COHP 0건", set(), "⛔음성: 0건"),
+        ("이 논문은 MLIP 을 하나도 안 한다", set(), "⛔음성: 안 한다"),
+        ("ESW·gap·탄성 전부 0", set(), "⛔음성: 전부 0"),
+        ("COHP 를 계산하지 않았다", set(), "⛔음성: 하지 않"),
+        ("no Bader analysis was performed", set(), "⛔음성: no"),
+        ("Bader 전하를 냈다.\nCOHP 는 0건이다", {"bader"}, "문장 분리 — 양성만 남는다"),
+        ("COHP 는 0건이다.\nBader 전하를 냈다", {"bader"}, "순서를 바꿔도 같다"),
+    ]
+    ok = True
+    for text, want, 이름 in cases:
+        got = scan_methods(text)
+        good = got == want
+        ok &= good
+        print("  %s %-26s %-34r → %s" % ("✅" if good else "⛔", 이름, text[:32],
+                                         sorted(got) or "없음"))
+    print("selftest PASS" if ok else "selftest FAIL")
+    return 0 if ok else 1
+
+
+def _audit_negation() -> int:
+    """⛔ **부정문만으로 붙은** methods 태그를 목록으로 낸다. 파일은 안 고친다.
+
+    자동 삭제하지 않는 이유: 이건 휴리스틱이고, 휴리스틱으로 수백 개를 조용히 지우는 것은
+    이 도구가 고치려는 결함(기계가 임의로 정하고 사람이 안 본다)과 **같은 부류**다.
+    """
+    n_f = n_t = 0
+    for p in sorted(PAPERS.glob("*.md")):
+        if p.stem.startswith("_") or p.name == "INDEX.md":
+            continue
+        t = p.read_text(encoding="utf-8", errors="ignore")
+        diff = sorted(scan_methods(t, keep_negated=True) - scan_methods(t))
+        if not diff:
+            continue
+        n_f += 1
+        n_t += len(diff)
+        print("  %-58s %s" % (p.name[:58], ", ".join(diff)))
+    print("\n⛔ digest %d편에 부정문만으로 붙은 태그 %d개 — **사람이 보고 지운다**"
+          % (n_f, n_t))
+    print("   (웹앱 Glossary 가 그 기법 페이지에 이 논문들을 잘못 링크한다)")
+    return 1 if n_t else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="파일에 실제로 기록")
@@ -187,7 +292,15 @@ def main():
     ap.add_argument("--max-elements", type=int, default=18,
                     help="한 편에 붙일 원소 상한 (넘으면 빈도 상위만) ")
     ap.add_argument("-v", "--verbose", metavar="ID", help="한 편의 근거를 자세히")
+    ap.add_argument("--audit_negation", action="store_true",
+                    help="⛔ 부정문만으로 붙은 methods 태그 목록 (파일은 안 고친다)")
+    ap.add_argument("--selftest", action="store_true",
+                    help="부정문 판정 자체시험 (음성 경로 포함)")
     a = ap.parse_args()
+    if a.selftest:
+        return _selftest_negation()
+    if a.audit_negation:
+        return _audit_negation()
     if not a.apply and not a.dry_run and not a.verbose:
         a.dry_run = True
 
