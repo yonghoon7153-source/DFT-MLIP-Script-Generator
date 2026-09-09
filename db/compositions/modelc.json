@@ -21,13 +21,13 @@
     "location": "KISTI GPU 0",
     "status": "completed",
     "results": {
-      "band_gap_eV": 1.65,
+      "band_gap_eV_DOS_THRESHOLD_NON_CITABLE": "1.65  [⛔ **인용 금지 — DOS-threshold 판독값이다.** CLAUDE.md 데이터 규율: 밴드갭은 fixed-occupations nscf 의 VBM/CBM 고유값만 인정하고 DOS-threshold 판독은 금지다(~0.3 eV 과소). canonical = modelc 2.099 eV (db/properties/canonical_registry.json) — 이 값 1.65 는 canonical 보다 0.449 eV 낮다. 2026-09-09 전수조사에서 발견 — 같은 파일 안에 `_DEPRECATED` 주석이 이미 있었는데도 **살아 있는 키가 그대로 값을 들고 있었다**. 주석은 결속이 아니다: 값이 발췌될 때 따라가지 않는다.]",
       "_DEPRECATED_band_gap_eV": "canonical = fixed-occ eigenvalue gap (comp1 2.066 / modelc 2.099). CLAUDE.md: DOS-threshold 판독 금지.",
       "DOS": "done",
       "PDOS": "done"
     }
   },
-  "band_gap_eV": 1.65,
+  "band_gap_eV_DOS_THRESHOLD_NON_CITABLE": "1.65  [⛔ **인용 금지 — DOS-threshold 판독값이다.** CLAUDE.md 데이터 규율: 밴드갭은 fixed-occupations nscf 의 VBM/CBM 고유값만 인정하고 DOS-threshold 판독은 금지다(~0.3 eV 과소). canonical = modelc 2.099 eV (db/properties/canonical_registry.json) — 이 값 1.65 는 canonical 보다 0.449 eV 낮다. 2026-09-09 전수조사에서 발견 — 같은 파일 안에 `_DEPRECATED` 주석이 이미 있었는데도 **살아 있는 키가 그대로 값을 들고 있었다**. 주석은 결속이 아니다: 값이 발췌될 때 따라가지 않는다.]",
   "_DEPRECATED": "canonical 2.099 (eigenvalue) 사용.",
   "pdos_v2_retry": {
     "status": "DONE 2026-04-30 (after K=12x12x6 GPU bug fix with K=6x6x3 + comp1 v2 working pattern)",

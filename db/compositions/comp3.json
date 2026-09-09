@@ -23,6 +23,7 @@
     "pipeline": "v1"
   },
   "band_gap_eV": 2.1,
+  "⚠_band_gap_eV_출처미확인": "⚠ **출처 미확인 (2026-09-09).** 이 값이 fixed-occupations nscf 고유값인지 DOS-threshold 판독인지 이 파일에도 db 어디에도 기록이 없다. 같은 계열의 comp1·modelc 는 **DOS-threshold 였고** 둘 다 canonical 보다 0.2–0.45 eV 낮았다 — 그래서 이 값도 의심 대상이지만, **증거가 없으므로 판정하지 않는다.** CLAUDE.md canonical 목록(comp1 2.066 / modelc 2.099 / +B2O3 1.9671 / LPSOCl 2.2309)에 이 계는 **없다** = 대체할 정본값도 없다. 인용 전에 원 계산의 occupations 설정을 확인할 것.",
   "vbm_character": "S 3p + Br 4p",
   "cbm_character": "Li 2s, P 3s",
   "elastic_dft_0K_GPa": {

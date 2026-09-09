@@ -36,11 +36,7 @@
     "pipeline": "v2",
     "notes": "Li annealing champion #0. DFT 11pts DONE. v1(26.2) vs v2(26.5) = +0.3 GPa. Li6 insensitive to Li ordering (no vacancy)."
   },
-  "band_gap_eV": {
-    "v1": 2.28,
-    "v2": 2.25,
-    "v2_notes": "DOS smearing=mv/0.005, thresh=1.0. v1≈v2 within 0.03 eV."
-  },
+  "band_gap_eV_DOS_THRESHOLD_NON_CITABLE": "{\"v1\": 2.28, \"v2\": 2.25, \"v2_notes\": \"DOS smearing=mv/0.005, thresh=1.0. v1≈v2 within 0.03 eV.\"}  [⛔ **인용 금지 — DOS-threshold 판독값이다.** CLAUDE.md 데이터 규율: 밴드갭은 fixed-occupations nscf 의 VBM/CBM 고유값만 인정하고 DOS-threshold 판독은 금지다(~0.3 eV 과소). canonical = comp1 2.066 eV (db/properties/canonical_registry.json). 2026-09-09 전수조사에서 발견 — 같은 파일 안에 `_DEPRECATED` 주석이 이미 있었는데도 **살아 있는 키가 그대로 값을 들고 있었다**. 주석은 결속이 아니다: 값이 발췌될 때 따라가지 않는다.]",
   "_DEPRECATED_band_gap_eV": "v1 2.28 / v2 2.25 는 DOS-threshold 판독값이라 폐기. canonical = fixed-occ eigenvalue gap (comp1 2.066 / modelc 2.099). CLAUDE.md: DOS-threshold 판독 금지.",
   "vbm_character": "S 3p",
   "cbm_character": "Li 2s, P 3s",

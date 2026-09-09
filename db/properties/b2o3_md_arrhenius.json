@@ -6,13 +6,9 @@
    50
   ],
   "n_Li_cm3": 2.3806298818304583e+22,
-  "D_per_T_cm2_s": {
-   "600": 9.174e-06,
-   "800": 3.009e-05,
-   "1000": 5.067e-05
-  },
-  "Ea_eV": 0.2234,
-  "D0_cm2_s": 0.0007112,
+  "D_per_T_cm2_s_NON_CITABLE_2026_09_09": "OrderedDict([('600', 9.174e-06), ('800', 3.009e-05), ('1000', 5.067e-05)])  [⛔ **인용 금지** — 2026-08-25 축 마감(2026-09-07 비준 D-2026-09-07-b2o3-md-closure-retrospective). 마감 카드 `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` 금지_서술: b2o3 의 D·Ea·σ·구간 Ea 중 **어느 것도** 물질 값으로 인용 금지, b2o3 vs modelc 수송 비교·순위·기전 주장 금지. 원인은 골격 게이트 — 200 ps 뒤의 셀이 재려던 그 결정이 아니다. **대체값은 없다**(이 축에서 인용 가능한 수는 0개). 값은 계보를 위해 남긴다.]",
+  "Ea_eV_NON_CITABLE_2026_09_09": "0.2234  [⛔ **인용 금지** — 2026-08-25 축 마감(2026-09-07 비준 D-2026-09-07-b2o3-md-closure-retrospective). 마감 카드 `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` 금지_서술: b2o3 의 D·Ea·σ·구간 Ea 중 **어느 것도** 물질 값으로 인용 금지, b2o3 vs modelc 수송 비교·순위·기전 주장 금지. 원인은 골격 게이트 — 200 ps 뒤의 셀이 재려던 그 결정이 아니다. **대체값은 없다**(이 축에서 인용 가능한 수는 0개). 값은 계보를 위해 남긴다.]",
+  "D0_cm2_s_NON_CITABLE_2026_09_09": "0.0007112  [⛔ **인용 금지** — 2026-08-25 축 마감(2026-09-07 비준 D-2026-09-07-b2o3-md-closure-retrospective). 마감 카드 `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` 금지_서술: b2o3 의 D·Ea·σ·구간 Ea 중 **어느 것도** 물질 값으로 인용 금지, b2o3 vs modelc 수송 비교·순위·기전 주장 금지. 원인은 골격 게이트 — 200 ps 뒤의 셀이 재려던 그 결정이 아니다. **대체값은 없다**(이 축에서 인용 가능한 수는 0개). 값은 계보를 위해 남긴다.]",
   "D_300K_cm2_s_RETRACTED_2026_08_24": "1.2547e-07  [⛔ 철회 — 철회된 전구간 단일적합(Ea 0.199/0.2234)에서 나온 값이다. 굽은 곡선을 평균낸 Ea 로 300 K 를 외삽하면 저온을 실제보다 쉽게 본다.]",
   "D_273K_cm2_s_RETRACTED_2026_08_24": "5.337e-08  [⛔ 철회 — 철회된 전구간 단일적합(Ea 0.199/0.2234)에서 나온 값이다. 굽은 곡선을 평균낸 Ea 로 300 K 를 외삽하면 저온을 실제보다 쉽게 본다.]",
   "sigma_300K_mS_cm_RETRACTED_2026_08_24": "18.51  [⛔ 철회 — 철회된 전구간 단일적합(Ea 0.199/0.2234)에서 나온 값이다. 굽은 곡선을 평균낸 Ea 로 300 K 를 외삽하면 저온을 실제보다 쉽게 본다.]",
@@ -21,7 +17,7 @@
   "Ea_eV_PAPER_RETRACTED_2026_08_23": "0.199 +/- 0.034  [⛔ 2026-08-23 철회 — 600–1000 K 를 하나의 Ea 로 기술할 수 없다 (굽음 145 meV). 원래 라벨: fully symmetric 3-seed x 3-T reseed, 2026-07-07 (b2o3_vs_lpscl16_conductivity.csv). Supersedes the 0.206 (+0.038/-0.030) 600K-only-error-bar figure and the single-seed 0.2234 -> 인용 금지]",
   "Ea_eV_segment_600_800_NON_CITABLE_2026_09_07": "0.222 eV [⛔ **인용 금지**. 2026-08-25 축 마감 · 2026-09-07 비준 — 마감 카드 금지_서술[0] 이 '0.222 eV 포함' 이라고 명시한다. 종전 키 이름은 `Ea_eV_USABLE_segment_600_800` 이었고 그 'USABLE' 은 마감 전 표기다. 600→800 K 구간만이고 800→1000 은 0.077 eV 로 갈린다 — 단일 직선 금지. 근거: ⛔_RETRACTED_2026_08_23 · kb/results/b2o3_arrhenius_curvature_2026_08_23.md]",
   "vs_modelc_SUPERSEDED": "Ea identical (modelc 0.2235); sigma 1.33x higher, D0-driven (1.24x). See b2o3_vs_modelc_md.json.",
-  "vs_modelc": "Ea EQUAL (b2o3 0.199+/-0.034 vs LPSCl1.6 0.197+/-0.032; dEa +0.002+/-0.047). sigma EQUIVALENT (per-T ratio 1.08+/-0.18 / 0.82+/-0.15 / 1.15+/-0.12). The earlier 'sigma 1.33x higher, D0-driven 1.24x' was single-seed noise, RETRACTED 2026-07-09. See b2o3_vs_lpscl16_conductivity.csv (FINAL).",
+  "vs_modelc_NON_CITABLE_2026_09_09": "Ea EQUAL (b2o3 0.199+/-0.034 vs LPSCl1.6 0.197+/-0.032; dEa +0.002+/-0.047). sigma EQUIVALENT (per-T ratio 1.08+/-0.18 / 0.82+/-0.15 / 1.15+/-0.12). The earlier 'sigma 1.33x higher, D0-driven 1.24x' was single-seed noise, RETRACTED 2026-07-09. See b2o3_vs_lpscl16_conductivity.csv (FINAL).  [⛔ **인용 금지** — 2026-08-25 축 마감(2026-09-07 비준 D-2026-09-07-b2o3-md-closure-retrospective). 마감 카드 `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` 금지_서술: b2o3 의 D·Ea·σ·구간 Ea 중 **어느 것도** 물질 값으로 인용 금지, b2o3 vs modelc 수송 비교·순위·기전 주장 금지. 원인은 골격 게이트 — 200 ps 뒤의 셀이 재려던 그 결정이 아니다. **대체값은 없다**(이 축에서 인용 가능한 수는 0개). 값은 계보를 위해 남긴다.]",
   "method_note_2026_08_11": "코드 실측: 캠페인 전 지점이 자유 절편 OLS 기울기다(disorder_ensemble_diffusion.py:168 포함 7곳). 옛 문구 'MSD = 6 D t' 는 원점 통과 강제로 오독될 수 있어 정정 — 값은 불변.",
   "segment_extrapolation_2026_08_24": {
    "what": "저온 구간(600→800 K)만으로 300 K 외삽. 시드마다 적합하고 시드 분산을 전파했다 (평균 D 를 먼저 내고 적합하면 분산이 사라진다).",
@@ -37,7 +33,8 @@
    "why_it_matters": "철회된 18.51 mS/cm 은 이 범위 **안에** 있다. 값이 틀렸다기보다 **의미 없이 정밀했다** — 3시드로도 자릿수가 안 잡힌다. CLAUDE.md 의 \"σ 절대값 인용 금지\" 에 붙는 첫 정량 근거다.",
    "outlier_note": "seed2 만 구간 Ea 0.1543 (나머지 0.2552 · 0.2629). 그 시드의 600 K D 가 1.3043e-05 로 셋 중 가장 크다 — 600 K 가 여전히 지배적 잡음원이라는 leave-one-out 결과와 같은 방향.",
    "assumption_not_verified": "600 K 아래 실측이 없다. Ea 0.224 가 300 K 까지 이어진다는 것은 가정이다. supplementary 400/500 K 는 MSD 창이 5-40 이라 2-50 으로 재추출해야 붙일 수 있다."
-  }
+  },
+  "⛔_이_블록_이름은_거짓이다": "`FINAL_for_paper` 라는 이름과 달리 **이 블록에 원고로 나갈 수 있는 수는 없다.** 2026-08-25 축 마감(비준 D-2026-09-07-b2o3-md-closure-retrospective) 이후 D·Ea·σ·구간 Ea 전부 인용 금지다. 블록 이름을 안 바꾸는 이유는 `tools/modelc_v3/nernst_einstein_300K.py:93` 이 `FINAL_for_paper.n_Li_cm3` 을 읽기 때문이다 — 그 키는 셀의 Li 수밀도이지 주장이 아니라 그대로 둔다."
  },
  "supplementary_lowT_400_500": {
   "note": "low-T MD for curvature check. D extracted at the MD script's own window (5-40 ps); NOT yet re-extracted at 2-50 ps, so do NOT mix into the FINAL 3-pt fit above. 400 K D has the largest statistical noise (slow diffusion, marginal MSD diffusive regime).",
@@ -140,7 +137,7 @@
    "msd_window_saturation": "창 2-50 / 10-50 / 25-100 에서 m = 2.678 / 2.691 / 2.784 (+4 %) — 포화면 떨어져야 한다. c 는 +3.41 → -0.72 로 줄어든다(sub-diffusion 이면 커져야 한다).",
    "structural_change_at_1000K": "궤적 첫/끝 프레임 P 배위수 8/8 CN=4, 시작=끝 동일. PS4 x6 · PS3O x1 · PS2O2 x1 — 해리 없음."
   },
-  "usable": "600→800 구간 Ea = 0.222 eV (단일시드 옛 값 0.2234 와 거의 같다 — 저온 구간은 처음부터 맞았다)",
+  "usable_SUPERSEDED_2026_09_07": "600→800 구간 Ea = 0.222 eV (단일시드 옛 값 0.2234 와 거의 같다 — 저온 구간은 처음부터 맞았다)  [⛔ 이 문장이 권하던 0.222 eV 는 마감 카드 금지_서술[0] 이 ‘0.222 eV 포함’ 이라고 **이름을 대서** 금지한 값이다. 마감(2026-08-25, 비준 D-2026-09-07-b2o3-md-closure-retrospective) 이 이 권고를 무효화했다.]",
   "open": "왜 포화하는지 미규명 · 1000 K 위 미측정 · sigma(300 K) 재계산 필요",
   "card": "kb/results/b2o3_arrhenius_curvature_2026_08_23.md",
   "what_missed_in_first_pass": "초판 철회 블록은 0.206 과 0.1732 만 적었고 Ea_eV_PAPER = 0.199 를 빠뜨렸다. 그래서 같은 파일이 한쪽에서 \"단일 Ea 불가\" 라고 하면서 다른 쪽에서 \"[FINAL ... quote this] 0.199\" 라고 말하는 자기모순 상태로 하루 갔다. 철회는 **같은 종류의 값 전부**에 걸어야 한다 (2026-08-24 발견).",
@@ -148,7 +145,13 @@
    "tools/ionic/md_temperature_feasibility.py:47  B2O3-doped Ea=0.199",
    "tools/ionic/hops_per_ion.py:40               B2O3@LPSCl1.6 Ea=0.199",
    "⚠ 둘 다 **저온(300–500 K) 외삽**에 쓴다. 굽은 아레니우스를 평균낸 0.199 는 저온을 실제보다 쉽게 보이게 한다 — 저온 구간 값 0.222 를 써야 한다. 미수정."
-  ]
+  ],
+  "usable_now": {
+   "none": true,
+   "why": "이 축에서 인용 가능한 수는 **0개**다 (마감 카드 `확정값.⛔`). ‘대신 이걸 써라’ 자리가 비어 있으면 사람이 아무 값이나 채운다 — 실제로 죽은 키를 3주간 ‘이것만 인용하라’ 고 가리킨 사고가 있었다(Codex BI P0-1). 그래서 **없음을 명시**한다 (레지스트리 `instead_kind: sentinel_none` 과 같은 판정).",
+   "decision": "D-2026-09-07-b2o3-md-closure-retrospective",
+   "card": "db/properties/b2o3_md_closed_retrospective_2026_08_25.json"
+  }
  },
  "highT_1200K_2026_08_25": {
   "what": "1200 K 3-시드 추가 (kgy, highT_reseed_1200). 굽음이 **시드 무관하게 재현**됨을 확인.",
