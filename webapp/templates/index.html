@@ -33,7 +33,8 @@
 {% for r in recent["items"] %}
 <a class="card find-card" href="#{{ r.aid }}" style="text-decoration:none;display:block">
   <div class="fc-t">{{ r.t|mdlite }}</div>
-  <div class="fc-n">{{ r.d }} · {{ r.age_days }}일 전 · {{ r.axis_label }} 축 → 카드로</div>
+  <div class="fc-n">{{ r.d }} · {{ r.age_days }}일 전 · <span class="badge"
+      style="color:#475569;background:#f1f5f9;font-weight:400">{{ r.axis_label }}</span> → 카드로</div>
 </a>
 {% endfor %}
 </div>
