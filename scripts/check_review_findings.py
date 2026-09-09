@@ -38,6 +38,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -175,7 +176,23 @@ BAN_ALLOW_ALWAYS = ('docs/reviews/claims.json',
 BAN_NO_FILE_EXEMPT = ('docs/**/*.js', 'scripts/seminar_deck/*.js', 'webapp/*.py')
 #: 예외 — **fail-closed 로 잠긴 이력 재현기**.  그냥 실행하면 거부되므로(환경변수 명시 필요)
 #:   철회값이 조용히 재생산될 경로가 없고, 값은 *발표된 그대로* 보존돼야 한다.
-BAN_FROZEN_REPRODUCERS = ('scripts/seminar_deck/build.js',)
+#: ⚠⚠ 2026-09-09 (Codex Q1-1 · 원장 AUD-06) — **경로만 적으면 가드를 빼도 면제가 남는다.**
+#:   옛 회귀 22j 는 *파일이 존재하는가* 만 봤다.  같은 경로·같은 배너에 **가드만 뺀** 픽스처가
+#:   `ban_problems=0` 이고 기본 실행이 `exit=0` 으로 철회값을 찍는다 (아래 22k 가 그 반례다).
+#:   ⇒ 두 겹으로 못박는다: ⓐ **내용 sha256** — 한 바이트라도 바뀌면 면제가 스스로 풀린다
+#:   (재-동결은 가드를 다시 확인한 사람이 한다) ⓑ **거부 행동** — 기본 실행이 등록된
+#:   종료코드·사유로 **산출물 생성 전에** 멈추는지를 회귀가 실제로 돌려 본다 (22l).
+BAN_FROZEN_REPRODUCERS = {
+    'scripts/seminar_deck/build.js': {
+        #  동결 시점 내용.  갱신하려면 가드가 여전히 fail-closed 인지 **먼저** 확인할 것.
+        'sha256': '5f486dc89c3cfaa1b50bb5e8784298678e4d30a067615b5978029a1617811a3a',
+        'runner': 'node',
+        #  등록된 거부 계약 — 회귀가 이 셋을 실측으로 확인한다.
+        'refuse_exit': 1,
+        'refuse_mark': '거부 —',
+        'unlock_env': 'SEMINAR_DECK_HISTORICAL',
+    },
+}
 
 #: 파일 머리 이 줄 수 안에 배너가 있으면 그 파일 전체를 이력 문서로 본다.
 BAN_BANNER_HEAD_LINES = 12
@@ -364,6 +381,61 @@ def _os_norm(base_dir, target):
     return os.path.normpath(os.path.join(base_dir, target)).replace(os.sep, '/')
 
 
+def frozen_reproducer_ok(repo_root, rel):
+    """`rel` 이 동결 재현기이고 **내용이 동결 시점 그대로**인가.
+
+    경로만 보던 옛 규칙(AUD-06)은 가드를 빼도 면제를 남겼다.  해시가 어긋나면 면제를
+    주지 않는다 — 그러면 그 파일의 철회값이 다시 스윕에 걸려 사람이 재-동결하게 된다.
+    """
+    spec = BAN_FROZEN_REPRODUCERS.get(rel)
+    if not spec:
+        return False
+    try:
+        with open(os.path.join(repo_root, rel), 'rb') as fh:
+            got = hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return False
+    return got == spec.get('sha256')
+
+
+def frozen_reproducer_refuses(repo_root, rel):
+    """기본 실행이 **등록된 사유·종료코드로 산출물 생성 전에** 멈추는가.
+
+    → `(True|False|None, 사유)`.  `None` 은 러너가 없어 **확인 못 했다**는 뜻이고
+    통과가 아니다 (호출자가 그렇게 보고해야 한다).  잠금 환경변수는 지우고 돌린다.
+    """
+    import shutil as _sh
+    import tempfile as _tf
+    spec = BAN_FROZEN_REPRODUCERS.get(rel)
+    if not spec:
+        return False, f'{rel} 은 동결 재현기 목록에 없다'
+    exe = _sh.which(spec.get('runner') or '')
+    if not exe:
+        return None, f"러너 '{spec.get('runner')}' 가 없다 — 거부 **행동**은 확인 못 했다"
+    #  ⚠ 실측으로 잡은 함정 — 스크립트 경로를 **상대**로 넘기면 `cwd=td` 에서 못 찾고
+    #    node 가 자기 오류로 **exit 1** 을 낸다.  그 1 이 등록된 거부 코드와 우연히 같아
+    #    종료코드만 봤다면 *거부했다* 고 읽혔다.  ⇒ 절대경로로 풀고 실재를 먼저 확인한다.
+    target = os.path.abspath(os.path.join(repo_root, rel))
+    if not os.path.isfile(target):
+        return False, f'{rel} 이 {repo_root} 에 없다'
+    env = {k: v for k, v in os.environ.items() if k != spec.get('unlock_env')}
+    with _tf.TemporaryDirectory() as td:
+        try:
+            r = subprocess.run([exe, target], cwd=td, env=env,
+                               capture_output=True, text=True, timeout=180)
+        except (OSError, subprocess.SubprocessError) as e:      # pragma: no cover
+            return False, f'실행 자체가 실패했다: {e}'
+        left = sorted(os.listdir(td))
+        if r.returncode != spec.get('refuse_exit'):
+            return False, (f'종료코드가 {r.returncode} 다 (등록값 {spec.get("refuse_exit")}) '
+                           f'— 거부하지 않았다')
+        if (spec.get('refuse_mark') or '') not in (r.stderr or ''):
+            return False, '등록된 거부 사유가 stderr 에 없다'
+        if left:
+            return False, f'거부했는데 산출물이 생겼다: {left}'
+    return True, 'ok'
+
+
 def _has_banner(lines):
     """파일 전체 면제 여부.  **표지 + 원장 지목**을 둘 다 요구한다 (IJ-04)."""
     head = '\n'.join(lines[:BAN_BANNER_HEAD_LINES])
@@ -393,7 +465,7 @@ def ban_sweep(repo_root, claims_path=None, files=None):
         if lines is None:
             continue
         banner = _has_banner(lines)
-        if (banner and rel not in BAN_FROZEN_REPRODUCERS
+        if (banner and not frozen_reproducer_ok(repo_root, rel)
                 and any(_fn.fnmatch(rel, g) for g in BAN_NO_FILE_EXEMPT)):
             #  생성기·사용자출력: 배너는 파일을 면제하지 않는다 (줄-근처 표지만 인정).
             banner = False
@@ -860,10 +932,42 @@ def _selftest():
             _p13, _, _ = ban_sweep(_dr)
             ok('22i) 생성기도 줄-근처 철회 표지로는 통과한다 (설명할 자리를 남긴다)',
                not any('build.js' in x for x in _p13))
-            #  fail-closed 로 잠긴 이력 재현기는 예외 — 그냥 실행하면 거부되므로 산출물이
-            #  조용히 되살아날 경로가 없고, 값은 **발표된 그대로** 보존돼야 한다.
-            ok('22j) 이력 재현기 예외 목록이 실재 파일을 가리킨다',
-               all(os.path.exists(os.path.join(here, _r)) for _r in BAN_FROZEN_REPRODUCERS))
+            #  ⓖ ★★ **fail-closed 로 잠긴 이력 재현기**는 예외다 — 그냥 실행하면 거부되므로
+            #     산출물이 조용히 되살아날 경로가 없고, 값은 **발표된 그대로** 보존돼야 한다.
+            #     ⚠⚠ 2026-09-09 (Codex Q1-1 · AUD-06) — 옛 22j 는 **파일 존재만** 봤다.
+            #     그러면 **가드를 빼도 면제가 남는다**: 같은 경로·같은 배너에 가드만 없는
+            #     사본이 `ban_problems=0` 이고 기본 실행이 철회값을 찍는다.  아래 셋으로
+            #     바꾼다 — ⓐ 내용 해시가 면제의 조건 ⓑ 가드를 빼면 면제가 풀린다(반례)
+            #     ⓒ 거부 **행동** 자체를 실제로 돌려 확인한다.
+            _fr = tuple(BAN_FROZEN_REPRODUCERS)[0]
+            os.makedirs(os.path.join(_dr, os.path.dirname(_fr)), exist_ok=True)
+            _sh.copy(os.path.join(here, _fr), os.path.join(_dr, _fr))
+            _p14, _, _ = ban_sweep(_dr)
+            ok('22j) 동결 재현기는 **내용이 동결 해시와 같을 때만** 파일 면제를 받는다',
+               frozen_reproducer_ok(here, _fr) and not any(_fr in x for x in _p14))
+
+            with open(os.path.join(_dr, _fr), 'w', encoding='utf-8') as _f10:
+                _f10.write('// ⛔ HISTORICAL — docs/reviews/claims.json 참조\n'
+                           "rows.push(['ratio','%s']);\n" % _pat)
+            _p15, _, _ = ban_sweep(_dr)
+            ok('22k) ★★ 가드를 뺀 사본은 **면제가 스스로 풀린다** '
+               '(경로만 보던 옛 규칙은 이것을 통과시켰다)',
+               any(_fr in x and _pat in x for x in _p15))
+
+            #     ⓒ 행동 검사.  러너가 없으면 **통과로 세지 않는다** — 확인 못 한 것을
+            #        초록으로 적는 것이 이 리포가 반복해 당한 false-green 이다.
+            _b_ok, _b_why = frozen_reproducer_refuses(here, _fr)
+            if _b_ok is None:
+                print(f'  SKIP  22l) 거부 **행동** 미확인 — {_b_why} '
+                      f'(동결 해시는 그대로 내용을 못박고 있다)')
+            else:
+                ok('22l) ★ 기본 실행이 등록된 종료코드·사유로 **산출물 생성 전에** 멈춘다 '
+                   f'— {_b_why}', _b_ok)
+            #     음성 대조 — 재현기가 **없는** 트리에서 초록이 나오면 안 된다.  실측 함정:
+            #     경로를 못 찾은 node 도 **exit 1** 을 내는데 그것이 등록된 거부 코드와 같다.
+            ok('22m) 음성 대조 — 재현기가 없는 트리에서는 초록이 아니다 '
+               '(못 찾은 러너의 exit 1 이 등록된 거부 코드와 같다)',
+               frozen_reproducer_refuses(os.path.join(_dr, 'nowhere'), _fr)[0] is False)
 
     ok('21) ★ 리포 전체가 지금 깨끗하다 (누수 0)',
        ban_sweep(here, _claims)[0] == [])
