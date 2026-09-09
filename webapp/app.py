@@ -216,10 +216,14 @@ def _md_slugify(value, separator):
 
     python-markdown 기본 slugify 는 비-ASCII 를 통째로 버려서 우리 문서의 한국어
     제목이 전부 빈 id 가 된다(그래서 `/concept/dft#12-활성화-…` 딥링크가 죽었다).
-    `slugify_unicode` 와 같은 규칙 — 유니코드 정규화 후 단어문자만 남긴다.
+    `slugify_unicode` 와 같은 규칙 — 단어문자만 남기고 공백을 구분자로 바꾼다.
+
+    ⚠ **NFKD 를 쓰지 않는다.** 한글 음절이 자모로 분해되면 화면상 글자는 같은데
+      바이트가 달라져, 사람이 손으로 적은 링크(`#12-활성화-…`, 조합형)와 안 맞는다.
+      NFC 로 **모아서** 고정한다.
     """
     import unicodedata
-    v = unicodedata.normalize("NFKD", str(value))
+    v = unicodedata.normalize("NFC", str(value))
     v = re.sub(r"[^\w\s-]", "", v).strip().lower()
     return re.sub(r"[%s\s]+" % re.escape(separator), separator, v)
 
@@ -789,22 +793,58 @@ def todo():
                            subtitle="kb/open_items.md · 판정 대기 · PDF 확보 대기 · ML 후속 · 심포지엄 대응")
 
 
-@app.route("/kb/<path:rel>")
-def kb_doc(rel):
-    """kb 마크다운 읽기 (v3 묶음 G · 2026-09-09).
+def _kb_evidence_docs():
+    """결정 원장이 **이름 댄** kb 문서 목록 → [{path, ok, decisions:[id…]}].
+
+    ⛔ 못 하는 것: kb 를 색인하지 않는다. 원장(`record`·`card`)이 가리킨 것만 센다 —
+      "무슨 kb 문서가 있나" 가 아니라 "판정의 논거가 어디에 있나" 를 답하는 목록이다.
+    ⚠ 있는지 없는지를 **확인해서** 적는다. 원장이 가리키는데 파일이 없으면 그 자체가
+      발견이라 회색으로 남긴다(조용히 빼면 원장이 멀쩡해 보인다).
+    """
+    import canonical as _C
+    seen = {}
+    for did, d in _C.decisions().items():
+        for ref in (d.get("record"), d.get("card")):
+            head = str(ref or "").partition("#")[0]
+            if not head.startswith("kb/"):
+                continue
+            row = seen.setdefault(head, {"path": head,
+                                         "ok": D.safe_kb_doc(head) is not None,
+                                         "decisions": []})
+            if did not in row["decisions"]:
+                row["decisions"].append(did)
+    return sorted(seen.values(), key=lambda r: r["path"])
+
+
+@app.route("/kb")
+def kb_doc():
+    """kb 마크다운 읽기 (v3 묶음 G · 2026-09-09). `?path=kb/…md`
 
     왜 생겼나: 결정 원장의 근거 문서 14건이 `kb/…md` 라 화면에서 **회색 문자열**로
     끝났다. 정책 결정 7건은 근거가 전부 kb 카드라, 결정에서 논거로 가는 길이 하나도
     없었다. `/todo` 가 이미 kb md 를 doc.html 로 그리고 있으니 배선만 없었던 것이다.
 
+    ⚠ 왜 `/kb/<path>` 가 아니라 질의인자인가: 동적 라우트는 `test_webapp.py` 의
+      `DYNAMIC_FIXTURES` 대표인자 대장에 **등재돼야만** 검사에 든다. 그 파일은 이번
+      재편에서 아무도 고치지 않기로 한 파일이라(병행 편집 충돌 방지), 등재 없이 동적
+      라우트를 늘리면 그 시험이 "검사 밖 라우트" 로 즉시 실패한다. 예쁜 URL 을 위해
+      검사 구멍을 내지 않는다 — 대장을 고칠 수 있게 되면 한 줄로 바꿀 수 있다.
+
     ⛔ 이 라우트가 **못 하는 것**
       · 다운로드가 아니다. `.md` 본문을 렌더할 뿐이고 `/api/file` 허용 뿌리는 그대로다.
       · 문서가 맞는지·최신인지 판정하지 않는다. frontmatter 의 `updated`·`status` 를
-        배지로 올리되(F 의 doc_badges), **없으면 메우지 않는다**.
+        배지로 올리되(doc_badges), **없으면 메우지 않는다**.
       · kb 밖(tools/·litdb/)은 안 연다 — 없으면 404 다 (빈 화면이 아니라).
+      · 아무 kb 문서나 목록에 세우지 않는다. 인자 없이 오면 **결정 원장이 실제로 이름
+        댄 근거 문서**만 편다 (383개 kb 전체 색인이 아니다).
     """
-    # URL 규칙이 `kb/` 를 이미 먹었다 — 화이트리스트에는 **저장소 상대경로**를 준다.
-    full = rel if str(rel).startswith("kb/") else "kb/" + str(rel).lstrip("/")
+    from flask import request
+    rel = request.args.get("path", "").strip()
+    if not rel:
+        return render_template("kb_index.html", active="governance",
+                               docs=_kb_evidence_docs())
+    # URL 이 `kb/` 를 생략해도 받는다 — 화이트리스트에는 **저장소 상대경로**를 준다.
+    full = rel if rel.startswith("kb/") else "kb/" + rel.lstrip("/")
     p = D.safe_kb_doc(full)
     if p is None:
         abort(404)
