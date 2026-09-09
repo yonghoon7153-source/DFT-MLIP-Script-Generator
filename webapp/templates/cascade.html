@@ -1137,7 +1137,7 @@
   {% endfor %}
   </div>
   <div class="card">
-    <h3>⚗️ 조합 랭킹 <span class="muted" style="font-weight:400;font-size:.8rem">선택 테마 norm의 기하평균 · 전 {{ casc.themes.dopants|length }}개 도펀트 · 헤더 클릭 = 정렬</span></h3>
+    <h3>⚗️ 조합 랭킹 <span class="muted" style="font-weight:400;font-size:.8rem">선택 테마 norm의 기하평균 · 전 {{ gnum(none if casc.themes.diagnostic_gated else casc.themes.dopants|length) }}개 도펀트 · 헤더 클릭 = 정렬</span></h3>
     {% if casc.themes.diagnostic_gated %}
     <div class="callout cal-danger" style="font-size:.84rem">
       <b>🔒 acquisition 전용 — 기본 화면에서 내보내지 않는다</b><br>
@@ -1162,6 +1162,7 @@
       <h3 style="margin:0">상위 후보 정밀화 (champions) — EOS · 탄성 · anneal</h3>
       <input class="search" style="max-width:220px" placeholder="도펀트 검색…" oninput="filtRows('champ-tbl',this.value)">
     </div>
+    {% if casc.champions.archive_gated %}{{ archive_box('47종 champions 141행 — EOS·탄성·anneal 정밀화 표.', 'champ') }}{% endif %}
     <div class="tbl-scroll"><table class="data-table sortable" id="champ-tbl"><thead><tr>
       {% set cc = ['dopant','concentration','rerank_de_post_anneal','anneal_dV_pct','eos_B0_GPa','elastic_E_young_GPa','elastic_B_hill_GPa','elastic_G_hill_GPa','elastic_pugh_GoverB','combined_score'] %}
       {% for c in cc %}<th onclick="sortT(this,{{ loop.index0 }})" tabindex="0" role="button" onkeydown="_kbd(event)" aria-sort="none">{{ c.replace('elastic_','').replace('_GPa','').replace('rerank_','') }}</th>{% endfor %}
@@ -1195,7 +1196,8 @@
   </div>
   <div class="card">
     <h3>원자료 <span class="muted" style="font-weight:400;font-size:.8rem">위 두 열이 G4 입력 · 나머지는 참고 열</span></h3>
-    {{ gtable(casc.litransport, ['_dir','bvs_li_proxy_score','migration_volume_fraction','tier2_dopant_blocking_fraction','tier2_li_li_disorder_std','cation_site','anion_site']) }}
+    {% if casc.litransport.archive_gated %}{{ archive_box('47종 litransport 원자료 — BVSE 프록시·이동 부피분율 표.', 'ion') }}
+    {% else %}{{ gtable(casc.litransport, ['_dir','bvs_li_proxy_score','migration_volume_fraction','tier2_dopant_blocking_fraction','tier2_li_li_disorder_std','cation_site','anion_site']) }}{% endif %}
     <div class="muted" style="font-size:.74rem;margin-top:6px">⚠ 이 표는 47종판이다. 90종 전수는
       <b>🔁 90종 회수분</b> 탭의 <span class="mono">cascade_v23_litransport_v2.csv</span> 로 내려받을 것.</div>
   </div>
@@ -1225,7 +1227,8 @@
   {{ tabstate("unvalidated", "cascade_v23_synergy_pairs.csv (v1 휴리스틱) + codoping_ml_v2", "⛔ **explicit pair 라벨이 0개다** — 실제로 두 도펀트를 함께 넣고 계산한 셀이 하나도 없다. 전부 단일 도펀트 프록시에서 만든 **가설**이고 교호작용은 모델 외삽이다. 그리고 47종 풀 위의 1,081 pair 다 — 90종이면 C(90,2)=4,005 로 바뀐다.") }}
   <div class="card">
     <h3>공동도핑 시너지 — v1 휴리스틱 <span class="muted" style="font-weight:400;font-size:.8rem">단일도펀트 프록시 기반 가설 — 미검증</span></h3>
-    {{ gtable(casc.synergy, ['rank','pairA','pairB','synergy','joint_window_V','gain_vs_best_single','radius_match','avg_stab','tags']) }}
+    {% if casc.synergy.archive_gated %}{{ archive_box('47종 풀 위의 1,081 pair 휴리스틱 순위표 — explicit pair 라벨 0개.', 'syn') }}
+    {% else %}{{ gtable(casc.synergy, ['rank','pairA','pairB','synergy','joint_window_V','gain_vs_best_single','radius_match','avg_stab','tags']) }}{% endif %}
   </div>
   {% if casc.codoping_v2 %}
   <div class="card">
@@ -1565,6 +1568,8 @@ try{
 // ── 🎯 테마 조합 — 선택 테마 norm 기하평균 랭킹 + (정확히 2개) 산점도 ──
 var THEMES={{ (casc.themes.themes if casc.themes else {})|tojson }};
 var TDOP={{ (casc.themes.dopants if casc.themes else [])|tojson }};
+//: 빈 TDOP 가 "없다" 인지 "가려졌다" 인지 JS 가 구분할 수 있게 플래그를 같이 내린다.
+var THEME_GATED={{ ((casc.themes.diagnostic_gated if casc.themes else false)|default(false, true))|tojson }};
 var selThemes=[], _tsDrawn=false;
 function tgThemeSel(tid){
   var i=selThemes.indexOf(tid);
@@ -1626,7 +1631,12 @@ function renderCombine(){
       }).join('<br>')+'</p>';
   }
   if(!rows.length){
-    wrap.innerHTML='<p class="fig-note">선택한 축 조합에 데이터가 모두 있는 도펀트가 없다.</p>'+note;return;
+    // ⛔ 2026-09-09 — 게이트로 TDOP 가 비었을 때도 "데이터가 없다" 고 단정했다.
+    //   데이터는 있고 **이 응답에서 뺀 것**이다 — 없는 것과 가려진 것을 같은 말로 쓰지 않는다.
+    wrap.innerHTML='<p class="fig-note">'+(THEME_GATED
+      ? '🔒 90종 조합 랭킹은 이 화면에서 <b>가려져 있다</b>(diagnostic_only) — 데이터가 없는 것이 아니다. '
+        + '<a href="/cascade?view=diagnostic#theme">진단 화면 열기 →</a>'
+      : '선택한 축 조합에 데이터가 모두 있는 도펀트가 없다.')+'</p>'+note;return;
   }
   wrap.innerHTML='<div class="tbl-scroll"><table class="data-table sortable" id="combine-tbl"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'+note;
 }

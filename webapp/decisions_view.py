@@ -233,11 +233,18 @@ def hazards_for(cid: str, prefixes=None, root=None) -> list:
         if z.get("level") in C.HAZARD_INACTIVE:
             continue
         claim_sys = str(z.get("claim") or "").split("@")[-1]
-        by_claim = bool(claim_sys) and _sys_matches(claim_sys, cid)
-        files = [s.strip() for s in str(z.get("file") or "").split("·")]
-        by_file = any(f in srcs for f in files)
-        if not (by_claim or by_file):
-            continue
+        if claim_sys:
+            # ★ `claim` 이 있으면 **그게 범위다** — 원장이 계를 좁혀 적어 뒀는데 파일까지
+            #   같이 보면 넓어진다(실측: `MD_Ea_eV@lpsocl` HOLD 가 같은 파일을 출처로 둔
+            #   modelc·b2o3 페이지에도 붙었다).
+            if not _sys_matches(claim_sys, cid):
+                continue
+            by_claim = True
+        else:
+            by_claim = False
+            files = [s.strip() for s in str(z.get("file") or "").split("·")]
+            if not any(f in srcs for f in files):
+                continue
         out.append({"id": z.get("id"), "level": z.get("level"), "what": z.get("what"),
                     "why": (z.get("why") or "")[:400], "fix": (z.get("fix") or "")[:400],
                     "file": z.get("file"), "how": "claim" if by_claim else "source_path"})
