@@ -45,6 +45,11 @@
       <li><a href="/audit" class="{% if active == 'audit' %}active{% endif %}">
         <span class="icon">&#x2705;</span> Trust Audit
       </a></li>
+      {# v3: 원장을 정문 항해에 올린다.  전에는 깊은 페이지에만 포인터가 있었다. #}
+      <li><a href="/ledger" class="{% if active == 'ledger' %}active{% endif %}"
+             title="이 앱이 보여 주는 모든 값의 상태가 여기서 온다 — 충돌하면 원장이 이긴다">
+        <span class="icon">&#x2696;&#xFE0F;</span> 판정 원장
+      </a></li>
     </ul>
     <div class="sidebar-footer">
       <small>Solid-State Battery DEM</small>

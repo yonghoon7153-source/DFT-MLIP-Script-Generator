@@ -1035,3 +1035,78 @@ thead .sticky-col { z-index: 3; }
   .page-header-row { flex-direction: column; }
   .figures-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== v3 원장 렌더 (2026-09-09) =====
+   상태 문장을 손으로 적지 않고 원장에서 렌더한다.  전수 감사 실측: 웹앱 8 영역 전부에서
+   기계는 최신인데 라벨이 3~15 개월 뒤였다 — 산문은 원장을 따라가지 않는다.  */
+.lv-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px; font-size: .72rem;
+  font-family: var(--mono); border: 1px solid var(--border);
+  background: var(--bg2); white-space: nowrap; vertical-align: middle;
+}
+.lv-chip b { font-weight: 600; letter-spacing: .02em; }
+.lv-chip em { font-style: normal; opacity: .85; }
+.lv-chip i  { font-style: normal; opacity: .55; font-size: .68rem; }
+.lv-ok   { border-color: rgba(52,211,153,.45); color: var(--green); }
+.lv-warn { border-color: rgba(251,191,36,.45); color: var(--yellow); }
+.lv-bad  { border-color: rgba(248,113,113,.45); color: var(--red); }
+.lv-na   { border-color: var(--border); color: var(--dim); }
+
+.lv-bar {
+  margin: 10px 0; padding: 9px 13px; border-radius: 8px;
+  font-size: .82rem; line-height: 1.6; border: 1px solid var(--border);
+  background: var(--bg2);
+}
+.lv-bar.lv-ok   { border-color: rgba(52,211,153,.35); }
+.lv-bar.lv-warn { border-color: rgba(251,191,36,.45); background: rgba(251,191,36,.06); }
+.lv-bar code { font-family: var(--mono); font-size: .78rem; }
+
+.lv-panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px; margin: 10px 0;
+}
+.lv-panel h4 { margin: 0 0 8px; font-size: .92rem; }
+.lv-panel h4 small { color: var(--dim); font-weight: 400; margin-left: 6px; }
+.lv-panel-bad { border-color: rgba(248,113,113,.4); background: rgba(248,113,113,.05); }
+.lv-list { list-style: none; margin: 0; padding: 0; }
+.lv-list li {
+  padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04);
+  font-size: .8rem; line-height: 1.6;
+}
+.lv-list li:last-child { border-bottom: 0; }
+.lv-txt { color: var(--dim); margin-left: 6px; }
+.lv-note { color: var(--dim); font-size: .77rem; line-height: 1.65; margin: 8px 0 0; }
+.lv-more { display: inline-block; margin-top: 8px; font-size: .78rem; color: var(--accent); }
+.lv-counts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.lv-table td { font-size: .78rem; line-height: 1.55; }
+.lv-row-bad  td:first-child { border-left: 3px solid var(--red); }
+.lv-row-warn td:first-child { border-left: 3px solid var(--yellow); }
+.lv-row-ok   td:first-child { border-left: 3px solid rgba(52,211,153,.5); }
+
+/* v3 앞문 */
+.v3-front { border-color: rgba(108,140,255,.35); }
+.v3-lede { font-size: .92rem; line-height: 1.8; margin-bottom: 14px; }
+.v3-two { display: flex; gap: 16px; flex-wrap: wrap; }
+.v3-half { flex: 1 1 340px; min-width: 300px; }
+.v3-half h4 { margin: 0 0 8px; font-size: .88rem; }
+.v3-mini { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.v3-mini th, .v3-mini td {
+  padding: 5px 7px; border-bottom: 1px solid var(--border);
+  text-align: left; vertical-align: top;
+}
+.v3-mini th { color: var(--dim); font-weight: 500; }
+.v3-mini td:first-child { color: var(--dim); white-space: nowrap; }
+.v3-steps { margin: 0 0 0 18px; padding: 0; font-size: .82rem; line-height: 1.85; }
+
+/* 이력 접기 — 지우지 않고 접는다 (기록은 남기고 앞에는 최신을 둔다) */
+.v3-old > summary {
+  cursor: pointer; color: var(--dim); font-size: .8rem;
+  padding: 6px 0; user-select: none;
+}
+.v3-old > summary:hover { color: var(--text); }
+.v3-old[open] > summary { color: var(--text); margin-bottom: 6px; }
+.v3-old-body {
+  border-left: 2px solid var(--border); padding-left: 12px;
+  font-size: .8rem; line-height: 1.7; color: var(--dim);
+}

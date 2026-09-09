@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active = "eis" %}
+{% import "_ledger.html" as L %}
 {% block title %}EIS / DRT - DEM/MPM Analyzer{% endblock %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <h1>&#x1F300; v3-1 — 물리-기반 EIS / DRT / ICA</h1>
 <p style="color:var(--dim);max-width:860px;margin:-4px 0 14px">
   우리 STEP3/STEP4 물리에서 <b>등가회로 각 소자를 유도</b>해 임피던스를 산출한다:

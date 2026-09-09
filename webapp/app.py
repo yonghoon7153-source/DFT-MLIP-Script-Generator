@@ -63,6 +63,10 @@ import storage_sync
 import predictor_engine
 import structure_predictor
 import mpm_lab_register           # MPM payload 등록 훅과 meta 스키마 공유 (single source of truth)
+#  v3 (2026-09-09): 상태 문장을 손으로 적지 않고 **원장에서 렌더**한다.
+#  전수 감사 실측 — 웹앱 8 영역 전부에서 기계는 최신인데 라벨이 3~15 개월 뒤였고,
+#  `webapp/` 어디에서도 claims.json 을 읽은 적이 없었다 (문자열로 언급만).
+import ledger_view
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2GB max
@@ -3869,7 +3873,7 @@ def case_whatif_additives(case_id):
 def step5():
     """STEP5 사이클 열화 fade(N) 인터랙티브 패널 — 총 R_int(N) 정직 분해
     (접촉 ledger 하한 + 화학 CEI[√N Park2023] + OTHER 모델밖).  ASSUMED-shape 라벨 상시 노출."""
-    return render_template('step5.html')
+    return render_template('step5.html', lv=_page_lv('step5'))
 
 
 @app.route('/api/step5/fade')
@@ -4182,7 +4186,7 @@ def api_litdb_card(slug):
 def eis_page():
     """v3-1 EIS/DRT 인터랙티브 패널 — 물리-기반 Randles(우리 σ·i0·D_s 유도) Nyquist + DRT.
     실험 EIS(eis_fit R0-p(R1,CPE1)-Wo1)와 같은 회로 = frame[4] 대조."""
-    return render_template('eis.html')
+    return render_template('eis.html', lv=_page_lv('eis'))
 
 
 @app.route('/api/eis')
@@ -5135,7 +5139,8 @@ def api_eis_exp_delete():
 @app.route('/')
 def index():
     cases = list_cases()
-    return render_template('index.html', cases=cases)
+    #  v3: 상태 패널은 원장에서 렌더한다 (손으로 적은 산문은 원장을 안 따라간다).
+    return render_template('index.html', cases=cases, lv=ledger_view.context())
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -5911,7 +5916,8 @@ def single(case_id):
                          report=report, tables=tables, metrics=metrics,
                          input_params=input_params, archive_path=archive_path,
                          mpm_metrics=_load_mpm_metrics(results_dir),
-                         trust_card=_build_trust_card(metrics))
+                         trust_card=_build_trust_card(metrics),
+                         lv=_page_lv('single'))
 
 @app.route('/group', methods=['GET', 'POST'])
 def group():
@@ -6157,7 +6163,7 @@ def group():
 
     return render_template('group.html', cases=cases, selected=selected,
                          comparison=comparison_data, archive_folders=archive_folders,
-                         case_groups_json=case_groups_param)
+                         case_groups_json=case_groups_param, lv=_page_lv('group'))
 
 @app.route('/group/archive-cases')
 def group_archive_cases():
@@ -7223,7 +7229,7 @@ def _mpm_lab_list():
 
 @app.route('/mpm-lab')
 def mpm_lab():
-    return render_template('mpm_lab.html', items=_mpm_lab_list())
+    return render_template('mpm_lab.html', items=_mpm_lab_list(), lv=_page_lv('mpm_lab'))
 
 
 @app.route('/mpm-lab/fav/<pid>', methods=['POST'])
@@ -9777,7 +9783,8 @@ def archive_view(folder):
                          report=report, tables=tables, metrics=metrics,
                          input_params=input_params, archive_path=folder,
                          mpm_metrics=_load_mpm_metrics(results_dir),
-                         trust_card=_build_trust_card(metrics))
+                         trust_card=_build_trust_card(metrics),
+                         lv=_page_lv('single'))
 
 
 @app.route('/archive/results/<path:folder>/figures/<filename>')
@@ -10367,6 +10374,49 @@ def _audit_load_row(display_id, url, results_dir, archive_rel):
     }
 
 
+#: ★ v3 (2026-09-09) — **페이지 신선도 선언**.
+#:   전수 감사가 잰 것: 웹앱 8 영역 전부에서 기계는 최신인데 라벨이 3~15 개월 뒤였고,
+#:   그것을 알아낸 유일한 방법이 **감사를 한 번 도는 것**이었다.  ⇒ 화면이 스스로 말하게 한다.
+#:   `updated` = 그 화면의 마지막 **의미 있는** 갱신 (커밋 날짜가 아니라 내용 검토 날짜).
+#:   `ledger`  = 그 화면이 서술하는 클레임.  그 뒤에 등재가 움직이면 경고가 뜬다.
+#:   ⚠ 날짜를 올릴 때는 **실제로 그 화면을 원장에 맞춰 검토한 뒤**에만 올린다 —
+#:     그러지 않으면 이 계기가 거짓 초록을 내는 또 하나의 자리가 된다.
+PAGE_FRESHNESS = {
+    'single':    {'updated': '2026-09-09',
+                  'ledger': ['CL-81', 'CL-41', 'CL-33', 'CL-24', 'CL-04']},
+    'group':     {'updated': '2026-08-07',
+                  'ledger': ['CL-12', 'CL-24']},
+    'predictor': {'updated': '2026-08-25', 'ledger': ['CL-24']},
+    'eis':       {'updated': '2026-08-03', 'ledger': ['CL-24', 'CL-38']},
+    'mpm_lab':   {'updated': '2026-09-07', 'ledger': ['CL-81', 'CL-41']},
+    'step5':     {'updated': '2026-07-21', 'ledger': []},
+}
+
+
+def _page_lv(page):
+    """그 페이지용 원장 문맥 (신선도 포함)."""
+    f = PAGE_FRESHNESS.get(page) or {}
+    return ledger_view.context(page_updated=f.get('updated'),
+                               ledger_ids=f.get('ledger') or ())
+
+
+@app.route('/ledger')
+def ledger_page():
+    """판정 원장 — **이 앱이 보여 주는 모든 값의 상태가 여기서 온다.**
+
+    v3 (2026-09-09).  전에는 *"무엇이 철회됐나"* 가 페이지마다 손으로 적힌 산문이었고,
+    감사 실측대로 그 산문이 원장을 따라가지 않았다 (8 영역 전부, 3~15 개월 지연).
+    ⚠ 금지값 자체는 렌더하지 않는다 — 등록부 패턴이 곧 금지 문자열이라 화면에 뿌리면
+    이 페이지가 누수가 된다.  `banned_summary()` 가 개수와 클레임 id 만 준다.
+    """
+    return render_template(
+        'ledger.html',
+        lv=ledger_view.context(),
+        all_claims=ledger_view.claims(),
+        all_findings=ledger_view.open_findings(),
+        ledger_error=ledger_view.error())
+
+
 @app.route('/audit')
 def audit():
     rows = []
@@ -10493,7 +10543,8 @@ def predictor_page():
         app.config['RESULTS_FOLDER'], app.config['ARCHIVE_FOLDER'])
     models_ready = predictor_engine._cached_models is not None
     return render_template('predictor.html', active='predictor',
-                           data_count=data_count, models_ready=models_ready)
+                           data_count=data_count, models_ready=models_ready,
+                           lv=_page_lv('predictor'))
 
 
 @app.route('/predictor/structure/status')

@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}ML Predictor - DEM Analyzer{% endblock %}
+{% import "_ledger.html" as L %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <div class="predictor-page">
   <div class="page-header">
     <h2>ML-Based Electrode Property Predictor</h2>

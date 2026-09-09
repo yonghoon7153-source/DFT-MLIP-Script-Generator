@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active = "single" %}
+{% import "_ledger.html" as L %}
 {% block title %}{{ case.name }} - DEM Analysis{% endblock %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <div class="page-header">
   <div class="page-header-row">
     <div>

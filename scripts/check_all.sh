@@ -126,6 +126,11 @@ run 'webapp: predictor_ui'        python3 webapp/test_predictor_ui_and_sigma_gra
 run 'webapp: security_phase_a'    python3 webapp/test_security_phase_a.py
 run 'webapp: seminar_page'        python3 webapp/test_seminar_page.py
 run 'webapp: temp_pressure'       python3 webapp/test_temp_pressure_wiring.py
+#  ★ v3 (2026-09-09) — 화면이 원장을 따라가는가 + **원장을 보여 주는 페이지가 금지값을
+#    안 찍는가**.  후자가 이 검사의 요점이다: 초판 구현이 `/ledger` 에서 11 건, `/` 에서
+#    2 건을 흘렸다 (원장 본문·`why` 가 *왜 철회됐나* 를 설명하느라 그 값을 인용한다).
+#    감사가 `app.py:4035` 에서 찾은 것과 **같은 양식**이라 회귀로 못박는다.
+run 'webapp: ledger_view'         python3 webapp/test_ledger_view.py
 run 'check_doc_refs          --selftest' python3 scripts/check_doc_refs.py --selftest
 run 'check_cohort_packages  (커밋된 패키지 ↔ 원장)' python3 scripts/check_cohort_packages.py
 #  ★★ 2026-08-31 — 문서가 **없는 파일·없는 커밋**을 가리키는 자리를 잡는다.
