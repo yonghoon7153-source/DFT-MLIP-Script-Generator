@@ -1,17 +1,19 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 381
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 382
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 186건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 187건)
 - 2026-09-09 · `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 · SUPERSEDED (문턱) / 유효 (시드·정지 규칙)
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
+- 2026-09-09 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
 - 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
-- 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 아침 (Codex BI NO-GO + v3 재편) · 대기
+- 2026-09-09 · `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다) · 초안
+- 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 (Codex BI NO-GO + v3 재편 + cascade 재설계) · 대기
 - 2026-09-09 · `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09 · 진행
 - 2026-09-08 · `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 · 진행
 - 2026-09-08 · `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건 · 발송
@@ -25,8 +27,6 @@
 - 2026-09-06 · `kb/questions/polaron_seed_localized_basis_cannot_express_ring_pi.md` — 폴라론 seed 가 안 먹는 이유 — 국재 기저에 '고리 π' 궤도가 없다 · open [open]
 - 2026-09-05 · `kb/papers/figure2e_dropin_v7_2026_09_05.md` — 원고 v6→v7 Figure 2e 드롭인 — 본문·캡션·Methods 교체안 (C-12 v36 설계 반영) · 1저자 확인 대기
 - 2026-09-04 · `kb/reviews/internal_review_AX_lpsocl_600K_2026_09_04.md` — 내부 리뷰 AX — LPSOCl 600 K 개정 (Codex 대체 · 자체 적대적 리뷰) · 판정 완료
-- 2026-09-04 · `kb/papers/dft_sentences_for_manuscript_v6_2026_09_04.md` — 원고 v6 DFT 문장 — 삽입안 + 기존 문장 P0 2건 · 1저자 확인 대기
-- 2026-09-03 · `kb/methodology/zn_cu_hull_estimand_2026_09_03.md` — 보고량 카드 — Cu–Zn convex hull (Zn ALZIB C1 후속) · 제안
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -204,9 +204,9 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (107)
+## reviews/ (108)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
-- `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)  (2026-09-03 · 자동생성)
+- `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)  (2026-09-09 · 자동생성)
 - `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09  (2026-09-09 · 진행)
 - `kb/reviews/codex_AA_prompt_stageA_v5_regate_2026_08_29.md` — Codex 재검토 요청 AA — 회신 Z 의 P0 8건 처리 후 Stage A v5 재게이트  (2026-08-29 · 발송 완료 — 회신 AA 접수, 후속은 codex_AB_prompt_…)
 - `kb/reviews/codex_AB_prompt_stageA_v9_regate_2026_08_29.md` — Codex 재검토 요청 AB — 회신 AA 의 P0 5건 + Q2 처리, 그리고 자체검토에서 나온 넷  (2026-08-29 · 회신 수령 (원문 파일 없음 — 근거: AD (Stage A v10)))
@@ -247,6 +247,7 @@
 - `kb/reviews/codex_BH_prompt_md_axis_audit_2026_09_07.md` — 리뷰 요청 BH — MD 축 전수 감사: 90런에 인용 가능한 Ea 가 0개다  (2026-09-07 · 작성 — 발송 대기)
 - `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건  (2026-09-08 · 발송)
 - `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷  (2026-09-09 · 초안)
+- `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다)  (2026-09-09 · 초안)
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서)  (2026-08-20 · 리뷰대기)
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료)  (2026-08-20 · v2.1 — codex 2라운드 종료 (manifest 지적 철회 ·…)
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서)  (2026-08-25 · 리뷰완료-HOLD)
@@ -292,7 +293,7 @@
 - `kb/reviews/codex_X_prompt_prospective_bundle_ready_2026_08_29.md` — Codex 회신 X 요청 — prospective 번들 40잡, 던지기 전 최종 감사 (실물 첨부)  (2026-08-29 · 회신 수령 — `kb/reviews/codex_X_bundle_rep…)
 - `kb/reviews/codex_Y_reply_polaron_S0_2026_09_03.md` — 회신 Y — 폴라론 S0 (NO-GO · P0 8 · P1 8 · Q1–Q5)  (2026-09-03 · 회신반영)
 - `kb/reviews/codex_stats_question_2026_08_11.md` — Codex 질문 — 통계 판정 3건 (β 귀무분포 · 사다리 설계 · BVSE 부호 · 판정바닥 ddof)  (2026-08-11 · 회신 대기)
-- `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 아침 (Codex BI NO-GO + v3 재편)  (2026-09-09 · 대기)
+- `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 (Codex BI NO-GO + v3 재편 + cascade 재설계)  (2026-09-09 · 대기)
 - `kb/reviews/internal_BG_reply_c12_2026_09_03.md` — 회신 BG — C-12 내부 적대적 리뷰 (NO-GO · P0 1 · P1 8)  (2026-09-03 · 회신반영)
 - `kb/reviews/internal_BH_reply_c12_v32_2026_09_03.md` — 회신 BH — C-12 v32 내부 다중 감사 (7렌즈 · 3인 반박 · NO-GO · P0 1 · P1 6)  (2026-09-03 · 회신반영)
 - `kb/reviews/internal_Z2_reply_polaron_S0_2026_09_03.md` — 회신 Z-2 — 폴라론 S0 내부 적대적 리뷰 2차 (NO-GO · P0 2 · P1 9)  (2026-09-03 · 회신반영)
@@ -444,4 +445,4 @@
 ## elements/ — 118개 (생성물/템플릿, 목록 생략)
 ## templates/ — 3개 (생성물/템플릿, 목록 생략)
 
-## litdb/ — digest 219개 (정본 목록: litdb/INDEX.md)
+## litdb/ — digest 222개 (정본 목록: litdb/INDEX.md)
