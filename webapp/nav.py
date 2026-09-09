@@ -359,6 +359,26 @@ def onboard_stats(root=None) -> dict:
         import data as D
         return len(D.citation_hazards().get("hazards") or [])
 
+    def _hazard_why():
+        """29 건이 전부 '지금 금지' 는 아니다.
+
+        원장에는 RESOLVED(해소됨)·SUPERSEDED(폐기됨)도 남아 있고 — 남기는 게
+        규율이다 — /governance 는 그걸 빼고 `인용 금지(BLOCKED) 9건` 이라 찍는다.
+        홈이 29 만 보여 주면 처음 온 사람은 두 화면에서 3배 다른 수를 보고
+        둘 다 안 믿는다. 그래서 여기서 쪼개 말한다. 숫자는 손으로 안 쓴다.
+        """
+        try:
+            import canonical as C
+            import data as D
+            rows = D.citation_hazards().get("hazards") or []
+            live = sum(1 for z in rows if z.get("level") not in C.HAZARD_INACTIVE)
+            blk = sum(1 for z in rows if z.get("level") == "BLOCKED")
+            return ("철회·보류·조건부 등재 전건 — 지금 유효 %d · 그중 인용 금지 %d"
+                    % (live, blk))
+        except Exception:                                # noqa: BLE001
+            # 못 세면 없는 수를 지어내지 않는다 — 원래 문장으로 돌아간다.
+            return "철회·보류·조건부 — 쓰기 전에 여기부터"
+
     def _decisions():
         import canonical as C
         return sum(1 for d in C.decisions(root=base).values()
@@ -373,7 +393,7 @@ def onboard_stats(root=None) -> dict:
           "인용해도 되는 값", _canon)
     _card("hazard", "인용하면 안 되는 것", "건", "/governance",
           "db/properties/citation_hazards.json",
-          "철회·보류·조건부 — 쓰기 전에 여기부터", _hazards)
+          _hazard_why(), _hazards)
     _card("decision", "지금 살아 있는 결정", "건", "/governance",
           "db/governance/decisions.json (state=active)",
           "규칙이 언제 왜 바뀌었나", _decisions)

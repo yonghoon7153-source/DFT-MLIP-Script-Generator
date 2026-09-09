@@ -238,6 +238,26 @@ document.addEventListener('keydown',function(e){
 });
 document.addEventListener('input',function(e){if(e.target&&e.target.id==='cmdk-input')renderCmdk(e.target.value);});
 document.getElementById('cmdk').addEventListener('click',function(e){if(e.target===this)closeCmdk();});
+
+// ── 접힌 곳으로 가는 딥링크를 편다 ──
+// v3 는 "삭제보다 접기" 라서 앵커 목적지가 닫힌 <details> 안에 있을 수 있다.
+// 실측: 홈의 "이번 주 바뀐 것" 3장 중 #hl-cascade_d_rel_estimand, /governance 의
+// 결정행 2건(superseded·retracted 접힘)이 그렇다. details 를 fragment 로 자동으로
+// 펴는 건 최신 Chrome/Firefox 뿐이라, 그 밖에서는 눌러도 빈 화면으로 스크롤한다.
+// 그래서 브라우저에 맡기지 않고 조상 details 를 전부 편 뒤 직접 옮긴다.
+function _revealHash(){
+  var h=location.hash;if(!h||h.length<2)return;
+  var id;try{id=decodeURIComponent(h.slice(1));}catch(_){id=h.slice(1);}
+  var el=null;try{el=document.getElementById(id);}catch(_){}
+  if(!el)return;
+  for(var p=el.parentElement;p;p=p.parentElement){
+    if(p.tagName==='DETAILS'&&!p.open)p.open=true;
+  }
+  el.scrollIntoView({block:'start'});
+}
+window.addEventListener('hashchange',_revealHash);
+if(document.readyState!=='loading')_revealHash();
+else document.addEventListener('DOMContentLoaded',_revealHash);
 </script>
 {% block scripts %}{% endblock %}
 {# 모달 창을 제목줄로 끌어 옮기기 — 그림 팝업과 나란히 놓고 읽으려면 필요하다 #}
