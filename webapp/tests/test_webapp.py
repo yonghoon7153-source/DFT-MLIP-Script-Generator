@@ -3677,3 +3677,62 @@ def test_disclaim_is_not_a_blanket_over_a_whole_table():
     assert worst_c < 120, (
         f"⛔ 부인 하나가 너무 넓다 ({worst_c}자) — 담요다. 선언 {len(p.spans)}개, "
         f"총 {sum(c for c, _ in p.spans)}자")
+
+
+# ── 메모·코멘트 표시 경로 (Codex BI-3 P0-3) ──────────────────────────────────
+def test_note_display_is_rendered_and_bound_by_the_server():
+    """⛔음성: 메모·코멘트 표시가 **서버 렌더러 한 곳**을 지나야 한다.
+
+    BI-3 P0-3 실측 — `comments.js` 의 `inline()` 이 브라우저에서 따로
+    `**0.199**` → `<b>0.199</b>` 를 만들고 있었다. 서버 `_mdlite` 를 고쳐 놓고도
+    **메모 경로에는 전파되지 않아** 결속 없이 철회값이 나갔다.
+    `docnote.js` 도 같은 함수를 부르므로 두 화면이 같이 샜다.
+    """
+    tgt = next(x for x in C.all_claims() if x["id"] == "MD_Ea_eV@b2o3")
+    # ① 서버 렌더러가 결속한다
+    h = A.note_html(f'b2o3 MD Ea 는 **{tgt["text"]}** eV 다')
+    sc = C.scan_claim_bindings(f"<div>{h}</div>", C.all_claims())
+    assert len(sc["bound"]) == 1 and not sc["unbound"], \
+        f"⛔ 메모 렌더러가 철회값을 결속 없이 그렸다: {h[:200]}"
+    assert "claim-flag" in h, "결속 표식이 안 붙었다"
+    # ② 0 이 사라지지 않는다 (같은 렌더러를 쓰므로 여기서도 지켜져야 한다)
+    assert "0" in A.note_html("0")
+    # ③ 그림은 **우리 규격만** — 임의 URL 은 글자 그대로 (메모 한 줄로 외부 요청 금지)
+    ok = A.note_html("![a](/api/note-image/" + "a" * 32 + ".png)")
+    bad = A.note_html("![b](https://evil.example/x.png)")
+    assert "<img" in ok and "<img" not in bad, "그림 화이트리스트가 샌다"
+
+
+def test_comments_api_gives_display_html_for_every_item():
+    """⛔음성: 코멘트 API 가 item 마다 `html` 을 내야 한다 (편집용 `text` 는 보존)."""
+    c = A.app.test_client()
+    r = c.get("/api/comments/CLAUDE.md")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert isinstance(d.get("items"), list), "items 가 없다"
+    for it in d["items"]:
+        assert "text" in it, "편집용 원문이 사라졌다 — 고치기가 깨진다"
+        assert isinstance(it.get("html"), str), \
+            f"표시용 html 이 없다 — 클라이언트가 자기 파서로 되돌아간다: {it.get('id')}"
+
+
+def test_client_note_display_does_not_reparse():
+    """⛔음성 (정적 린트): 표시 자리에서 `inline(` 을 부르면 실패.
+
+    파서를 둘 두지 마라 — 서버가 그린 `html` 만 표시한다. `inline` 자체는
+    **편집 보조**(굵게 버튼 미리보기 등)로 남을 수 있으므로 함수 존재는 허용하고,
+    **카드 본문을 그리는 줄**에서 쓰이는 것만 막는다.
+    """
+    import pathlib
+    root = pathlib.Path(A.__file__).resolve().parent / "static/js"
+    bad = []
+    for f in ("comments.js", "docnote.js"):
+        for i, ln in enumerate(root.joinpath(f).read_text(encoding="utf-8").splitlines(), 1):
+            if ("cmt-t" in ln or "dn-text" in ln) and "inline(" in ln:
+                bad.append(f"{f}:{i}  {ln.strip()[:110]}")
+    assert not bad, ("⛔ 메모 표시 자리가 브라우저에서 다시 파싱한다 (BI-3 P0-3 재발):\n  "
+                     + "\n  ".join(bad))
+    # 그리고 서버가 html 을 안 주면 **옛 렌더러로 조용히 되돌아가면 안 된다**
+    src = root.joinpath("comments.js").read_text(encoding="utf-8")
+    assert "function disp(" in src and "cmt-unrendered" in src, \
+        "html 이 없을 때의 처리가 눈에 보이지 않는다 — 조용한 폴백은 재발이다"

@@ -41,6 +41,20 @@
       .replace(/==([^=\n]+)==/g, '<mark class="dn-penmk">$1</mark>');
   }
 
+  /* ⛔⛔ 표시는 **서버가 그린 것만** 쓴다 (Codex BI-3 P0-3, 2026-09-09).
+   * 종전에는 여기서 `inline(c.text)` 로 브라우저가 따로 그렸다. 그래서 서버 `_mdlite`
+   * 를 고쳐 놓고도 **메모 표시 경로에는 전파되지 않았고**, `**0.199**` 가 결속 없이
+   * `<b>0.199</b>` 로 나갔다 (실측 unbound 1). 파서가 둘이면 판정도 둘이다.
+   * ⇒ 서버 `/api/comments` 가 item 마다 `html`(= mdlite + 결속) 을 같이 낸다.
+   *   `text` 는 **편집용 원문**이라 그대로 두고, 표시는 `html` 만 쓴다.
+   * ⚠ `html` 이 없으면 **그리지 않는다** — 옛 응답에 조용히 옛 렌더러로 되돌아가면
+   *   그게 바로 이 결함의 재발이다. 눈에 보이게 원문을 그대로 내보인다. */
+  function disp(c) {
+    if (c && typeof c.html === "string") return c.html;
+    return '<span class="cmt-unrendered" title="서버가 표시용 HTML을 안 줬다 — '
+         + '결속 없이 그리지 않는다">' + esc((c && c.text) || "") + "</span>";
+  }
+
   /* 입력창을 내용에 맞춰 늘린다 (1저자 2026-08-27: "수정할 때 창이 작아져서 불편해").
    * 카드에 보이던 글이 rows=3 상자로 눌려서, 고치려고 열면 오히려 **덜 보였다** —
    * 읽을 때보다 고칠 때 더 안 보이는 건 거꾸로다.
@@ -152,7 +166,7 @@
 
   /* ⚠ 이 묶음이 **정본**이다. docnote.js 는 자기 사본을 두지 않고 여기를 부른다. */
   global.noteFmt = {
-    esc: esc, inline: inline, autosize: autosize, wrapSel: wrapSel,
+    esc: esc, inline: inline, disp: disp, autosize: autosize, wrapSel: wrapSel,
     insertAt: insertAt, uploadImage: uploadImage, imageFrom: imageFrom,
     IMG_SRC: IMG_SRC
   };
@@ -174,7 +188,7 @@
         '<button type="button" class="cmt-del" title="삭제">✕</button></div>' +
         // ⚠ 원문을 data-raw 에 함께 실어둔다 — 수정 상자를 열 때 **서버를 다시 안 부른다**.
         //   (다시 부르면 방금 쓴 글이 아직 안 보이는 순간이 생긴다)
-        '<div class="cmt-t" data-raw="' + esc(c.text) + '">' + inline(c.text) + "</div></div>";
+        '<div class="cmt-t" data-raw="' + esc(c.text) + '">' + disp(c) + "</div></div>";
     }).join("");
     box.innerHTML =
       '<div class="cmt-h">💬 코멘트 <span class="muted">' + items.length + "</span></div>" +

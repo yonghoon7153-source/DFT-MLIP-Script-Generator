@@ -47,6 +47,8 @@
   }
   function esc(s) { return NF().esc(s); }
   function inline(s) { return NF().inline(s); }
+  /* 표시는 서버가 그린 `html` 만 (BI-3 P0-3) — comments.js 의 disp 를 그대로 쓴다. */
+  function disp(x) { var f = NF(); return f.disp ? f.disp(x) : esc((x && x.text) || ""); }
   function autosize(ta) { return NF().autosize(ta); }
   function wrapSel(ta, mk) { return NF().wrapSel(ta, mk); }
   function norm(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
@@ -128,7 +130,7 @@
       '<button type="button" class="dn-edit" title="고치기">✎</button>' +
       '<button type="button" class="dn-del" title="지우기">✕</button></div>' +
       (nt.anchor ? '<div class="dn-quote">' + esc(nt.anchor) + "</div>" : "") +
-      '<div class="dn-text" title="눌러서 고치기">' + inline(nt.text) + "</div></div>";
+      '<div class="dn-text" title="눌러서 고치기">' + disp(nt) + "</div></div>";
   }
 
   /* ── 고치기 (제자리) ───────────────────────────────────────────────────── */

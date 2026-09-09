@@ -1467,6 +1467,47 @@ def _paper_cmt_index(rel):
     return {"slug": slug, "cmt": D.paper_comment_search().get(slug, "")}
 
 
+#: 메모·코멘트에 붙일 수 있는 그림 — **우리가 저장한 이름 규격만** 허용한다.
+#: 임의 URL 을 허용하면 메모 한 줄로 외부 요청을 만들 수 있다 (comments.js 와 같은 규격).
+_NOTE_IMG = re.compile(
+    r"!\[([^\]\n]*)\]\((/api/note-image/[0-9a-f]{32}\.(?:png|jpg|gif|webp))\)")
+
+
+def note_html(text: str) -> str:
+    """메모·코멘트 한 줄을 **표시용 HTML** 로. 결속까지 마쳐서 낸다.
+
+    ⛔⛔ 왜 서버가 그리나 (Codex BI-3 P0-3, 2026-09-09)
+      `comments.js` 의 `inline()` 이 브라우저에서 따로 `**0.199**` → `<b>0.199</b>` 를
+      만들고 있었다. 서버 `_mdlite` 는 고쳤는데 **메모 표시 경로에는 전파되지 않았다** —
+      즉 파서가 둘이고 판정도 둘이었다. 실측: 같은 입력이 서버에선 결속되고
+      메모에선 `unbound 1` 이었다.
+      ⇒ **편집용 원문(`text`)은 그대로 두고, 표시용 HTML 은 여기서만 만든다.**
+
+    ⛔ 못 하는 것: 블록 문법(목록·제목)은 `_mdlite` 가 하는 만큼만. 메모는 문서가 아니다.
+    """
+    import canonical as _C                       # 지연 import — 모듈 상단 관례를 따른다
+    s = str(_mdlite(text))                       # esc + code/bold/mark/strike/ital/표
+    s = _NOTE_IMG.sub(
+        lambda m: '<img class="note-img" src="%s" alt="%s" loading="lazy">'
+                  % (m.group(2), m.group(1)), s)
+    return _C.annotate_claims(s)[0]              # ← 결속은 서버 한 곳에서
+
+
+def _with_note_html(obj):
+    """코멘트 응답의 모든 item 에 `html` 을 붙인다 (편집용 `text` 는 보존)."""
+    if isinstance(obj, dict):
+        for k in ("items", "history"):
+            if isinstance(obj.get(k), list):
+                for it in obj[k]:
+                    if isinstance(it, dict) and it.get("text") is not None:
+                        it["html"] = note_html(it["text"])
+        if obj.get("text") is not None and "html" not in obj:
+            obj["html"] = note_html(obj["text"])
+        if isinstance(obj.get("item"), dict):
+            _with_note_html(obj["item"])
+    return obj
+
+
 @app.route("/api/comments/<path:rel>", methods=["GET", "POST", "PATCH"])
 def api_comments(rel):
     """파일 코멘트 읽기/달기/고치기 (Notion 식 💬 · 📝). 대상은 실존 repo 파일만.
@@ -1474,8 +1515,9 @@ def api_comments(rel):
     PATCH `{id, text}` = 글 고치기. 옛 글은 지우지 않고 item.history 에 쌓인다.
     """
     if request.method == "GET":
-        return jsonify({"rel": rel, "items": D.file_comments(rel),
-                        "paper": _paper_cmt_index(rel)})
+        return jsonify(_with_note_html(
+            {"rel": rel, "items": D.file_comments(rel),
+             "paper": _paper_cmt_index(rel)}))
     g = _guard_mutation()
     if g:
         return g
@@ -1485,7 +1527,7 @@ def api_comments(rel):
         if r.get("error"):
             return jsonify(r), 400
         r["paper"] = _paper_cmt_index(rel)
-        return jsonify(r)
+        return jsonify(_with_note_html(r))
     # anchor = 본문 여백 메모가 붙은 자리(고른 글/문단 앞머리). 그림 코멘트는 빈 값.
     r = D.add_file_comment(rel, str(d.get("text", "")), str(d.get("who", "")),
                            str(d.get("anchor", "")))
@@ -1495,7 +1537,7 @@ def api_comments(rel):
     #   화면이 POST 응답으로 색인을 갱신하려 하면 조용히 아무 일도 안 났다
     #   (뒤따르는 GET 이 덮어 줘서 증상이 안 보였을 뿐이다).
     r["paper"] = _paper_cmt_index(rel)
-    return jsonify(r)
+    return jsonify(_with_note_html(r))
 
 
 @app.route("/api/highlights/<path:rel>", methods=["GET", "POST", "DELETE"])
