@@ -8,9 +8,15 @@
 
 | 레이어 | 위치 | 규칙 |
 |---|---|---|
-| **数値 정본** | `db/properties/` `db/structures/` | 숫자의 유일한 권위. 철회는 `retracted:true` 블록 — 삭제 금지 |
+| **수치 정본** | `db/properties/` `db/structures/` | 숫자의 유일한 권위. 철회는 `retracted:true` 블록 — 삭제 금지. 인용 가능 여부는 `canonical_registry.json`(status·prohibitions) + `citation_hazards.json` |
+| **판정 원장** | `db/governance/` | **결정**(`decisions.json` — `decision_state: active` 만 유효) · artifacts · assessments. 보고량·마감 판정은 여기 등록한다 (CLAUDE.md §계산 규율) |
 | **불변 원본** | `runs/` (납품·실행 산출물) · litdb PDF(repo 밖) | **수정 금지.** 해석은 kb/litdb 문서에서만 |
-| **위키(해석)** | `kb/*/` · `litdb/` · `docs/` | 이 스키마의 관할. 숫자는 **경로 인용**으로만 (living reference — 복사 금지) |
+| **위키(해석)** | `kb/*/` · `litdb/` | 이 스키마의 관할. 숫자는 **경로 인용**으로만 (living reference — 복사 금지) |
+| **화면** | `webapp/` | 위 레이어를 **옮기기만** 한다. 자체 숫자 보관 금지 · claim 결속 필수 (CLAUDE.md §화면 규율) |
+
+⚠ `docs/` 는 **이 스키마 밖**이다 (슬라이드·산출물 보관소). `tools/kb_wiki.py` 의
+`MANAGED`/`SUMMARIZED` 는 `kb/` 하위만 돌아서 `docs/` 는 lint·색인을 **0건** 받는다 —
+관할이라고 적어 두고 강제하지 않는 상태가 제일 나빠서 2026-09-09 에 표에서 뺐다.
 
 kb 디렉터리 ↔ 타입: `concepts`(개념) `physics`(물리 노트) `methodology`(방법·결정 기록)
 `results`(우리 결과 해석) `reviews`(리뷰 왕복) `reports`(대외 문서) `projects`(프로젝트)
@@ -19,7 +25,10 @@ kb 디렉터리 ↔ 타입: `concepts`(개념) `physics`(물리 노트) `methodo
 
 ## Frontmatter
 
-**새 문서부터 필수. 기존 199개 소급 없음** (lint 는 frontmatter 있는 문서만 깊이 검사).
+**새 문서부터 필수. 채택(2026-08-11) 이전 문서는 소급 없음** (lint 는 frontmatter 있는 문서만 깊이 검사).
+⚠ "기존 199개" 라고 세어 뒀는데 그 수는 이미 낡았고(2026-09-09 실측 184), 더 중요한 것은
+**채택 이후에 생긴 무-frontmatter 문서가 있다**는 것이다 — '기존' 이 아니라 새 문서가 규칙을
+새고 있다. 수를 다시 세지 말고 **날짜로** 판정한다.
 생성: `python3 tools/kb_wiki.py new <dir> <slug>`.
 
 ```yaml
@@ -48,7 +57,9 @@ evidenceScope: single-source | multi-source-primary | multi-source-mixed | synth
 - `confidence` = 증거 강도. **high 로 올리면 본문에 반대해석/한계 1줄** 을 남긴다.
 - `verificationStatus` = 대조 검증. 우리 문화 그대로: Codex 교차검증 = `verifiedBy: codex`,
   자체 적대 리뷰 = `self`, 둘 다 = `both`. 충돌하면 양쪽 다 `disputed`, 반증되면 `retracted`
-  (본문 보존 + 반증 근거 추가 — 오늘 §11 BVSE 철회가 표준례).
+  (본문 보존 + 반증 근거 추가 — **BVSE 철회 사례가 표준례**.
+  ⚠ 원문의 "오늘 §11" 은 2026-08-11 세션 대화 안의 번호라 지금은 아무 데도 안 닿는다 —
+  2026-09-09 에 그렇게 표시했다. 채택 기록은 `kb/methodology/llm_wiki_adoption_2026_08_11.md`).
 - `explored` = **사용자가 읽었는가.** 에이전트는 절대 true 로 바꾸지 않는다.
 
 ### 근거 폭이 confidence 의 상한이다

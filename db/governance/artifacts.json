@@ -17,7 +17,8 @@
     "⛔ 이 원장은 **백업이 아니다.** 어디에 있는지를 적을 뿐이고, 매체가 죽으면 내용은 사라진다."
   ],
   "_history": {
-    "2026-08-20a": "신설. 오프라인 백업 2벌 + kgy + gabia 전수조사 결과를 기계 가독으로 옮겼다. 사람용 서술은 kb/methodology/offline_archive_index_2026_08_20.md."
+    "2026-08-20a": "신설. 오프라인 백업 2벌 + kgy + gabia 전수조사 결과를 기계 가독으로 옮겼다. 사람용 서술은 kb/methodology/offline_archive_index_2026_08_20.md.",
+    "2026-09-09": "A-highT-reseed-traj 의 '2026-08-20 재실행 중' 에 종결 표시를 붙였다 — 그 재실행이 채우려던 b2o3 UMA-MD 전도도 축이 D-2026-09-07-b2o3-md-closure-retrospective 로 인용 불가 마감됐다. ⚠ status 는 그대로 lost 다: 마감은 인용 자격의 판정이고, 궤적은 여전히 없다. ⚠ 12건 전부의 verified.date 가 아직 2026-08-20 이다 — 이 원장은 그날 이후 재확인되지 않았다."
   },
   "artifacts": [
     {
@@ -297,6 +298,10 @@
         "db/governance/assessments.json → A-2026-08-20-b2o3-framework-current (not_assessed 의 원인)"
       ],
       "note": "⛔ run_highT_reseed.sh 가 --save_traj 를 안 넘겨 애초에 안 만들어졌다 (F9). 백업 2벌 + kgy + gabia 전수 확인. **2026-08-20 재실행 중** (kgy b2o3 6런 · gabia modelc 6런, --save_traj 켬).",
+      "⛔_2026_09_09_종결": "위 '2026-08-20 재실행 중' 은 19일째 낡은 표기다. 이 재실행이 채우려던 축(b2o3 UMA-MD 전도도: D · Ea · σ · 구간 Ea)은 D-2026-09-07-b2o3-md-closure-retrospective(1저자 비준)로 **인용 불가 마감**됐고, 그 결정의 재개 조건은 '진단 목적의 재실행은 결과와 무관하게 이 마감을 바꾸지 않는다' 다 ⇒ 완료 여부와 무관하게 **목적이 소멸**했다. ⚠ 원문은 이력으로 남긴다. ⚠ 이 원장은 그 6런이 실제로 끝났는지 죽었는지 **모른다**(repo 밖). status 는 그대로 lost 다.",
+      "decision_ids": [
+        "D-2026-09-07-b2o3-md-closure-retrospective"
+      ],
       "false_positives_checked": [
         "kgy ~/work/runs/{iface_roll,interface_campaign}/*_traj.xyz — 계면 캠페인",
         "kgy ~/work/Yonghoon-DEM-DFT/{b2o3,modelc}_traj.xyz — 슬랩(160/94원자, c축 87/58 Å, move_mask)",

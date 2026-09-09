@@ -3461,15 +3461,12 @@ def compute_preview(cid: str, calc: str) -> dict:
         return {"error": "unknown composition"}
     if calc not in ("scf", "gap", "vcrelax", "md"):
         return {"error": f"unknown calc '{calc}'"}
-    st = COMPUTE_SETTINGS.get(cid, {"ecutwfc": 60, "ecutrho": 480, "k": [2, 2, 1],
-                                    "struct": f"{cid}.cif", "server": "KISTI neuron"})
-    els = COMP_ELEMENTS.get(cid, [])
-    kx, ky, kz = st["k"]
-    species = "\n".join(f"  {e}  {_mass(e)}  {PSEUDO_LIB.get(e, e + '.UPF')}" for e in els)
-    prefix = f"{cid}_{calc}"
     warn = []
     _none = {"input_name": None, "input": None, "runner_name": None, "runner": None}
 
+    # ── fail-closed 갈래는 **설정 조회보다 먼저** 본다 ────────────────────────
+    #   (사유가 있는 거절 > 일반적인 거절. sdcp·li3n 은 COMPUTE_SETTINGS 에 없어서,
+    #    순서가 반대면 이 두 화면이 아래의 일반 문구로 덮인다.)
     # 분자계(SDCP) = ORCA r²SCAN-3c. 평면파 QE/k-point 부적합 → 스크립트 생성 안 함.
     if comp.get("family") == "molecular" or cid == "sdcp":
         return dict(_none, cid=cid, calc=calc, engine="ORCA r²SCAN-3c", server="desktop WSL (ORCA)",
@@ -3477,17 +3474,53 @@ def compute_preview(cid: str, calc: str) -> dict:
                     warn=["평면파 QE는 분자에 안 맞음 (진공 셀·k-point 무의미)."])
     # Li₃N + UMA-MD = 금지 조합 → 경고만, 스크립트 생성 안 함.
     if calc == "md" and cid == "li3n":
-        return dict(_none, cid=cid, calc=calc, engine="—", server=st["server"],
+        return dict(_none, cid=cid, calc=calc, engine="—", server="—",
                     note="Li₃N에는 UMA MLIP 금지 (2026-06 결정론적 편향 판정). 이 조합은 스크립트를 생성하지 않아.",
                     warn=["Li₃N 확산은 UMA 대신 DFT-AIMD / QE-NEB 로. (CLAUDE.md 규율)"])
 
+    # ⛔ 2026-09-08 — 여기 폴백이 있었다: 레시피가 없는 조성에도
+    #   {ecut 60/480, k 2×2×1, struct f"{cid}.cif", KISTI} 를 씌워 **경고 한 줄 없이**
+    #   입력을 내줬다. 실측: comp3/comp4/comp5/vgcf_hbn/li3n/lic6 여섯 다 그 cif 가
+    #   db/structures 에 **없다**. 존재하지 않는 구조 경로로 만든 입력은 "돌려 보면
+    #   알겠지" 가 아니라 **틀린 것을 정본처럼** 내주는 것이다. 폴백을 없애고
+    #   `_none` 갈래로 보낸다 (fail-closed — 위 두 갈래와 같은 규칙).
+    st = COMPUTE_SETTINGS.get(cid)
+    if st is None:
+        return dict(_none, cid=cid, calc=calc, engine="—", server="—",
+                    note=f"'{cid}' 은 canonical 계산 레시피가 등록돼 있지 않아 "
+                         f"(webapp/data.py COMPUTE_SETTINGS). 추측한 설정으로 입력을 "
+                         f"만들지 않아 — ecutwfc/ecutrho·k-mesh·db/structures 의 구조 "
+                         f"파일을 정해 등록한 다음 다시 와.",
+                    warn=[f"등록된 조성: {', '.join(sorted(COMPUTE_SETTINGS))}",
+                          "옛 폴백은 db/structures 에 없는 cif 경로로 입력을 만들어 줬다 "
+                          "(2026-09-08 제거). /methods 는 comp3/4/5 를 이미 "
+                          "'옛 방법 → 재측정 필요' 로 판정해 뒀다."])
+    els = COMP_ELEMENTS.get(cid, [])
+    kx, ky, kz = st["k"]
+    species = "\n".join(f"  {e}  {_mass(e)}  {PSEUDO_LIB.get(e, e + '.UPF')}" for e in els)
+    prefix = f"{cid}_{calc}"
+
     if calc == "md":
-        body = _md_template(cid, comp, st)
-        runner = _runner_uma(cid, prefix, st)
-        note = "UMA-s-1p1(omat) · Langevin NVT dt 2fs · equilib 5ps / prod 200ps · MSD 2–50ps. ⚠ 절대값 인용 금지(멀티시드 판정만)."
-        return {"cid": cid, "calc": calc, "engine": "UMA + ASE", "server": st["server"],
-                "input_name": f"md_{cid}.py", "input": body, "runner_name": f"run_md_{cid}.sh",
-                "runner": runner, "note": note, "warn": warn}
+        # ⛔ 2026-09-08 — 여기서 `md_<cid>.py` 를 **새로 지어** 내주고 있었고 그게
+        #   세 가지로 틀렸다: ① `from fairchem.core import OCPCalculator` 는 이 repo 의
+        #   어느 도구도 안 쓰는(존재하지 않는) API 라 첫 import 에서 죽었고 ② 궤적 저장이
+        #   한 줄도 없었고(바로 위 화면이 "--save_traj 없이 돌리지 않는다" 를 가르친다)
+        #   ③ 9회 루프가 `atoms` 하나를 재사용해 시드가 독립이 아니었다.
+        #   ★ 붙여넣기 스크립트를 **짓지 않는다.** 정본 드라이버를 부른다 —
+        #     그게 창·궤적·시드 규약을 이미 강제하고, 고치면 한 곳만 고치면 된다.
+        return {"cid": cid, "calc": calc, "engine": "UMA + ASE (정본 드라이버)",
+                "server": st["server"],
+                "input_name": None, "input": None,
+                "runner_name": f"run_md_{cid}.sh", "runner": _runner_uma(cid, prefix, st),
+                "note": "UMA-s-1p1(omat) · Langevin NVT dt 2fs · equilib 5ps / prod 200ps · "
+                        "MSD 창 2–50ps · 자유절편 D · --save_traj. 스크립트를 새로 짓지 않고 "
+                        "정본 드라이버(tools/modelc_v3/disorder_ensemble_diffusion.py)를 부른다. "
+                        "⚠ σ 절대값 인용 금지 — 비율도 멀티시드 판정만.",
+                "warn": warn + [
+                    "시드는 **드라이버 호출을 나눠서** 준다 (한 프로세스 안에서 atoms 를 "
+                    "재사용하면 시드가 독립이 아니다).",
+                    "600/800/1000 K 3점만 쓴다 — 400/500 K 는 노이즈 지배(2026-07-02 판정).",
+                ]}
 
     calc_kw = {"scf": "scf", "gap": "nscf", "vcrelax": "vc-relax"}[calc]
     occ = ("  occupations = 'fixed'\n" if calc == "gap" else
@@ -3501,13 +3534,47 @@ def compute_preview(cid: str, calc: str) -> dict:
         note = "Birch–Murnaghan EOS는 여러 부피 고정셀 relax로. vc-relax는 V₀ 확정용. B₀ ≠ elastic B_VRH."
     else:
         note = "기본 SCF. conv_thr 1e-8, forc_conv 필요시 relax로 전환."
+    hub_block = ""
     if st.get("dftu"):
-        warn.append("Nd 4f: DFT+U (U_eff≈6 eV) + ISPIN=2 필요 (litdb Nd 교훈) — &SYSTEM에 Hubbard 블록 추가.")
+        # ⛔ 2026-09-08 — 옛 경고는 세 군데가 틀렸다:
+        #   "Nd 4f: DFT+U (U_eff≈6 eV) + ISPIN=2 필요 … &SYSTEM에 Hubbard 블록 추가."
+        #   ① `ISPIN=2` 는 VASP 키워드다. QE 는 `nspin = 2` (+ starting_magnetization).
+        #   ② QE 7.x 의 Hubbard 는 &SYSTEM 안이 아니라 **독립 카드**다
+        #      (tools/doping/generate_dft_inputs.py:197 `HUBBARD (ortho-atomic)`).
+        #   ③ **U 는 PP 에 달렸다.** gabia 실측(2026-09-08 커밋 cef78893a): 거기 있는
+        #      Nd PP 는 Nd.pbe-spdn-kjpaw_psl.1.0.0.UPF 하나뿐이고 frozen-4f(z≈11,
+        #      4f 가 core)라 **U 를 걸 대상이 없다** — QE 가 죽거나 조용히 무시한다.
+        #   → 무조건 권하지 않고 **PP 조건부**로 말한다. 가드 문구는 생성기와 같은 것.
+        hub_block = ("HUBBARD (ortho-atomic)\n"
+                     "  U Nd-4f 6.0\n\n"
+                     "! ⚠ 위 두 줄과 아래 nspin 은 **z≈14 (4f 를 원자가에 둔) PP 일 때만** 쓴다.\n"
+                     f"!   z≈14: {PSEUDO_LIB['Nd']}\n"
+                     f"!   z≈11 frozen-4f: {PSEUDO_ND_FROZEN}  ← 이거면 U·nspin 을 **뺀다**\n"
+                     "!   확인:  grep -a -m1 'z_valence' <PP>   (z < 12 이면 frozen-4f)\n")
+        warn.append(
+            "Nd 4f 처방은 **PP 조건부**다. z≈14 PP(4f 를 원자가에 둔 것)면 "
+            "`nspin = 2` + 독립 카드 `HUBBARD (ortho-atomic)` / `  U Nd-4f 6.0`. "
+            "z≈11 frozen-4f PP 면 4f 가 core 에 있어 걸 대상이 없으니 U·nspin 을 **뺀다** "
+            "— 그대로 돌리면 QE 가 죽거나 조용히 무시한다.")
+        warn.append(
+            f"⚠ 서버에 어느 PP 가 있는지부터 확인해라. 2026-09-08 실측으로 gabia 에 있는 "
+            f"Nd PP 는 {PSEUDO_ND_FROZEN} (frozen-4f) 하나뿐이었다. "
+            f"z≈14 를 쓰려면 {PSEUDO_LIB['Nd']} 를 pseudo_dir 에 넣어야 한다.")
+        warn.append("⚠ 어느 쪽을 고르든 **비교 대상과 같은 선택**이어야 한다 — "
+                    "제약된 기준에서 자유로운 계를 빼면 그건 검증이 아니다 (2026-08-28).")
 
-    inp = f"""&CONTROL
+    _psd = _pseudo_dir(st["server"])
+    # ⛔ 2026-09-08 — pseudo_dir 값 안에 `# ← 교체` 주석이 들어가 있었다. Fortran namelist
+    #   문자열 **안**이라 QE 가 경로 전체를 리터럴로 읽는다 (KISTI 갈래는 절대경로라
+    #   멀쩡해서 세 서버 중 둘에서만 조용히 깨졌다). 안내는 &CONTROL **밖**, namelist
+    #   읽기가 시작되기 전 줄에 `!` 로 둔다.
+    _psd_note = ("" if "/" == _psd[:1] else
+                 f"! ← pseudo_dir 을 이 서버({st['server'].split()[0]})의 실제 pseudo 경로로 "
+                 f"교체할 것 (지금 값 '{_psd}' 은 상대경로다)\n")
+    inp = f"""{_psd_note}&CONTROL
   calculation = '{calc_kw}'
   prefix = '{prefix}'
-  pseudo_dir = '{_pseudo_dir(st["server"])}'
+  pseudo_dir = '{_psd}'
   outdir = './out_{prefix}'
   tprnfor = .true.
   tstress = .true.
@@ -3525,7 +3592,7 @@ def compute_preview(cid: str, calc: str) -> dict:
 {ions_block}{cell_block}ATOMIC_SPECIES
 {species}
 
-K_POINTS automatic
+{hub_block}K_POINTS automatic
   {kx} {ky} {kz} 0 0 0
 
 ! CELL_PARAMETERS / ATOMIC_POSITIONS ← 구조파일에서 삽입:
@@ -3541,9 +3608,17 @@ _MASS = {"Li": 6.94, "P": 30.97, "S": 32.06, "Cl": 35.45, "Br": 79.90, "I": 126.
 def _mass(e): return _MASS.get(e, 1.0)
 
 def _pseudo_dir(server):
+    """pseudo_dir 값 **그 자체만** 돌려준다 — 안내 주석을 여기 섞지 않는다.
+
+    ⛔ 2026-09-08 — 옛 판은 `"./pseudo   # ← … 경로로 교체"` 를 돌려줬고, 그게
+      `pseudo_dir = '…'` 의 **따옴표 안**에 들어가 QE 가 경로 전체를 리터럴로 읽었다.
+      QE namelist 주석은 `!` 이고 따옴표 밖이어야 한다. KISTI 갈래만 절대경로라 멀쩡해서
+      **세 서버 중 둘에서만 조용히** 깨졌다 — 그래서 아무도 못 봤다.
+      안내는 compute_preview 가 &CONTROL **위**에 `!` 줄로 붙인다.
+    """
     # KISTI = Slurm scratch 경로; kgy/gabia = 로컬(경로 확인 필요)
     return ("/scratch/x3430a02/kgy/manuscript_support/pseudo" if "KISTI" in server
-            else "./pseudo   # ← 이 서버(kgy/gabia)의 pseudo 경로로 교체")
+            else "./pseudo")
 
 def _runner_qe(cid, prefix, st):
     server = st["server"]

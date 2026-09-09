@@ -1,3 +1,48 @@
+# Yonghoon-DEM-DFT — 전고체전지(황화물 SE) 계산 캠페인 repo
+
+BML Lab (한양대) · 안용훈. 아지로다이트 황화물 고체전해질의 도핑·계면·수송을
+**DFT(QE) · MLIP-MD(UMA) · BVSE · DEM** 으로 계산하고, 그 값이 **인용해도 되는지**까지
+원장으로 관리한다. 값보다 **판정과 금지**가 이 repo 의 본체다.
+
+## 여기서 시작
+
+| 묻는 것 | 정본 |
+|---|---|
+| **규율** — 무엇을 하면 안 되나 | **`CLAUDE.md`** ← 먼저 읽는다 (표준은 이 한 벌이다) |
+| **지금 상태** | `kb/open_items.md` 의 ⏭ 절 · 기계 실측은 `kb/projects/restart_runbook_2026_09_07.md` |
+| **판정** | `db/governance/decisions.json` (`active` 만 유효) |
+| **값** | `db/properties/canonical_registry.json` |
+| **금지** | `db/properties/citation_hazards.json` |
+| **리뷰 왕복** | `kb/reviews/INDEX.md` (코드 체계는 `kb/CODES.md`) |
+
+## 살아 있는 폴더
+
+| 폴더 | 무엇 |
+|---|---|
+| `db/` | **수치 정본**(`properties/`·`structures/`)과 **판정 원장**(`governance/`). 숫자의 유일한 권위 |
+| `kb/` | 사람이 읽는 해석 위키 — 규칙은 `kb/SCHEMA.md`, 색인 `kb/index.md`(생성물) |
+| `litdb/` | 문헌 정본 — digest + `INDEX.md` + `comparison_vs_ours.md` + 크로핑 그림 |
+| `tools/` | 계산·분석·그림 도구 (py·sh 수백 개 — **새로 짜기 전에 `grep -rl` 먼저**) |
+| `webapp/` | 값·판정·금지를 사람이 보는 화면 (claim 결속 규율은 CLAUDE.md) |
+| `runs/` | 실행 산출물 — **불변 원본, 수정 금지** |
+| `research-agent/` | 논문 자동비서 (별도 지침: `research-agent/CLAUDE.md`) |
+
+`docs/` `figures/` `factory/` `archive/` 는 산출물·보관소다.
+작업 로그는 `TIMELOG.md` 가 아니라 **git log** 다 (TIMELOG 은 2026-06 이후 안 쓴다).
+
+---
+
+<details>
+<summary><b>📦 2026-05 판 원문 (아카이브 — 지우지 않는다)</b></summary>
+
+> ⚠ **아래는 2026-05-15 시점 문서다. 지금 사실과 다른 것이 많다** —
+> 스스로를 "project bible" 이라 부르지만 `tools/` · `db/` · `litdb/` · `webapp/` · `runs/` 가
+> 구조도에 하나도 없고, 대신 없는 경로(`scripts/descriptors/` · `data/final_combo/`)를 가리킨다.
+> Phase 1–3 로드맵과 3-tier 아키텍처는 **당시 계획**으로 읽는다.
+> ⚠ 여기 적힌 **R=+0.989** 는 20 시드 중 5 시드를 고른 판이다 —
+> 100 시드 통계(`kb/results/adhesion_100seeds_analysis.md`)에서 일부 순위가 뒤집힌다.
+> W_ad 는 `canonical_registry.json` 에도 `citation_hazards.json` 에도 **등록돼 있지 않다**.
+
 # 📚 BML Argyrodite / Sulfide Coating Digital Twin Project — Bible
 
 > **Last updated**: 2026-05-15
@@ -170,3 +215,5 @@ Yonghoon-DEM-DFT/
 - Project lead
 
 Co-developed with **Claude (Anthropic)** as the digital research assistant.
+
+</details>

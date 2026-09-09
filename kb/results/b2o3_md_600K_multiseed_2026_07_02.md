@@ -1,3 +1,26 @@
+> # ⛔⛔ b2o3 MD 축 마감 — **이 카드의 UMA-MD 수는 인용 불가** (배너 2026-09-09)
+>
+> b2o3 의 **UMA-MD 전도도 축 전체**(D · Ea · σ · 구간 Ea)가 **2026-08-25 에 닫혔고**
+> 2026-09-07 에 소급 등록·비준됐다 — `D-2026-09-07-b2o3-md-closure-retrospective`(active) ·
+> `db/properties/b2o3_md_closed_retrospective_2026_08_25.json`. **인용 가능한 수는 0개다**
+> (`0.199` · `0.206` · `0.21±0.03` · `0.2234` · 구간 `0.222` 전부. `citation_hazards.json`
+> `HZ-b2o3-md-ea` = **BLOCKED**, *"대체값 없음"*).
+> - **사유**: 골격 게이트 실측 — 비-Li 골격의 2–50 ps MSD 로그기울기가 **700 K 이상에서
+>   rigid 기준(β<0.30)을 넘었다.** 같은 포텐셜·온도·프로토콜의 modelc·lpsocl 은 1000 K 까지
+>   rigid 였다. 문제는 D 가 큰 것이 아니라 **그 숫자가 무엇을 잰 것인지 정의되지 않는다**는 것.
+> - ⛔ **σ 비(1.08/0.82/1.15)로 "동등"·"σ 보존" 이라고 쓰지 않는다** — 레지스트리
+>   `md-sigma-ratio-v1__NON_CITABLE`(citable:false)이 `statistically_equivalent_transport` ·
+>   `conductivity_preserved` · `equivalent_sigma` · 순위 · 기전 · RT 외삽을 명시적으로 금지한다.
+>   원자료 축자: ***"미평가 쌍의 '같음' 은 동등이 아니라 구분 실패다."***
+>   그리고 그 셋은 **600/800/1000 K** 비이지 **300 K 값이 아니다**(σ300 표기는 오표기).
+>   2026-09-08 회수로 **두 계의 셀이 부피 2.00배 달랐다**는 사유가 하나 더 붙었다.
+> - ✅ **살아 있는 것**: 0 K DFT 축(gap · ICOHP · convex hull · phonon · ELF)과 **BVSE 정적 기하**.
+>   이 마감의 범위가 아니다.
+> - **말할 수 있는 문장은 마감 카드의 `허용_서술_이대로만` 4개뿐이다.**
+>
+> ⛔ 아래 본문·값은 **이력으로 보존**한다 (kb/SCHEMA.md Update Policy) — 지우지 않는다.
+> 축 전체 지도: `kb/methodology/md_axis_status_2026_09_07.md`
+
 # B₂O₃ MD 이온전도도 — 600K 다중시드 error bar (Ea = 0.21 ± 0.03 eV)
 
 **날짜** 2026-07-02 · **계기** 단일-seed Ea가 0.223↔0.172로 51 meV 흔들리던 문제(leave-one-out으로 600K 점이 주범임을 규명) → 600K를 다중시드 재현

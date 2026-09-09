@@ -11,7 +11,8 @@
   "consumer 는 required_assessment_refs 가 가리키는 것 중 state=active 인 것 하나만 읽는다. 2개 이상이면 오류다."
  ],
  "_history": {
-  "2026-08-20a": "신설. b2o3 골격 게이트를 vertical slice 로 이관 — 옛 beta 판정(retracted·diagnostic_unbound)과 현재 판정(not_assessed)을 **병존**시키고, canonical_registry 에는 참조만 남겼다. 나머지 게이트(lpsocl·comp1 MD_Ea)는 레거시 경로 유지 — 확대는 slice 통과 뒤 별건이다."
+  "2026-08-20a": "신설. b2o3 골격 게이트를 vertical slice 로 이관 — 옛 beta 판정(retracted·diagnostic_unbound)과 현재 판정(not_assessed)을 **병존**시키고, canonical_registry 에는 참조만 남겼다. 나머지 게이트(lpsocl·comp1 MD_Ea)는 레거시 경로 유지 — 확대는 slice 통과 뒤 별건이다.",
+  "2026-09-09": "⚠ 레코드는 한 글자도 고치지 않았다 (_rules 의 append-only). 대신 이 원장을 읽는 사람이 알아야 할 두 가지를 여기 적는다. ① A-2026-08-20-b2o3-framework-current 의 raw_trajectory_set.rerun_status 는 '2026-08-20 진행 중' 으로 19일째 낡았다 — 그 재실행이 채우려던 축은 D-2026-09-07-b2o3-md-closure-retrospective 로 인용 불가 마감됐고, 그 결정의 재개 조건이 '진단 목적의 재실행은 결과와 무관하게 이 마감을 바꾸지 않는다' 다. 판정 자체는 여전히 result=not_assessed · state=active 다 — 마감은 **인용 자격**의 판정이지 게이트 통과가 아니다. ② **확대 미완**: 이 원장에 배선된 claim 은 아직 2건(MD_Ea_eV/b2o3 · MD_Ea_eV_singleseed/b2o3)뿐이다. 나머지 provisional 항목(MD_Ea_eV/lpsocl · MD_Ea_eV_singleseed/comp1 · MD_Ea_eV_disorder/comp2 · SDCP_Eads_eV__* 7건)은 판정을 canonical_registry 의 note 산문에 품고 있다 ⇒ **이 파일을 '전부' 로 읽으면 안 된다.** 그 산문 판정을 레코드로 뽑는 것은 별건이고, 뽑을 때 없는 판정을 만들어 내면 D-2026-08-20-no-retro-gate-without-artifact 위반이다."
  },
  "assessments": [
   {
