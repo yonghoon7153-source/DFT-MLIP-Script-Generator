@@ -1,13 +1,14 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 382
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 383
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 187건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 188건)
 - 2026-09-09 · `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 · SUPERSEDED (문턱) / 유효 (시드·정지 규칙)
+- 2026-09-09 · `kb/methodology/name_vs_substance_2026_09_09.md` — 이름과 실체가 갈린다 — 하루에 여섯 번 (2026-09-09) · 진행
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
 - 2026-09-09 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
@@ -26,7 +27,6 @@
 - 2026-09-07 · `kb/projects/restart_runbook_2026_09_07.md` — 재기동 절차서 — 2026-09-07 재부팅 (gabia · desktop) · 진행
 - 2026-09-06 · `kb/questions/polaron_seed_localized_basis_cannot_express_ring_pi.md` — 폴라론 seed 가 안 먹는 이유 — 국재 기저에 '고리 π' 궤도가 없다 · open [open]
 - 2026-09-05 · `kb/papers/figure2e_dropin_v7_2026_09_05.md` — 원고 v6→v7 Figure 2e 드롭인 — 본문·캡션·Methods 교체안 (C-12 v36 설계 반영) · 1저자 확인 대기
-- 2026-09-04 · `kb/reviews/internal_review_AX_lpsocl_600K_2026_09_04.md` — 내부 리뷰 AX — LPSOCl 600 K 개정 (Codex 대체 · 자체 적대적 리뷰) · 판정 완료
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -53,7 +53,7 @@
 - `kb/physics/vacancy_effects.md` — Vacancy Effects in Argyrodite
 - `kb/physics/vacancy_mechanism_corrected_2026_05_08.md` — Vacancy + Halogen Distribution → Adhesion: Corrected Mechanism
 
-## methodology/ (52)
+## methodology/ (53)
 - `kb/methodology/PHASE1_QUICKSTART_doping.md` — Phase 1 Quickstart Guide
 - `kb/methodology/adhesion_calibration_decision_2026_05_17.md` — Adhesion Calibration Decision — 2026-05-17
 - `kb/methodology/adhesion_energy.md` — Adhesion Energy (Wad) Calculation
@@ -96,6 +96,7 @@
 - `kb/methodology/md_conductivity_protocol.md` — MD 이온전도도 추출 프로토콜 (논문용 — 고정 설정)
 - `kb/methodology/microstructure_ml_transfer_to_cascade_2026_08_25.md` — 미세구조 ML 세미나에서 cascade 로 이전 가능한 것 — 화학이 아니라 설계·평가 방법론  (2026-08-25 · 진행)
 - `kb/methodology/modelC_v2_slab_fix.md` — modelC v2 Slab Construction — Convention Fix
+- `kb/methodology/name_vs_substance_2026_09_09.md` — 이름과 실체가 갈린다 — 하루에 여섯 번 (2026-09-09)  (2026-09-09 · 진행)
 - `kb/methodology/nd_vs_O_isolation_campaign_2026_06_18.md` — Nd vs O 분리 — "Nd가 특별한가, O 운반체일 뿐인가" 정량 캠페인
 - `kb/methodology/o2_muO_screening_2026_09_07.md` — LPSCl + O₂ — 산소 화학퍼텐셜(μ_O) 전방향 스크리닝  (2026-09-07 · 1차 결과)
 - `kb/methodology/offline_archive_index_2026_08_20.md` — 오프라인 백업 인덱스 — repo 밖에 있는 원자료가 어디 있나  (2026-08-20 · 실측 인덱스 (2026-08-20 전수조사))
