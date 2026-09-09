@@ -174,3 +174,46 @@ vendor 커밋이 **선행 조건**이다. 이 환경에서 CDN 이 403 이라 �
 
 시험 132 → 145 passed. 전 정의역 389 URL / 383 스캔 · **unbound 0 · dangling 0**.
 ⚠ 그 0 은 "결속됐다" 가 아니라 "치환기가 돌았다" 이기도 하다 — 회신에 그대로 적었다.
+
+---
+
+## 부록 — 아침에 던질 붙여넣기 블록 (원격 상태 회수)
+
+밤사이 원격(gabia·kgy)은 **내가 못 본다**. 아래를 그대로 붙여넣고 출력을 주시면 판정한다.
+⚠ 셋 다 **읽기만** 한다 — 아무것도 죽이거나 새로 던지지 않는다.
+
+### ① gabia — cascade_v2 · nd_chain 이 아직 살아 있나
+
+```bash
+ssh root@121.78.116.27 'echo "=== tmux ==="; tmux ls 2>&1 | head
+echo "=== GPU ==="; nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv
+echo "=== GPU 쓰는 프로세스 ==="; nvidia-smi --query-compute-apps=pid,used_memory,process_name --format=csv
+echo "=== cascade_v2 마지막 20줄 ==="; tmux capture-pane -pt cascade_v2 2>/dev/null | tail -20
+echo "=== nd_chain 마지막 20줄 ==="; tmux capture-pane -pt nd_chain 2>/dev/null | tail -20'
+```
+
+**내가 볼 것**: ⓐ 두 tmux 세션이 남아 있나 ⓑ VRAM 이 났나(cascade #3 은 ~20 GB · nd n5fu 는 ~8 GB)
+ⓒ 대기 루프가 아직 도는지 아니면 조용히 죽었는지.
+
+### ② kgy — 힘 대조 SCF 20점
+
+```bash
+ssh kgy@59.12.161.91 'cd ~/work/Yonghoon-DEM-DFT 2>/dev/null || cd ~/Yonghoon-DEM-DFT
+bash tools/doping/watch_force_check.sh 2>&1 | tail -40
+echo "=== GPU ==="; nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+echo "=== python3(UMA)가 GPU 를 쓰고 있나 ==="
+nvidia-smi --query-compute-apps=pid,used_memory,process_name --format=csv'
+```
+
+**내가 볼 것**: 400-iteration pilot 이 수렴했나. 수렴했으면 20점 전부 `electron_maxstep 400` 으로,
+안 됐으면 `--ecutrho 624`(현재 10× → 필요 12×) 로 간다. 그 판정을 아침에 한다.
+⚠ `pw.x` 를 던지기 전에 **python3(UMA)가 GPU 를 쓰고 있는지** 반드시 본다 — kgy 도 공유다.
+
+### ③ 이번 판단에 필요한 것만 — 되풀이 금지
+
+CLAUDE.md 의 kgy 규율대로, QE-GPU 런타임은 **추측하지 않고 `ldd` 로 바이너리에게 묻는다.**
+2026-09-08 에 같은 자리에서 세 번 틀렸다. 다시 필요해지면:
+
+```bash
+ldd $(which pw.x) | grep -E "libmpi|libnvomp|libgomp"
+```
