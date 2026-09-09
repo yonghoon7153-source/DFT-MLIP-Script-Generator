@@ -4,7 +4,10 @@
 > **저자**: Ming Jiang(안후이대 물리과학정보기술연구원) · Zhi-Wen Chen · Adwitiya Rao · Li-Xin Chen(이상 Univ. of Toronto MSE) · **Xiao-Tao Zu\***(UESTC 양쯔델타연구원 후저우) · **Chandra Veer Singh\***(Toronto MSE + MIE)
 > **게재**: *Journal of Materials Chemistry C*, 2022, **10**, 18294–18302. 접수 2022-09-02 · 게재확정 2022-11-21
 > elements: Li, P, S, Cl, Se, Co, Fe, O
-> methods: DFT, AIMD, MD, DOS, PDOS, Bader, elastic
+> methods: DFT, AIMD, MD, MSD, arrhenius, DOS, PDOS, bandgap, Bader, elastic, PAW, PBE, kpoint, grand-potential
+>
+> ⚠ 위 `grand-potential` 태그는 **계면 반응에너지 ΔE_D 에만** 쓰였다는 뜻이다 —
+> **이 논문은 전기화학 안정성 창(ESW)을 계산하지 않았다** (§4.4·§10 참조).
 
 ---
 
