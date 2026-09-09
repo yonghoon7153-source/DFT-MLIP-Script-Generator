@@ -13,7 +13,7 @@
 - 2026-09-09 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
 - 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
-- 2026-09-09 · `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다) · 초안
+- 2026-09-09 · `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다) · 발송
 - 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 (Codex BI NO-GO + v3 재편 + cascade 재설계) · 대기
 - 2026-09-09 · `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09 · 진행
 - 2026-09-08 · `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 · 진행
@@ -248,7 +248,7 @@
 - `kb/reviews/codex_BH_prompt_md_axis_audit_2026_09_07.md` — 리뷰 요청 BH — MD 축 전수 감사: 90런에 인용 가능한 Ea 가 0개다  (2026-09-07 · 작성 — 발송 대기)
 - `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건  (2026-09-08 · 발송)
 - `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷  (2026-09-09 · 초안)
-- `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다)  (2026-09-09 · 초안)
+- `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다)  (2026-09-09 · 발송)
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서)  (2026-08-20 · 리뷰대기)
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료)  (2026-08-20 · v2.1 — codex 2라운드 종료 (manifest 지적 철회 ·…)
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서)  (2026-08-25 · 리뷰완료-HOLD)

@@ -102,6 +102,13 @@
    "DEM 논문/22. Mechanical instability of electrode-electrolyte interfaces in solid-state batteries.pdf"
   ]
  },
+ "carrete2023_deep_ensembles_vs_committees": {
+  "figures": 9,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "66caeb45-79DEEP1.PDF"
+  ]
+ },
  "cha2024_dualcompatible_halide_ncm_lpscl_interface": {
   "figures": 6,
   "generated": "2026-08-05",
@@ -275,6 +282,13 @@
    "DFT 먹인 논문/02. Synergistic effects of chlorine substitution in sulfide electrolyte solid state batteries.pdf"
   ]
  },
+ "grasselli2025_uncertainty_era_ml_atomistic": {
+  "figures": 8,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "295b265a-81._Uncertainty_in_the_era_of_machine_learning_for_atomistic_modeling.pdf"
+  ]
+ },
  "han2025_icep_binder_ultrahigh_loading_ncm811": {
   "figures": 7,
   "generated": "2026-08-29",
@@ -309,6 +323,13 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DEM 논문/26. Modelling heat conduction in 3D composite cathode microstructures of all-solid-state batteries.pdf"
+  ]
+ },
+ "imbalzano2021_committee_uq_md_thermodynamic_averages": {
+  "figures": 9,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "36dc36f5-78._Uncertainty_estimation_by_committee_models_for_molecular_dynamics_and_thermodynamic_averages.pdf"
   ]
  },
  "intergranular_cracking_nmc811_jmca2023": {
@@ -556,6 +577,13 @@
   "pdfs": [
    "DFT 먹인 논문/31. Influence of Lattice Polarizability on the Ionic Conductivity in the Lithium Superionic Argyrodites Li6PS5X (X = Cl, Br, I).pdf",
    "DFT 먹인 논문/31. Sup) Influence of Lattice Polarizability on the Ionic Conductivity in the Lithium Superionic Argyrodites Li6PS5X (X = Cl, Br, I).pdf"
+  ]
+ },
+ "kurniawan2025_comparative_ensemble_uq_nnip": {
+  "figures": 13,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "3501d83b-80._Comparative_study_of_ensemblebased_uncertainty_quantification_methods_for_neural_network_interatomic_potentials.pdf"
   ]
  },
  "lai2020_li2s_interfacial_layer_amorphous_sulfide_cse": {
@@ -897,6 +925,14 @@
   "pdfs": [
    "34b02e87-63._PETMAD_as_a_lightweight_universal_interatomic_potential_for_advanced_materials_modeling.pdf",
    "c90694f1-63._Sup_PETMAD_as_a_lightweight_universal_interatomic_potential_for_advanced_materials_modeling.pdf"
+  ]
+ },
+ "pranami2015_estimating_error_diffusion_coefficients_md": {
+  "figures": 16,
+  "generated": "2026-09-09",
+  "pdfs": [
+   "f64f1065-83._Estimating_Error_in_Diffusion_Coefficients_Derived_from_Molecular_Dynamics_Simulations.pdf",
+   "cb320579-83._sup_Estimating_Error_in_Diffusion_Coefficients_Derived_from_Molecular_Dynamics_Simulations.pdf"
   ]
  },
  "qian2025_lipo2f2_coating_stable_cei": {
