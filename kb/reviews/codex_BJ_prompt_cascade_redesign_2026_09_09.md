@@ -3,7 +3,7 @@ title: "리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고�
 date: 2026-09-09
 updated: 2026-09-09
 tags: [review, codex, prompt, cascade, estimand, screening, doping]
-status: 초안
+status: 발송
 kind: review-prompt
 system: cascade
 confidence: medium
@@ -19,9 +19,14 @@ evidenceScope: multi-source-primary
 > 앞 요청: `codex_BI_prompt_webapp_claim_binding_2026_09_08.md` (화면·결속 축 — 별건입니다)
 > **이번은 축이 다릅니다.** 화면이 아니라 **계산 설계**이고, 코드 리뷰가 아니라
 > **보고량 리뷰**입니다.
-> 대상 브랜치 `claude/friendly-meitner-lldvar` · 대상 커밋 `<발송 시점 HEAD>`
+> 대상 브랜치 `claude/friendly-meitner-lldvar` · 대상 커밋 **`d8e3e6a95`**
 > ⛔ **이 요청의 대상 계산은 아직 하나도 안 돌렸습니다.** 1저자 지시가
 > *"Codex GO 가 나올 때까지 돌리지 않는다"* 입니다.
+>
+> ⚠ **BI 축(화면·결속)은 같은 브랜치에서 별도로 진행 중이고 지금 NO-GO 상태입니다**
+> (BI-3 P0 4건 중 1건 수정 완료, 3건 미착수). 두 축은 독립이라 따로 여쭙습니다 —
+> 다만 같은 브랜치이므로 커밋에는 양쪽 변경이 섞여 있습니다. 이 요청의 판정 대상은
+> **`tools/doping/` 과 `db/properties/cascade_*` · 재설계안 A/B/C** 이고, `webapp/` 은 아닙니다.
 
 ---
 
@@ -162,6 +167,8 @@ Stage 01–03 을 37분 정상 통과한 뒤 **Stage 04 에서 전부 rc=2 로 �
 2026-09-08 밤 전수조사(29 에이전트 · 6.7 M 토큰)가 552 발견을 내고 스스로를 "전수" 라 불렀는데,
 다음 날 터진 사고의 원인 파일을 **한 번도 열지 않았습니다.**
 그래서 커버리지를 재는 도구(`tools/survey_coverage.py`)를 만들어 쟀더니 **34.3 %** 였습니다.
+⚠ 이 수의 정확한 이름은 **정독률이 아니라 「파일명 언급률」** 입니다 — 도구가 파일명이 한 번
+스쳐도 인용으로 세기 때문입니다. (BI-3 리뷰에서 저희가 이걸 정독률처럼 쓴 것을 지적받았습니다.)
 
 ⚠ 그 도구가 **자기 자신도 속였습니다** — `--json` 출력을 조사 폴더 안에 떨궜더니
 다음 측정에서 그 파일의 1,381개 경로가 "인용됨" 으로 재분류돼 **99.7 %** 가 됐습니다.
