@@ -17,12 +17,26 @@
   → LPSOCl 600 K 탈락은 사고가 아니라 **예측 가능했던 통계 부족**이다.
     (LPSOCl 은 Ea 가 높아 같은 온도에서 D 가 작다 → 같은 200 ps 에 홉이 40% 적다)
 
-⚠ 이건 **상한 추정**이다. 실제로는 되돌아오는 홉(back-correlated)이 있어서
-  같은 MSD 를 내는 데 더 많은 홉이 필요하다 (Haven 비 H_R 0.3-0.7 < 1 = 상관운동,
-  litdb dyre2004). 즉 n_hop 은 낙관적으로 세는 값이라 경계선은 더 보수적으로 봐야 한다.
+⚠ 이건 **상한 추정**이다. 되돌아오는 홉(back-correlated)이 있으면 같은 MSD 를 내는 데
+  더 많은 홉이 필요하다 — 즉 n_hop 은 낙관적으로 세는 값이라 경계선은 보수적으로 읽는다.
+  ⛔ 2026-09-07 정정 — 옛 판은 그 근거로 **"Haven 비 H_R 0.3–0.7 < 1 (litdb dyre2004)"**
+    을 인용했다. 그 범위는 **문헌 소환값이고 우리 것이 아니며**, li_transport.json 이
+    그것으로 우리 σ 를 되재는 것을 명시적으로 금지했다. 우리 궤적에서 직접 잰 값은
+    **H_R = 0.84 ± 0.06** (db/properties/haven_ratio_measured_2026_09_07.json ·
+    6 계온도 · b2o3 1200 K 제외). 그 파일은 `citable: false` — **방향 판정용**이라
+    이 도구의 경계선을 그 숫자로 되재지 않는다. 상관운동이 있다는 방향만 살아 있고,
+    "0.3–0.7 만큼 보수적으로" 라는 **크기 주장은 철회**다.
+  (같은 날 부호도 뒤집혔다: H_R ≡ D*/D_σ 이므로 σ_NE = H_R·σ_true — H_R<1 이면
+   NE 는 **과소**다. run_md_sigma.py 의 '나누기 2 = 상한' 지시가 그 오류였다.)
 
   python3 tools/ionic/hops_per_ion.py
   python3 tools/ionic/hops_per_ion.py --prod_ps 1600 --csv db/properties/hops_per_ion.csv
+
+⛔ 이 도구가 못 하는 것
+  · 궤적을 안 읽는다. 위 SYS 표의 Ea·D(600 K) **앵커에서 외삽**할 뿐이라, 앵커가
+    철회되면 이 표도 같이 철회된다. 홉을 실제로 세는 것은 tools/ionic/aimd_jump_stats.py 다.
+  · d_hop = 3 Å 은 argyrodite 대표값 하나다 — 계마다 다르고, n_hop 은 d_hop² 에 반비례한다.
+  · β 를 예측하지 않는다. "홉이 몇 개면 β 가 설 수 있나" 의 **필요조건**만 본다.
 """
 import argparse
 import csv
@@ -98,8 +112,10 @@ def main():
     print("\n" + "─" * 78)
     print(f"기준: n_hop = 6Dt/d_hop²  (d_hop {a.d_hop} Å) · ≥{N_OK:.0f} 충분 · "
           f"{N_EDGE:.0f}–{N_OK:.0f} 경계 · <{N_EDGE:.0f} 부족")
-    print("⚠ 상한 추정이다 — 되돌아오는 홉(H_R 0.3–0.7 < 1, dyre2004)을 안 세므로")
-    print("  실제 필요 홉은 이보다 많다. 경계선은 보수적으로 읽을 것.")
+    print("⚠ 상한 추정이다 — 되돌아오는 홉(back-correlated)을 안 세므로 실제 필요 홉은")
+    print("  이보다 많다. 경계선은 보수적으로 읽을 것. (얼마나 보수적인지는 미정 —")
+    print("  옛 '0.3–0.7' 은 문헌 소환값이라 2026-09-07 에 철회했다. 우리 실측")
+    print("  H_R 0.84±0.06 은 citable:false 진단값이라 여기 되먹이지 않는다.)")
     print("★ 검증: 600 K 예측(13.9/8.4/13.9)이 실측 β(0.87/0.61/0.81) 순서를 맞춘다 —")
     print("  LPSOCl 600 K 탈락은 Ea 가 높아 같은 시간에 홉이 40% 적었던 결과다.")
 
@@ -107,9 +123,20 @@ def main():
         with open(a.csv, "w", newline="", encoding="utf-8-sig") as f:
             f.write("# Hops per Li ion vs temperature: n_hop = 6*D*t / d_hop^2.\n")
             f.write("# D from measured multiseed Ea + D(600 K); d_hop = 3 A (Li-Li site spacing).\n")
-            f.write("# UPPER BOUND: back-correlated hops (Haven 0.3-0.7 < 1) are not counted,\n")
-            f.write("#   so the real hop requirement is higher. Read thresholds conservatively.\n")
+            f.write("# UPPER BOUND: back-correlated hops are not counted, so the real hop\n")
+            f.write("#   requirement is higher. Read thresholds conservatively.\n")
+            f.write("# RETRACTED 2026-09-07: the previous header said '(Haven 0.3-0.7 < 1)'.\n")
+            f.write("#   That range is a literature value, not ours, and li_transport.json\n")
+            f.write("#   forbids rescaling our numbers with it. Our measured H_R = 0.84 +/- 0.06\n")
+            f.write("#   (haven_ratio_measured_2026_09_07.json) is citable:false — a direction\n")
+            f.write("#   diagnostic, so no magnitude claim is made here.\n")
             f.write("# beta_observed = v2 multiseed ensemble gate result (2026-08-04) where available.\n")
+            # 앵커를 헤더에 적는다 — 이 표는 궤적이 아니라 Ea·D(600 K) 앵커에서 외삽한
+            # 값이라, 앵커가 바뀌면 표 전체가 바뀐다 (2026-08-24 b2o3 Ea 0.199 → 0.2241
+            # 구간적합 정정이 실제로 그랬다: 1000 K n_hop 64.7 → 78.6).
+            for _n, _s in SYS.items():
+                f.write(f"# ANCHOR {_n}: Ea={_s['Ea']} eV, D600={_s['D600']:.4e} cm2/s "
+                        f"[{_s['src']}]\n")
             w = csv.DictWriter(f, fieldnames=list(rows[0]))
             w.writeheader(); w.writerows(rows)
         print(f"\n→ {a.csv}")

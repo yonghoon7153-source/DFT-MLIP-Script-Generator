@@ -11,6 +11,17 @@
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
 
+**2026-09-07~08 에 들어와 이 원장이 모르고 있던 것** (전부 `db/governance/decisions.json` 에 active):
+- `D-2026-09-08-lpsocl-box331-closure-conditions` — LPSOCl 3×3×1 400 ps 9런 **닫힘 조건 확정**
+  (아레니우스를 하나도 그리기 전에). C3 = ΔEa 직접계산 · δEa 0.050 eV.
+  → `db/properties/lpsocl_box331_closure_conditions_2026_09_07.json`
+- `D-2026-09-08-cascade-d-rel-estimand` — cascade 보고량 카드 비준 (아래 ⏭-2)
+- `D-2026-09-07-b2o3-md-closure-retrospective` — b2o3 **UMA-MD 전도도 축 전체 마감**(D·Ea·σ·구간 Ea
+  전부 인용 불가, 인용 가능한 수 0개) · `D-2026-09-07-b2o3-cell-expansion-diagnostic`(재개용 사전등록) ·
+  `D-2026-09-08-b2o3-uma-vs-dft-force`(골격 creep 힘 대조, 결과 보기 전 봉인)
+- 실측 재기동: `kb/projects/restart_runbook_2026_09_07.md` — **지금 무엇이 어디서 도는지의 정본**
+- 규율: QE-GPU 런타임은 **`ldd` 로 바이너리에게 묻는다**(CLAUDE.md · `tools/doping/run_force_check_scf.sh`)
+
 ### ⏭-0. SDCP doped 재개 — **회신 R4 조건부 GO · Stage A 는 1저자 결정으로 정지** (2026-08-28 등록 · **2026-09-09 갱신**)
 
 > ⛔ **2026-09-09 정정 — 아래 "▶ ORCA 8잡 실행 중" 은 사실이 아니었다.**

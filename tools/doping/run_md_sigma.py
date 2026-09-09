@@ -13,8 +13,21 @@ predicted "Li mobility" qualitatively; this stage produces the
 absolute σ_300K number the paper claims.
 
 Important caveats (also printed at runtime):
-  - Haven ratio H_R not applied. Real σ ≈ H_R × σ_NE (H_R ≈ 0.3-0.7
-    for argyrodites). Conservative reporting: divide by 2 for upper bound.
+  - Haven ratio H_R not applied; σ here is the H_R = 1 Nernst-Einstein value.
+    ⛔ 2026-09-07 RETRACTION — this docstring used to say "H_R ≈ 0.3-0.7 for
+    argyrodites … divide by 2 for upper bound".  BOTH halves were wrong:
+      (a) 0.3-0.7 is a *literature* range (Adeli 2019 etc.), not ours, and
+          db/properties/li_transport.json explicitly forbids rescaling our σ with it;
+      (b) the SIGN was backwards.  With H_R = D*/D_σ and MSD giving D*,
+          σ_NE = H_R × σ_true, so H_R < 1 makes NE an **UNDER**-estimate — never
+          an upper bound, and dividing by 2 goes the wrong way.
+    Our own measurement on our own trajectories: H_R = 0.84 ± 0.06
+    (db/properties/haven_ratio_measured_2026_09_07.json, 6 system-temperatures,
+    b2o3 1200 K excluded).  That file is `citable: false` — it is a **direction**
+    diagnostic, not a correction factor.  Do not multiply σ by it.
+    (Same correction as tools/modelc_v3/nernst_einstein_300K.py, 2026-09-07.)
+  - CLAUDE.md: absolute σ is NOT citable at all.  Ratios + Ea only, and ratios
+    only from multi-seed decisions.
   - 50 ps × 3T per winner is a *screening-grade* number. Production
     needs 100-200 ps + more T points (Arrhenius R² guard).
   - UMA-s-1p2 sulfide PES has known softening (Wang 2025); cross-check
@@ -236,9 +249,16 @@ def run_one_winner(xyz_path: Path, out_dir: Path, temps, equil_ps,
         'supercell': supercell,
         'sanity_warnings': sanity_warnings,
         'caveats': [
-            'Haven ratio not applied — divide σ_NE by ~2 for argyrodite '
-            'literature consistency (HR ≈ 0.3-0.7). Paper should derive '
-            'effective H_R from comp1 σ_NE vs experimental σ (1-3 mS/cm).',
+            # ⛔ 2026-09-07 — the retracted caveat said "divide sigma_NE by ~2 …"
+            #   (HR 0.3-0.7). Wrong range (literature, not ours) AND wrong sign.
+            'sigma here is the Haven=1 Nernst-Einstein value. H_R = D*/D_sigma, so '
+            'sigma_NE = H_R * sigma_true: H_R < 1 makes NE an UNDER-estimate, not an '
+            'upper bound. Do NOT divide.',
+            'Our measured H_R = 0.84 +/- 0.06 (db/properties/'
+            'haven_ratio_measured_2026_09_07.json) is citable:false — a direction '
+            'diagnostic only. Do not use it as a correction factor.',
+            'CLAUDE.md: absolute sigma is not citable. Cite ratios + Ea, and only '
+            'from multi-seed decisions.',
             'UMA-s-1p1 sulfide PES softening (Wang 2025) — verify against '
             'AIMD for at least one winner.',
             f'Production {prod_ps} ps screening-grade only.',
@@ -278,8 +298,9 @@ def main():
     print(f"  T grid: {args.temps} K")
     print(f"  Per (T, winner): {args.equil_ps} ps equil + {args.prod_ps} ps prod")
     print(f"  Supercell: {args.supercell}×{args.supercell}×{args.supercell}")
-    print(f"  ⚠ Haven ratio NOT applied — divide σ by ~2 for argyrodite "
-          f"comparison.\n")
+    print(f"  ⚠ σ is Haven=1 (Nernst-Einstein). H_R<1 ⇒ NE UNDER-estimates — "
+          f"do NOT divide (2026-09-07 sign correction).")
+    print(f"  ⚠ Absolute σ is not citable (CLAUDE.md) — ratios + Ea only.\n")
 
     all_results = {}
     for i, rec in enumerate(records, 1):

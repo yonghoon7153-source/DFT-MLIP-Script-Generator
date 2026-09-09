@@ -21,6 +21,25 @@ Usage:
 
 Cost: ~50 ps × ~0.1 sec/step (UMA A6000) = ~40-60 min per T, ~2-3 h total
 for 3 temperatures.
+
+Conventions this driver is pinned to (CLAUDE.md 데이터 규율):
+  · MSD fit window 2-50 ps, free intercept (--fit_window_ps default, checked by
+    tools/convention_check.py (6))
+  · --seed seeds BOTH the initial velocities and the Langevin noise; multi-T runs
+    offset it by T so the three Arrhenius points are not drawn from one sample.
+  · No `--save_traj` flag on purpose: this driver **always** writes traj.traj +
+    traj.xyz.  (The flag exists on disorder_ensemble_diffusion.py because that one
+    can skip frames; runs that skipped them could never be re-measured — 12 runs
+    2026-07 and 21 runs 2026-08 were lost that way.)
+
+⛔ 이 도구가 못 하는 것
+  · 확산영역 판정을 하지 않는다 — β / D_inc plateau / 홉 수는
+    tools/ionic/msd_diffusive_check.py 가 본다. 여기서 나온 D 는 **게이트 전** 값이다.
+  · sigma_NE 는 Haven=1 환산이다. **절대값 인용 금지** (CLAUDE.md). H_R 실측은
+    db/properties/haven_ratio_measured_2026_09_07.json (diagnostic · citable:false).
+  · 아레니우스 적합은 곡률을 안 본다 — 3점을 직선에 올릴 뿐이다.
+    b2o3 는 800 K 위에서 굽어 단일 Ea 를 철회했다 (2026-08-23).
+  · Li₃N 에는 쓰지 않는다 (UMA 금지, CLAUDE.md).
 """
 import argparse
 import json
@@ -110,8 +129,14 @@ def compute_msd_per_element(traj_path: Path, dt_save_fs: float, com_exclude=None
                                   for k in msd_groups} if groups else {}}
 
 
-def fit_diffusion(times_ps, msd_A2, fit_window=(2.0, 20.0)):
+def fit_diffusion(times_ps, msd_A2, fit_window=(2.0, 50.0)):
     """Linear fit MSD = 6 D t in the fit_window (ps). Returns D in cm²/s.
+
+    ⛔ 2026-09-08 — this default used to be (2.0, 20.0), which is NOT the canonical
+    window.  CLAUDE.md fixes the MSD fit window at **2-50 ps** for every campaign;
+    a caller that omits the window must land on the canonical one, not on a second
+    convention that silently produces a different D.  See tools/convention_check.py
+    check (6), which now reads argparse defaults too.
 
     1 Å² / 1 ps = 1e-16 m² / 1e-12 s = 1e-4 m²/s = 1 cm²/s × 1e-0 = 1e-0
     Actually: 1 Å² / 1 ps = 1e-16 cm² / 1e-12 s = 1e-4 cm²/s.
@@ -155,9 +180,15 @@ def run_one_temperature(args, T_K, out_dir):
     n_Li_per_cm3 = n_li / (V_A3 * 1e-24)  # atoms / cm³
     print(f"  atoms={len(atoms)}  n_Li={n_li}  V={V_A3:.2f} Å³  n_Li/cm³={n_Li_per_cm3:.3e}")
 
-    MaxwellBoltzmannDistribution(atoms, temperature_K=T_K)
+    # ★ seed: multi-T runs share one --seed, so offset per temperature — otherwise
+    #   600/800/1000 K start from the *same* velocity draw, which is a hidden
+    #   correlation between the three Arrhenius points.
+    seed = int(getattr(args, "seed", 1234)) + int(T_K)
+    MaxwellBoltzmannDistribution(atoms, temperature_K=T_K,
+                                 rng=np.random.default_rng(seed))
     dt = args.timestep_fs * units.fs
     md = Langevin(atoms, dt, temperature_K=T_K, friction=args.friction,
+                  rng=np.random.default_rng(seed),   # ⛔ rng=None → 전역 RNG (재현 불가)
                   logfile=str(out_dir / "md.log"))
 
     # Equilibration (no save)
@@ -210,6 +241,7 @@ def run_one_temperature(args, T_K, out_dir):
         "V_A3": V_A3, "n_Li_per_cm3": n_Li_per_cm3,
         "equilib_ps": args.equilib_ps, "prod_ps": args.prod_ps,
         "timestep_fs": args.timestep_fs, "save_fs": args.save_fs,
+        "seed": seed, "seed_base": int(getattr(args, "seed", 1234)),
         "n_frames": len(frames),
         "msd_data": msd,
         "diffusion_fits": fits,
@@ -261,9 +293,17 @@ def main():
     ap.add_argument("--friction", type=float, default=0.02)
     ap.add_argument("--save_fs", type=float, default=100.0,
                     help="trajectory save interval (fs)")
+    # ⛔ 2026-09-08 — was [2.0, 20.0].  Canonical window is 2-50 ps (CLAUDE.md).
     ap.add_argument("--fit_window_ps", type=float, nargs=2,
-                    default=[2.0, 20.0],
-                    help="MSD linear-fit window (ps)")
+                    default=[2.0, 50.0], metavar=("LO_PS", "HI_PS"),
+                    help="MSD linear-fit window (ps) — canonical 2 50")
+    # ⛔ 2026-09-08 — there was NO --seed.  ASE uses the **global** np.random when
+    #   rng=None, and this driver never seeded it, so neither the initial velocities
+    #   nor the Langevin noise were reproducible: two "identical" runs were not
+    #   comparable, and a multi-seed claim could not be made at all.  Same fix as
+    #   disorder_ensemble_diffusion.py (P1-3, 2026-08-11).
+    ap.add_argument("--seed", type=int, default=1234,
+                    help="velocity + thermostat seed (per-T offset applied)")
     ap.add_argument("--uma_model", default="uma-s-1p1")
     ap.add_argument("--uma_task", default="omat")
     ap.add_argument("--device", default="cuda")

@@ -1,4 +1,12 @@
-# 계산 방법 Canonical — 단일 기준 (2026-07-23 재정리 · **2026-08-20 축 4개 추가**)
+# 계산 방법 Canonical — 단일 기준 (2026-07-23 재정리 · **2026-08-20 축 4개 추가** · **2026-09-09 인용지위 정정**)
+
+> ⛔ **이 문서가 정하는 것은 "무엇을 맞춰야 비교가 성립하는가"(일관성 축)뿐이다.**
+> **그 값을 인용해도 되는가는 여기서 판정하지 않는다** — 순서대로 본다:
+> ① `db/properties/canonical_registry.json` (값·status·comparison_group·prohibitions)
+> → ② `db/properties/citation_hazards.json` (BLOCKED / HOLD / CONDITIONAL / SUPERSEDED)
+> → ③ `db/governance/decisions.json` (판정, `decision_state: active` 만 유효).
+> 2026-09-09 감사에서 이 문서의 ✅ 표기 몇 개가 **이력인데 현재 허가처럼** 읽히고 있었다
+> (§6 MD Ea 표 · §6-2 의 "구간 0.2241" · §10). 아래에 그 정정이 들어 있다.
 
 > 🆕 **2026-08-20 갱신 요약** — 값은 안 건드렸다(값의 정본은 각 db 파일). **일관성 축만** 늘렸다:
 > ① **NEB 장벽** 축 신설(§1 표 + §6b) — 일주일째 생산하면서 이 문서에 없었다.
@@ -80,8 +88,8 @@ Clamped-ion(원자 고정)은 argyrodite 탄성을 ~2.3× 과대평가(comp1 cla
 
 | 양 | 우리 상태 | 등급 | 규율 |
 |---|---|---|---|
-| **탄성 Cij / E / G / B** | ✅ 있음 (relaxed-ion, k×L=40) | ★ paper-grade | 위 §2 그대로 |
-| **표면에너지 γ** | ✅ 있음 — `adhesion.json` `surface_energies` | ⚠ **UMA 슬랩** | 같은 파일에 vacuum 아티팩트 이력(`vacuum_sensitivity`, 60 Å 에서 10× 폭주). **vacuum 30 Å 고정** |
+| **탄성 Cij / E / G / B** | ✅ 있음 (relaxed-ion, k×L=40) | ★ paper-grade — 레지스트리 `E_VRH_GPa` **canonical 4건** | 위 §2 그대로. ⚠ 비교묶음은 **comp1↔comp2 만** 한 그룹이고 modelc·lpsocl 은 standalone 이다(`comparison_group` 이 그렇게 나뉘어 있다) |
+| **표면에너지 γ / W_ad** | ✅ 계산은 있음 — `adhesion.json` `surface_energies` | ⚠ **UMA 슬랩 · 정본 등록 없음** | 같은 파일에 vacuum 아티팩트 이력(`vacuum_sensitivity`, 60 Å 에서 10× 폭주). **vacuum 30 Å 고정**. ⛔ **`canonical_registry.json` 에도 `citation_hazards.json` 에도 항목이 없다** — 즉 이 축은 결속 밖이다. W_ad 는 **어느 세대(20시드 전체 평균 vs 논문 5시드)를 정본으로 할지가 1저자 미결**이고, 100시드 통계는 Li5.4 내부 순위를 유의하지 않다고 한다(`kb/results/adhesion_100seeds_analysis.md`) |
 | **Griffith 이상취성 하한** K_IC = √(E·2γ) | 🟡 조립 가능 (open_items #14) | ⚠ γ 가 UMA · 이상취성 | **"K_IC 를 계산했다" 라고 부르지 않는다.** "이상취성 하한을 냈다" 까지 |
 | **실제 파괴인성 K_IC** | ⛔ **없다 — 그리고 낼 수 없다** | — | 아래 참조 |
 
@@ -143,14 +151,28 @@ Clamped-ion(원자 고정)은 argyrodite 탄성을 ~2.3× 과대평가(comp1 cla
 **프로토콜 (고정):** Langevin NVT · dt 2 fs · friction 0.02 · equilib 5 ps + prod 200 ps · **MSD 창 2–50 ps** · Arrhenius **600/800/1000 K 3점** (400/500 K 제외) · **3-seed** · σ는 Nernst–Einstein(Haven=1).
 **규율:** 절대값 인용 금지 · 비율도 멀티시드 판정만 · Ea 오차막대는 600 K 3-시드. **UMA는 Li₃N에 금지**(LPSCl 계열엔 검증된 표준).
 
-| 조성 | Ea (eV) | 출처 |
-|---|---|---|
-| comp1 | **0.253** | `li_transport.json` (4fu, PRIMARY) |
-| modelc | 0.224 | `li_transport.json` |
-| lpsocl | 0.271±0.033 / 0.287±0.024 | `lpsocl_md_arrhenius.json` |
-| comp2 | **계산중** (s2 단일 0.312, 3-seed 대기) | — |
+> ⛔⛔ **이 표는 "값 목록" 이지 "인용 가능 목록" 이 아니다 (2026-09-09 정정).**
+> 레지스트리 기준 이 축의 `MD_Ea` 항목은 **철회 1 · 잠정 5 · canonical 2(인용 보류)** 이고,
+> `kb/methodology/md_axis_status_2026_09_07.md` §0 이 못박는다 —
+> **"지금 이 축에서 원고에 넣을 수 있는 활성화에너지는 0개다."**
+> 그리고 레지스트리가 이 축 전반에 **`cross_composition_ranking` 을 금지**한다
+> (계간 직접 비교는 `HZ-cross-system-Ea` BLOCKED · 회신 AK Q2=C).
+> ⇒ 아래 표는 **어느 파일이 정본인가** 를 찾는 색인으로만 쓴다.
 
-> MD는 UMA라 pseudo(USPP/PAW)와 무관. comp1↔comp2 비교는 같은 UMA·프로토콜·멀티시드면 성립 (elastic처럼 재측정할 일 없음).
+| 조성 | Ea (eV) | 레지스트리 status | 출처 |
+|---|---|---|---|
+| comp1 | 0.2532 (단일시드) | 🟡 `provisional` — `cross_composition_ranking`·`absolute_sigma` 금지 · `cite_until_beta_gate_passes` | `li_transport.json` (4fu) |
+| modelc | 0.197 (3시드) / 0.2235 (단일시드 앵커) | 🟢 `canonical` **이나 계간 비교는 금지** — `absolute_sigma`·`single_seed_ratio` 금지 | `li_transport.json` |
+| lpsocl | 0.2867 (62원자 4시드) | 🟡 `provisional` — 62원자 **셀 조건부** 값. 3×3×1 은 **다른 보고량**(회신 AK) | `lpsocl_md_arrhenius.json` |
+| comp2 | 0.2755 (ordered 3시드) / 0.1512 (disorder d0.50) | 🟡 `provisional` — `cross_composition_ranking` 금지 · disorder 쪽은 config 산포 45 % (종전 "계산중" 은 낡았다) | `comp2_md_arrhenius.json` · `comp2_disorder_ensemble.json` |
+| b2o3 | ~~0.199 ± 0.034~~ | ⛔ **retracted · 축 전체 마감** (`D-2026-09-07-b2o3-md-closure-retrospective`) — 인용 가능한 수 **0개** | `b2o3_md_arrhenius.json` |
+
+> ~~MD는 UMA라 pseudo(USPP/PAW)와 무관. comp1↔comp2 비교는 같은 UMA·프로토콜·멀티시드면 성립 (elastic처럼 재측정할 일 없음).~~
+> ⛔ **뒷문장 폐기 (2026-09-09)** — "같은 UMA·프로토콜·멀티시드면 성립" 은 **필요조건을 충분조건으로**
+> 쓴 것이다. 최소한 **상자 크기**(§6-1, D 1.65배)와 **골격 게이트**(§6-2)가 더 필요하고, 그 둘을
+> 맞춰도 레지스트리의 `cross_composition_ranking` 금지가 먼저다. 앞문장(pseudo 무관)만 유효하다.
+> **이 문서는 축과 금지만 말한다 — 인용 가능 여부의 정본은 `db/properties/canonical_registry.json`
+> · `db/properties/citation_hazards.json` 이다.**
 
 ### 6-1. 🆕 상자 크기도 일관성 축이다 (2026-08-20 추가)
 
@@ -205,7 +227,15 @@ Clamped-ion(원자 고정)은 argyrodite 탄성을 ~2.3× 과대평가(comp1 cla
 > 실측으로 반증했다(β 게이트 6/6 통과 · MSD 창 스캔에서 m 이 오히려 +4 % ·
 > 1000 K 궤적 P 배위수 8/8 CN=4, 해리 0).
 > **⇒ 600–1000 K 를 하나의 Ea 로 기술하지 않는다.** `0.199` · `0.206` · `0.1732` 전부 철회.
-> ✅ 쓸 수 있는 것: **저온 구간 0.2241 ± 0.0606 eV** (600→800 K, 3시드 **각각** 적합).
+> ~~✅ 쓸 수 있는 것: **저온 구간 0.2241 ± 0.0606 eV** (600→800 K, 3시드 **각각** 적합).~~
+> ⛔ **2026-09-07 마감으로 이것도 죽었다 (2026-09-09 정정).** `D-2026-09-07-b2o3-md-closure-retrospective`
+> (active·비준)가 b2o3 UMA-MD 축 **전체**(D·Ea·σ·**구간 Ea 포함**)를 닫았다 —
+> `db/properties/b2o3_md_closed_retrospective_2026_08_25.json` 금지 서술:
+> *"b2o3 의 D · Ea · σ · 구간 Ea 중 **어느 것도** 물질 값으로 인용 — 0.222 eV 포함."*
+> 사유는 굽음이 아니라 **골격 게이트 실측**(700 K 이상에서 비-Li β 가 rigid 기준을 넘는다) —
+> 즉 그 D 가 무엇을 잰 값인지 정의되지 않는다. **이 축에서 쓸 수 있는 수는 0개**이고,
+> 말할 수 있는 것은 그 카드의 `허용_서술_이대로만` 4문장뿐이다.
+> (인용위험 원장: `citation_hazards.json` `HZ-b2o3-md-ea` = **BLOCKED**, 대체값 없음.)
 > ⚠ σ(300 K) 도 같이 철회 — 재계산 **38.39 ± 51.09 mS/cm**(시드 8.46–97.38, 11.5배).
 > 표준편차가 평균보다 크다: 철회한 18.51 은 이 범위 **안에** 있다. 틀렸다기보다
 > **의미 없이 정밀했다.**
@@ -297,7 +327,10 @@ MLIP NEB 의 용도는 **경로 선택**이다 — 실제로 정찰이 "b–c �
 
 ---
 
-## 8. 정리 액션 목록 (2026-07-23 재구축)
+## 8. 정리 액션 목록 (2026-07-23 재구축) — **이력이다**
+
+> 아래 ✅ 는 *그때 그 작업을 했다* 는 기록이지 *지금 인용해도 된다* 가 아니다.
+> 인용 가능 여부는 언제나 `db/properties/canonical_registry.json` · `citation_hazards.json` 이 정한다.
 
 - [x] **MLIP-elastic 삭제** — elastic.json 4섹션 + comp1~5·modelc 13키 + _index 152 data_points 제거(값 보존 검증). MD/전도도/phonon/EOS MLIP 유지. ✅
 - [x] **elastic.json 셋업 메타 소급** — comp1_v3/modelc_v3 (pseudo·ecut·k·cell). ✅
@@ -334,14 +367,15 @@ MLIP NEB 의 용도는 **경로 선택**이다 — 실제로 정찰이 "b–c �
 
 | 항목 | 상태 | 무엇을 기다리나 |
 |---|---|---|
-| ~~**b2o3 Ea 0.199±0.034**~~ | ⛔ **철회 (2026-08-23)** | 기다릴 것이 없다 — 굽음이 실재로 확정. 쓸 값은 **구간 0.2241±0.0606**(600→800) |
+| ~~**b2o3 Ea 0.199±0.034**~~ | ⛔ **철회 (2026-08-23) → 축 전체 마감 (2026-09-07 비준)** | 기다릴 것이 없다. ~~쓸 값은 구간 0.2241±0.0606~~ ⛔ **그것도 인용 불가** — `b2o3_md_closed_retrospective_2026_08_25.json` |
 | **b2o3 σ(300 K)** | ⛔ **철회 · 절대값 인용 금지** | 3시드 재계산 38.39±51.09 mS/cm — 표준편차>평균. 자릿수도 안 잡힌다 |
-| **modelc 굽음 여부** | 🟡 판정 중 | 600 K 3시드 MD 완주 대기(gabia). modelc 도 102 meV 굽는데 600 K 가 단일시드라 시드별 구간적합을 못 했다 |
+| **b2o3 vs modelc σ 비** (1.08/0.82/1.15) | ⛔ **`citable:false` · `source_pending`** | 재는 것이 없다 — 동등·보존·순위·기전·RT 외삽 전부 금지(레지스트리 `md-sigma-ratio-v1__NON_CITABLE`). 허용 문장은 그 항목의 `allowed_sentence` 하나 |
+| **modelc 굽음 여부** | ⏸ **안 연다 (1저자 결정 2026-09-07)** | 대기가 아니다 — `md_axis_status_2026_09_07.md` §6-① *"나중에 한다 · 지금은 안 연다"*. LPSOCl 3×3×1 뒤로 |
 | **"+B₂O₃ 수송 축 1등"** (PMF ΔF_perc 0.1607 @600 K) | 🟡 **별건** | 이번 발견은 800/1000 K 라 **직접 안 걸린다.** 600 K reseed 시드 산포만 남음 (§6-2 범위 표) |
 | **Li₃Nd 장벽** (`sei_neb.json` 의 0.229 "인용 가능") | 🟡 재검토 | `cc333`(12.70 Å) 수렴. 셀 추세대로면 **0.229 이하**여야 정합 |
 | **comp1 inter 장벽** | 🟡 미확정 | 밴드가 발산 중(fmax 상승). 끝점 구성부터 재진단 |
 | **cascade 부피 편향 +32.7 %** | 🟡 미해결 | **응력을 아무것도 안 쟀다.** stress 파인튜닝(`efs`)이 후보 |
-| **cascade predictor 보고 형식** | ✅ **해결 (2026-08-20)** | 질문의 전제가 틀렸다 — 아래 참조 |
+| **cascade predictor 보고 형식** | ✅ **형식만 해결 (2026-08-20)** | 질문의 전제가 틀렸다 — 아래 참조. ⚠ **축 자체는 회신 AL(2026-08-30) NO-GO hold** 이고 보고량은 2026-09-08 에 재정의됐다(`db/properties/cascade_d_rel_estimand_2026_09_08.json`). 형식 판정이 캠페인 승인이 아니다 |
 
 > ⛔ **2026-08-20 정정 — "랜덤 0.986 vs LOCO 0.220" 은 누출 대 진짜의 대비가 아니다.**
 > 두 숫자는 **다른 질문의 답**이라 나란히 놓으면 안 된다.
@@ -380,3 +414,7 @@ MLIP NEB 의 용도는 **경로 선택**이다 — 실제로 정찰이 "b–c �
 *· **2026-08-20** 축 4개 추가 — NEB(§1 표·§6b) · MD 상자 크기(§6-1) · 골격 게이트(§6-2) ·*
 *  UMA 검증 앵커(§6-3). §9 에 MD/NEB 체크리스트, §10 에 "정본 아님" 목록 신설.*
 *  **값은 안 건드렸다** — 값의 정본은 각 db 파일이고 이 문서는 일관성 축만 정한다.*
+*· **2026-09-09** 인용지위 정정 — §6 Ea 표에 레지스트리 status 열 + 계간 비교 금지 배너,*
+*  "같은 UMA·프로토콜·멀티시드면 성립" 폐기, §6-2 의 "쓸 수 있는 것 0.2241" 을 b2o3 축 마감으로*
+*  정정, §10 의 modelc 굽음·σ 비 행 갱신, §2 표에 γ/W_ad **정본 미등록** 표시, 머리에 인용 순서 3줄.*
+*  **값은 이번에도 안 건드렸다** — 바꾼 것은 지위 표기다.*

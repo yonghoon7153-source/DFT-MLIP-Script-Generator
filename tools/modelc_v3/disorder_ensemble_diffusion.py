@@ -318,7 +318,13 @@ def main():
     ap.add_argument("--timestep_fs", type=float, default=2.0)
     ap.add_argument("--friction", type=float, default=0.02)
     ap.add_argument("--save_fs", type=float, default=100.0)
-    ap.add_argument("--fit_window_ps", type=float, nargs=2, default=[5.0, 40.0])
+    # ⛔ 2026-09-08 — 기본값이 [5.0, 40.0] 이었다. CLAUDE.md 정본은 **2–50 ps** 다.
+    #   러너가 `--fit_window_ps` 를 안 적으면 이 기본값이 그대로 논문 숫자가 된다
+    #   (run_b2o3_md.sh 가 실제로 안 적고 있었다 → 그 D 는 5–40 창 값이었다).
+    #   convention_check.py ⑥ 가 이제 이 줄을 본다 — 되돌리면 검사에서 걸린다.
+    ap.add_argument("--fit_window_ps", type=float, nargs=2, default=[2.0, 50.0],
+                    metavar=("LO_PS", "HI_PS"),
+                    help="MSD 자유절편 적합창 [ps] — 정본 2 50 (CLAUDE.md 데이터 규율)")
     ap.add_argument("--save_traj", action="store_true",
                     help="dump production frames to traj.xyz + aimd_results.json "
                          "(enables jump stats / Li-density cube / van Hove)")

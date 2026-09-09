@@ -56,6 +56,19 @@ TUPLE2 = re.compile(r"\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\)")
 KB_HIT = re.compile(r"8\.617[0-9]*e-0?5")
 CANON_WINDOW = (2.0, 50.0)
 
+#: ⑥ argparse **기본값** 창 (2026-09-08 추가)
+#:   ⛔ 왜 따로 보나: ② 의 WINDOW_ASSIGN 은 **변수 대입**만 본다. 그런데 실제로 새고
+#:     있던 자리는 생산 MD 드라이버의 **argparse 기본값**이었다 — 러너가 `--fit_window_ps`
+#:     를 안 적으면 그 기본값이 그대로 논문 숫자가 된다. 이 검사기가 "0 위반" 을 찍는
+#:     동안 `disorder_ensemble_diffusion.py` 는 5–40, `aimd_mlip.py` 는 2–20 으로 돌았다.
+#:     **통과했다는 것과 안 봤다는 것은 다르다** — 이 항목이 그 차이를 메운다.
+#:   ⚠ 음수 창은 일부러 안 본다 (`--window default=[-8.0, 5.0]` = DOS eV 창).
+#:     자릿수만 보는 TUPLE2 규약을 그대로 따른다.
+ARG_CALL = re.compile(r"add_argument\(")
+ARG_OPT = re.compile(r"^\s*[\"']--?([\w\-]+)[\"']")
+ARG_DEFAULT2 = re.compile(
+    r"default\s*=\s*[\[(]\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*[\])]")
+
 #: ④ 캐스케이드 그룹핑 — `dopant` 를 **그대로** 그룹 키로 쓰면 `WO3` 와 `WO3+Clrich` 가
 #:   다른 종이 되고, 라벨 사이에서 변형이 바뀐 종이 통째로 사라진다.
 #:   2026-08-16 하루에 세 번 밟았다 (조성족 감사 · scatter 감사 81 vs 90 · 슬롯 후보 40 vs 50).
@@ -137,6 +150,30 @@ def scan(path: Path):
                              "cascade_ids.base_species() 를 쓸 것 "
                              "(변형 구별이 목적이면 variant_key() + 사유 주석)",
                              line.strip()))
+
+    # ── ⑥ argparse 기본 창 ────────────────────────────────────────────────
+    #   줄 단위로는 못 본다 — add_argument 가 여러 줄에 걸친다 (aimd_mlip.py:264-266).
+    lines = text.splitlines()
+    for m in ARG_CALL.finditer(text):
+        ln = text.count("\n", 0, m.start()) + 1
+        if ln <= len(lines) and lines[ln - 1].lstrip().startswith("#"):
+            continue                       # 주석 안의 예시는 코드가 아니다
+        chunk = text[m.end():m.end() + 400].split("add_argument(")[0]
+        o = ARG_OPT.match(chunk)
+        if not o:
+            continue
+        opt = o.group(1)
+        if "window" not in opt.lower() or WINDOW_NON_TIME.search(opt):
+            continue
+        d = ARG_DEFAULT2.search(chunk)
+        if not d:
+            continue                       # 기본값 없음 = 필수 인자 → 위반 아님(오히려 안전)
+        w = (float(d.group(1)), float(d.group(2)))
+        if w != CANON_WINDOW:
+            viol.append((rel, ln,
+                         f"argparse 기본 MSD 창 {w} — 정본은 {CANON_WINDOW} ps. "
+                         f"창을 안 적은 러너는 이 값으로 돈다",
+                         f"--{opt}  default={list(w)}"))
     return viol, warn
 
 
@@ -282,13 +319,34 @@ def selftest():
         (t / "unitwindow_bad.py").write_text(
             "fit_window = (10.0, 100.0)\n"
             "window_ps = (10.0, 100.0)\n")
+        # ⑥ argparse 기본값 (2026-09-08) — **여기가 실제로 새던 자리다.**
+        #   음성: 창을 2–20 으로 되돌린 파일을 검사기가 잡아야 한다. 못 잡으면
+        #   "0 위반" 은 규약이 지켜졌다는 뜻이 아니라 **안 봤다**는 뜻이다.
+        (t / "argwin_bad.py").write_text(
+            'ap.add_argument("--fit_window_ps", type=float, nargs=2,\n'
+            '                default=[2.0, 20.0],\n'
+            '                help="MSD linear-fit window (ps)")\n')
+        (t / "argwin_bad2.py").write_text(
+            'ap.add_argument("--fit_window_ps", type=float, nargs=2, default=[5.0, 40.0])\n')
+        (t / "argwin_good.py").write_text(
+            'ap.add_argument("--fit_window_ps", type=float, nargs=2, default=[2.0, 50.0])\n'
+            'ap.add_argument("--window_2theta", type=float, nargs=2, default=[8.0, 11.0])\n'
+            'ap.add_argument("--energy_window", type=float, nargs=2, default=[-6, 6])\n'
+            'ap.add_argument("--fit_window_ps", type=float, nargs=2, required=True)\n'
+            'ap.add_argument("--prod_ps", type=float, default=200.0)\n'
+            '# ap.add_argument("--fit_window_ps", nargs=2, default=[5.0, 40.0])  # 옛 판\n')
 
         for name, want_v, want_w, label in [
                 ("bad.py", 2, 1, "위반 검출"), ("good.py", 0, 0, "오탐 없음"),
                 ("comment.py", 0, 0, "주석 무시"),
                 ("plotlabel.py", 0, 0, "plot 라벨 오탐 없음"),
                 ("unitwindow.py", 0, 0, "단위 밝힌 창(2θ/eV/Å) 오탐 없음"),
-                ("unitwindow_bad.py", 2, 0, "⛔음성: 단위 안 밝힌 창은 그대로 잡는다")]:
+                ("unitwindow_bad.py", 2, 0, "⛔음성: 단위 안 밝힌 창은 그대로 잡는다"),
+                ("argwin_bad.py", 1, 0,
+                 "⛔음성: argparse 기본값을 2–20 으로 되돌리면 잡는다 (여러 줄)"),
+                ("argwin_bad2.py", 1, 0, "⛔음성: 5–40 도 잡는다 (한 줄)"),
+                ("argwin_good.py", 0, 0,
+                 "argparse 오탐 없음 (2–50 · 2θ · 음수 eV 창 · 기본값 없음 · 주석)")]:
             v, w = scan(t / name)
             # scan 은 REPO 기준 상대경로를 쓰므로 임시경로엔 rglob 대신 직접 호출
             got = (len(v), len(w))

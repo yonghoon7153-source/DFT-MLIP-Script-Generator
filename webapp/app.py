@@ -355,8 +355,13 @@ def _vsrc(name, cdn):
 
 @app.context_processor
 def _inject():
+    # ⚠ v3 묶음 A — 사이드바·⌘K·라벨의 단일 출처는 webapp/nav.py 다.
+    #   base.html 이 nav 를 손으로 적으면 ⌘K 목록과 또 갈라진다(6개가 그렇게 빠졌다).
+    import nav as NAV
     return {"asset_version": _css_ver(), "vsrc": _vsrc, "COMPS": D.COMPOSITIONS,
-            "CATS": D.CATEGORIES, "FAMILY_ORDER": D.FAMILY_ORDER}
+            "CATS": D.CATEGORIES, "FAMILY_ORDER": D.FAMILY_ORDER,
+            "NAV": NAV.sidebar(), "NAVCOMPS": NAV.composition_groups(),
+            "ONBOARD": NAV.onboard_stats(), "NAVMOD": NAV}
 
 
 # ── 페이지 ──────────────────────────────────────────────

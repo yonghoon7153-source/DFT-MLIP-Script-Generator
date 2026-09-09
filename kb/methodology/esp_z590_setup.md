@@ -2,6 +2,15 @@
 
 **Setup date:** 2026-07-01 | **Target host:** `59.12.161.91` (ssh `kgy@59.12.161.91`) | **OS:** Ubuntu 20.04.6 LTS (focal), kernel 5.15
 
+> **Alias:** this box is called **`kgy`** everywhere else (CLAUDE.md §계산 자원, tools, open_items).
+> `esp-Z590` is the hostname; `kgy` is the name in prose. (gabia = `kserver116_setup.md`.)
+>
+> ⛔⛔ **런타임은 추측하지 않는다 — `ldd` 로 바이너리에게 묻는다 (2026-09-08, 3연속 오진 뒤).**
+> Gotcha **#6** 이 정정본이고, 그 전 문장("HPC-X mpirun 을 써야 한다")은 **틀렸다**.
+> 실행 정본은 `tools/doping/run_force_check_scf.sh` — `ldd` 를 못 읽으면 **시작하지 않는다**.
+> 이 문서의 빌드 이력(configure 플래그·cc86·`--without-libxc`·makelocalrc·UMA 캐시 rsync)은
+> 그대로 유효하다. 틀렸던 것은 **런타임 문장**뿐이다.
+
 > Companion install script: `setup/new_server_esp_setup.sh` (labeled Phase 1–9 blocks a human pastes one at a time). This doc is the canonical record; the script is the paste source.
 
 ## Hardware
@@ -76,6 +85,9 @@ CUDA_HOME         = $NV/cuda/12.6                # nvhpc-bundled CUDA 12.6
 
 - `~/apps/orca-6.1.1/orca_env.sh` is sourced from `~/.bashrc`: puts **OpenMPI 4.1.6 first** on `PATH`/`LD_LIBRARY_PATH`, then the ORCA tree.
 - `qegpu()` function switches THIS shell to the GPU-QE toolchain: sets `OPAL_PREFIX` (HPC-X ompi), `MPIRUN` (HPC-X mpirun), `QEGPU` bin, and puts `$NV/compilers/lib` **first** on `LD_LIBRARY_PATH` (kills `libgomp: TODO`). Run `conda deactivate` before calling it.
+  ⚠ **2026-09-08: `qegpu()`'s HPC-X assumption is not verified against the binary.** kgy's GPU `pw.x`
+  links `~/apps/openmpi-4.1.6`; HPC-X only supplies scalapack. Derive the launcher from
+  `ldd <pw.x>` (Gotcha #6) instead of trusting `$MPIRUN`.
 
 ## Usage Cheatsheet
 
@@ -88,9 +100,16 @@ mpirun -np 4 ~/apps/qe-7.4.1-cpu/bin/ph.x      -in ph.in      > ph.out
 mpirun -np 4 ~/apps/qe-7.4.1-cpu/bin/epsilon.x -in eps.in     > eps.out
 
 # DFT crystal (GPU) — scf/nscf/relax/vc-relax/NEB only, 1 rank = 1 GPU
+# ⛔ 2026-09-08: do NOT assume the launcher. Ask ldd first (Gotcha #6) — on kgy the GPU pw.x
+#    links ~/apps/openmpi-4.1.6, NOT HPC-X. Wrong launcher = MPI_Init death or 'libgomp: TODO'.
 conda deactivate            # FIRST — avoid conda libgomp shadowing NVHPC's
-qegpu                       # sets HPC-X mpirun + NVHPC libs + QE-GPU PATH
-$MPIRUN -np 1 $QEGPU/pw.x -npool 1 -in scf.in > scf.out 2>&1
+ldd $QEGPU/pw.x | grep -E "libmpi|libnvomp|libgomp"   # ← the only evidence
+M=$(ldd $QEGPU/pw.x | awk '/libmpi\.so/{print $3}')
+export OPAL_PREFIX=$(dirname $(dirname $M)) PATH=$OPAL_PREFIX/bin:$PATH
+export LD_LIBRARY_PATH=$(dirname $M):$NV/compilers/lib:/usr/local/cuda-12.6/lib64
+export OMP_NUM_THREADS=1    # if libnvomp AND libgomp are both listed above
+$OPAL_PREFIX/bin/mpirun --oversubscribe -np 1 $QEGPU/pw.x -nk 1 -in scf.in > scf.out 2>&1
+# or just: bash tools/doping/run_force_check_scf.sh <dir>   (derives all of this from ldd)
 
 # DFT molecular (ORCA) — FULL PATH for parallel, cores set INSIDE the .inp
 ~/apps/orca-6.1.1/orca input.inp > output.out     # '%pal nprocs N end' in .inp; do NOT use mpirun
@@ -111,7 +130,37 @@ rsync -a --info=progress2 --partial root@121.78.116.27:/data/work/pseudo/ ~/work
 3. **Parallel ORCA = FULL ABSOLUTE PATH, never `mpirun`.** `~/apps/orca-6.1.1/orca job.inp`. ORCA spawns MPI itself and needs the full path to find its worker sub-executables (`orca_scf`, `orca_gtoint`, …). Set cores with `%pal nprocs N end` inside the `.inp`. Wrapping ORCA in `mpirun` double-launches MPI and fails.
 4. **`ph.x` / DFPT is NOT in the GPU build.** GPU `pw.x` is fine for scf/nscf/relax/vc-relax/NEB, but `ph.x` / `epsilon.x` (DFPT path) crash with `libgomp: TODO` or hang (this is exactly the KISTI epsil hang). Do all phonons / `ph.x` / `epsilon.x` on the **CPU build** with the system `mpirun`.
 5. **`libgomp: TODO` abort = wrong OpenMP runtime loaded.** Two triggers: (a) a conda env is active (its GNU libgomp shadows NVHPC's) — `conda deactivate` before GPU runs; (b) `LD_LIBRARY_PATH` order — `$NV/compilers/lib` must come first. `qegpu()` handles (b); you do (a).
-6. **GPU launcher must be NVHPC's HPC-X mpirun**, not `/usr/bin/mpirun` (apt 4.0.3). The GPU `pw.x` is linked to the SDK's HPC-X OpenMPI. `qegpu()` sets `$MPIRUN` and `OPAL_PREFIX` (or HPC-X can't find its runtime help files).
+   ⛔ **Corrected 2026-09-08 — there is a third trigger, and it is not conda's fault.**
+   `libgomp` is linked into the binary **itself** (on kgy, `libfftw3_omp` pulls GNU OpenMP in), so
+   `libnvomp` and `libgomp` coexist even in a clean shell. `conda deactivate` + library order do
+   **not** fix that case — `OMP_NUM_THREADS=1` does (no parallel region ⇒ the conflicting path is
+   never entered). Check with `ldd <pw.x> | grep -E "libnvomp|libgomp"`. See Gotcha #6.
+6. ~~**GPU launcher must be NVHPC's HPC-X mpirun**, not `/usr/bin/mpirun` (apt 4.0.3). The GPU `pw.x` is linked to the SDK's HPC-X OpenMPI. `qegpu()` sets `$MPIRUN` and `OPAL_PREFIX` (or HPC-X can't find its runtime help files).~~
+   ⛔⛔ **WRONG — retracted 2026-09-08 (measured). Do not follow this line.**
+   **Ask the binary, don't guess the runtime.** On 2026-09-08 this exact guess was wrong
+   **three times in a row** on this box: ① blamed a conda `mpirun` → ② dropped the launcher and hit
+   `libgomp: TODO` → ③ auto-detected HPC-X, but **kgy's `pw.x` is built against
+   `~/apps/openmpi-4.1.6`** (HPC-X only supplies scalapack here). The link table is the only evidence;
+   it differs per machine, so this is **not a rule, it is a lookup**:
+
+   ```bash
+   ldd <pw.x> | grep -E "libmpi|libnvomp|libgomp"        # ← always start here
+   M=$(ldd <pw.x> | awk '/libmpi\.so/{print $3}')         # the MPI actually linked
+   export OPAL_PREFIX=$(dirname $(dirname $M)) PATH=$OPAL_PREFIX/bin:$PATH
+   export LD_LIBRARY_PATH=$(dirname $M):<nvhpc>/compilers/lib:/usr/local/cuda-12.6/lib64
+   export OMP_NUM_THREADS=1        # required when libnvomp AND libgomp are both linked
+   $OPAL_PREFIX/bin/mpirun --oversubscribe -np 1 <pw.x> -nk 1 -in x.in > x.out
+   ```
+
+   ★ If **both** `libnvomp` and `libgomp` are linked (on kgy `libfftw3_omp` drags GNU in), there are
+   two OpenMP runtimes and the job dies instantly with `libgomp: TODO` → pin `OMP_NUM_THREADS=1`.
+   **Canonical implementation:** `tools/doping/run_force_check_scf.sh` derives all of this from `ldd`
+   and **refuses to start** if it cannot read the link table (so it never silently falls back to the
+   GNU runtime). Same discipline in CLAUDE.md §계산 자원. `qegpu()`'s hardcoded HPC-X `OPAL_PREFIX`
+   is therefore **suspect** — verify with `ldd` before trusting it.
+   ⚠ `kserver116_setup.md`'s hpcx hardcoding (gabia) is under the same doubt: **re-check with `ldd`
+   on that box** before reusing it. Nothing here says HPC-X is wrong *everywhere* — it says the
+   binary decides.
 7. **cc86, not cc80.** RTX 3090 is Ampere sm_86. Do NOT copy KISTI/A100 `cc80` settings. gabia's A6000 is also sm_86, so its build settings port directly.
 8. **After rsync'ing nvhpc from gabia, re-run `makelocalrc`** against THIS box's gcc/gfortran-9, or nvfortran picks up gabia's gcc-13 paths and fails. (A fresh tarball install writes localrc automatically; re-running is harmless.)
 9. **UMA is gated + offline.** `HF_HUB_OFFLINE=1` fetches nothing from HuggingFace, so rsync the **ENTIRE** `~/.cache/fairchem/models--facebook--UMA` tree (blobs/ + snapshots/ + refs/), not just `checkpoints/`. Use `rsync -a` (preserves the snapshots→blobs symlinks); do NOT use `-L`/`--copy-links`. Snapshot hash on gabia: `be2896459a03fcde05e20d2fcefd11f450601fce` — ls the dir after copy and use whatever hash is present.
