@@ -6,6 +6,8 @@ tags: [methodology, provenance, naming, verification, cascade, tooling]
 status: 진행
 confidence: high
 verificationStatus: verified
+verifiedAt: 2026-09-09
+verifiedBy: "self — 여섯 건 중 다섯을 실행으로 재현: ①② substitute_compound.py 구동 후 md5·좌표 대조 ③ argparse rc=2 재현 ④ .md 만 임시 폴더로 복사해 커버리지 재측정 ⑤ PATH_RE 음성 3케이스 ⑥ CELL_PARAMETERS·crystal z 폭 대조. ①은 두 조사가 독립적으로 같은 결론(md5 / CSV 3,615행 전수)"
 explored: false
 authoredBy: agent
 effort: medium
