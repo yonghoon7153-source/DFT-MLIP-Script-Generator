@@ -20,7 +20,9 @@
   {%- for r in NAVMOD.status_legend() %}
   <span class="v3-legend-item" title="{{ r.desc }}">
     <span class="v3-legend-badge" style="color:{{ r.fg }};background:{{ r.bg }}">{{ r.label }}</span>
-    <span class="v3-legend-desc">{{ r.desc }}</span>
+    {# ⚠ |bold — _STATUS_BADGE 설명에 '**…**' 가 들어 있다. 안 걸면 별표가 그대로
+       노출되고 test_no_literal_bold_markers_in_rendered_body 가 잡는다. #}
+    <span class="v3-legend-desc">{{ r.desc|bold }}</span>
   </span>
   {%- endfor %}
   <span class="v3-legend-src">출처: db/properties/canonical_registry.json 의 status</span>

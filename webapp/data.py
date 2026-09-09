@@ -3380,7 +3380,7 @@ def search_index() -> list:
     #   빠져 있었다(2026-09-08 v3 조사). 정본은 **webapp/nav.py** 하나다.
     #   짝 검사: webapp/tests/test_v3_nav.py
     import nav as NAV                      # 지연 import — nav.py 도 data 를 쓴다
-    pages = [t for t in NAV.search_pages() if t[3] != '/governance']
+    pages = NAV.search_pages()
     _navkw = NAV.search_keywords()
     for t, label, sub, url in pages + talks:
         idx.append({"t": t, "label": label, "sub": sub, "url": url,
@@ -3427,8 +3427,17 @@ PSEUDO_LIB = {
     "Br": "br_pbe_v1.4.uspp.F.UPF", "I": "i_pbe_v1.4.uspp.F.UPF",
     "O": "O.pbe-n-kjpaw_psl.1.0.0.UPF", "B": "b_pbe_v1.4.uspp.F.UPF",
     "N": "N.pbe-n-radius_5.UPF", "C": "C.pbe-n-kjpaw_psl.1.0.0.UPF",
-    "H": "H.pbe-rrkjus_psl.1.0.0.UPF", "Nd": "Nd.GGA-PBE-paw.UPF",
+    "H": "H.pbe-rrkjus_psl.1.0.0.UPF",
+    # ⛔ 2026-09-08 — 여기 있던 "Nd.GGA-PBE-paw.UPF" 는 repo 어디에도 없는 이름이었다
+    #   (tools/ 에 0건, 이 파일에만 있었다). 정본은 생성기 쪽 표다:
+    #   tools/doping/generate_dft_inputs.py:52 'Nd': ('144.242', …z_14…).
+    #   ⚠ z_14 = 4f 를 **원자가**에 둔 PP 다. gabia 에 실제로 있는 것은
+    #     Nd.pbe-spdn-kjpaw_psl.1.0.0.UPF (frozen-4f, z≈11) 하나뿐이라(2026-09-08 실측)
+    #     서버에 이 파일이 있는지부터 확인해야 한다 — 아래 _nd_warn() 이 그걸 말한다.
+    "Nd": "Nd.paw.z_14.atompaw.wentzcovitch.v1.2.upf",
 }
+#: gabia 에 실재하는 frozen-4f PP (2026-09-08 실측). U 를 걸 4f 가 core 에 있다.
+PSEUDO_ND_FROZEN = "Nd.pbe-spdn-kjpaw_psl.1.0.0.UPF"
 # 조성별 canonical 계산 설정 (methods 문서와 정합)
 COMPUTE_SETTINGS = {
     "comp1":  {"ecutwfc": 52, "ecutrho": 520, "k": [4, 4, 4], "struct": "comp1_V0_k444.cif",  "server": "kgy (RTX3090, QE-GPU)"},

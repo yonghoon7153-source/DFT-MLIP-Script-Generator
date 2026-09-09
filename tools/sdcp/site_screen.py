@@ -603,6 +603,35 @@ def contact_stats(cx: Atoms, nslab: int) -> Dict[str, Any]:
 
 
 def extraction_check(cx: Atoms, clean: Atoms, nslab: int) -> Dict[str, Any]:
+    """Li 추출 / 표면 재구성 격리 — 'freeze 0.6 의 −1.465 eV' 를 결합으로 오독한 사건의 재발 방지.
+
+    **판정 규칙**: 추출형 끝점은 결합 순위에서 빼고 따로 센다. 근거는 **이 함수가 재는
+    기하**다 — 깨끗한 슬랩 대비 표면 Li 변위(`extract_disp_Li_A`)와 O 배위수 상실
+    (`extract_coord_loss_n`). 즉 "그 구조는 흡착이 아니라 추출/재구성" 이라는 것이
+    구조에서 보이므로 같은 순위에 못 올린다는 뜻이지, 추출의 **열역학 방향**을 안다는
+    뜻이 아니다.
+
+    ⛔ 2026-08-28 철회 (회신 P 2번 P0) — 이 docstring 은 원래
+      "VASP dE_extract = +0.336 eV(2026-08-08) 로 추출이 열역학적으로 불리함이
+       확인됐으므로 …" 였다. 그 부호는 **철회**됐고 `citable: no` 다:
+        · db/properties/sdcp_doped_closed_2026_08_28.json (active · ratified)
+        · db/properties/citation_hazards.json → sdcp_phaseB_dftu_v1 = BLOCKED,
+          "⛔ 아무것도 인용하지 않는다. 종전 fix 였던 'dE_extract(+0.3356 eV)만
+           인용' 은 틀렸다"
+      사유: 두 endpoint 의 총자화가 2.378 / 0.518 μB 로 자기상태가 다르고, basin 최소
+      동등성이 미입증이다 — 서로 다른 상태의 단일점 차라 열역학 부호로 못 읽는다.
+      (보고량 규율: admissible state 가 여럿인데 선택·집계 규칙이 없으면 스칼라
+       보고량은 정의되지 않는다.)
+
+    허용 서술 (마감 원장 §허용_서술_이대로만 에서 그대로):
+      "현재 n=1 wave1 프로토콜은 인용 가능한 doped E_ads 를 식별하지 못한다."
+      "총자화만으로 carrier·국소 자기상태를 유일하게 배정할 수 없다."
+    ⛔ 금지: 추출 열역학 부호 · doped E_ads 수치 일체 · 자리선호 방향 일체.
+
+    ⚠ 2026-09-08 — 이 글은 원래 아래 `if` **뒤**에 있어서 docstring 이 아니었다
+      (`__doc__` 이 None 이라 help()·회귀시험 어디에도 안 잡혔다). 규율을 적어 두고도
+      기계가 못 읽는 자리에 둔 것이라, 함수 첫 문장으로 옮겼다. 동작은 안 바뀐다.
+    """
     # ★ 자체 리뷰 #5 — clean 과 복합체 앞 nslab 의 대응을 검증 없이 인덱스로 비교하면,
     #   다르게 정렬된 슬랩이 들어왔을 때 **엉뚱한 원자끼리의 변위**로 대량 오판이 난다.
     if (len(clean) < nslab
@@ -610,11 +639,6 @@ def extraction_check(cx: Atoms, clean: Atoms, nslab: int) -> Dict[str, Any]:
         return {"verdict": "CLEAN_MISMATCH", "flag": False,
                 "note": "clean 슬랩이 복합체 앞 nslab 원자와 원소/순서가 다르다 — "
                         "추출검사 불가 (판정 아님). 같은 정렬의 슬랩을 --clean 으로 줄 것."}
-    """Li 추출 / 표면 재구성 격리 — 'freeze 0.6 의 −1.465 eV' 를 결합으로 오독한 사건의 재발 방지.
-
-    VASP dE_extract = +0.336 eV(2026-08-08) 로 추출이 열역학적으로 불리함이 확인됐으므로,
-    추출형 끝점은 **결합 순위에서 빼고 따로 센다**.
-    """
     sym = cx.get_chemical_symbols()
     cell = cx.cell.array
     zc = clean.positions[:, 2]
@@ -2450,6 +2474,23 @@ def cmd_selftest(a) -> int:
     통과 케이스만 보고 '잘 된다'고 말하면 그건 검증이 아니다. 각 게이트마다
     걸려야 하는 구조를 일부러 만들어 넣고, 그 게이트가(그리고 그것만) 걸리는지 본다.
     """
+    # ── ⓪ 철회 회귀 (2026-09-08) — 구조 파일이 없어도 도는 순수 텍스트 검사 ──────
+    #   ⛔음성: 철회된 `dE_extract` 부호(+0.336 eV)가 **판정 규칙의 근거**로 되살아나면
+    #     실패한다. 회신 P 2번 P0 가 그 부호를 철회하고 citable:no 로 강등했는데
+    #     (sdcp_doped_closed_2026_08_28.json), 이 엔진의 추출 격리 규칙이 2026-09-02
+    #     까지 그것을 근거로 적고 있었다. 격리 근거는 **기하**여야 한다.
+    #   ⚠ 숫자 자체를 금지하는 게 아니다 — 철회 기록에는 남아 있어야 한다. 금지되는 것은
+    #     "…로 …확인됐으므로" 처럼 **근거로 쓰는 문장**이다.
+    _doc = (extraction_check.__doc__ or "")
+    _bad = [p for p in ("열역학적으로 불리함이 확인", "로 반증됨") if p in _doc]
+    _has_retraction = "철회" in _doc and "citable" in _doc.lower()
+    print("⓪ 철회 회귀 (dE_extract 부호)")
+    print(f"   {'✔' if not _bad else '⛔'} 철회된 부호를 판정 근거로 쓰지 않는다"
+          f"          기대=없음{'':10s} 실제={_bad or ['없음']}")
+    print(f"   {'✔' if _has_retraction else '⛔'} 철회 사실이 docstring 에 명시돼 있다")
+    ok0 = (not _bad) and _has_retraction
+    print()
+
     slab = load_slab()
     n = len(slab)
     cell = slab.cell.array
@@ -2459,7 +2500,7 @@ def cmd_selftest(a) -> int:
     bonds = bond_table(mol)
     anc = site_anchors(slab)
     down = np.array([0.0, 0.0, 1.0])
-    ok = True
+    ok = ok0          # ⓪ 철회 회귀 결과를 물고 간다 (통과해도 ⓪ 이 깨지면 실패)
 
     def check(name: str, cx: Atoms, want: str, relaxed=False, clean=None, frag="ptfe_c10", mref=None):
         nonlocal ok

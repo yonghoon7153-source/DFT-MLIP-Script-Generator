@@ -1,6 +1,6 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-08 · managed-files: 365
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-09 · managed-files: 367
 
 규칙: kb/SCHEMA.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
@@ -36,14 +36,14 @@
 - `kb/methodology/argyrodite_mechanical_pipeline.md` — Argyrodite Mechanical Properties — Multi-scale Computational Pipeline (v2)
 - `kb/methodology/b2o3_analysis_plan.md` — B₂O₃-doped champion — 추가 분석 plan (배위·결합·testable)
 - `kb/methodology/b2o3_doping_chemistry.md` — B2O3 Doping in LPSCl1.6 (BO-LPSC) — Chemistry Framework
-- `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 언제 시드를 더 넣어도 되나
+- `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 ○미열람
 - `kb/methodology/cascade_composition_family_2026_08_16.md` — 캐스케이드 조성족 섞임 — 보편적 Cl 개선은 반증, 원소 수준 인과는 여전히 열림 ○미열람
 - `kb/methodology/cascade_design_contract_2026_08_28.md` — cascade 3,615행은 237설계였다 — 표본 계약을 다시 쓴다 ○미열람
 - `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 ○미열람
 - `kb/methodology/cascade_pipeline_anatomy_2026_08_13.md` — cascade 273 캠페인 해부 — 왜 풀이 47인가 (코드 계보 실측) ○미열람
 - `kb/methodology/cascade_rerank_runbook_2026_08_25.md` — cascade 재랭킹 런북 ①~⑤ — li_mobility_score 복구 후 실행 ○미열람
 - `kb/methodology/coating_descriptor_catalog.md` — 황화물 코팅 소재 Descriptor Catalog
-- `kb/methodology/computational_methods_canonical.md` — 계산 방법 Canonical — 단일 기준 (2026-07-23 재정리 · **2026-08-20 축 4개 추가**)
+- `kb/methodology/computational_methods_canonical.md` — 계산 방법 Canonical — 단일 기준 (2026-07-23 재정리 · **2026-08-20 축 4개 추가** · **2026-09-09 인용지위 정정**)
 - `kb/methodology/defect_cell_size_metric_2026_08_16.md` — 점결함 셀 크기의 정본 지표 — λ₁(최단 격자 병진), 면 높이 아님 ○미열람
 - `kb/methodology/dopant_screening_funnel_2026_06_13.md` — Dopant screening funnel provenance + multi-cation motif generalization
 - `kb/methodology/dopant_site_preference_literature.md` — Dopant Site Preference — Literature-Anchored Heuristic Assignments (v4.5.26)
@@ -177,7 +177,7 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (103)
+## reviews/ (105)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
 - `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) ○미열람
 - `kb/reviews/codex_AA_prompt_stageA_v5_regate_2026_08_29.md` — Codex 재검토 요청 AA — 회신 Z 의 P0 8건 처리 후 Stage A v5 재게이트 ○미열람
@@ -218,6 +218,7 @@
 - `kb/reviews/codex_BG_prompt_webapp_aw_release_2026_09_07.md` — 리뷰 요청 BG — AW(웹앱 NO-GO) 해제 판정 + 그날 새로 만든 판정 셋 ○미열람
 - `kb/reviews/codex_BH_prompt_md_axis_audit_2026_09_07.md` — 리뷰 요청 BH — MD 축 전수 감사: 90런에 인용 가능한 Ea 가 0개다 ○미열람
 - `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건 ○미열람
+- `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 ○미열람
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서) ○미열람
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료) ○미열람
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서) ○미열람
@@ -263,6 +264,7 @@
 - `kb/reviews/codex_X_prompt_prospective_bundle_ready_2026_08_29.md` — Codex 회신 X 요청 — prospective 번들 40잡, 던지기 전 최종 감사 (실물 첨부) ○미열람
 - `kb/reviews/codex_Y_reply_polaron_S0_2026_09_03.md` — 회신 Y — 폴라론 S0 (NO-GO · P0 8 · P1 8 · Q1–Q5)
 - `kb/reviews/codex_stats_question_2026_08_11.md` — Codex 질문 — 통계 판정 3건 (β 귀무분포 · 사다리 설계 · BVSE 부호 · 판정바닥 ddof)
+- `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 아침 (Codex BI NO-GO + v3 재편) ○미열람
 - `kb/reviews/internal_BG_reply_c12_2026_09_03.md` — 회신 BG — C-12 내부 적대적 리뷰 (NO-GO · P0 1 · P1 8)
 - `kb/reviews/internal_BH_reply_c12_v32_2026_09_03.md` — 회신 BH — C-12 v32 내부 다중 감사 (7렌즈 · 3인 반박 · NO-GO · P0 1 · P1 6)
 - `kb/reviews/internal_Z2_reply_polaron_S0_2026_09_03.md` — 회신 Z-2 — 폴라론 S0 내부 적대적 리뷰 2차 (NO-GO · P0 2 · P1 9)

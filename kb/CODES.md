@@ -1,14 +1,16 @@
 ---
-title: 코드 체계 — T · Q · J · M 이 각각 무엇인가
+title: 코드 체계 — T · Q · J · M · 회신 letter 가 각각 무엇인가
 type: methodology
 status: 운영중
 created: 2026-08-26
+date: 2026-08-26
+updated: 2026-09-09
 explored: false
 confidence: high
 tags: [governance, naming, index]
 ---
 
-# 코드 체계 — `T` · `Q` · `J` · `M`
+# 코드 체계 — `T` · `Q` · `J` · `M` · **회신 letter**
 
 > **왜 이 문서가 생겼나 (2026-08-26)**: 사용자가 *"뭐에 대한 T, Q 등 코드인지,
 > 논문1저자 질문에 대한 것인가?"* 라고 물었다. 물어볼 만했다 —
@@ -23,8 +25,9 @@ tags: [governance, naming, index]
 | **Q**n | **미해결 질문** (Question) — *아직 답을 모르는 것* | 우리 | ⚠ **문서마다 로컬 번호** — 아래 §2 |
 | **J**n | **문헌 대비 축** (Journal/비교) | 우리 | `litdb/comparison_vs_ours.md` |
 | **M**n | **원고 항목** (Manuscript) | 우리 | `kb/open_items.md` |
+| **letter** (A…BI) | **회신(리뷰 왕복)** — *바깥 리뷰어와 주고받은 것* | **리뷰어 + 우리** | `kb/reviews/INDEX.md` — 아래 §5 |
 
-⛔ **넷 다 "논문 1저자 질문" 이 아니다.** 그건 별도로
+⛔ **다섯 다 "논문 1저자 질문" 이 아니다.** 그건 별도로
 `kb/reports/paper_first_author_requests_2026_08.md` 에 있다.
 
 ---
@@ -62,15 +65,35 @@ tags: [governance, naming, index]
 ## 3. `J` — 문헌 대비 축
 
 `litdb/comparison_vs_ours.md` 의 축 코드. `J-0` 출처표 · `J-1`–`J-6` 물성/방법 축 ·
-**`J-7` = 방법 원전**(물성값이 없는 편 — Shapeev·Park 등이 여기 간다).
+**`J-7` = 방법 원전**(물성값이 없는 편 — Shapeev·Park 등이 여기 간다) ·
+**`J-8` = CV 규약 판정** (2026-08-28 신설 — [Tu27ML] R²=0.99 vs 우리 cascade LODO −0.18).
+
+⚠ **축이 늘면 이 절을 같이 고친다.** 지금은 손으로 유지하는 사전이라 여기가 실패 지점이다
+(J-8 은 08-28 신설인데 이 문서는 2026-09-09 까지 J-7 에서 끝나 있었다).
 
 ## 4. `M` — 원고 항목
 
 원고에 들어갈 단위. `M5` = P2D 파라미터 export (= `T8` 과 같은 것을 원고 쪽에서 부르는 이름).
 
+## 5. `R`/letter — **회신(리뷰 왕복) 코드** (2026-09-09 추가)
+
+이 repo 에서 **제일 많이 인용되는데 여태 이 사전에 없던** 다섯 번째 체계다.
+CLAUDE.md 본문만 해도 *"회신 N"* · *"회신 O"* · *"회신 M 마감보류"* 를 부르고,
+`db/governance/decisions.json` 은 *"회신 AK"* · *"회신 AL"* · *"회신 P"* · *"회신 T"* 를 쓴다.
+
+- **알파벳 = 리뷰 왕복 순서** — `A → Z → AA → AB → … → BI` (2026-09-09 현재 BI 까지).
+- 파일 규칙: `kb/reviews/codex_<letter>_<prompt|reply>_<slug>_<날짜>.md` — **prompt/reply 짝**이다.
+  (`internal_` 접두가 붙은 것도 같은 폴더에 있다.)
+- **정본 색인**: `kb/reviews/INDEX.md` (자동 생성 — `python3 tools/kb_wiki.py reviews --write`).
+- ⛔ **인용 규칙**: *"회신 N"* 이라고만 쓰지 말고 **파일을 붙인다** —
+  예: *"회신 N(`codex_N_estimand_discipline_2026_08_28`)"*. `Q` 와 같은 이유다.
+- ⚠ 라벨이 **재사용된 구간**이 있다(S·T·U·V·W·X). 그래서 letter 만으로 지목하면 어긋난다.
+- ⛔ **회신 원문(`*_reply_*`)은 고쳐 쓰지 않는다** — frontmatter `status`·`authoredBy: external`
+  과 문서 상단 후주만 손댄다. 본문을 고치면 이력이 깨진다 (CLAUDE.md 용어 규율 ⚠ 단서).
+
 ---
 
-## 5. 왜 통합 번호로 안 바꾸나
+## 6. 왜 통합 번호로 안 바꾸나
 
 바꾸면 **기존 문서 수백 군데의 상호참조가 전부 깨진다.** 그리고 `Q` 가 로컬인 것은
 사실 자연스럽다 — 논문 하나를 읽으며 생긴 질문은 그 논문 문서에 사는 게 맞다.

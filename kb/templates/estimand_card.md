@@ -1,11 +1,37 @@
-# estimand 카드 — **계산을 던지기 전에** 한 장
+---
+title: "보고량 카드 (estimand card) — 계산을 던지기 전에 한 장"
+date: 2026-08-28
+updated: 2026-09-09
+tags: [template, estimand, 보고량, governance]
+status: 사용 중
+kind: template
+system: repo
+confidence: high
+verificationStatus: verified
+verifiedAt: 2026-09-09
+verifiedBy: self
+explored: false
+authoredBy: agent
+effort: medium
+claimType: prescriptive
+evidenceScope: multi-source-primary
+---
+
+# 보고량 카드 (estimand card) — **계산을 던지기 전에** 한 장
+
+> **이름**: 사람이 읽는 글에서는 **보고량 카드**라고 쓴다 (2026-09-01 용어 규율).
+> **파일명 `estimand_card.md` 과 기계 필드 `kind: "estimand"` 는 그대로 둔다** —
+> 개서하면 `db/governance/decisions.json` 과 게이트가 끊긴다.
+> 영문은 *the reported quantity* · *target quantity* · *well-defined observable*.
 
 > 왜 이게 있나 (2026-08-28 채택): SDCP-doped 흡착에너지를 **여덟 번** 계산했고 여덟 번 다
 > 리뷰가 *"그 숫자는 네가 원한 양이 아니다"* 로 반려했다. 매번 다른 이유로 보였지만 뿌리는
 > 하나였다 — **"E_ads 가 이 계에서 잘 정의되는가" 를 아무도 안 물었다.**
 > 우리가 받은 리뷰는 전부 *"제대로 돌렸나"*(번들 무결성·해시·INCAR·pin·게이트) 였고
 > 전부 통과했다. *"맞는 양을 재고 있나"* 는 여덟 번째에야 물었고, 즉시 P0 가 나왔다.
-> 일곱 번은 안 돌려도 됐다.
+> ~~일곱 번은 안 돌려도 됐다.~~ ⛔ **철회 (회신 N)** — 카드를 블라인드로 재생했을 때
+> 이 카드가 **확실히 잡는 것은 #7–8 정도**다. 여덟 실패의 원인은 하나가 아니라 **층위**다.
+> (원문은 이력으로 남긴다. CLAUDE.md §계산 규율이 같은 문장을 철회한다.)
 >
 > ⛔ **이 카드가 못 하는 것**: 계산이 맞는지는 안 본다. 질문이 성립하는지만 본다.
 > 통과했다고 결과가 옳은 게 아니다 — 옳을 **자격**이 생길 뿐이다.
@@ -40,11 +66,11 @@ X = ⟨식⟩
 | 흡착 전후로 **보존된다고 가정하는 것**이 무엇인가 | | |
 
 **판정 규칙 (회신 N 문구)**: admissible state 가 여럿인데 **선택·집계 규칙이 없으면**
-scalar estimand 는 정의되지 않는다. 상태별 `X(s)` · 표본 최저 · Boltzmann 앙상블 · 분포
-전부 정당한 estimand 가 될 수 있다 — 무엇으로 집계하는지 **여기서 적는다.**
+**스칼라 보고량(scalar estimand)** 은 정의되지 않는다. 상태별 `X(s)` · 표본 최저 · Boltzmann 앙상블 · 분포
+전부 정당한 **보고량**이 될 수 있다 — 무엇으로 집계하는지 **여기서 적는다.**
 탐색이 불완전하면 "전역 최소" 가 아니라 **"검색한 상태 중 최저"** 라고 쓴다.
 
-⚠ 이 여섯 물음은 **DFT 흡착의 전자상태 모듈**이다 (회신 N D4). estimand core
+⚠ 이 여섯 물음은 **DFT 흡착의 전자상태 모듈**이다 (회신 N D4). 보고량 core(estimand core)
 (대상계·앙상블·균형 반응식·관측량·집계 규칙·intercurrent event 처리·결측 처리·판정바닥)와
 MD·NEB·스크리닝 모듈은 후속 개정에서 분리한다 — 그때까지 다른 계산 종류에 이 카드를
 쓸 때는 §3 을 그 계산의 위험요인으로 바꿔 채운다.
