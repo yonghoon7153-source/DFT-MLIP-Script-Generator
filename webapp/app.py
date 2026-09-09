@@ -318,10 +318,15 @@ def doc_html(text: str) -> str:
         `.claim-flag` span 을 지우지는 않는다**(코드블록 교체 · 수식 자리 교체뿐).
       · 결속 실패를 조용히 넘기지 않는다 — `_bind_claims` 가 원문을 돌려주고 시험이 잡는다.
     """
+    _, text = split_frontmatter(text)            # ← P0-34 (concept 경로도 같은 구멍이었다)
+
     def _inner(t):
         if _md is None:
             return "<pre>" + escape(t or "") + "</pre>"
-        m = _md.Markdown(extensions=["tables", "fenced_code"])
+        # `toc` 는 목차를 그리려고 켜는 게 아니라 **안정적인 heading id** 때문에 켠다.
+        #   위치 기반 id(`h0`,`h1`…)는 절이 하나만 늘어도 외부 딥링크가 전부 어긋난다.
+        m = _md.Markdown(extensions=["tables", "fenced_code", "toc"],
+                         extension_configs={"toc": {"slugify": _md_slugify}})
         for name in ("html_block",):
             try:
                 m.preprocessors.deregister(name)

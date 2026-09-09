@@ -6407,7 +6407,17 @@ def md_to_html(md: str) -> str:
     if fence is not None:                                  # 닫히지 않은 펜스도 살려서 낸다
         out.append("<pre><code>" + _h.escape("\n".join(code)) + "</code></pre>")
     close()
-    return "\n".join(out)
+    html = "\n".join(out)
+    # ── 결속 (v3 묶음 F, 2026-09-09) ──────────────────────────────────────────
+    #   `/seminar` 만 결속 밖이었다. 파서가 둘이면 판정도 둘이 된다 — 렌더러는 달라도
+    #   **판정기는 하나**여야 한다. app.md_html 이 쓰는 것과 같은 `annotate_claims` 를 태운다.
+    #   ⚠ 실패해도 화면을 죽이지 않는다. 다만 조용히 통과시키지도 않는다 —
+    #     결속이 빠지면 화면별 스캔 시험(`test_v3_markdown`)이 잡는다.
+    try:
+        import canonical as _C
+        return _C.annotate_claims(html)[0]
+    except Exception:                                      # noqa: BLE001
+        return html
 
 
 # ── 세미나 진행표 ────────────────────────────────────────────────────────────────
