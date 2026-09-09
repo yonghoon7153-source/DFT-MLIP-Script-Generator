@@ -121,6 +121,9 @@ _GATED_ENTRYPOINT_MODULES = frozenset({
     "test_fitting", "tests.test_fitting",
     "test_smooth_cache", "tests.test_smooth_cache",
     "test_grid", "tests.test_grid",
+    # ★ 61차 β — production `run_fit()` 을 **끝까지** 태워서 굳은 기록의
+    #   경로를 보는 회귀다. gated 진입점을 지나므로 여기 적는다.
+    "test_logical_paths_61", "tests.test_logical_paths_61",
 })
 
 

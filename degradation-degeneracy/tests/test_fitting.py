@@ -2589,6 +2589,13 @@ def test_run_fit_hands_the_body_the_staged_copies_not_the_originals(tmp_path,
         # 본체가 **그 순간** 읽는 바이트를 그대로 뜬다 (staging 은 반환 뒤 지워진다)
         seen["bytes"] = {n: (Path(in_dir) / n).read_bytes() for n in names}
         seen["cfg"] = Path(seen["base_config"]).read_text(encoding="utf-8")
+        # ★ 61차 P1-1 — 굳히는 자리가 본체 **밖**으로 나왔다 (lock 정리 뒤에
+        #   권한을 소비해야 하므로). 그래서 본체를 흉내 내는 이 가짜도 본체가
+        #   만드는 것 — 내용 identity 의 근거인 manifest — 을 만들어야 한다.
+        #   안 만들면 "봉인할 것이 없다" 로 멈춘다. 이 시험이 재는 것(배선)은
+        #   그대로다.
+        (Path(out_dir) / "manifest.yaml").write_text(
+            "fits_sha256: stub\n", encoding="utf-8")
         return {"n_rows": 0}
 
     monkeypatch.setattr(F, "_run_fit_locked", _fake_locked)

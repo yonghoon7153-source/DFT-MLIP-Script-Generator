@@ -516,12 +516,28 @@ def acquire_run_lock(out_dir: str | Path, name: str = ".run.lock") -> Path:
 
 
 def release_run_lock(out_dir: str | Path, name: str = ".run.lock") -> None:
+    """자기 lock 을 지운다.
+
+    ★ 61차 P1-1 — **자기 lock 을 못 지웠으면 소리를 낸다.** 예전 판은
+      `OSError` 를 통째로 삼켰고, 그래서 "권한을 마지막 사용자보다 먼저 닫아
+      경로가 죽었다" 는 결함이 `.fit.lock` 만 남긴 채 **조용히** 지나갔다
+      (리뷰어 실측: `real_lock_left_after_release: true`). 남은 lock 은 다음
+      실행을 "이미 실행 중" 으로 오인하게 만든다.
+
+      순서를 고친 것이 첫째 층이고 이것이 둘째 층이다 — 한 층이 뚫려도 남는다.
+
+      **없는 lock 과 남의 lock 은 그대로 조용히 넘어간다.** 그건 정상이고,
+      거부를 그쪽까지 넓히면 정상 정리가 죽는다.
+    """
     path = Path(out_dir) / name
     try:
-        if path.exists() and path.read_text(encoding="utf-8").split()[0] == str(os.getpid()):
-            path.unlink()
+        mine = (path.exists()
+                and path.read_text(encoding="utf-8").split()[0] == str(os.getpid()))
     except (OSError, IndexError):
-        pass
+        return                      # 읽을 수 없으면 내 것이라 말할 수 없다
+    if not mine:
+        return
+    path.unlink()                   # 실패하면 그대로 올린다 (삼키지 않는다)
 
 
 def load_failed(out_dir: str | Path) -> set[str]:

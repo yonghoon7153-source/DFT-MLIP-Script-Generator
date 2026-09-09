@@ -1006,29 +1006,54 @@ def _run_fit_staged(_staged, in_dir, out_dir, obj_cfg, objectives, bounds,
     # ★ 60차 P0-4 — grid 와 **같은 문장**. gate 뒤의 모든 쓰기를 판정한 실물
     #   아래로 옮긴다 (면제 판정이 두 진입점에 있으면 배선도 두 진입점에
     #   있어야 하고, 그러면 하나가 또 빠진다 — 58차 L1 의 교훈).
+    #
+    # ★ 61차 P0-2 — 그런데 60차는 `out_dir` **자체를** 갈아 치웠다. 그러면 그
+    #   아래의 모든 코드가 — 쓰는 코드뿐 아니라 **적는** 코드까지 — handle
+    #   경로를 본다. 성공하면 fd 가 닫히므로 굳은 provenance 가 존재하지 않는
+    #   자리를 가리킨다 (리뷰어 실측: `manifest.fits_parquet:
+    #   /proc/self/fd/3/fits.parquet`, `..._exists_after_success: false`).
+    #
+    #   그래서 값을 **둘로 나눈다**: 실제 writer 만 `write_root` 를 받고,
+    #   기록·요약·phase receipt 는 `logical_out`·`logical_in` 을 적는다.
+    logical_out = out_dir
+    logical_in = Path(in_dir)
     if _exec_cap is not None:
         from tools.preserve import staged_root
-        out_dir = staged_root(_exec_cap)
+        write_root = staged_root(_exec_cap)
     else:
         out_dir.mkdir(parents=True, exist_ok=True)
-    acquire_run_lock(out_dir, ".fit.lock")
+        write_root = out_dir
+    acquire_run_lock(write_root, ".fit.lock")
     try:
-        summary = _run_fit_locked(_staged["in_dir"], out_dir, obj_cfg,
+        summary = _run_fit_locked(_staged["in_dir"], write_root, obj_cfg,
                                   objectives, bounds,
                                   bounds_preset, n_restarts, nproc, use_noisy,
                                   limit, _staged["base_config"], reference,
                                   resume, subset,
                                   warm_start, adaptive, method, halfcell_method,
                                   halfcell_kw, stage_root=_staged["root"],
-                                  exec_capability=_exec_cap)
-        # ★ 48차 P0-4 — 끝난 phase 를 **durable 하게 닫는다.** 47차는
-        #   `phase_done()`·`finalize_leg()` 을 만들어 놓고 production 에서 한
-        #   번도 부르지 않았다 — lifecycle 이 있는데 아무 것도 그 상태를
-        #   움직이지 않으면 그것은 lifecycle 이 아니라 죽은 코드다.
-        _record_phase(claim, "fit", summary, out_dir)
-        return summary
+                                  logical_in=logical_in,
+                                  logical_out=logical_out)
     finally:
-        release_run_lock(out_dir, ".fit.lock")
+        # ★ 61차 P1-1 — lock 삭제는 handle 이 **살아 있는 동안** 해야 한다.
+        #   60차는 `commit_run_outputs()` 가 fd 를 닫은 뒤에 이 줄을 돌렸고,
+        #   `release_run_lock()` 이 `OSError` 를 삼켜 `.fit.lock` 이 실물에
+        #   남았다 (리뷰어 실측: `real_lock_left_after_release: true`).
+        release_run_lock(write_root, ".fit.lock")
+    # ★ 59차 M1 · 61차 P1-1 — 굳히는 것은 **마지막 사용자 뒤**다. 여기까지
+    #   오면 handle 아래의 쓰기도 lock 정리도 다 끝났으므로, 권한을 소비하며
+    #   fd 를 닫아도 "닫힌 handle 로 쓴다" 는 물음이 생기지 않는다.
+    #   대상은 **논리 경로**로 준다 — `staged_root` 를 주면
+    #   `_assert_still_the_judged_dir()` 이 자기 자신을 보고 일찍 돌아가서
+    #   "이름이 아직 그 실물인가" 를 아무도 안 묻게 된다.
+    from tools.preserve import commit_run_outputs
+    commit_run_outputs(_exec_cap, [logical_out])
+    # ★ 48차 P0-4 — 끝난 phase 를 **durable 하게 닫는다.** 47차는
+    #   `phase_done()`·`finalize_leg()` 을 만들어 놓고 production 에서 한
+    #   번도 부르지 않았다 — lifecycle 이 있는데 아무 것도 그 상태를
+    #   움직이지 않으면 그것은 lifecycle 이 아니라 죽은 코드다.
+    _record_phase(claim, "fit", summary, logical_out)
+    return summary
 
 
 def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: dict,
@@ -1040,14 +1065,17 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
                     method: str = "Nelder-Mead",
                     halfcell_method: str = "ocp",
                     halfcell_kw: dict | None = None, stage_root=None,
-                    exec_capability=None) -> dict:
+                    logical_in=None, logical_out=None) -> dict:
     """run_fit 본체. 호출자가 이미 .fit.lock 을 보유한 상태여야 한다.
 
-    ★ 59차 M1 — `exec_capability` 는 gate(`_assert_fit_authorized()`) 가 발행한
-      `ExecutionClassCapability` 다. 산출을 굳히는 자리(`commit_run_outputs()`)가
-      그것을 **요구**하므로, 이 인자를 안 넘기면 굳는 자리에서 거부된다
-      (fail-closed). 기본값 `None` 은 "안 넘겼다" 를 조용히 통과시키는 값이
-      아니라 **거부로 가는** 값이다.
+    ★ 61차 P0-2 — 이 함수가 받는 `in_dir`·`out_dir` 은 **실제로 읽고 쓰는
+      자리**다 (staging 사본과 판정한 handle). 굳은 기록에 적을 값은 그것이
+      아니라 `logical_in`·`logical_out` 이다 — 성공하면 앞의 둘은 사라진다.
+      안 주면 실제 자리를 그대로 쓴다 (예전 동작이고, 시험이 그것을 막는다).
+
+    ★ 59차 M1 · 61차 P1-1 — `exec_capability` 인자는 **없어졌다.** 굳히는 것은
+      이제 호출자(`_run_fit_staged()`)가 lock 정리까지 끝낸 뒤에 한다. 여기서
+      굳히면 fd 가 닫힌 뒤에 lock 을 지우게 되고, 그 실패는 조용히 삼켜졌다.
 
     ★ 51차 P0-A3 — `in_dir`·`base_config` 는 **staging 사본**을 가리킨다.
       `stage_root` 는 그 사본의 뿌리이고, 봉인 map 의 키를 원래 저장소 상대
@@ -1073,6 +1101,10 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
                         seal_inputs, source_digest, write_manifest)
 
     in_dir, out_dir = Path(in_dir), Path(out_dir)
+    # ★ 61차 P0-2 — 적는 값과 쓰는 값을 가른다. 안 주면 예전대로 쓰는 자리를
+    #   그대로 적는다 (그 경우를 막는 것은 호출자와 회귀다).
+    _log_in = Path(logical_in) if logical_in is not None else in_dir
+    _log_out = Path(logical_out) if logical_out is not None else out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ★ F51 — 시작 provenance를 **어떤 입력 로드·캐시 로드·self-fit 보다도 먼저**
@@ -1568,7 +1600,7 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
     write_manifest(out_dir, base_manifest(
         cfg_h, out_dir=out_dir,
         inputs=None, sealed=start_prov["input_sha256"], extra={
-        "run_type": "fit", "input": str(in_dir),
+        "run_type": "fit", "input": str(_log_in),
         "run_signature": run_sig, "run_spec": run_spec,
         # F42/F51: 시작 시점과 대조 (다르면 실행 도중 바뀐 것)
         "start_provenance": start_prov,
@@ -1584,17 +1616,16 @@ def _run_fit_locked(in_dir, out_dir, obj_cfg: dict, objectives: dict, bounds: di
         "n_restarts": n_restarts, "target_column": v_col, "reference": reference,
         "p_ini": p_ini, "warm_start": warm_start,
         "q_ref_mah": q_ref, "lli_inventory_constants": inv, "elapsed_s": round(elapsed, 1),
-        "fits_parquet": str(path),
+        "fits_parquet": str(_log_out / path.relative_to(out_dir)),
         "fits_seal": {k: v for k, v in seal.items()
                       if k not in ("missing", "extra", "duplicated")},   # F68
     }))
     # ★ 59차 M1 — fit 산출도 **여기서 굳는다.** manifest 가 생긴 이 순간에야
     #   내용 identity 가 있고, 권한 없이는 등록할 수 없다 (grid 와 같은 문장).
-    from tools.preserve import commit_run_outputs
-    commit_run_outputs(exec_capability, [out_dir])
     log.info("fitting 완료: %d행, %.1fs → %s", len(fits), elapsed, path)
     return {"n_rows": len(fits), "n_conditions": len(tasks),
-            "elapsed_s": elapsed, "out": str(path)}
+            "elapsed_s": elapsed,
+            "out": str(_log_out / path.relative_to(out_dir))}
 
 
 def main() -> None:
