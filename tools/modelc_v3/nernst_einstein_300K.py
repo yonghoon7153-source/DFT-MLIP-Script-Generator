@@ -43,6 +43,7 @@ vs Adeli 7Li PFG D* 1.01e-7 cm^2/s.
     · Haven 비를 1 로 둔다. σ 절대값은 CLAUDE.md 규율상 **인용 금지**다 (비율만).
 """
 import argparse
+import pathlib
 import json
 import sys
 
@@ -183,13 +184,29 @@ _ap.add_argument("--T_hi", type=int, default=800)
 _ap.add_argument("--T_out", type=int, default=300)
 _ap.add_argument("--n_li", type=float, default=None, help="Li 수밀도 cm^-3 (기본: db 값)")
 _ap.add_argument("--json_out", default=None, help="결과를 json 으로 떨군다")
+#: ⛔ BI-3 P0-4 (2026-09-09) — 마감된 축의 원자료를 받으면 **시작하지 않는다.**
+#:   실측 사고: 이 도구에 `b2o3_md_arrhenius.json` 을 주면 정상 종료하면서
+#:   `Ea = 0.2241 eV` 와 300 K 외삽 D·σ 를 다시 만들고 "비교는 비율로만" 이라고 권했다.
+#:   마감 카드가 그 축의 **수송 비교와 300 K 외삽을 둘 다 금지**하는데도.
+#:   원인은 이 도구가 개명된 필드가 아니라 **다른 가지**(`⛔_RETRACTED….multiseed_3x3`)를
+#:   키 이름으로 훑기 때문 — 원자료 정정이 하류에 안 닿았다.
+_ap.add_argument("--policy_override", metavar="사유",
+                 help="마감된 축을 **그래도** 돌린다 (이력·진단 목적). 사유가 필수이고 "
+                      "출력·json 에 우회 스탬프가 박힌다.")
 _a = _ap.parse_args()
 
 if _a.selftest:
     sys.exit(_selftest())
 
 if _a.segment:
+    # ⛔ 정책 먼저 — 계산 뒤에 물으면 이미 숫자가 화면에 나가 있다.
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "db"))
+    import policy as _pol                                              # noqa: E402
+    _stamp = _pol.require_open(_a.segment, override=_a.policy_override)
     _r = run_segment(_a.segment, _a.T_lo, _a.T_hi, _a.T_out, _a.n_li)
+    if _stamp:
+        _r["⛔_POLICY_OVERRIDE"] = _stamp
+        print("\n" + "=" * 74 + f"\n {_stamp}\n" + "=" * 74)
     if _a.json_out:
         json.dump(_r, open(_a.json_out, "w"), ensure_ascii=False, indent=1)
         print(f"\n  → {_a.json_out}")
