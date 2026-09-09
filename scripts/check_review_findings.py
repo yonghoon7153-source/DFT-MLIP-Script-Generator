@@ -121,7 +121,27 @@ BAN_SCAN_GLOBS = ('CLAUDE.md', 'docs/**/*.md', 'wiki/**/*.md',
                   #   ★ 생성기에는 **파일 전체 면제를 주지 않는다** — 출력이 배너로 면제되는
                   #     이상, 표 셀을 실제로 지키는 자리는 여기뿐이다 (설명 문단은 줄-근처
                   #     표지로 개별 통과시킨다).
-                  'docs/**/*.js')
+                  'docs/**/*.js',
+                  # ⚠⚠ 2026-09-09 (전수 감사 P0, `webapp/app.py:4035`) — **철회 배너 자신이
+                  #   다른 금지 세트를 현행 결론으로 적고 있었다.**  `app.py` 는 화면에 뿌리는
+                  #   문자열을 파이썬 안에 들고 있는데(=템플릿이 아니라 라우트가 만든다) 글롭이
+                  #   `webapp/templates/*.html` 만 걸어 **사용자에게 보이는 문장이 스윕 밖**이었다.
+                  #   위 97-98 줄의 "scripts/*.py 는 안 넣는다" 는 판단은 그대로다 — 그쪽 등장은
+                  #   철회를 **설명하는** 주석이다.  `webapp/*.py` 는 반대로 **사용자 출력**이라
+                  #   CDXIJ-4/9 가 웹앱 UI·덱을 넣은 것과 같은 부류다.
+                  'webapp/*.py',
+                  # ⚠⚠ 2026-09-09 (잔여 감사) — **측정 CSV 도 읽는다.**  `docs/**/*.json` 은
+                  #   원래 글롭에 있었지만 **CSV 는 한 번도 안 읽혔고**, 그 사각지대에서 실제로
+                  #   새고 있었다: `docs/data/sdcp318_sigma_sdcp_sweep/sweep_summary.csv` 의
+                  #   `vs_SBE_pct` 열이 철회된 헤드라인 계열을 들고 `source` 열이 그것을
+                  #   "★앵커 확정" 이라 적었다.  (실측 파급: docs/data 586 파일 중 표지 없는 것 4개.)
+                  # ⛔⛔ **그러나 이것으로 그 CSV 를 잡지는 못한다 — 정직하게 적어 둔다.**
+                  #   열 값이 `52.0` 이라 등록 패턴의 `+` 와 `%` **장식이 벗겨져** 있다.
+                  #   숫자 열의 철회는 **리터럴 패턴으로 막을 수 없다** (등록부에 벌거벗은
+                  #   `52.0` 을 넣으면 무관한 측정치를 전부 오탐한다).  ⇒ 데이터 파일의 철회는
+                  #   **머리 배너**가 유일한 수단이고 이 글롭은 *장식이 붙은* 형태를 잡는 2차 그물이다.
+                  #   그 CSV 를 찾아낸 것은 패턴이 아니라 **파일을 읽고 이해한 감사**였다.
+                  'docs/data/**/*.csv')
 
 #: 이 경로들은 **박제된 원문**이라 철회값이 들어 있는 것이 정상이다 (원장 자신 · 감사 원문 ·
 #: 사전등록 계약 · 외부 리뷰 요청서 = 리뷰 시점의 상태를 보존해야 하는 문서).
@@ -132,7 +152,30 @@ BAN_ALLOW_ALWAYS = ('docs/reviews/claims.json',
                     'docs/reviews/fable_audit_code_20260820.md',
                     # ⚠ 외부 리뷰 **원문 박제** — 리뷰어가 인용한 철회값이 그대로 있어야 한다
                     #   (고치면 그 리뷰가 무엇을 보고 판정했는지 알 수 없게 된다).
-                    'docs/reviews/codex_crosscheck_IJ_20260820.md')
+                    'docs/reviews/codex_crosscheck_IJ_20260820.md',
+                    # ⚠ 2026-09-09 — 전수 감사의 **출력 원문**.  누수를 신고하려면 그 값을
+                    #   인용해야 하므로 `findings.json` 과 같은 층이다 (등록부·감사 원문).
+                    'docs/data/audit_20260909/audit1_scopes.json',
+                    'docs/data/audit_20260909/audit1_followups.json',
+                    'docs/data/audit_20260909/audit1_ground_truth.md',
+                    #  갭 감사 부분 결과 (2026-09-09 보류 시점 박제) — 같은 이유:
+                    #  누수를 **신고**하려면 그 값을 인용해야 한다.
+                    'docs/data/audit_20260909/gap_partial_buckets.json',
+                    #  잔여 감사(536 파일) 출력 — 같은 층.
+                    'docs/data/audit_20260909/residual_buckets.json',
+                    'docs/data/audit_20260909/residual_followups.json')
+
+#: ⚠⚠ 2026-09-09 (전수 감사 P1) — **생성기·사용자출력에는 파일 전체 면제를 주지 않는다.**
+#:   위 113-123 줄이 이미 *"생성기에는 파일 전체 면제를 주지 않는다"* 라고 적어 놨는데
+#:   `_has_banner` 는 파일 종류를 안 보고 모두에게 준다 = **문서화된 의도와 구현의 어긋남**.
+#:   실측: 배너를 가진 300 파일 안에 표지 없는 철회값이 **125 건** 앉아 있다.  대부분은
+#:   박제(발송한 리뷰 요청 · 세션 기록 · 발표한 pptx)라 배너가 옳은 처리이지만, **생성기는
+#:   다시 돌리면 철회값이 산출물에 되살아난다** — `docs/manuscript_draft/build.js` 가 실제로
+#:   그랬다 (CL-33 비 3 건).  ⇒ 아래 글롭은 **줄-근처 표지로만** 통과한다.
+BAN_NO_FILE_EXEMPT = ('docs/**/*.js', 'scripts/seminar_deck/*.js', 'webapp/*.py')
+#: 예외 — **fail-closed 로 잠긴 이력 재현기**.  그냥 실행하면 거부되므로(환경변수 명시 필요)
+#:   철회값이 조용히 재생산될 경로가 없고, 값은 *발표된 그대로* 보존돼야 한다.
+BAN_FROZEN_REPRODUCERS = ('scripts/seminar_deck/build.js',)
 
 #: 파일 머리 이 줄 수 안에 배너가 있으면 그 파일 전체를 이력 문서로 본다.
 BAN_BANNER_HEAD_LINES = 12
@@ -151,7 +194,15 @@ BAN_NEAR_LINES = 2
 #:   실측: 근처에 *무관한* "HISTORICAL"/"retired" 한 단어만 있어도 면제됐다.  그 둘은 문서
 #:   머리 **배너** 어휘이지 "이 값은 철회됐다" 는 진술이 아니다.  ⇒ 근처 면제에서 뺀다
 #:   (⛔ 도 뺀다 — 그 기호 하나로는 무엇이 철회됐는지 말하지 않는다).
-BAN_NEAR_MARKS = ('인용 금지', '철회', '반증', '폐기', '무효', '~~', 'CL-')
+#: ⚠⚠ 2026-09-09 (전수 감사 P0, CLAUDE.md L189·L198) — **`'CL-'` 를 뺀다.**  이 리포에서
+#:   `CL-` 는 어디에나 있어서 (원장 id 를 안 붙이면 아무것도 못 쓴다) *"근처에 CL- 가 있다"*
+#:   는 **철회를 밝혔다는 증거가 못 된다**.  실측: CLAUDE.md 가 `+12.3 %` 를 **살아 있는
+#:   헤드라인으로** 두 번 적었는데 우연히 두 줄 안에 `CL-46` 이 있어 스윕이 초록을 냈다.
+#:   IJ-04 가 `HISTORICAL`/`retired`/`⛔` 를 뺀 것과 **같은 이유**이고 마지막 남은 약한 토큰이다.
+#:   ⇒ 근처 면제는 이제 **철회를 말하는 낱말**만 인정한다.  (제거 시점 실측: 7 파일 21 건이
+#:   드러났고 전부 같은 커밋에서 처리했다 — 생성기 `manuscript_draft/build.js` 3건 ·
+#:   *"지금 무엇을 쓸 수 있는가"* 보고서 · 위키 질문 카드 · 흡수 지도 · 리뷰 기록 2건.)
+BAN_NEAR_MARKS = ('인용 금지', '철회', '반증', '폐기', '무효', '~~')
 
 #: 표기 변형 정규화 — NBSP·얇은 공백·JSON `\u0025`(%)·꼬리 0.
 #: Codex 실측 미검출: "+52.00%", NBSP, JSON 이스케이프.
@@ -342,6 +393,10 @@ def ban_sweep(repo_root, claims_path=None, files=None):
         if lines is None:
             continue
         banner = _has_banner(lines)
+        if (banner and rel not in BAN_FROZEN_REPRODUCERS
+                and any(_fn.fnmatch(rel, g) for g in BAN_NO_FILE_EXEMPT)):
+            #  생성기·사용자출력: 배너는 파일을 면제하지 않는다 (줄-근처 표지만 인정).
+            banner = False
         for b in bans:
             pat = b.get('pattern')
             if not pat:
@@ -782,6 +837,33 @@ def _selftest():
                any('build.js' in x and _pat in x for x in _p11))
             ok('22g) 그러나 node_modules 는 안 읽는다 (남의 코드는 우리 주장이 아니다)',
                not any('node_modules' in x for x in _p11))
+
+            #  ⚠⚠ 2026-09-09 (전수 감사 P1) — **배너를 단 생성기**가 22f 를 무력화한다.
+            #    22f 는 배너 **없는** 생성기만 본다.  실제 리포의 `docs/manuscript_draft/
+            #    build.js` 는 머리 배너를 갖고 있었고, `_has_banner` 가 파일 종류를 안 봐서
+            #    **파일 전체가 면제**됐다 — 그 안에 CL-33 의 hold 값이 3 건 살아 있었다.
+            #    위 113-123 줄이 *"생성기에는 파일 전체 면제를 주지 않는다"* 라고 이미 적어
+            #    놨는데 구현이 안 따라간 자리다 (문서화된 의도 ↔ 구현의 어긋남).
+            with open(os.path.join(_d6, 'build.js'), 'w', encoding='utf-8') as _f8:
+                _f8.write('// ⛔ HISTORICAL — docs/reviews/claims.json 참조\n'
+                          "rows.push(['ratio','%s']);\n" % _pat)
+            _p12, _, _ = ban_sweep(_dr)
+            ok('22h) ★★ 배너를 달아도 **생성기**는 파일 면제를 못 받는다 '
+               '(다시 돌리면 철회값이 산출물에 되살아난다)',
+               any('build.js' in x and _pat in x for x in _p12))
+            #  그러나 줄-근처 표지는 여전히 통한다 — 철회를 밝히고 설명하는 주석까지
+            #  막으면 생성기 안에 무엇이 왜 철회됐는지 적을 자리가 사라진다.
+            with open(os.path.join(_d6, 'build.js'), 'w', encoding='utf-8') as _f9:
+                _f9.write('// ⛔ HISTORICAL — docs/reviews/claims.json 참조\n'
+                          "// 아래 값은 **철회**됐다 (인용 금지)\n"
+                          "rows.push(['ratio','%s']);\n" % _pat)
+            _p13, _, _ = ban_sweep(_dr)
+            ok('22i) 생성기도 줄-근처 철회 표지로는 통과한다 (설명할 자리를 남긴다)',
+               not any('build.js' in x for x in _p13))
+            #  fail-closed 로 잠긴 이력 재현기는 예외 — 그냥 실행하면 거부되므로 산출물이
+            #  조용히 되살아날 경로가 없고, 값은 **발표된 그대로** 보존돼야 한다.
+            ok('22j) 이력 재현기 예외 목록이 실재 파일을 가리킨다',
+               all(os.path.exists(os.path.join(here, _r)) for _r in BAN_FROZEN_REPRODUCERS))
 
     ok('21) ★ 리포 전체가 지금 깨끗하다 (누수 0)',
        ban_sweep(here, _claims)[0] == [])

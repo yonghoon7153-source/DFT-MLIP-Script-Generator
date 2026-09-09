@@ -374,6 +374,110 @@ def test_no_bare_sigma_grain_in_templates(app):
         chk('[C-1t] single/group 템플릿 파싱 OK', True)
 
 
+def test_carbon_anchor_single_source():
+    """★ 결함 AUD-02 — 탄소 σ_e 앵커가 **한 군데**에만 살고, 그것이 실측 CSV 와 같은가.
+
+    계기: `predictor_engine` 이 **두 번째 탄소 모델**을 들고 있었고, 그 값이 이 리포에 없는
+    논문("Bielefeld 2023")을 인용하면서 리포 자신의 실측과 **51배** 어긋났다
+    (4 wt% 에서 70 vs 1.36 mS/cm).  문턱만 Reisacher 에서 가져오고 값은 다른 데서 온 상태.
+    ⇒ 앵커를 `grade_engine` 한 군데로 모았고, 이 회귀가 **그 셋이 서로 안 갈라지는지**를 본다:
+      ⓐ 예측기가 grade_engine 의 그 객체를 쓴다  ⓑ 그 값이 커밋된 CSV 와 같다
+      ⓒ 예측기 경로가 옛 값(70)을 다시 내지 않는다.
+    """
+    import csv as _csv
+    sys.path.insert(0, os.path.join(ROOT, 'scripts'))
+    import grade_engine as GE
+    import predictor_engine as PE
+
+    chk('[AUD-02] 예측기가 grade_engine 의 앵커 객체를 그대로 쓴다 (사본 아님)',
+        PE._REISACHER_C65 is GE.REISACHER_C65_SIGMA_E_MSCM)
+
+    #  ⓑ 커밋된 실측 CSV 와 대조 — 상수만 고치고 데이터를 안 고치는 drift 를 막는다.
+    csv_path = os.path.join(ROOT, 'docs', 'data', 'reisacher2023_percolation.csv')
+    measured = {}
+    with open(csv_path, encoding='utf-8') as f:
+        for row in _csv.reader(l for l in f if not l.startswith('#')):
+            if len(row) >= 3 and row[0] not in ('C65_wt_pct', 'quantity'):
+                try:
+                    measured[float(row[0])] = float(row[2]) * 1000.0   # S/cm → mS/cm
+                except ValueError:
+                    continue
+    anchor = GE.REISACHER_C65_SIGMA_E_MSCM
+    mismatch = [w for w in anchor
+                if w not in measured or abs(measured[w] - anchor[w]) > 0.01 * max(anchor[w], 1e-9)]
+    chk(f'[AUD-02] 앵커가 커밋된 CSV 와 일치한다 (불일치 {mismatch})', not mismatch)
+    chk('[AUD-02] p_c 도 같은 논문에서 온다 (4 wt%)', abs(GE._CARB_PC_WT - 4.0) < 1e-9)
+
+    #  ⓒ 무릎의 두 자릿수 — 4 wt% 를 5 wt% 크기로 적는 것이 원래 사고였다.
+    chk('[AUD-02] 4 wt% 가 5 wt% 보다 두 자릿수 낮다 (무릎을 넘겨 적지 않는다)',
+        anchor[5.0] / anchor[4.0] > 50)
+    chk('[AUD-02] 옛 미확인 값(70)이 앵커에 없다', 70.0 not in anchor.values())
+
+    #  코드 경로 자체 — 4 wt% 분기가 실측값을 쓰는지 소스로 확인 (predict() 는 학습 모델이 필요).
+    src = open(os.path.join(ROOT, 'webapp', 'predictor_engine.py'), encoding='utf-8').read()
+    br = src.split("elif additive == 'c65_4wt':")[1].split('elif')[0].split('# ── PTFE')[0]
+    chk('[AUD-02] c65_4wt 분기가 앵커에서 읽는다', '_REISACHER_C65' in br)
+    chk('[AUD-02] c65_4wt 분기에 옛 상수 70 이 없다',
+        'sigma_electronic, 70' not in br)
+    #  ⚠ 이 검사는 **표지 없는 인용**만 막는다 — 리포의 ban sweep 규칙과 같은 관용이다.
+    #    "옛 판은 X 를 인용했는데 그 논문이 없다" 는 문장까지 막으면 왜 고쳤는지 적을 자리가
+    #    사라진다.  막아야 하는 것은 `Ref:` 줄에 그 이름이 **출처로** 다시 서는 것이다.
+    lines = src.splitlines()
+    bad = []
+    for i, ln in enumerate(lines):
+        if 'Bielefeld 2023' not in ln:
+            continue
+        near = '\n'.join(lines[max(0, i - 3):i + 4])
+        if not any(m in near for m in ('정정', '없다', '미확인', 'AUD-02', '옛 ')):
+            bad.append(i + 1)
+    chk(f'[AUD-02] Bielefeld 2023 이 표지 없이 출처로 서 있지 않다 (줄 {bad})', not bad)
+    chk('[AUD-02] Ref: 줄에서 사라졌다',
+        not any(ln.strip().startswith('# Ref:') and 'Bielefeld 2023' in ln for ln in lines))
+    chk('[AUD-02] AM 퍼콜레이션 인용이 실재 논문(2019)으로 정정됐다',
+        'Bielefeld 2019' in src)
+
+
+def test_plot_labels_follow_canon():
+    """★ v3 (2026-09-09) — 그룹 UI 가 띄우는 **플롯 설명이 정본을 따라가는가.**
+
+    감사 실측: 웹앱 8 영역 전부에서 "기계는 최신, 라벨은 3~15 개월 뒤" 였고 그 중 둘이
+    사용자에게 **틀린 물리**를 보여 주고 있었다:
+      ⓐ σ_ionic 설명 셋이 **철회된 v29 지수**(CN^(3/2)·cov^(2/5)·φ−0.19)를 프로덕션 식으로
+         적었다 — 코드는 이미 T1(φ_eff·CN²·cov_Hertz^0.5)을 계산하는데 라벨만 뒤처졌다.
+      ⓑ `thermal_decomposition` 이 **순수 멱법칙** 그림에 `R²=0.90` 을 찍었다.  그 0.90 은
+         **14-특징 Ridge** 의 LOOCV 이고, 이 멱법칙의 실측 천장은 **0.59** 다 (A/B/C 스크린).
+    ⇒ 라벨을 정본에 묶는다.  ⚠ 이 검사는 **표지 없는** 등장만 막는다 — "옛 라벨은 …였다" 는
+      설명 문장까지 막으면 왜 바뀌었는지 적을 자리가 사라진다 (ban sweep 과 같은 관용).
+    """
+    src = open(os.path.join(ROOT, 'scripts', 'generate_comparison_plots.py'),
+               encoding='utf-8').read()
+    lines = src.splitlines()
+
+    #  ⓐ 철회된 v29 표기가 **표지 없이** 프로덕션 식으로 서 있지 않은가.
+    RETIRED = ('CN^(3/2)', 'cov^(2/5)', 'φ−0.19', 'φ-0.19')
+    MARKS = ('옛', '철회', 'v29', '레거시', '대체', '뒤처', '아니다')
+    bad = []
+    for i, ln in enumerate(lines):
+        if 'description' not in ln and 'title' not in ln:
+            continue
+        for r in RETIRED:
+            if r in ln and not any(m in ln for m in MARKS):
+                bad.append(f'{i + 1}:{r}')
+    chk(f'[v3-label] 철회된 v29 지수가 표지 없이 플롯 라벨에 없다 ({bad})', not bad)
+
+    #  ⓑ 멱법칙 그림이 Ridge 의 R² 를 참칭하지 않는가.
+    blk = src.split('PLOT_REGISTRY["thermal_decomposition"]')[1].split('PLOT_REGISTRY[')[0]
+    chk('[v3-label] thermal_decomposition 제목이 R²=0.90 을 주장하지 않는다',
+        'Factor Decomposition (R²=0.90)' not in blk)
+    chk('[v3-label] 그 블록이 멱법칙의 실측 천장 0.59 를 함께 적는다', '0.59' in blk)
+    chk('[v3-label] 그 블록이 프로덕션 폼(Ridge)을 가리킨다',
+        'thermal_fit_final' in blk and 'Ridge' in blk)
+
+    #  ⓒ 프로덕션 σ_ionic 표기가 실제로 등장하는가 (라벨을 지우기만 하고 안 고치는 것 방지).
+    chk('[v3-label] T1 표기(φ_eff · cov_Hertz)가 라벨에 실제로 있다',
+        'φ_eff' in src and 'cov_Hertz' in src)
+
+
 def main():
     print('σ_grain 단일출처 + 예측기 온도-UI 회귀시험')
     test_no_bare_sigma_grain_in_app()
@@ -383,6 +487,8 @@ def main():
     test_predictor_ui()
     test_routes(app)
     test_doc_sync()
+    test_carbon_anchor_single_source()
+    test_plot_labels_follow_canon()
     print(('ALL PASS' if not _FAILS else f'FAIL ({len(_FAILS)}): ' + '; '.join(_FAILS)))
     return 0 if not _FAILS else 1
 

@@ -1045,11 +1045,16 @@ PSIG=(); [ "${{MPM_PERIODIC_SIGMA:-0}}" = "1" ] && {{ PSIG=(--periodic); echo "[
 QS=({_platen})
 if [ "${{MPM_QUASISTATIC:-0}}" = "1" ]; then
   QS=(--platen-mach 0.01 --frames "${{MPM_QS_FRAMES:-1500}}")
-  echo "[run_mpm] ★ MPM_QUASISTATIC=1 → --platen-mach 0.01 --frames ${{MPM_QS_FRAMES:-1500}} (준정적 처방)"
-  echo "[run_mpm]   런타임 ~10×.  ⚠ 기존 코퍼스(기하 규칙)와 재하율이 달라 직접 비교 금지 — 별도 트랙."
+  echo "[run_mpm] ★ MPM_QUASISTATIC=1 → ${{QS[*]}} (준정적 처방)"
+  echo "[run_mpm]   런타임 ~10×.  ⚠ 기존 코퍼스와 재하율이 달라 직접 비교 금지 — 별도 트랙."
 else
-  echo "[run_mpm] 준정적: 기하 규칙 유지 + --allow-fast-platen (등급 B — 위반이 mpm_metrics.json 의"
-  echo "[run_mpm]   quasistatic_violation/platen_mach_VcP 에 기록됨).  절대값용 처방은 MPM_QUASISTATIC=1."
+  # ★ 2026-09-08: 이 줄은 **QS 배열을 그대로 인쇄한다**.  옛 판은 `--platen-mach` 값과 무관하게
+  #   "기하 규칙 유지" 를 하드코딩했고, 그래서 Mach 0.03 으로 도는 Phase A W4 런의 로그가
+  #   **기하 규칙이라고 거짓 보고**했다 (실측 metrics 는 platen_mach_VcP=0.03).  도장과 실제가
+  #   갈리는 이 리포의 반복 결함(규칙 F)이라 라벨을 소스에서 지우고 실물을 찍는다.
+  echo "[run_mpm] 준정적 규약: ${{QS[*]}}   (등급 B — 위반은 mpm_metrics.json 의"
+  echo "[run_mpm]   quasistatic_violation / platen_mach_VcP 에 기록된다.  같은 마하로 통일한"
+  echo "[run_mpm]   **상대** 비교는 공통모드 상쇄로 유효, **절대값**은 아니다.)  처방=MPM_QUASISTATIC=1"
 fi
 # 1) plastic compaction of the REAL SE around the fixed AM scaffold (periodic x,y RVE = DEM 'boundary p p f')
 #    ★ "${{QS[@]}}" 가 --frames 를 덮어쓸 수 있도록 아래 기본 --frames 보다 **뒤에** 온다.

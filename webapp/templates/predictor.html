@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}ML Predictor - DEM Analyzer{% endblock %}
+{% import "_ledger.html" as L %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <div class="predictor-page">
   <div class="page-header">
     <h2>ML-Based Electrode Property Predictor</h2>
@@ -243,9 +246,9 @@
         <label>Conductive Additive</label>
         <select id="additive" style="width:100%;padding:6px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;margin-top:4px">
           <option value="none">None (AM-AM only)</option>
-          <option value="vgcf">VGCF 1wt% (sub-perc, σ_el ~0.4)</option>
-          <option value="c65">C65 1wt% (sub-perc, 미미한 효과)</option>
-          <option value="c65_4wt">C65 4wt% (percolation! σ_el ~70, but σ_ion -15%)</option>
+          <option value="vgcf" title="⚠ σ_el 0.4 mS/cm 는 출처 미확인 (결함 AUD-02). Reisacher 실측 매트릭스는 C65 전용이라 VGCF 에 전이되지 않는다.">VGCF 1wt% (sub-perc, σ_el ~0.4 ⚠출처미확인)</option>
+          <option value="c65" title="⚠ 이 loading 에는 전자 앵커가 없다 (정정 2026-09-09). Reisacher CM-1 의 9.5e-5 S/cm 는 순수 SE 이온값(6.6e-5)의 1.44배뿐이고 원자료가 below_pc · isolated C65 islands 라 적는다 = 이온 지배 총전도도다. 문턱 아래에서는 전자망이 없다는 것이 그 논문의 결론이므로 σ_e 를 올리지 않는다.">C65 1wt% (sub-perc · ⚠전자 앵커 없음)</option>
+          <option value="c65_4wt" title="Reisacher 2023 CM-4 실측 (LPSCl+C65) — 퍼콜레이션 무릎. ⚠ 무릎이지 포화가 아니다: 5 wt% 에서 102 mS/cm 로 75배 더 오른다. 옛 라벨의 ~70 은 이 리포에 없는 논문을 인용한 값이었다 (AUD-02).">C65 4wt% (무릎, σ_el 1.36 · 실측 · σ_ion −15%)</option>
         </select>
       </div>
 
@@ -632,6 +635,9 @@
     .input-grid { grid-template-columns: 1fr; }
     .results-grid { grid-template-columns: 1fr; }
   }
+  .cond-flag { font-size: .62rem; color: var(--yellow); border: 1px solid rgba(251,191,36,.45);
+               border-radius: 999px; padding: 0 5px; margin-left: 5px; vertical-align: middle;
+               font-weight: 500; cursor: help; }
 </style>
 
 <script>
@@ -785,21 +791,25 @@ function renderResults(data) {
         <span class="cond-std">\u00b1${cond.sigma_ionic_std.toFixed(4)}</span>
       </div>
     </div>
-    <div class="cond-card cond-electronic">
-      <div class="cond-label">\u03c3<sub>electronic</sub></div>
+    <div class="cond-card cond-electronic" title="⚠ 스크리닝 추정이다 — 프로덕션 σ_e 폼이 아니다. 프로덕션 = Stage 22.5 ((σ_S·NCM_S)^(1-p)·(σ_P·NCM_P)^p, σ_S=10·σ_P=5 LOCKED 코퍼스-적합 endpoint, LOOCV 0.9531). 이 카드는 2026-05-29 체크포인트의 2-regime 식이고 전역 앵커 50 mS/cm 를 쓴다 — 그 값은 문헌 물성이 아니며 A1(2026-06-30)에서 Trevisanello 귀속이 철회됐다.">
+      <div class="cond-label">\u03c3<sub>electronic</sub> <span class="cond-flag">⚠스크리닝</span></div>
       <div>
         <span class="cond-value">${cond.sigma_electronic.toFixed(4)}</span>
         <span class="cond-unit">mS/cm</span>
       </div>
     </div>
-    <div class="cond-card cond-thermal">
-      <div class="cond-label">\u03c3<sub>thermal</sub></div>
+    <div class="cond-card cond-thermal" title="⚠ 정본이 명시적으로 거부한 폼이다 — CLAUDE.md §σ_thermal Stage T1: 'DO NOT try to simplify to compact analytic form'. 이 카드는 순수 멱법칙(286·σ_ion^0.75·φ_AM²/CN)이고 실측 LOOCV 천장은 0.59 다. 프로덕션은 14-특징 Ridge(α=0.05, LOOCV 0.90) — 그룹 비교의 thermal_fit_final 계열에서 본다.">
+      <div class="cond-label">\u03c3<sub>thermal</sub> <span class="cond-flag">⚠스크리닝</span></div>
       <div>
         <span class="cond-value">${cond.sigma_thermal.toFixed(4)}</span>
         <span class="cond-unit">mS/cm</span>
       </div>
     </div>
   `;
+  // ★ v3 (2026-09-09) — 두 카드는 **스크리닝 추정**이고 프로덕션 폼이 아니다.
+  //   σ_ionic 만 프로덕션 폼(v12-clean/T1)을 쓴다.  감사 지적: 같은 페이지에서
+  //   `structure_predictor`(중첩 CV·모범)와 `predictor_engine` Stage-2(2026-04-24 이후
+  //   미변경)가 나란히 있는데 화면이 둘을 구분하지 않았다.
 
   // Rate limiting
   const rateBox = document.getElementById('rate-limiting');

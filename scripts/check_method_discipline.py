@@ -909,6 +909,10 @@ _RUNNER_AXES = ('LEAN', 'VOX', 'ARMS', 'SIGMA_PTFE', 'PTFE_STAMP', 'FIBRE_STAMP'
                 'SIGMA_ION_SDCP', 'SIGMA_ION_SE',
                 #  ★ 2026-08-31 (Codex R16 P1-5) — PTFE 이온 차단 축.
                 'PTFE_BLOCK_UM', 'PTFE_BLOCK_SCOPE',
+                #  ★ 2026-09-08 — Phase A 96 팔의 킷 목록.  이 목록에 **안 넣고** 러너에만
+                #    추가했다가 위 경고를 그대로 재현할 뻔했다 (호출 환경의 KITS 가 내부
+                #    프로브로 새면 프로브가 없는 킷을 찾는다).
+                'KITS',
                 #  ★ 2026-09-02 — closure 스윕의 두 대비 축 + 게이트 전용 문.
                 #    ⚠ 이제 안 넣으면 **두 겹으로** 막힌다: 격리가 뚫리는 옛 경로에 더해,
                 #    러너의 새 env fail-closed 가 `bash -s` 경로에서 ABORT 를 낸다.
@@ -2020,6 +2024,95 @@ def smoke_negative_control(verbose=True):
     return [], []
 
 
+#: ★ 규칙 N (2026-09-08) — **킷 러너의 재하율 라벨은 하드코딩 금지.**
+#    실사고: `mpm_input_from_case.py` 의 else 분기가 `--platen-mach` 값과 무관하게
+#    *"기하 규칙 유지"* 를 인쇄해, **Mach 0.03 으로 도는 Phase A W4 런의 로그가
+#    기하 규칙이라고 거짓 보고**했다 (같은 스크립트의 W1 실측 metrics 는
+#    `platen_mach_VcP = 0.03`).  런을 보는 사람이 로그만 읽고 규약을 오판하거나
+#    멀쩡한 런을 폐기할 수 있다.  **도장 ≠ 실제** = 규칙 F 와 같은 부류다.
+#    ⇒ 라벨을 소스에서 지우고 `${{QS[*]}}` 실물을 찍게 한 뒤, 되살아나지 못하게 상주시킨다.
+_KIT_GEN = 'scripts/mpm_input_from_case.py'
+_KIT_RATE_BANNED = ('기하 규칙 유지',)
+
+
+def check_kit_rate_label(verbose=True, src=None):
+    """킷 러너 템플릿이 재하율을 **QS 배열 실물**로 보고하는가 (하드코딩 라벨 금지).
+
+    ⚠ **`echo` 줄만** 본다.  로그에 닿는 것은 그것뿐이고, 초판은 전체 파일을 훑어
+      **이 결함을 설명하는 주석까지** 오류로 잡았다 — 그런 검사는 문서화를 벌하고,
+      사람은 검사를 통과시키려 설명을 지운다 (CLAUDE.md 규칙 ④ 가 경계하는 방향).
+      아래 selftest `N-5` 가 *"주석은 통과한다"* 를 못 박아 이 좁힘이 되돌아가지 않게 한다.
+    """
+    errs, warns = [], []
+    s = src if src is not None else open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
+    for i, ln in enumerate(s.splitlines(), 1):
+        if ln.lstrip().startswith('#') or 'echo' not in ln:
+            continue
+        for bad in _KIT_RATE_BANNED:
+            if bad in ln:
+                errs.append(_KIT_GEN + ':' + str(i) + ': 킷 러너가 재하율을 하드코딩 라벨 "'
+                            + bad + '" 로 인쇄한다 — QS 배열 실물을 찍을 것 '
+                            '(2026-09-08 W4 로그 거짓 보고).')
+    if 'QS=({_platen})' in s and '${{QS[*]}}' not in s:
+        errs.append(_KIT_GEN + ': QS 를 조립하면서 그 값을 인쇄하지 않는다 '
+                    '— 라벨이 값과 갈릴 수 있다 (규칙 N).')
+    if verbose and not errs:
+        print('  ✓ 킷 러너가 재하율을 QS 실물로 보고한다 (하드코딩 라벨 없음)')
+    return errs, warns
+
+
+#: ★ 규칙 O (2026-09-08) — **원고 산문은 미국식 철자.**  CLAUDE.md 상시 규약("영국식 철자 금지")인데
+#    `docs/manuscript/methods_simulation_v7_draft.md` 와 `build_methods_docx.py` 의 Methods 문자열이
+#    영국식(fibre · voxelisation · idealised …)으로 쓰여 있었고, 그것을 인용해 공저자에게 두 번 건넸다.
+#    정본이 밖으로 강제되지 않으면 새어나간다(규칙 ④) — 산문만 본다: 백틱 코드 스팬·펜스 블록·
+#    코드 식별자(`fibre_stamp`, `--fibre-buckle`)는 제외.  US 로도 유효한 낱말(analyses · organism ·
+#    characteristic · emphasis · realistic)은 접미사 그룹으로 걸러 오탐하지 않는다.
+_UK_STEMS = ('fibre', 'voxel', 'ideal', 'optim', 'polar', 'parameter', 'parametr', 'minim', 'maxim',
+             'normal', 'discret', 'raster', 'character', 'summar', 'recogn', 'real', 'util', 'stabil',
+             'visual', 'quant', 'linear', 'homogen', 'ionis', 'crystall', 'local', 'general', 'organ',
+             'standard', 'synthes', 'emphas', 'analy', 'model', 'centr', 'label', 'cancel', 'travel')
+_UK_RE = re.compile(
+    r'\b(?:fibres?|voxelis(?:e|ed|es|ing|ation)|(?:ideal|optim|polar|parameter|parametr|minim|maxim|normal|'
+    r'discret|raster|character|summar|recogn|real|util|stabil|visual|quant|linear|homogen|crystall|local|'
+    r'general|organ|standard|synthes|emphas)is(?:e|ed|es|ing|ation|ations)|analys(?:e|ed|ing)|'
+    r'modell(?:ed|ing)|centre|centred|centreline|behaviours?|colours?|favours?|vapours?|neighbours?|'
+    r'labelled|labelling|cancelled|travelled|whilst|sulphides?|aluminium|micrometres?|litres?)\b', re.I)
+_MANUSCRIPT_PROSE = ('docs/manuscript/methods_simulation_v7_draft.md',)
+
+
+def _strip_code(text):
+    return re.sub(r'```.*?```|`[^`\n]*`', ' ', text, flags=re.S)
+
+
+def check_us_spelling(verbose=True, text=None):
+    """원고 산문과 빌더 Methods 문자열에 영국식 철자가 없는가."""
+    errs, warns = [], []
+    blobs = []
+    if text is not None:
+        blobs.append(('<text>', text))
+    else:
+        for rel in _MANUSCRIPT_PROSE:
+            p = os.path.join(ROOT, rel)
+            if os.path.exists(p):
+                blobs.append((rel, open(p, encoding='utf-8').read()))
+        try:
+            import importlib.util as _iu
+            _sp = _iu.spec_from_file_location('_bmd', os.path.join(ROOT, 'scripts', 'build_methods_docx.py'))
+            _m = _iu.module_from_spec(_sp); _sp.loader.exec_module(_m)
+            strs = [b or '' for _, b in _m.METHODS_FULL] + [b for _, b in _m.METHODS_COMPACT] + \
+                   [str(c) for row in (_m.TABLE_S2 + _m.TABLE_S3 + _m.TABLE_S3B) for c in row]
+            blobs.append(('scripts/build_methods_docx.py (Methods/Table strings)', '\n'.join(strs)))
+        except Exception as e:                                  # 빌더가 못 열리면 그것도 오류다
+            errs.append('규칙 O: build_methods_docx 를 열 수 없다 — ' + repr(e))
+    for name, blob in blobs:
+        hits = sorted({m.group(0) for m in _UK_RE.finditer(_strip_code(blob))})
+        if hits:
+            errs.append(f'{name}: 영국식 철자 {len(hits)}종 — {hits[:8]}  (미국식으로; 코드 식별자는 백틱 안에)')
+    if verbose and not errs:
+        print('  ✓ 원고 산문·빌더 Methods 문자열에 영국식 철자 없음')
+    return errs, warns
+
+
 def run_all(verbose=True):
     errs, warns = [], []
     for title, fn in (('규칙 I — 본체 ↔ 폴백 사본 패리티', check_copy_parity),
@@ -2035,7 +2128,9 @@ def run_all(verbose=True):
                        check_cli_accounting),
                       ('규칙 J — 생산 엔트리포인트 스모크 (기본 경로가 정말 도는가)',
                        check_entrypoint_smoke),
-                      ('규칙 F — 지역 import 그림자 (조용한 기능 꺼짐)', check_local_import_shadows)):
+                      ('규칙 F — 지역 import 그림자 (조용한 기능 꺼짐)', check_local_import_shadows),
+                      ('규칙 N — 킷 러너의 재하율 라벨이 실물인가', check_kit_rate_label),
+                      ('규칙 O — 원고 산문은 미국식 철자', check_us_spelling)):
         if verbose:
             print(f'\n{title}')
         e, w = fn(verbose=verbose)
@@ -2055,6 +2150,51 @@ def _selftest():
         else:
             fail.append(name)
             print(f'  FAIL  {name}')
+
+    # ── 규칙 L 보강 (2026-09-08) — 킷 인자화가 SDCP 경로를 안 건드렸는가 ──────────────
+    #    Phase A 96 팔을 위해 `KITS` 를 열었다.  두 가지가 동시에 참이어야 한다:
+    #    ⓐ 기본값이면 기존 SDCP 경로 그대로 (봉인이 돈다)
+    #    ⓑ 다른 킷이면 SDCP 판정기로 봉인하지 **않는다** (엉뚱한 계약을 통과시키는 것이 더 나쁘다)
+    _RSRC8 = open(os.path.join(ROOT, L_RUNNER), encoding='utf-8').read()
+    chk('L-K1: 킷 목록이 인자화돼 있다', 'KITS="${KITS:-kit_SBE kit_DBE}"' in _RSRC8)
+    chk('L-K2: 루프가 그 변수를 쓴다 (하드코딩 잔재 없음)',
+        'for K in $KITS; do' in _RSRC8 and 'for K in kit_SBE kit_DBE' not in _RSRC8)
+    chk('L-K3: 비-SDCP 킷이면 SDCP 봉인을 건너뛴다',
+        '[ "$KITS" != "$_KITS_DEFAULT" ]' in _RSRC8)
+    chk('L-K4: 기본값이 SDCP 두 킷 그대로 (기존 경로 불변)',
+        '_KITS_DEFAULT="kit_SBE kit_DBE"' in _RSRC8)
+
+    chk('L-K5: 새 축 KITS 가 프로브 격리 목록에 있다 (없으면 생산이 막힌다)',
+        'KITS' in _RUNNER_AXES)
+    chk('L-K6: 러너가 쓰는 env 축이 전부 격리 목록에 있다',
+        not [a for a in ('KITS', 'LEAN', 'VOX', 'ARMS', 'BRIDGE_UM', 'PTFE_STAMP', 'FIBRE_STAMP')
+             if a not in _RUNNER_AXES])
+
+    # ── 규칙 N — 리포가 통과하고, **되살리면 잡히는가** (사본에서만 훼손) ──────────────
+    _ksrc = open(os.path.join(ROOT, _KIT_GEN), encoding='utf-8').read()
+    chk('N-1: 리포의 킷 생성기가 지금 통과한다',
+        check_kit_rate_label(verbose=False)[0] == [])
+    chk('N-2: 하드코딩 라벨을 되살리면 잡는다 (반례)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc + '\n  echo "준정적: 기하 규칙 유지"\n')[0] != [])
+    chk('N-3: QS 를 조립하고도 안 찍으면 잡는다 (반례)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc.replace('${{QS[*]}}', 'HARDCODED'))[0] != [])
+    chk('N-4: 검사가 공허하지 않다 — 대상에 QS 조립부가 실재한다',
+        'QS=({_platen})' in _ksrc)
+    chk('N-5: 결함을 설명하는 **주석**은 통과한다 (검사가 문서화를 벌하지 않는다)',
+        check_kit_rate_label(verbose=False,
+                             src=_ksrc + '\n  #   옛 판은 "기하 규칙 유지" 를 찍었다\n')[0] == [])
+
+    # ── 규칙 O — 리포가 통과하고, 영국식이 들어오면 잡히고, US 로 유효한 낱말은 안 잡히는가 ──
+    chk('O-1: 원고·빌더 산문이 지금 통과한다', check_us_spelling(verbose=False)[0] == [])
+    chk('O-2: 영국식(fibres · voxelisation · idealised)을 넣으면 잡는다 (반례)',
+        check_us_spelling(verbose=False, text='the fibres were voxelised and idealised')[0] != [])
+    chk('O-3: US 로 유효한 낱말은 안 잡는다 (analyses · organism · characteristic · emphasis · realistic)',
+        check_us_spelling(verbose=False, text='analyses of the organism show a characteristic emphasis, '
+                                              'realistic and centered')[0] == [])
+    chk('O-4: 백틱 안의 코드 식별자는 안 잡는다 (`--fibre-buckle` · `fibre_stamp`)',
+        check_us_spelling(verbose=False, text='run with `--fibre-buckle` and read `fibre_stamp`')[0] == [])
 
     from scipy import ndimage
     chk('A: 프로브가 6-face 를 거동으로 읽는다',

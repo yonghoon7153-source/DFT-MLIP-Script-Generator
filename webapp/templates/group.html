@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active = "group" %}
+{% import "_ledger.html" as L %}
 {% block title %}Group 비교 - DEM Analyzer{% endblock %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <div class="page-header">
   <h2>Group 비교 분석</h2>
   <p>여러 케이스를 선택해서 비교 테이블 및 리포트를 생성합니다</p>

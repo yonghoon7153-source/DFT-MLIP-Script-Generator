@@ -3980,8 +3980,8 @@ def plot_thermal_decomposition(data_list, names, outdir):
 PLOT_REGISTRY["thermal_decomposition"] = {
     "func": plot_thermal_decomposition,
     "file": "thermal_decomposition.png",
-    "title": "Thermal: Factor Decomposition (R²=0.90)",
-    "description": "σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE\nR²=0.90\n\nσ_ion^(3/4): SE backbone (ionic에서 계승)\nφ_AM²: AM thermal enhancement\nCN_SE⁻¹: SE 과밀집 페널티 (ionic과 부호 역전!)",
+    "title": "Thermal: Factor Decomposition (레거시 멱법칙 — ⚠ 프로덕션 폼 아님)",
+    "description": "σ_th = 286 × σ_ion^(3/4) × φ_AM² / CN_SE\n⛔ **옛 라벨의 `R²=0.90` 은 이 식의 값이 아니었다** (2026-09-09 v3 감사).\n  · 0.90 은 **프로덕션 Stage T1 = 14-특징 Ridge** 의 LOOCV 다 (α=0.05, n_fit=82).\n  · 이 그림이 그리는 **순수 멱법칙의 실측 천장은 LOOCV 0.59** 다 (A/B/C 폼 스크린, CLAUDE.md §σ_thermal Stage T1).  두 값을 바꿔 적고 있었다.\n  · 정본은 *\"compact analytic form 으로 단순화하지 말 것\"* 이라고 적는다 — 이 그림은 **그 결론을 보여 주는 대조군**이지 프로덕션 폼이 아니다.\n⚠ 그리고 그 격차의 **설명**(다중경로 k_weight)은 CL-12 로 철회됐다 — `run_decomposition` 이 `mode=` 를 안 넘겨 모든 간선이 k_weight=1.0 이었다.  관측(Ridge 0.90 vs 멱법칙 0.59)은 같은 타깃 위에서 이뤄졌으므로 유효하고, **인과 서술만** 무효다.\n\n프로덕션 σ_thermal 은 `thermal_fit_final` / `thermal_outliers_final` / `thermal_decomp_final` 을 볼 것.\n\nσ_ion^(3/4): SE backbone (ionic에서 계승)\nφ_AM²: AM thermal enhancement\nCN_SE⁻¹: SE 과밀집 페널티 (ionic과 부호 역전!)",
     "origin_tip": "Stacked bar (top) + Horizontal bar (bottom).",
 }
 def plot_electronic_active_am(data_list, names, outdir):
@@ -5607,21 +5607,21 @@ PLOT_REGISTRY["ionic_fit_stage_e"] = {
     "func": plot_ionic_fit_stage_e,
     "file": "ionic_fit_stage_e.png",
     "title": "σ_ionic → Stage E (물리식 재적합)",
-    "description": "Stage-E(또는 Physics) σ_ionic을 타깃으로, 물리 고정식(√(φ−0.2)·CN^(3/2)·cov^(2/5)·f_p³)에 C_blend(τ)만 재적합 (parity + R²/LOOCV).\n지수는 물리값으로 고정(과적합 방지). 자유지수 진단치는 CSV에 함께 기록 — physics 타깃이 같은 지수를 원하는지 확인용.",
+    "description": "Stage-E(또는 Physics) σ_ionic을 타깃으로, **프로덕션 T1 고정식**(σ_grain·Cronau(r_SE)·(φ_eff)^0.5·CN²·cov_Hertz^0.5·f_p³)에 C_blend(τ)+β_P2+β_F 만 재적합 (parity + R²/LOOCV).\n⚠ 옛 설명은 v29 지수(√(φ−0.2)·CN^(3/2)·cov^(2/5))를 적고 있었다 — **2026-05-28 에 T1 으로 대체**됐고 코드는 이미 T1 을 계산한다 (라벨만 뒤처져 있었다, 2026-09-09 v3 감사).\nφ_eff = √[(φ−φc_eff)²+(δ·g_phys)²] · φc_eff = (1−g_phys)·0.200+g_phys·0.195 · δ=0.040 (전부 FROZEN).\n지수는 물리값으로 고정(과적합 방지). 자유지수 진단치는 CSV에 함께 기록.",
     "origin_tip": "Scatter parity (log-log) + 1:1 + ±20%. 제목에 물리식 + C_blend(Ct/Cn).",
 }
 PLOT_REGISTRY["ionic_decomp_physics"] = {
     "func": plot_ionic_decomp_physics,
     "file": "ionic_decomp_physics.png",
     "title": "σ_ionic PHYSICS factor decomposition",
-    "description": "PHYSICS 고정식의 5개 factor 전부를 stack으로 분해: (φ−0.19)^0.5 · CN² · cov^0.5 · f_p³ · C_blend(τ). τ는 C_blend(τ)로 포함. 각 factor의 Δlog 기여를 ref(최고 σ) 대비 표시.",
+    "description": "PHYSICS 고정식의 5개 factor 전부를 stack으로 분해: (φ_eff)^0.5 · CN² · cov_Hertz^0.5 · f_p³ · C_blend(τ).  ⚠ 옛 라벨의 `(φ−0.19)` 는 v29 표기다 — T1 은 φ_eff (φc 0.200/0.195 + δ 라운딩, FROZEN). τ는 C_blend(τ)로 포함. 각 factor의 Δlog 기여를 ref(최고 σ) 대비 표시.",
     "origin_tip": "상단 stacked bar(factor별 Δlog), 하단 case별 dominant factor.",
 }
 PLOT_REGISTRY["ionic_perconfig_physics"] = {
     "func": plot_ionic_perconfig_physics,
     "file": "ionic_perconfig_physics.png",
     "title": "σ_ionic PHYSICS per-config (fixed form)",
-    "description": "PHYSICS 모드 per-config 라인 plot: 고정 physics식 (C_blend(τ)·σ_grain·(φ−0.19)^0.5·CN²·cov^0.5·f_p³) vs PHYSICS 네트워크 솔버 σ, 그룹별 구분선.\nHertzian을 쓰는 multiscale 대신 physics 버전.",
+    "description": "PHYSICS 모드 per-config 라인 plot: 고정 T1 식 (C_blend(τ)·σ_grain·Cronau(r_SE)·(φ_eff)^0.5·CN²·cov_Hertz^0.5·f_p³) vs PHYSICS 네트워크 솔버 σ, 그룹별 구분선.  ⚠ 옛 라벨의 `(φ−0.19)`·`cov` 는 v29 표기 (T1 은 φ_eff · cov_Hertz).\nHertzian을 쓰는 multiscale 대신 physics 버전.",
     "origin_tip": "Line: 빨강=고정 physics식, 초록 점선=physics solver. 그룹 구분선.",
 }
 PLOT_REGISTRY["ionic_outliers_stage_e"] = {

@@ -25,11 +25,34 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 import se_material
 
+#: ★ 탄소 σ_e 앵커도 **한 군데**에서 읽는다 (결함 AUD-02).  전에는 여기에 두 번째 사본이
+#:   있었고 그 값이 리포에 없는 논문을 인용하며 실측과 51배 어긋났다.
+#:   ⚠ 임포트가 실패해도 예측기는 살아 있어야 한다 (배포 호스트에 scripts/ 가 없을 수 있다)
+#:     — 그때는 아래 fallback 이 **같은 실측값**을 쓰고, 그 사실이 코드에 보이게 둔다.
+try:
+    from grade_engine import REISACHER_C65_SIGMA_E_MSCM as _REISACHER_C65
+except Exception:                                          # noqa: BLE001
+    #  ⛔ **값을 복제하지 않는다** (정정 2026-09-09, Codex Q4-1 P2).  옛 판은 여기에 표를
+    #    그대로 베껴 두어 *"앵커는 한 군데"* 가 **정상 import 에서만 참**이었다 — import 가
+    #    깨지면 정본을 고쳐도 이쪽은 옛 값을 계속 쓴다 (리뷰가 999 로 바꿔 재현).
+    #    ⇒ 의존성 부재를 **숨기지 않고 드러낸다**: 앵커가 없으면 첨가제 σ_e 보정도 없다.
+    _REISACHER_C65 = {}
+
 # ═══ Physical Constants ═══
 # ★ 2026-07-28: σ_grain now shared with the solvers via se_material (value unchanged, 3.0 mS/cm,
 # declared at T_ref = 25 °C).  docs/temp_pressure_capability.md §3-4 / T1-b / T1-e.
 SIGMA_GRAIN = se_material.SIGMA_GRAIN_MS_CM_25C   # mS/cm (SE grain interior, @25 °C)
-SIGMA_AM = 50.0         # mS/cm (NCM811)
+SIGMA_AM = 50.0
+#: ⚠⚠ **문헌 물성값이 아니다** (라벨 정정 2026-09-09, v3 감사).  옛 주석은 `# mS/cm (NCM811)`
+#:   이라 적어 물성처럼 보였지만, 이 값은 2026-05-29 **스크리닝 체크포인트**의 전역 앵커이고
+#:   **프로덕션 σ_e 폼은 이것을 쓰지 않는다.**
+#:     프로덕션 = Stage 22.5 (`scripts/generate_comparison_plots.py`)
+#:                (σ_S·NCM_S)^(1-p) · (σ_P·NCM_P)^p,  **σ_S = 10 · σ_P = 5 LOCKED**
+#:                (코퍼스-적합 endpoint 9.1/4.1 을 반올림한 것 — A1 CLOSED 2026-06-30)
+#:   ★ 그리고 **50 을 폼에 넣는 것을 막으려고** UI-분리 수정(commit f4b5a27)이 존재한다:
+#:     예전엔 UI 값이 `--sigma-S/--sigma-P` 로 흘러들어 폼 앵커를 사용자 입력으로 덮었다.
+#:   ⇒ 아래 2-regime 식은 **스크리닝 추정**이고 프로덕션 폼이 아니다.  값은 적합된 전치계수
+#:     (0.79 · 5.0)와 얽혀 있어 **단독으로 바꾸면 안 된다** — 갈아타려면 폼째 교체다.
 
 # ═══ Temperature convention — UNIFIED WITH THE SOLVER (audit T1-e, 2026-07-28) ═══
 # BEFORE: this file used σ(T)=σ(298)·exp(−Ea/k_B·(1/T−1/298)) (the "σ form") with
@@ -784,7 +807,9 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
     if phi_am > 0 and am_cn > 0 and d_am > 0 and thickness > 0:
         ratio = thickness / d_am
         if ratio >= 10:
-            # THICK: φ⁴ × CN^(3/2) × cov × √τ (R²=0.97)
+            # THICK: φ⁴ × CN^(3/2) × cov × √τ  ⚠ **스크리닝 폼** (2026-05-29 체크포인트).
+            #   R²=0.97 은 **그 시점 그 코퍼스**의 값이다 — 프로덕션 Stage 22.5 의
+            #   LOOCV 0.9531(n_fit=76) 과 **같은 척도가 아니고 나란히 비교하면 안 된다**.
             sigma_electronic = 0.79 * SIGMA_AM * phi_am**4 * am_cn**1.5 * coverage_frac * np.sqrt(max(tau, 0.1))
         elif ratio > 0:
             # THIN: hop^0.25 × CN^0.4 × δ^0.2 × f_p^0.15 / (φ_SE^0.85 × √ξ)
@@ -799,8 +824,19 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_electronic *= arrhenius_AM
 
     # ── Electronic Active AM (Dead AM estimation) ──
-    # Ref: Minnmann 2021, Clausnitzer 2023, Bielefeld 2023
-    # Percolation threshold: ~25-30 vol% AM
+    # Ref: Minnmann 2021, Clausnitzer 2023, **Bielefeld 2019** (인용 연도 정정 2026-09-09)
+    #   ⚠ 옛 주석은 여기도 "Bielefeld 2023" 이라 적었는데 그런 논문이 리포에 없다 (AUD-02).
+    #     AM 전자-퍼콜레이션을 다룬 것은 **2019** 판이다 (J. Phys. Chem. C 2019, 123, 1626).
+    #     그 논문은 σ 를 **아예 계산하지 않는다** — 퍼콜레이션 존재까지만 낸다
+    #     (`docs/data/bielefeld2019_percolation.csv` 머리말이 그렇게 적고 있다).
+    #     ⇒ 앞의 C65 σ_e 값이 그 논문에서 왔을 수도 없다.
+    # ⚠⚠ **미해결 (AUD-02, 값 안 바꿈)**: 아래 문턱 "~25-30 vol% AM" 이 그 논문과 안 맞는다.
+    #   Bielefeld 2019 Eq8: p_c = 7.83·ln(d/µm) + 36.67 vol%
+    #     d = 3 µm → 45.3 · 5 µm → 49.3 · 10 µm → 54.7 vol%   (Fig5 전이구간 41~46 / 52~57)
+    #   즉 실제 문턱은 **45~58 vol%** 이고 **입경 의존**인데, 아래는 25~30 고정이다 (~20 vol%p 차).
+    #   ">55 vol% 완전 퍼콜레이션" 만 상단(10 µm 54.7)과 대략 맞는다.
+    #   ⇒ 이 블록은 dead-AM 추정을 정하므로 저자 판단이 필요하다 — 라벨만 달고 값은 둔다.
+    # Percolation threshold: ~25-30 vol% AM   ← ⚠ 위 경고 참조 (문헌은 45~58, 입경 의존)
     # >55 vol%: fully percolating, 0% dead
     # 30-55%: transition zone
     # <25%: severe electronic isolation
@@ -816,24 +852,43 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         electronic_active_pct = max(10, phi_am / 0.18 * 50)
 
     # ── Conductive Additive Effect ──
-    # Ref: Bielefeld 2023, Minnmann 2021, Kang 2024
+    # ★ 2026-09-09 (결함 AUD-02) — **C65 σ_e 를 리포 자신의 실측으로 갈아탔다.**
+    #   옛 판은 세 곳에서 **"Bielefeld 2023"** 을 인용했는데(한 곳은 *"directly measured"*
+    #   라고까지), **그 논문이 이 리포에 없다** — 정본 litdb 에 있는 것은 bielefeld2019
+    #   (구조모델, σ 를 아예 안 푼다) · bielefeld2020(바인더 연속체 σ) 둘뿐이다.
+    #   그리고 그 값은 우리 자신의 실측과 **51배** 어긋났다 (4 wt% 에서 70 vs 1.36 mS/cm).
+    #   70 은 4 wt% 가 아니라 **5 wt% 쪽 크기**(102)였다.
+    #   ⇒ 앵커는 `grade_engine.REISACHER_C65_SIGMA_E_MSCM` **한 군데**에만 산다.
+    #     (규율 ①: 리포에 이미 있었다 — `grade_engine.whatif_additives` 가 같은 논문의
+    #      p_c 를 `_CARB_PC_WT=4.0` 으로 쓰고 있었고, 여기가 그 **두 번째 사본**이었다.)
+    #   ⚠ 이 구간은 퍼콜레이션 무릎이라 4 → 5 wt% 에서 75배 뛴다 — 측정점만 쓴다.
+    # Ref: Reisacher 2023 (C65 σ_e, LPSCl 매트릭스 실측) · Minnmann 2021 · Kang 2024
     # KEY: C65 percolation threshold ~4wt%! Below that, NO electronic network!
     if additive == 'vgcf':
         # VGCF 1wt%: fiber morphology, poor percolation even at 10vol%
-        # σ_el ≈ 0.4 mS/cm (Bielefeld 2023) — NOT percolating, just local enhancement
-        # But bridges isolated AM → dead AM reduced by ~10% (Minnmann 2021: +13% capacity)
+        # ⚠ σ_el 0.4 mS/cm 는 **아직 출처 미확인**이다 (AUD-02).  Reisacher 매트릭스는
+        #   **C65 전용**이라 이 값에 전이되지 않는다 — 다른 탄소를 같은 표로 덮지 않는다.
         sigma_electronic = max(sigma_electronic, 0.4)
         sigma_ionic_final *= 0.99
         electronic_active_pct = min(100, electronic_active_pct + 10)
     elif additive == 'c65':
-        # C65 1wt%: BELOW percolation threshold (~4wt%!)
-        sigma_electronic += 1.0
+        # C65 1 wt%: 퍼콜레이션 문턱(~4 wt%) **아래** — 고립된 C65 섬 (Reisacher CM-1).
+        # ⛔ **σ_e 를 여기서 올리지 않는다** (정정 2026-09-09, Codex Q4-1).
+        #   그 loading 의 실측 9.5e-5 S/cm 는 순수 SE 이온값(6.6e-5)의 **1.44배**뿐이고
+        #   원자료가 `below_pc` · "isolated C65 islands" 라 적는다 = **이온 지배 총전도도**다.
+        #   그것을 σ_e 하한으로 쓰면 SE 의 이온 전도를 전자 전도로 둔갑시킨다.
+        #   (오늘 초판이 그렇게 했고 UI 에 `실측` 이라 적었다 — 이 리포가 반복해서 고쳐 온
+        #    측정량 바꿔치기와 같은 부류다.)
+        # ⇒ 문턱 아래에서는 **전자망이 없다**는 것이 이 논문의 결론이므로 σ_e 는 그대로 둔다.
         sigma_ionic_final *= 0.97
         electronic_active_pct = min(100, electronic_active_pct + 5)
     elif additive == 'c65_4wt':
-        # C65 4wt%: AT percolation threshold — full electronic network!
-        # σ_el ≈ 70 mS/cm (Bielefeld 2023, directly measured)
-        sigma_electronic = max(sigma_electronic, 70)
+        # C65 4 wt%: 퍼콜레이션 **무릎 위** (Reisacher CM-4).  ⚠ 무릎이지 포화가 아니다 —
+        #   5 wt% 에서 102 mS/cm 로 75배 더 오른다.  "전자망 완성" 은 5 wt% 쪽이다.
+        #  ⚠ 앵커가 없으면(=grade_engine import 실패) **보정하지 않는다** — 옛 판처럼
+        #    하드코딩 기본값으로 조용히 떨어지면 "앵커 한 군데" 가 거짓이 된다.
+        if 4.0 in _REISACHER_C65:
+            sigma_electronic = max(sigma_electronic, _REISACHER_C65[4.0])
         sigma_ionic_final *= 0.85
         electronic_active_pct = 100.0
 
@@ -847,6 +902,13 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_ionic_final *= 0.99  # ~1% ionic (dry process, no solvent damage)
 
     # Thermal conductivity (use 298K σ_ion — formula was fitted at 298K)
+    # ⚠⚠ **정본이 명시적으로 거부한 폼이다** (라벨 정정 2026-09-09, v3 감사).
+    #   CLAUDE.md §σ_thermal Stage T1: *"DO NOT try to simplify to compact analytic form"*.
+    #   A/B/C 폼 스크린 실측 — **순수 멱법칙 LOOCV 천장 0.59** vs 프로덕션 **Ridge 0.90**
+    #   (14 특징, α=0.05, n_fit=82).  아래 식이 바로 그 멱법칙이다.
+    #   ⇒ 이것은 **스크리닝 추정**이고, 열전도 결론은 `thermal_fit_final` 계열에서 낸다.
+    #   ⚠ 그 격차의 **설명**(다중경로 k_weight)은 CL-12 로 철회됐다 — 관측은 유효,
+    #     인과 서술만 무효 (`run_decomposition` 이 mode= 를 안 넘겨 전 간선 k_weight=1.0).
     sigma_thermal = 0
     if sigma_ionic_298 > 0 and phi_am > 0 and cn > 0:
         sigma_thermal = 286 * sigma_ionic_298 ** 0.75 * phi_am ** 2 / cn

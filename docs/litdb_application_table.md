@@ -57,7 +57,10 @@ additive dispersion(CA4)·PTFE penalty(CA1-3).
   `--coat-sigma-b` 노출(W2서 파생, 미노출).
 - **(c) 구조 seeding (STEP2):** SDCP/SWCNT ✅ → So2022 `# A4 HOOK` 채워 LNO/carbon을 CAM-표면 shell로.
 - **통합 프리셋 = {σ_ion, σ_e, CEI억제, R_ct, γ, seed-morph}.**  준비 프리셋: SDCP·SWCNT(완비), LNO·LZO·carbon.
-  SDCP σ 두께스윕{15/50/150/1500}(+0.8→+63.4%)을 Li2026 코팅 두께딜레마의 템플릿 답으로 일반화.
+  SDCP σ 스윕{15/50/150/250/1500}을 Li2026 코팅 두께딜레마의 템플릿 답으로 일반화.
+  ⛔ 그 스윕의 **이득 % 계열은 철회**됐다 (CL-24, vox 0.4 점-스탬프 산물 — 인용 금지).
+  일반화에 쓰는 것은 **모양**이다: 크기가 σ_SDCP 에 강의존하고, 최악에도 손해가 없으며,
+  분담이 역행한다(직렬 시그니처).  원자료 `docs/data/sdcp318_sigma_sdcp_sweep/`(배너 있음).
 
 ### (iii) 이종기술 모델링 (litdb 지지)
 - **층상/graded (Phase5)** — A7 `--poro-grad`/`--cb-grad`(K=8) → UI "config를 z-layer로 stack"(사용자 최종비전).

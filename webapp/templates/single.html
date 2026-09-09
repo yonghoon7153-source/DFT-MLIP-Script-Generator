@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% set active = "single" %}
+{% import "_ledger.html" as L %}
 {% block title %}{{ case.name }} - DEM Analysis{% endblock %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <div class="page-header">
   <div class="page-header-row">
     <div>
@@ -262,9 +265,9 @@
           <option value="bare">bare-Al (SDCP 전용)</option>
           <option value="sus">이종기술 (SUS · 실측 R_int~50)</option>
           <option value="csus">C-SUS primer 코팅 (SDCP 전용)</option></select></label>
-        <label title="STEP3 복셀 해상도 (µm) — 작을수록 입자-입자 접점(neck)·SDCP 채널이 더 선명. dof∝1/vox³: 0.4→~0.8M(σ 검증값), 0.25→~3M(논문 figure), 0.2→~6M(최고 해상, CG 오래). 전류밀도 필드/논문 그림용. σ 절대값은 vox에 약간 의존하니 비교표는 0.4로.">voxel(STEP3)<br><select id="add-vox" style="padding:3px" onchange="updateAdditiveGpuCmds()">
-          <option value="0.4" selected>0.4 µm (기본 · σ 검증값)</option>
-          <option value="0.25">0.25 µm (고해상 · 논문)</option>
+        <label title="STEP3 복셀 해상도 (µm) — 작을수록 입자-입자 접점(neck)·SDCP 채널이 더 선명. dof∝1/vox³: 0.4→~0.8M, 0.25→~3M, 0.2→~6M(CG 오래). ⚠ vox 는 σ 를 '약간' 이 아니라 크게 움직인다 — 같은 침대쌍·같은 규약에서 σ_e 비 1.4215→1.1621→1.0849 (0.4/0.3/0.25) 이고 σ_ion 비는 1.0742→0.9926→0.9908 로 부호가 뒤집힌다 (CLAUDE.md SR-01 · 원장 CL-24 하향판). 어느 격자도 실험으로 검증되지 않았다. ⛔ 생산 규약인 SDCP 구(球) 스탬프는 d/vox ≥ 2 게이트 때문에 Ø0.30 SDCP 에서 vox ≤ 0.15 에서만 합법이고, 이 드롭다운에는 그 값이 없다 — 여기 값들은 필드 그림·상대 비교용이다.">voxel(STEP3)<br><select id="add-vox" style="padding:3px" onchange="updateAdditiveGpuCmds()">
+          <option value="0.4" selected>0.4 µm (기본 · ⚠ 검증값 아님)</option>
+          <option value="0.25">0.25 µm (고해상 · 논문 그림)</option>
           <option value="0.2">0.2 µm (초고해상 · 느림)</option></select></label>
         <label>mixing<br><select id="add-mixing" style="padding:3px" onchange="updateAdditiveGpuCmds()">
           <option value="ballmill">ball-mill (고전단)</option>

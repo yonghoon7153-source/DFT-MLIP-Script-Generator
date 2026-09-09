@@ -1,12 +1,75 @@
 {% extends "base.html" %}
 {% set active = "home" %}
+{% import "_ledger.html" as L %}
 {% block title %}DEM Analyzer - Dashboard{% endblock %}
 
 {% block content %}
+{#
+  ★ v3 앞문 (2026-09-09).  전에는 이 자리가 *"LIGGGHTS 파일을 업로드하고 DEM 분석을
+  실행하세요"* 한 줄이었다 — 처음 온 사람이 **이게 무엇인지 · 파이프라인이 둘이라는 것 ·
+  화면의 값이 원장의 지배를 받는다는 것**을 알 방법이 없었다 (전수 감사 web-entry).
+  깊은 페이지들(eis · viewer3d · seminar)은 원장을 가리키는데 **정문에만 없었다.**
+#}
 <div class="page-header">
   <h2>Dashboard</h2>
   <p>LIGGGHTS 파일을 업로드하고 DEM 분석을 실행하세요</p>
 </div>
+
+<div class="card v3-front">
+  <h3>이게 뭔가 <small>— 처음이라면 여기부터</small></h3>
+  <p class="v3-lede">
+    황화물 <b>전고체전지 양극 복합체 한 층</b>을 <b>입자·복셀 해상도</b>로 푼다.
+    설계 숫자(조성 · 입경 · 압력 · 두께 · 첨가제)를 넣으면, 실험이 못 주는 것을 돌려준다 —
+    <b>접촉망 · 전도 경로 · 반응 분포 · 응력장 · 소성 변형</b>, 그리고 그것들이 사이클과 함께
+    어떻게 무너지는가.
+  </p>
+
+  <div class="v3-two">
+    <div class="v3-half">
+      <h4>파이프라인이 <u>둘</u>이다 — 헷갈리는 1순위</h4>
+      <table class="v3-mini">
+        <tr><th></th><th>이 웹앱</th><th>MPM 킷 (<code>run_mpm.sh</code>)</th></tr>
+        <tr><td>이산화</td><td>DEM 구의 <b>접촉망</b></td><td>MPM <b>복셀 격자</b> (STEP3)</td></tr>
+        <tr><td>σ 솔버</td><td><code>network_conductivity.py</code><br>접촉마다 Holm 협착</td>
+            <td><code>step3_sigma.py</code><br>유한체적 ∇·(σ∇φ)=0</td></tr>
+        <tr><td>계면 저항</td><td><b>있다</b> (직렬 항)</td>
+            <td><b>없다</b> — harmonic mean ⇒ 정확히 0</td></tr>
+      </table>
+      <p class="lv-note">
+        ⚠ 둘은 <b>대등한 독립 측정이 아니다</b> — 복셀 σ 는 접촉망이 스스로
+        <code>CONTACT_FREE — upper bound</code> 라 부르는 가지 위에 있다 (원장 CL-81,
+        코퍼스 실측 중앙값 4.04× / 6.69×).  <b>두 σ 의 일치를 교차검증으로 인용하지 말 것.</b>
+        정본 <code>docs/voxel_contact_free_gap.md</code>.
+      </p>
+      <p class="lv-note">⚠ 그래서 이 웹앱의 코드 리뷰 수정이 킷의 STEP3 에 <b>자동으로 적용되지 않는다.</b></p>
+    </div>
+
+    <div class="v3-half">
+      <h4>무엇부터 하면 되나</h4>
+      <ol class="v3-steps">
+        <li><b>케이스 하나를 본다</b> — 아래 표에서 아무 행이나. σ 삼중 · 접촉망 · 등급이 한 화면에.</li>
+        <li><b>둘 이상을 비교한다</b> — <a href="/group">Group 비교</a>. 스케일링 법칙과 잔차가 여기 산다.</li>
+        <li><b>설계값으로 예측한다</b> — <a href="/predictor">ML Predictor</a>.
+            ⚠ 구조를 예측하고, σ 는 <b>스케일링 법칙</b>이 낸다 (σ 는 의도적으로 ML 타깃이 아니다).</li>
+        <li><b>미세구조를 본다</b> — <a href="/mpm-lab">MPM 뷰어</a>. 킷이 만든 payload 를 읽는다.</li>
+        <li><b>무엇을 믿을 수 있나</b> — <a href="/ledger">판정 원장</a>.
+            <b>화면의 산문과 원장이 충돌하면 원장이 이긴다.</b></li>
+      </ol>
+      <p class="lv-note">
+        새 파일을 올리려면 바로 아래 <b>새 분석 케이스</b> 카드를 쓴다.
+        용어(STEP1~5 · Stage-E · frame[4]/[5])는 <code>docs/pipeline_step1_to_step5_guide.md</code> 가
+        처음 보는 사람 기준으로 설명한다.
+      </p>
+    </div>
+  </div>
+</div>
+
+{{ L.unavailable_note(lv) }}
+<div class="v3-two">
+  <div class="v3-half">{{ L.live_panel(lv, limit=5) }}</div>
+  <div class="v3-half">{{ L.findings_panel(lv, limit=5) }}</div>
+</div>
+{{ L.banned_panel(lv) }}
 
 <!-- Batch button removed per user request. Use the per-case 재분석 (NET) button
      on each row instead — cleaner path, per-case status, immediate badge update. -->

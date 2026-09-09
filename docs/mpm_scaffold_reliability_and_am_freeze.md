@@ -1,5 +1,18 @@
 # MPM scaffold — AM-freeze 근거 + porosity 신뢰성 regime map (절대값 · 트랜드)
 
+> ⚠⚠ **정정 배너 2026-08-12 (여기 반영 2026-09-09) — 이 문서의 중심 규칙 하나가 무너졌다.**
+> **`|gap| ≤ 4 %p 일치 = validity 증명서`** 는 **hold 프로토콜에서 성립하지 않는다.  순환이다.**
+> 정본 = `docs/mpm_platen_kinematic_stop_defect.md` §11 · CLAUDE.md 같은 절.
+> 이유: SE 씨앗은 `atom_2060000` = DEM 압축이 **끝난** 좌표이고 `solid_vol` 은 씨앗 시점에
+> 고정된 상수다.  MPM 의 유일한 자유도는 `wall_z` 이고, 스트로크가 갭+슬랙 규모라
+> **운동학적 정지(=플래튼이 첫 접촉에서 얼어붙는 결함)도 DEM ±1 %p 에 착지한다.**
+> 반례가 P:S 1차 런 자신이다 — 운동학 정지가 확정인데 `|gap| ≤ 0.7 %p`.
+> ⇒ **살아남는 것**: `clamp 금지` · `regime-gate`(옳은 모델 선택) · gap 부호로 어느 쪽이
+> 무너졌는지 **진단**하는 용법.  ⇒ **죽은 것**: 그 일치를 **검증**으로 인용하는 것.
+> 증명서 역할은 **판별력 있는 검사**로 옮긴다 — 갭-예측 정지 프레임 N · 정착 wallP vs target ·
+> 속도 사다리 수렴.  (servo 양방향 경로는 정지 근방 왕복으로 자기보정하므로 등급이 다르다.)
+> 아래 본문의 수치·regime 분류는 유효하고, **해석 한 줄만** 위와 같이 바뀐다.
+
 **계기 (2026-06-26):** input_1mAh_100_15 (P:S 10:0, AM:SE 87:13, SE-poor) scaffold MPM이
 porosity **0.00%** = 완전 비물리(DEM 32.84%)를 냈다.  SE가 바닥으로 흘러내리고 frozen AM만
 위에 노출.  → "AM 고정인데 다른 MPM porosity는 믿을 수 있나? 근본이 흔들린다" + "porosity를
@@ -23,7 +36,8 @@ porosity **0.00%** = 완전 비물리(DEM 32.84%)를 냈다.  SE가 바닥으로
    mono-large 끝은 **DEM 트랜드**(Furnas rebound), SE-rich 끝은 **MPM**.  ⚠ raw-MPM을 전 구간에 쓰면
    트랜드가 틀린다(특히 mono-large 끝의 Furnas rebound를 과압축이 지워버림).
 5. **porosity를 임의 lock/clamp하면 신뢰성 0 (조작).**  정답은 clamp가 아니라 **regime-gate**(그 regime의
-   옳은 모델을 쓰는 것 = frame[5]).  그리고 **DEM↔MPM 일치(|gap|≤4)가 곧 validity 증명서**다.
+   옳은 모델을 쓰는 것 = frame[5]).  그리고 gap 의 **부호**로 어느 모델이 무너졌는지 **진단**한다.
+  ⛔ 그 일치를 **validity 증명서로 인용하지 않는다** (머리 배너 — hold 프로토콜에서 순환).
 
 ---
 
@@ -145,7 +159,8 @@ dump의 AM 좌표는 **이미 실측 300 MPa 평형 골격**(Furnas dip 등 DEM�
 ## §4 신뢰성 판정 — 절대값
 
 **규칙 (gap-sign 진단):**
-- **|gap| ≤ 4 %p** → DEM↔MPM **cross-validated → 둘 다 신뢰** (DEM↔MPM 일치 = validity 증명서).
+- **|gap| ≤ 4 %p** → 두 모델이 **같은 답을 낸 구간** (regime-gate 가 통과시키는 자리).
+  ⛔ **검증으로 인용 금지** — hold 프로토콜에서는 운동학 정지도 이 밴드에 착지한다 (머리 배너).
 - **gap > 4 (DEM ≫ MPM), mono-large + thin:**
   - MPM < 3% (300 MPa 도달 실패, crushed) → **COLLAPSE → MPM 무효 → DEM 사용.**
   - MPM ≥ 3% (target 도달) → **BRACKET [MPM 아래끝, DEM 위끝]** → **DEM을 primary**(packing = DEM 영역,

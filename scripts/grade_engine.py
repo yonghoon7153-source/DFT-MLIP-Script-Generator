@@ -1657,6 +1657,49 @@ _SIGMA_C_MSCM       = 1000.0   # ⚠§F1 ANALYTIC what-if hook (NOT measured) �
                                #   percolation losses (mS/cm).  ~10× above Reisacher 5wt% (≈1e-1 S/cm=100 mS/cm);
                                #   drives d_sig_e in the PURE-ANALYTIC grade axis only, not the STEP3 solve.
 
+#: ★ 2026-09-09 (결함 AUD-02) — **탄소 앵커가 사는 유일한 자리.**
+#:   계기: `webapp/predictor_engine.py` 가 **두 번째 탄소 모델**을 따로 들고 있었고, 그쪽 값은
+#:   이 리포에 없는 논문("Bielefeld 2023")을 인용하면서 아래 실측과 **51배** 어긋났다.
+#:   문턱(`_CARB_PC_WT`)만 이 논문에서 가져오고 값은 다른 데서 가져온 상태였다.
+#:   ⇒ 앵커를 여기 한 군데 두고 예측기가 **읽어 간다** (규율 ①: "이 리포에 이미 있나").
+#:
+#:   출처: `docs/data/reisacher2023_percolation.csv`
+#:         Reisacher, Kaya, Knoblauch — Batteries 2023, 9(12), 595 (open access)
+#:         전도 매트릭스 = **Li6PS5Cl (= 우리와 같은 SE) + C65** (Super C65, Imerys).
+#:         EIS + DC-분극 실측.  ⇒ 재료 보정 없이 전이 가능한 드문 앵커다.
+#:
+#:   ⚠⚠ **이 구간은 퍼콜레이션 무릎이다** — 4 → 5 wt% 에서 **75배** 뛴다.  한 칸 오차가
+#:      두 자릿수 오차가 되므로 보간으로 중간값을 지어내지 말 것 (측정점만 쓴다).
+#:   ⚠ 0 wt% 행은 **이온** 측정(순수 SE in-cell, under-compacted)이라 전자 baseline 이
+#:      아니다 — 그래서 여기 싣지 않는다.
+#:   ⚠ **C65 전용이다.**  VGCF 는 이 매트릭스가 아니므로 이 표를 VGCF 에 쓰지 말 것.
+#: ⚠⚠ **정정 2026-09-09 (Codex 리뷰 Q4-1) — 이 표는 σ_e 가 아니라 σ_총(유효)이다.**
+#:   원 논문이 재는 것은 매트릭스의 **유효 총 전도도**이고, 어느 만큼이 전자냐는
+#:   **loading 에 따라 다르다**.  리포의 원자료가 그것을 이미 적고 있었다
+#:   (`docs/data/reisacher2023_percolation.csv` 의 `regime` 열):
+#:     0 wt% = 6.6e-5 S/cm  "pure SE in-cell; **ionic**, under-compacted"
+#:     1 wt% = 9.5e-5       below_pc, "isolated C65 islands"  → 순수 SE 의 **1.44배**
+#:     3 wt% = 1.66e-4      below_pc                          → **2.5배**
+#:     4 wt% = 1.36e-3      at_pc                             → **20.6배**
+#:     5 wt% = 1.02e-1      above_pc, "e-network formed"      → **1545배**
+#:   ⇒ **1·3 wt% 는 이온 지배**다.  그 값을 σ_e 로 쓰면 SE 의 이온 전도를 전자 전도로
+#:     둔갑시킨다 — 오늘(2026-09-09) 초판이 정확히 그렇게 했고 UI 에 `실측` 이라 적었다.
+#:     이것은 이 리포가 반복해서 고쳐 온 **측정량 바꿔치기**와 같은 부류다.
+REISACHER_C65_SIGMA_EFF_TOTAL_MSCM = {
+    1.0: (0.095, 'below_pc'),   # CM-1  고립된 C65 섬 — ⚠ 이온 지배
+    3.0: (0.166, 'below_pc'),   # CM-3  전이 개시     — ⚠ 이온 지배
+    4.0: (1.36, 'at_pc'),       # CM-4  퍼콜레이션 무릎
+    5.0: (102.0, 'above_pc'),   # CM-5  전자망 형성
+    10.0: (110.0, 'above_pc'),  # CM-10 포화
+}
+
+#: **전자 지배 구간만** — 전자 앵커로 쓸 수 있는 것은 이것뿐이다.
+#: ⚠ 여전히 **매트릭스**(AM 없음, 2.07 MPa) 값이다 — 복합전극으로의 전이는 별개 문제이고
+#:   검증된 모델이 없다 (Codex Q4-1 두 번째 P1, 결함 AUD-03).
+REISACHER_C65_SIGMA_E_MSCM = {w: v for w, (v, r) in
+                              REISACHER_C65_SIGMA_EFF_TOTAL_MSCM.items()
+                              if r in ('at_pc', 'above_pc')}
+
 
 def _sat(x):
     return max(0.0, min(1.0, x))

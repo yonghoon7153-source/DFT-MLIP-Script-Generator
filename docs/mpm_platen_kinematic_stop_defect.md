@@ -299,9 +299,9 @@ STEP4  전기화학                                  ← 동일
 | DEM 코퍼스 전체 (132케이스, Cronau overlap, Heckel P_y) | **A** | 다른 프로그램 |
 | σ 스케일링 삼중항 (0.975 / 0.953 / 0.90) | **A** | DEM→network_conductivity, MPM 미경유 |
 | 2D MPM champion · morphology · dip 결론 | **A** | 다른 스크립트, 다른 판독 |
-| **σ_SDCP 스윕 5점** (+0.8→+63.4 %, 분담 역행 19.6→1.7 %) | **A** | `sweep_summary.csv` source 열 — 전부 같은 DBE 침대(byte-재현), STEP3 재료표만 변경 |
+| ~~**σ_SDCP 스윕 5점** (+0.8→+63.4 %)~~ ⛔ **이득 계열은 철회** (CL-24, 인용 금지) — 아래 등급은 2026-08-05 시점 판단이다 | ~~A~~ → **분담 역행만 A** | 살아남는 것은 **분담 역행 19.6→1.7 %** (직렬 시그니처)와 *"크기가 σ_SDCP 에 강의존한다"* 는 **방향**이다.  `vs_SBE_pct` 열 자체가 vox 0.4 점-스탬프 산물이라 인용할 수 없다 (원자료 `sweep_summary.csv` 는 2026-09-09 에 머리 배너를 달았다) |
 | coverage ground-truth (Fibonacci+KDTree 16/49 %) | **A** | MPM-독립 기하 측정 |
-| **SBE→DBE σ_e +52.0 %** 및 메커니즘 4축 | **B** | 같은 AM 스캐폴드·같은 VGCF seed·같은 dilate 1.0711·**두께 72.48 µm 동일** → 공통모드 상쇄.  "실현된(as-built) 기하의 성질"로 한정 + 크기에 기하-의존 캐비엇 |
+| ~~**SBE→DBE σ_e +52.0 %** 및 메커니즘 4축~~ ⛔ **철회 (CL-24, 인용 금지)** — 아래 등급은 2026-08-05 시점 판단이다 | ~~B~~ | ~~같은 AM 스캐폴드·같은 VGCF seed·같은 dilate 1.0711·**두께 72.48 µm 동일** → 공통모드 상쇄~~.  이 헤드라인은 **격자의 산물**이었다 (vox 0.4 점 스탬프; 조이면 +42.15 → +8.49 %, σ_ion 은 부호 반전) — 공통모드 논증이 **격자축을 덮지 못했다** |
 | base↔첨가제 비교 | **B**(방향만) | 문서가 이미 자체 강등 |
 | 큐레이션 신뢰성 지도 76 % (117건) | **B** | servo 시대 정황 (`1mAh_100_10: wallP 0.32 @frame45` — 4프레임 운동학과 양립 불가) |
 | real_14 cell-fill 교차검증 (16.7↔15.6, 512 수렴) | **B** | servo bidirectional 경로 |
@@ -347,7 +347,7 @@ Cho-2024-앵커 곡선(`dem_perturbation.py` driver C, Balberg-percolation-gated
 | 방침 | 내용 | 비용 | 결과 |
 |---|---|---|---|
 | **(i)** | dilated 침대 = "보정된 기하 핀" 선언.  프레스는 접촉-정착만 | 낮음 (문장 수정) | B 자산 유지, C는 재라벨로 종결.  ⚠ Methods 에 **"433 MPa·타 조성 2점 앵커에서 외삽한 λ를 부과"**라고 밝혀야 하며 — 심사자가 바로 칠 자리 |
-| **(ii)** | **스트럿 재캘리브레이션** (역학 구현이 아님 — 이미 있음): 준정적 프레스 하에서 prop-open 이 **emergent** 로 나오도록 스트럿 강성·기하를 맞춘 뒤 3침대 재압밀 + STEP3/4 재해석 | 높음 | 두께·porosity 가 **진짜 산출**이 되고 **Cho 는 부과 핀 → 검증 앵커로 강등**(더 좋은 위치).  +52 % 크기 변동 가능(방향은 생존 예상) |
+| **(ii)** | **스트럿 재캘리브레이션** (역학 구현이 아님 — 이미 있음): 준정적 프레스 하에서 prop-open 이 **emergent** 로 나오도록 스트럿 강성·기하를 맞춘 뒤 3침대 재압밀 + STEP3/4 재해석 | 높음 | 두께·porosity 가 **진짜 산출**이 되고 **Cho 는 부과 핀 → 검증 앵커로 강등**(더 좋은 위치).  ⛔ 옛 표기 "+52 % 크기 변동 가능" 의 그 헤드라인은 그 뒤 **철회**됐다 (CL-24, 인용 금지) — 남는 것은 *"σ_e 이득의 크기가 실현 기하에 조건적"* 이라는 진술뿐이다 |
 
 **(ii)를 택하면 순서가 강제된다**: 프레스 수정(§7-1,2)이 **먼저**다.  안 고친 상태에서 스트럿을
 캘리브레이션하면 속도 아티팩트를 또 흡수한다 — σ_y = 0.30 이 지금 의심받는 것과 **똑같은 실수의
@@ -378,7 +378,7 @@ Cho-2024-앵커 곡선(`dem_perturbation.py` driver C, Balberg-percolation-gated
 | SDCP Methods docx | "pressing ended when the platen reached 300 MPa" (거짓) · "porosity and thickness are outcomes, not inputs" (오도 — dilate 침대는 by-construction) |
 | `manuscript_sdcp_sigma_e_mechanism.md` §5 | "The compacted MPM microstructure" → "DEM-scaffolded, dilation-pinned (matched platen schedule)" |
 | 〃 §4 | "porosity and thickness unchanged" → "unchanged **by construction**" — 용의자-1 기각 논증은 오히려 **강화** |
-| 〃 §8 | +52.0 % 크기가 실현 기하에도 조건적이라는 캐비엇 |
+| 〃 §8 | ⛔ **철회** (CL-24, 인용 금지) — 그 헤드라인 값 자체가 사라졌으므로 이 캐비엇 행은 더 이상 적용 대상이 없다 |
 | `sdcp_318_base_sbe_dbe_comparison.md` §2 | porosity 행 provenance 각주 |
 | `mpm3d_calibration.md:241-245` | "porosity is now an OUTPUT — the milestone" → 정정 블록(삭제 아님) |
 | `mpm3d_compaction.py:1163-1167` | "moving wall_z is the real press response, not an artefact" → hold 경로 반증 주석 |

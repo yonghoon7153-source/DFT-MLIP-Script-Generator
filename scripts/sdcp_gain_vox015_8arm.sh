@@ -42,6 +42,15 @@ case "$ARMS" in
   ''|*[!0-9]*) echo "[p2] ABORT — ARMS 는 양의 정수 (받은 값: $ARMS)"; exit 2;;
 esac
 [ "$ARMS" -ge 1 ] || { echo "[p2] ABORT — ARMS >= 1 이어야 한다 (받은 값: $ARMS)"; exit 2; }
+#  ★★ 2026-09-08 — 킷 목록을 **인자화**한다 (Phase A 6 mAh 96 팔).  기본값은 SDCP 두 킷
+#    그대로라 기존 경로는 **한 글자도 안 바뀐다**.  이 러너의 팔-실행 기계(토큰 무결성 ·
+#    expect-physics · SKIP 캐시 · fail-fast)를 복제하지 않으려고 여기를 넓힌다 —
+#    복제는 이 리포가 반복해 온 실수다 (CLAUDE.md 규율 ①).
+#  ⚠ 끝단의 **계약 봉인은 SDCP 판정기**(`sdcp_gain_verdict.py`)라 다른 캠페인에 못 쓴다.
+#    ⇒ 킷이 SDCP 기본이 아니면 봉인을 **돌리지 않고**, 그 캠페인의 판정기가 봉인 주체임을
+#    말한다.  (잘못된 판정기를 돌려 초록을 받는 것이 더 나쁘다.)
+KITS="${KITS:-kit_SBE kit_DBE}"
+_KITS_DEFAULT="kit_SBE kit_DBE"
 PREREG_ARMS=8
 AR_TAG=""
 if [ "$ARMS" -ne "$PREREG_ARMS" ]; then
@@ -764,7 +773,7 @@ echo "[p2] vox $VOX · 브리지 $BRIDGE_UM µm 고정 · 섬유 $FIBRE_STAMP ·
 i=0
 for SH in "${SHIFTS[@]}"; do
   [ "$i" -ge "$ARMS" ] && break
-  for K in kit_SBE kit_DBE; do
+  for K in $KITS; do
     [ -d "$K" ] || { echo "[p2] ABORT — $K 없음 (~/sdcp 에서 돌릴 것)"; exit 2; }
     #  ★ fail-fast — 한 팔이 실패하면 **전체를 멈춘다**.  실패한 팔을 빼고 계속하면
     #    팔 수가 달라져 앙상블이 오염된다 (판정기가 HOLD 를 내겠지만 GPU 시간을 버린다).
@@ -792,7 +801,12 @@ echo
 #       · 봉인 통과 → 찍지 않는다 (필요하면 운영자가 명령을 직접 친다)
 #       · 봉인 실패 → 찍는다 (데이터는 이미 기각됐으므로 창을 옮길 여지가 없고,
 #                             진단에는 원값이 필요하다)
-if [ "$ARMS" -eq "$PREREG_ARMS" ]; then
+if [ "$KITS" != "$_KITS_DEFAULT" ]; then
+  #  ★ 다른 캠페인의 킷이다 — SDCP 판정기로 봉인하면 **엉뚱한 계약**을 통과시킨다.
+  echo "[p2] ⚠ 킷이 SDCP 기본이 아니다 ($KITS) — 계약 봉인을 **돌리지 않는다.**"
+  echo "     이 러너는 팔만 낸다.  봉인·판정은 그 캠페인의 판정기 소관이다"
+  echo "     (Phase A 6 mAh → scripts/phase_a_order_verdict.py).  OUTDIR: $OUTDIR"
+elif [ "$ARMS" -eq "$PREREG_ARMS" ]; then
   echo "[p2] 계약 봉인 — 데이터가 쓸 만한가 (판정 아님, 원값은 아직 안 본다)"
   #  ★★ 2026-08-25 (R3-CX-04) — 생산 봉인은 **입력 digest·code SHA** 를 요구한다.
   #    옛 판은 안 넘겨서, 같은 침대라는 증거도 재현 가능한 코드라는 증거도 없이 통과했다.

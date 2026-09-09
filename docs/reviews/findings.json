@@ -1705,6 +1705,97 @@
     "scripts/check_method_discipline.py --selftest",
     "scripts/run_contract.py --selftest"
    ]
+  },
+  {
+   "id": "AUD-01",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/claims.json",
+   "title": "머리 배너의 **파일 전체 면제**가 300 파일 안에 표지 없는 철회값 125 건을 덮고 있다",
+   "note": "2026-09-09 전수 감사가 잡았고 실측으로 확인했다.  `_has_banner` 가 참이면 그 파일의 **모든** 철회값 출현이 통과한다.  계측: 배너를 가진 파일 300 개 안에 줄-근처 표지도 없는 철회값이 **125 건**.\n★ 같은 커밋에서 닫은 부분: **생성기·사용자출력**(`docs/**/*.js` · `scripts/seminar_deck/*.js` · `webapp/*.py`)은 배너로 파일 면제를 못 받게 했다 (`BAN_NO_FILE_EXEMPT`, selftest 22h/22i/22j).  다시 돌리면 산출물에 되살아나는 부류라 판단이 필요 없었다 — 실제로 `docs/manuscript_draft/build.js` 가 CL-33 hold 값을 3 건 들고 있었다.\n⬜ **남은 것은 판단이 필요하다**: 나머지 ~120 건은 대부분 **박제**다 (발송한 리뷰 요청 · 세션 진행 기록 · 발표한 pptx) — 거기서는 값이 **원문 그대로** 있어야 하고 줄마다 표지를 박으면 기록이 훼손된다.  그러나 같은 배너가 **살아 있는 정본 문서**에도 걸린다: `docs/mpm_platen_kinematic_stop_defect.md` (975 줄, 트랙2 정본, 계속 갱신) 는 배너가 *플래튼 결함*을 다루는데 그 아래 자산표가 철회 헤드라인을 **살아남은 Grade-B 자산**으로 제시하고 있었다 (이 커밋에서 세 줄을 개별 표기).\n⇒ 필요한 것은 *\"박제인가 정본인가\"* 의 판별이다.  후보 규칙: 배너가 **파일 전체**를 이력으로 선언할 때만(`HISTORICAL`·`박제`·`이 문서 전체`) 파일 면제를 주고, **정정 배너**(문서는 살아 있고 일부만 틀렸다)는 줄-근처 표지만 인정.  ⚠ 이 구분을 잘못 그으면 살아 있는 정본이 한꺼번에 빨간불이 되므로 리뷰를 거쳐 도입한다.\n계측 재현: `scripts/check_review_findings.py` 의 `_has_banner` 를 우회해 배너 파일만 훑으면 나온다 (세션 기록 `docs/session_20260909_progress.md`).",
+   "evidence_tests": [
+    "scripts/check_review_findings.py --selftest"
+   ]
+  },
+  {
+   "id": "AUD-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/webapp_v3_design.md",
+   "title": "예측기 탄소 앵커가 **리포에 없는 논문**을 인용했다 — C65 σ_e 는 실측으로 갈아탔고, **dead-AM 문턱(~20 vol%p 차)은 저자 판단 대기**",
+   "note": "`webapp/predictor_engine.py` 의 도전재 분기가 세 곳에서 **\"Bielefeld 2023\"** 을 인용한다 (VGCF 0.4 mS/cm · C65 4 wt% 70 mS/cm, 후자는 *\"directly measured\"* 라고까지 적혀 있다).\n★ **그 논문이 이 리포에 없다.** 정본 litdb 에 있는 것은 `bielefeld2019_microstructural_modeling_composite_cathode`(σ 를 아예 안 푼다 — constriction 은 future work 로 명시) 와 `bielefeld2020_effective_ionic_conductivity_binder`(바인더 연속체 σ) 둘뿐이고, 어느 쪽도 2023 이 아니며 C65 전자전도 측정이 아니다.\n★★ **리포 자신의 실측 앵커와 51배 어긋난다.** `docs/data/reisacher2023_percolation.csv` 는 **우리와 같은 SE**(Li6PS5Cl) + C65 매트릭스의 EIS·DC-분극 실측이다 (Batteries 2023, 9(12), 595, open access):\n```\nC65 4 wt% (CM-4, 퍼콜레이션 무릎) → 1.36e-3 S/cm =   1.36 mS/cm   ← 실측\nC65 5 wt% (CM-5, 무릎 바로 위)   → 1.02e-1 S/cm = 102    mS/cm\n코드                             →                70    mS/cm  @ 4 wt%\n```\n⇒ 70 은 4 wt% 값이 아니라 **5 wt% 쪽 크기**다.  하필 이 구간이 **두 자릿수가 뛰는 무릎**이라 한 칸 오차가 100배 오차가 된다.\n⚠ 이 값은 사용자에게 보이는 예측기 출력(`/predictor` 의 `c65_4wt` 옵션, 화면 라벨 *\"percolation! σ_el ~70\"*)을 직접 정한다.\n★ 조치 (2026-09-09): **값을 바꾸지 않고 라벨만 달았다** — 어느 값이 맞는지는 저자 판단 소관이고, 내가 임의로 고르면 그것이 또 하나의 출처 없는 값이 된다.  세 주석에 출처 미확인 경고 + Reisacher 실측 대조를 넣었다.\n⬜ **결정 필요**: (a) Reisacher 실측(1.36 @4 wt% · 102 @5 wt%)으로 갈아탄다 — 같은 SE 라 재료 보정 없이 전이 가능하고 리포가 이미 `_CARB_PC_WT=4.0` 으로 그 p_c 를 쓰고 있다 · (b) 진짜 출처를 찾아 고정한다 · (c) 그 분기를 내린다.\n⚠ 같은 함수의 VGCF 0.4 mS/cm 도 같은 출처를 달고 있어 함께 판단해야 한다.\n\n★★ **조치 완료 (2026-09-09, 사용자 승인 = (a) Reisacher 로 갈아탄다)** — 그런데 파급을 재보니 *숫자 셋 교체* 가 아니라 **모델이 두 벌**인 문제였다:\n```\nscripts/grade_engine.py  whatif_additives()   ← /case/<id>/whatif-additives\n    _CARB_PC_WT = 4.0  \"Reisacher 2023, C65/LPSCl\"   ← 제대로 앵커됨\nwebapp/predictor_engine.py  predict()              ← /predictor\n    C65 4wt% → 70 mS/cm  \"Bielefeld 2023\"          ← 출처 없음, 51배 어긋남\n    VGCF σ_ion ×0.99                                ← grade_engine 은 ×0.95\n```\n⇒ 문턱은 그 논문에서, 값은 다른 데서 가져온 상태였다.  규율 ① (\"이 리포에 이미 있나\")의 사례다.\n**한 일**: ⓐ `grade_engine.REISACHER_C65_SIGMA_E_MSCM` 신설 = 탄소 σ_e 앵커가 사는 **유일한 자리** (CSV 실측 그대로: 1→0.095 · 3→0.166 · 4→**1.36** · 5→**102** · 10→110 mS/cm) · ⓑ 예측기가 그 객체를 **읽어 간다** (임포트 실패 시 같은 값 fallback, 그 사실이 코드에 보임) · ⓒ UI 라벨 셋 교체 (`σ_el ~70` → `1.36 · 실측`, 툴팁에 출처와 *\"무릎이지 포화가 아니다\"*) · ⓓ 회귀 7 검사 상주 (`webapp/test_predictor_ui_and_sigma_grain.py`, check_all + CI) — 그 중 하나가 **앵커를 커밋된 CSV 와 대조**해서 상수만 고치고 데이터를 안 고치는 drift 를 막는다.\n⚠ **VGCF 0.4 mS/cm 는 그대로 미확인**이다 — Reisacher 매트릭스는 **C65 전용**이라 전이되지 않는다.  다른 탄소를 같은 표로 덮지 않는다.\n⚠ **σ_ion 배수(×0.99/×0.97/×0.85)는 안 건드렸다** — grade_engine 의 `_SION_BLOCK_VGCF=0.05/wt` 와 어긋나지만(1 wt% 에서 ×0.99 vs ×0.95), 그쪽을 고르는 것은 별개 앵커 판단이라 여기서 하지 않는다.\n\n★★★ **같은 인용이 한 군데 더 있었고, 그게 더 큰 것을 물고 나왔다.**  `predictor_engine.py:812` 의 **dead-AM 추정** 블록도 `Ref: … Bielefeld 2023` 이었다.  AM 전자-퍼콜레이션을 다룬 실재 논문은 **Bielefeld 2019** (J. Phys. Chem. C 2019, 123, 1626) 이라 **연도를 정정**했다.  ⚠ 그런데 그 논문과 코드의 문턱이 안 맞는다:\n```\n코드          문턱 ~25-30 vol% AM (고정)\nBielefeld2019 Eq8  p_c = 7.83·ln(d/µm) + 36.67 vol%\n                   d=3 µm → 45.3 · 5 µm → 49.3 · 10 µm → 54.7   (Fig5 전이 41~46 / 52~57)\n```\n즉 실제 문턱은 **45~58 vol% 이고 입경 의존**인데 코드는 25~30 고정이다 (**~20 vol%p** 차).\n⛔ **값은 안 바꿨다** — 이 블록은 `electronic_active_pct`(dead AM)를 정하므로 저자 판단이 필요하다.  라벨과 문헌 대조만 코드에 달아 뒀다.  ⬜ **결정 필요**.\n★ 부수 확인: 그 CSV 머리말이 *\"This paper does NOT compute an effective conductivity sigma\"* 라고 적고 있다 ⇒ 앞의 C65 σ_e 70 mS/cm 가 **Bielefeld 어느 판에서도 나올 수 없다**는 것이 독립적으로 확인된다.",
+   "evidence_tests": [
+    "webapp/test_predictor_ui_and_sigma_grain.py"
+   ]
+  },
+  {
+   "id": "AUD-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
+   "title": "예측기가 **매트릭스 실측값**을 복합전극 σ_e 하한으로 쓰고 AM 활성률을 100 % 로 강제한다",
+   "note": "Codex 리뷰 Q4-1 두 번째 P1.  Reisacher 매트릭스에는 **AM 이 없고** 2.07 MPa 압축이다.  논문의 매트릭스 4 wt% ↔ 전극 1.2 wt% 대응은 **AM 70 wt% 조건**인데, 우리 UI 는 AM 60~90 wt% 를 자유롭게 바꾸면서 첨가제 옵션을 독립으로 넘긴다 (같은 매트릭스 4 wt% 가 전극 기준으로 AM 60 %→1.6 · 70 %→1.2 · 80 %→0.8 · 90 %→0.4 wt%).\n그런데 `webapp/predictor_engine.py` 가 매트릭스 절대값을 `max()` 로 전극 σ_e 하한에 넣고, 같은 분기가 `electronic_active_pct = 100` 을 **무조건** 세운다.  ⇒ AM 이 없는 표본의 전도도가 모든 AM 의 연결을 입증할 수 없다.  `max(전극 예측, 매트릭스 실측)` 를 정당화할 등가회로·기하 전이 모델이 이 경로에 없다.\n⬜ **결정 필요**: (a) 조성 분모를 UI 의 AM wt% 로 환산해 넘기고 전이 모델을 세운다 (b) 전이 모델이 생길 때까지 복합전극 하한·AM 100 % 강제를 **끈다** (c) 5 wt% 고전도 사례는 별도 '매트릭스 시나리오' 로만 제공.",
+   "evidence_tests": [
+    "webapp/test_predictor_ui_and_sigma_grain.py"
+   ]
+  },
+  {
+   "id": "AUD-04",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
+   "title": "dead-AM 매핑이 **인용한 논문 자신과도 안 맞는다** (문턱에서 95~100 % 활성)",
+   "note": "Codex 리뷰 Q4-2.  `webapp/predictor_engine.py` 는 입경과 무관하게 φ_AM=0.30 에서 87 %, φ_AM≥0.55 에서 100 % 를 준다.  Bielefeld 2019 Eq.8 `p_c = 7.83·ln(d/µm)+36.67 vol%` 의 문턱을 그 매핑에 넣으면 3 µm(45.27)→**94.9 %** · 5 µm(49.27)→**97.0 %** · 10 µm(54.70)→**99.8 %** · 12 µm(56.13)→**100 %** 가 나온다.\n★ 그런데 그 문턱은 **10 실현의 과반 퍼콜레이션 / 평균 이용률 ~40 %** 기준으로 정의된다 — *'문턱 도달 = 거의 전부 활성'* 이 아니다.  ⇒ **인용한 모델조차 현재 출력을 지지하지 않는다.**  (우리 침대의 실제 활성률이 40 % 라는 주장은 아니다.)\n⚠ 이 값은 `/predictor` 의 활성/Dead AM 카드·병목 표시·JSON·위상도 80 % 경계로 흘러간다.  주석의 `AUD-02 미해결` 은 소비자에게 가는 숫자의 의미를 바꾸지 않는다.\n⚠ **고정 문턱을 Eq.8 로 갈아끼우고 문턱 위를 100 % 로 두는 수정도 틀리다** — 연결 존재 · 관통 클러스터 분율 · 전극 이용률은 서로 다른 관측량이다.\n⬜ **결정 필요**: 검증 전까지 정량 이용률을 일반 결과에서 보류하고 `Δp = φ_AM − p_c(d)` 만 조건 명시 참고값으로 낼 것인가.",
+   "evidence_tests": [
+    "webapp/test_predictor_ui_and_sigma_grain.py"
+   ]
+  },
+  {
+   "id": "AUD-05",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
+   "title": "생성기의 ±2줄 표지 규칙이 **소스 주석과 화면 출력을 구분하지 않는다**",
+   "note": "Codex 리뷰 Q1-3 · Q3-2.  두 반례가 현재 검사에서 **0 건**이다:\n① 생성기 — `// … 철회` 주석 아래 `console.log('<금지값>')` 은 스윕 0 건인데 stdout 에는 표지 없이 나온다.  selftest 22i 가 사실상 이 허용을 정상 계약으로 고정한다.\n② 웹 출력 — `<!-- 철회 -->` (HTML 주석, **화면에 안 보임**) 뒤의 가시 카드에 금지값이 있어도 `test_ledger_view` 28 이 통과한다.  다른 카드의 표지도 마찬가지로 면제 근거가 된다.\n⇒ 면제 근거를 **실제 출력의 같은 가시 문장/카드** 로 좁혀야 한다.\n★ 부수: 26~28 의 페이지 목록이 하드코딩 5개라 `PAGE_FRESHNESS` 의 `single` 이 빠져 있다 — 부분집합으로 '선언한 모든 페이지' 를 증명할 수 없다.  등록부에서 파생해야 한다.",
+   "evidence_tests": [
+    "webapp/test_ledger_view.py"
+   ]
+  },
+  {
+   "id": "AUD-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
+   "title": "`BAN_FROZEN_REPRODUCERS` 가 **경로만** 지정해 가드가 사라져도 면제가 남는다",
+   "note": "Codex 리뷰 Q1-1.  `scripts/seminar_deck/build.js` 의 기본 거부 가드는 실재하지만, 회귀 22j 는 **파일 존재만** 검사한다.  같은 경로·같은 이력 배너를 두고 가드를 뺀 픽스처는 `ban_problems=0` · 기본 실행 `exit=0` · stdout 에 철회값이 나온다.\n⇒ 예외를 `{path, sha256}` 로 동결하고, 기본 실행이 **정해진 거부 사유·종료코드로 산출물 생성 전에 멈추는지**를 회귀로 묶을 것.",
+   "evidence_tests": [
+    "scripts/check_review_findings.py --selftest"
+   ]
+  },
+  {
+   "id": "AUD-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_request_v3_audit_20260909.md",
+   "title": "감사 finding 에 **기계 판독 가능한 검증 상태가 없다**",
+   "note": "Codex 리뷰 Q2-3.  `residual_buckets.json` 의 finding 135 건 중 `status`/`verification_status` 를 가진 것이 **0 건**이다.  P0/P1 44 건과 독립검증 생존 3 건이 서로 다른 배열·산문으로 분리돼 있고, 저자가 직접 확인한 두 건도 기계적 연결이 없다 (`step3_sdcp1500.json` 은 그 항목으로 서술되는데 해당 경로의 finding object 자체가 없다).  ⇒ 후속 집계자가 `severity=P1` 만 골라 읽으면 **후보와 확정이 합쳐진다**.\n★ 단, 이 원시 후보 135 건이 정본 `findings.json` 에 확정으로 유입되지는 않았다.\n⬜ 원본 감사 출력은 보존하고, 별도 adjudication 원장에 안정 ID + `candidate/self_confirmed/independently_verified/rejected/incomplete` + 검증 근거·주체·커밋을 붙일 것.",
+   "evidence_tests": [
+    "scripts/check_review_findings.py --selftest"
+   ]
   }
  ]
 }

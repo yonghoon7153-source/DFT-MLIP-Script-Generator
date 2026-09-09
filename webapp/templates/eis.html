@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% set active = "eis" %}
+{% import "_ledger.html" as L %}
 {% block title %}EIS / DRT - DEM/MPM Analyzer{% endblock %}
 
 {% block content %}
+{{ L.unavailable_note(lv) }}
+{{ L.freshness_bar(lv.freshness) }}
 <h1>&#x1F300; v3-1 — 물리-기반 EIS / DRT / ICA</h1>
 <p style="color:var(--dim);max-width:860px;margin:-4px 0 14px">
   우리 STEP3/STEP4 물리에서 <b>등가회로 각 소자를 유도</b>해 임피던스를 산출한다:
-  <b>R0</b>(σ-삼중+집전체) + <b>R_ct</b>(BV i0·반응면) ‖ <b>C_dl</b>(★앵커) + <b>Warburg</b>(구형확산 τ=r²/D).
+  <b>R0</b>(σ-삼중+집전체) + <b>R_ct</b>(BV i0·반응면) ‖ <b>C_dl</b>(⚠앵커 아님 — 문헌 밴드 가정, 아카이브가 Brug 앵커를 철회) + <b>Warburg</b>(구형확산 τ=r²/D).
   실험 EIS(<code>eis_fit.py</code>가 <b>R0-p(R1,CPE1)-Wo1</b>로 CNLS 피팅)와 <b>같은 회로</b> →
   <b>frame[4] 대조</b>(모델↔실측 Nyquist 겹침).
 </p>
@@ -88,7 +91,7 @@ full 셀은 σ_e 에 두께를 안 쓰므로 건너뜁니다.">✓ 체크행에 
     <button class="btn btn-sm btn-secondary" data-preset="dbe">DBE (σ_e 3.00)</button>
     <button class="btn btn-sm btn-secondary" data-preset="sc">SC 풀셀 (R_int 50·D_s 3e-15)</button>
     <button id="e-expanchor" class="btn btn-sm btn-secondary" style="margin-left:auto"
-            title="실험 EIS(eis_fit) CPE→Brug C_dl + Wo1_R 로 소자 고정 = frame[4]">🔬 실험앵커 OFF</button>
+            title="⚠⚠ 2026-09-09 정정: 아카이브가 이 C_dl 앵커를 **철회**했다 — 이종기술/eis/README.md §&quot;withdraw the anchor&quot;. Brug C = Q^(1/α)·R^((1−α)/α) 가 이 CPE 지수(3.33·2.33)에서 정의역 밖이고, 6 풀셀에서 C_dl 이 2.7→1460 µF/cm² (541배) 로 흩어진다 = 산술이지 물리가 아니다. README 결론: **no C_dl number** (§F1 — 평균이 아니라 이유를 적는다), TLM 재적합이 해법. ⇒ 이 토글은 **탐색용**이고 frame[4] 교차검증이 아니다. R_w(Wo1_R median)는 유효.">🔬 실험앵커 OFF <span style="font-size:.62rem;opacity:.75">(⚠C_dl 철회)</span></button>
   </div>
   <div id="e-anchor-info" style="font-size:.76rem;color:var(--dim);margin-bottom:8px;line-height:1.5"></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
@@ -99,7 +102,7 @@ full 셀은 σ_e 에 두께를 안 쓰므로 건너뜁니다.">✓ 체크행에 
     <label class="e-lab">i0 (A/m²) <span class="e-hint">⚠스윕</span><input id="e-i0" type="number" step="0.1" value="2.0" class="e-in"></label>
     <label class="e-lab">D_s (m²/s) <span class="e-hint">⚠미측정</span><input id="e-ds" type="text" value="3e-14" class="e-in"></label>
     <label class="e-lab">r_p (µm)<input id="e-rp" type="number" step="0.1" value="3.0" class="e-in"></label>
-    <label class="e-lab">C_dl (µF/cm²) <span class="e-hint">★앵커</span><input id="e-cdl" type="number" step="1" value="10" class="e-in"></label>
+    <label class="e-lab" title="⚠ 앵커가 아니다. 기본 10 µF/cm² 는 sulfide|NMC 문헌 밴드(1–10)의 끝값을 고른 §F1 가정이다. 실험 EIS 로부터의 Brug C_dl 앵커는 정의역 밖이라 아카이브가 철회했다 (이종기술/eis/README.md).">C_dl (µF/cm²) <span class="e-hint" style="color:var(--yellow)">⚠문헌밴드 가정</span><input id="e-cdl" type="number" step="1" value="10" class="e-in"></label>
     <label class="e-lab">coverage <span class="e-hint">반응면분율</span><input id="e-cov" type="number" step="0.05" value="0.5" class="e-in"></label>
     <label class="e-lab">porosity (%) <span class="e-hint">a_spec 추정</span><input id="e-por" type="number" step="1" value="8" class="e-in"></label>
   </div>
@@ -254,7 +257,9 @@ const EIS = {
     if(!a){ box.innerHTML='<span style="color:#a07c1f">🔬 실험앵커 요청됨 — 데이터 없음 '+
       '(이종기술/eis/fits 부재, 예: 클라우드) → 문헌 기본값 유지</span>'; return; }
     const rng=a.c_dl_range_uF_cm2||[], pr=a.provenance||{};
-    box.innerHTML='<b style="color:#2a5db0">🔬 frame[4] 실험앵커 적용</b> — '+
+    box.innerHTML='<b style="color:#a07c1f">🔬 실험 EIS 값 적용 (⚠ frame[4] 교차검증 아님)</b> — '+
+      '<span style="color:var(--dim);font-size:.72rem">C_dl 앵커는 아카이브가 철회했다 '+
+      '(Brug 가 이 CPE 지수에서 정의역 밖 · 6 셀 541배 산포) — 이종기술/eis/README.md. 탐색용으로만.</span><br>'+
       `C_dl≈<b>${a.c_dl_areal_uF_cm2}</b> µF/cm²geo (기하평균, 범위 ${rng[0]}–${rng[1]}, n=${a.n_full}) · `+
       `R_w=<b>${a.r_w_ohm_cm2}</b> Ω·cm² (Wo1_R median) · R_int≈${a.r_int_ohm_cm2} · R0_hf≈${a.r0_hf_ohm_cm2}<br>`+
       `<span style="color:var(--dim)">${pr.C_dl||''}</span>`;
@@ -336,7 +341,7 @@ const EIS = {
       ...(e.R_int>0 ? [['R_int (계면 arc)', fmt(e.R_int)+' Ω·cm²',
           e.R_int_mode==='arc' ? `중간주파 arc @ ${fmt(e.f_int_Hz,0)} Hz (실험 R1 정합)` : '직렬(레거시)']] : []),
       ['R_ct (BV)', fmt(e.R_ct_ohm_cm2)+' Ω·cm²', 'BV i0·반응면 (⚠i0 스윕)'],
-      ['C_dl', fmt(e.C_dl_uF_cm2_int)+' µF/cm²int', (e.C_dl_uF_cm2_areal!=null?('총 '+fmt(e.C_dl_uF_cm2_areal,0)+' µF/cm²geo'):'★앵커 (실험 EIS 확증)')],
+      ['C_dl', fmt(e.C_dl_uF_cm2_int)+' µF/cm²int', (e.C_dl_uF_cm2_areal!=null?('총 '+fmt(e.C_dl_uF_cm2_areal,0)+' µF/cm²geo'):'⚠ 문헌 밴드 가정 (실험 EIS 앵커는 철회 — 이종기술/eis/README.md)')],
       ['f_ct', fmt(e.f_ct_Hz,1)+' Hz', 'arc 정점 = 1/2πR_ctC_dl'],
       ['R_w', fmt(e.R_w_ohm_cm2)+' Ω·cm²', 'ASSUMED-FORM'],
       ['τ_w', fmt(e.tau_w_s)+' s', 'r²/D_s (⚠D_s 미측정)'],
