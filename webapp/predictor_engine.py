@@ -32,8 +32,11 @@ import se_material
 try:
     from grade_engine import REISACHER_C65_SIGMA_E_MSCM as _REISACHER_C65
 except Exception:                                          # noqa: BLE001
-    #  docs/data/reisacher2023_percolation.csv 와 같은 값 (Batteries 2023, 9(12), 595)
-    _REISACHER_C65 = {1.0: 0.095, 3.0: 0.166, 4.0: 1.36, 5.0: 102.0, 10.0: 110.0}
+    #  ⛔ **값을 복제하지 않는다** (정정 2026-09-09, Codex Q4-1 P2).  옛 판은 여기에 표를
+    #    그대로 베껴 두어 *"앵커는 한 군데"* 가 **정상 import 에서만 참**이었다 — import 가
+    #    깨지면 정본을 고쳐도 이쪽은 옛 값을 계속 쓴다 (리뷰가 999 로 바꿔 재현).
+    #    ⇒ 의존성 부재를 **숨기지 않고 드러낸다**: 앵커가 없으면 첨가제 σ_e 보정도 없다.
+    _REISACHER_C65 = {}
 
 # ═══ Physical Constants ═══
 # ★ 2026-07-28: σ_grain now shared with the solvers via se_material (value unchanged, 3.0 mS/cm,
@@ -869,14 +872,23 @@ def predict(d_se, d_am, am_pct, ps_frac, loading, rve, temperature=298, additive
         sigma_ionic_final *= 0.99
         electronic_active_pct = min(100, electronic_active_pct + 10)
     elif additive == 'c65':
-        # C65 1 wt%: 퍼콜레이션 문턱(~4 wt%) **아래** — 고립된 C65 섬 (Reisacher CM-1)
-        sigma_electronic = max(sigma_electronic, _REISACHER_C65.get(1.0, 0.095))
+        # C65 1 wt%: 퍼콜레이션 문턱(~4 wt%) **아래** — 고립된 C65 섬 (Reisacher CM-1).
+        # ⛔ **σ_e 를 여기서 올리지 않는다** (정정 2026-09-09, Codex Q4-1).
+        #   그 loading 의 실측 9.5e-5 S/cm 는 순수 SE 이온값(6.6e-5)의 **1.44배**뿐이고
+        #   원자료가 `below_pc` · "isolated C65 islands" 라 적는다 = **이온 지배 총전도도**다.
+        #   그것을 σ_e 하한으로 쓰면 SE 의 이온 전도를 전자 전도로 둔갑시킨다.
+        #   (오늘 초판이 그렇게 했고 UI 에 `실측` 이라 적었다 — 이 리포가 반복해서 고쳐 온
+        #    측정량 바꿔치기와 같은 부류다.)
+        # ⇒ 문턱 아래에서는 **전자망이 없다**는 것이 이 논문의 결론이므로 σ_e 는 그대로 둔다.
         sigma_ionic_final *= 0.97
         electronic_active_pct = min(100, electronic_active_pct + 5)
     elif additive == 'c65_4wt':
         # C65 4 wt%: 퍼콜레이션 **무릎 위** (Reisacher CM-4).  ⚠ 무릎이지 포화가 아니다 —
         #   5 wt% 에서 102 mS/cm 로 75배 더 오른다.  "전자망 완성" 은 5 wt% 쪽이다.
-        sigma_electronic = max(sigma_electronic, _REISACHER_C65.get(4.0, 1.36))
+        #  ⚠ 앵커가 없으면(=grade_engine import 실패) **보정하지 않는다** — 옛 판처럼
+        #    하드코딩 기본값으로 조용히 떨어지면 "앵커 한 군데" 가 거짓이 된다.
+        if 4.0 in _REISACHER_C65:
+            sigma_electronic = max(sigma_electronic, _REISACHER_C65[4.0])
         sigma_ionic_final *= 0.85
         electronic_active_pct = 100.0
 

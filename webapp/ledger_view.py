@@ -65,12 +65,17 @@ def _load():
         bans = doc.get('quotation_ban') or []
     except Exception as e:                                     # noqa: BLE001
         err = f'{type(e).__name__}: {e}'
+    f_err = None
     try:
         with open(FINDINGS_PATH, encoding='utf-8') as f:
             findings = (json.load(f) or {}).get('findings') or []
-    except Exception:                                          # noqa: BLE001
-        findings = []
-    data = {'claims': claims, 'bans': bans, 'findings': findings, 'error': err}
+    except Exception as e:                                     # noqa: BLE001
+        #  ⛔ **정정 2026-09-09 (Codex Q3-3)** — 옛 판은 이 예외를 삼켜
+        #    `available=True · open_findings=[]` 를 돌려줬다 = **읽기 실패를 "열린 결함
+        #    없음" 처럼** 보이게 했다.  없는 것과 못 읽은 것은 다르다.
+        f_err = f'{type(e).__name__}: {e}'
+    data = {'claims': claims, 'bans': bans, 'findings': findings,
+            'error': err, 'findings_error': f_err}
     _cache['stamp'], _cache['data'] = stamp, data
     return data
 
@@ -82,6 +87,11 @@ def available():
 
 def error():
     return _load()['error']
+
+
+def findings_error():
+    """결함 원장을 **못 읽었는가** — `[]` 와 구별해야 한다 (Codex Q3-3)."""
+    return _load().get('findings_error')
 
 
 #: 금지값이 화면에 닿기 전에 지우는 자리.  ⚠⚠ 이것이 **없으면 안 되는 이유**:
@@ -275,14 +285,30 @@ def freshness(page_updated, ledger_ids=()):
     ledger_ids   : 이 화면이 서술하는 클레임 id 들
     → {'stale': bool, 'behind': [chip…], 'newest': 'YYYY-MM-DD'}
     """
+    #  ⛔ **정정 2026-09-09 (Codex Q3-1·Q3-3)** — 옛 판은 세 가지를 놓쳤다:
+    #    ① 원장이 **없으면** `newest=None` 이라 `stale=False` 가 되고 화면이
+    #       *"상태를 주장하지 않는다"* 와 초록 *"검토됐다"* 를 **동시에** 띄웠다 (실측 재현).
+    #    ② 날짜만 비교해서 **날짜 그대로 `live→retired`** 를 놓쳤다.
+    #    ③ **없는 의존 ID**(오타·삭제된 클레임)를 조용히 통과시켰다.
+    #  ⇒ 세 경우를 `unknown` 으로 분리한다.  모르는 것을 초록으로 칠하지 않는다.
+    if not available():
+        return {'stale': None, 'unknown': True, 'behind': [], 'newest': None,
+                'updated': page_updated,
+                'why': '원장을 못 읽었다 — 신선도를 판정할 수 없다'}
     newest = newest_date()
-    behind = []
+    behind, missing = [], []
     for cid in ledger_ids or ():
         c = by_id(cid)
-        if c and page_updated and (c.get('date') or '') > page_updated:
+        if c is None:
+            missing.append(cid)
+        elif page_updated and (c.get('date') or '') > page_updated:
             behind.append(chip(cid))
+    if missing:
+        return {'stale': None, 'unknown': True, 'behind': [], 'missing': missing,
+                'newest': newest, 'updated': page_updated,
+                'why': f'의존 클레임 {", ".join(missing)} 이 원장에 없다 — 판정 불가'}
     stale = bool(behind) or bool(newest and page_updated and newest > page_updated)
-    return {'stale': stale, 'behind': behind, 'newest': newest,
+    return {'stale': stale, 'unknown': False, 'behind': behind, 'newest': newest,
             'updated': page_updated}
 
 
@@ -296,6 +322,7 @@ def context(page_updated=None, ledger_ids=()):
         'held': claims(('hold', 'rejected', 'retired'), limit=6),
         'banned': banned_summary(),
         'open_findings': open_findings(limit=6),
+        'findings_error': findings_error(),
         'freshness': freshness(page_updated, ledger_ids) if page_updated else None,
     }
 

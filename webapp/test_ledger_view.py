@@ -86,6 +86,11 @@ def main():
     fresh = LV.freshness('2999-01-01', ledger_ids=[LV.claims(limit=1)[0]['id']])
     chk('8) 앞선 페이지는 경고하지 않는다', not fresh['stale'])
     chk('9) 기준선이 원장 최신 등재다', stale['newest'] == newest)
+    #  ⚠ 2026-09-09 (Codex Q3-1) — 옛 판은 **없는 의존 ID** 를 조용히 통과시켰다
+    #    (오타·삭제된 클레임이 영원히 초록).  이제 `unknown` 이어야 한다.
+    ghost = LV.freshness('2026-09-09', ledger_ids=['CL-99999'])
+    chk('9b) ★ 없는 의존 클레임은 초록이 아니라 unknown 이다',
+        ghost.get('unknown') is True and ghost.get('stale') is None)
 
     #  ── 금지 등록부 ───────────────────────────────────────────
     bans = LV.banned()
@@ -180,6 +185,32 @@ def main():
         r = c.get('/ledger')
         chk('24) ★ 원장 없이도 페이지가 뜨고 "주장하지 않는다" 고 적는다',
             r.status_code == 200 and '주장하지 않는다' in r.data.decode('utf-8', 'replace'))
+
+        #  ⚠⚠ 2026-09-09 (Codex Q3-3) — 옛 22-24 는 `/ledger` 만 봤고 그 페이지에는
+        #    freshness bar 가 없어서 29/29 초록이 유지됐다.  실제로는 **선언한 페이지들이
+        #    "판정 상태를 주장하지 않는다" 와 초록 "✓ … 검토됐다" 를 동시에** 렌더했다.
+        #    ⇒ 원장 부재를 **초록으로 칠하지 않는지** 를 선언 페이지에서 직접 본다.
+        green, unknown = [], []
+        for key, url in pages.items():
+            h = c.get(url).data.decode('utf-8', 'replace')
+            if '검토됐다' in h:
+                green.append(key)
+            if '판정할 수 없다' in h:
+                unknown.append(key)
+        chk(f'24b) ★★ 원장이 없으면 어느 페이지도 초록 "검토됐다" 를 안 띄운다 ({green})',
+            not green)
+        chk(f'24c) ★ 대신 "판정할 수 없다" 를 띄운다 ({len(unknown)}/{len(pages)})',
+            len(unknown) == len(pages))
+    finally:
+        LV.CLAIMS_PATH, LV.FINDINGS_PATH = saved_claims, saved_findings
+        LV._cache['stamp'] = None
+
+    #  ⚠ 결함 원장만 못 읽는 경우 — `[]` 와 구별되는가 (Codex Q3-3 두 번째).
+    try:
+        LV.FINDINGS_PATH = '/nonexistent/findings.json'
+        LV._cache['stamp'] = None
+        chk('24d) ★ 결함 원장 읽기 실패를 "열린 결함 없음" 으로 위장하지 않는다',
+            LV.available() and LV.findings_error() is not None)
     finally:
         LV.CLAIMS_PATH, LV.FINDINGS_PATH = saved_claims, saved_findings
         LV._cache['stamp'] = None
