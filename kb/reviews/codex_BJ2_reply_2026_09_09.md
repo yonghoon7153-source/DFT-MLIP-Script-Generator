@@ -13,7 +13,7 @@ verifiedBy: agent
 explored: false
 authoredBy: external
 claimType: mixed
-evidenceScope: single-source-primary
+evidenceScope: multi-source-primary
 ---
 
 # 리뷰 BJ2 회신 — **원문 그대로**
