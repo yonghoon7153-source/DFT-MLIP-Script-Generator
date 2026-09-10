@@ -53,6 +53,32 @@ ELEM_ORDER = ["Li", "P", "S", "Cl", "Br", "O", "B", "Nd"]
 ORB_LABEL = {"s": "s", "p": "p", "d": "d", "f": "f"}
 
 
+def find_total_dos(d: Path, prefix: str):
+    """dos.x 산출 파일을 찾는다. 캠페인 안에서 이름이 두 가지다.
+
+    ⛔ 2026-09-10 실측 — 이 도구는 `<prefix>_dos.dat` 만 찾았는데,
+      run_gap_nscf_gabia.sh 의 DOS 분기는 `<prefix>.dos` 로 쓴다. **우리 도구
+      둘의 인터페이스가 어긋나 있었다** — Nd n5fu 의 DOS 그림이 그래서 못 나왔다.
+      플래그를 새로 다는 대신 캠페인이 실제로 쓰는 이름들을 순서대로 본다.
+      (없으면 폴더에 뭐가 있는지 보여준다 — '파일 없음' 만 던지지 않는다)
+
+    이 함수가 못 하는 것: 찾은 파일이 **tetrahedra DOS 인지 fixed-occ 인지**
+      구분하지 않는다. 갭 판정은 DOS 가 아니라 nscf_gap 의 VBM/CBM 이다
+      (CLAUDE.md 데이터 규율).
+    """
+    for name in (f"{prefix}_dos.dat", f"{prefix}.dos", f"{prefix}.dos.dat",
+                 f"{prefix}_dos", "dos.dat"):
+        c = d / name
+        if c.is_file():
+            return c
+    have = sorted(x.name for x in d.iterdir() if "dos" in x.name.lower())[:12]
+    raise SystemExit(
+        f"⛔ dos.x 산출을 못 찾았다 (찾아본 이름: {prefix}_dos.dat · {prefix}.dos · "
+        f"{prefix}.dos.dat · {prefix}_dos · dos.dat)\n"
+        f"   폴더의 dos 관련 파일: {have or '없음'}\n"
+        f"   dos.x 가 아직 안 돌았으면 그것부터 돌린다.")
+
+
 def read_total_dos(dos_dat: Path):
     EF = None
     with open(dos_dat) as f:
@@ -264,7 +290,9 @@ def main():
 
     d = Path(args.dir)
     out_pref = args.out_prefix or args.prefix
-    E, DOS, EF = read_total_dos(d / f"{args.prefix}_dos.dat")
+    _dosf = find_total_dos(d, args.prefix)
+    print(f"  total DOS ← {_dosf.name}")
+    E, DOS, EF = read_total_dos(_dosf)
     print(f"read total DOS: {len(E)} points, EF = {EF}")
 
     E_p, per_elem, per_elem_orb = read_pdos_files(d, args.prefix)
