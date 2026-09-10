@@ -285,17 +285,35 @@ def main():
     # basis 는 **UPF 에서 읽어** 쓴다. 표에 박아둔 값은 못 읽었을 때만.
     #   basis 가 pseudo 의 valence 와 어긋나면 LOBSTER 가 에러를 내지 않고
     #   **charge spilling 만 올라간다** — 조용히 나쁜 결과가 된다.
-    basis_used = {}
+    # ⛔⛔ **LOBSTER 기저는 QE 의 valence 와 다른 것이다.** 2026-09-10 에 한 번 섞었다:
+    #   UPF 에서 읽은 valence 를 그대로 기저로 썼더니 P/S/Cl 이 `3s 3p` 가 되면서
+    #   표의 `3s 3p 3d` (extended basis) 를 덮어버렸다. 그 3d 는 오타가 아니라
+    #   **의도한 설계**다 — LOBSTER 는 평면파를 자기 국소 기저에 투영하므로 pseudo 에
+    #   3d 채널이 없어도 빈 3d 기저를 넣을 수 있고, 그래야 분극 꼬리를 잡아
+    #   charge spilling 이 내려간다.
+    #   ⇒ 기저는 **표(curated extended)** 가 정본이다. UPF 읽기는 valence 를 **보고**
+    #     하는 용도다 — 특히 Nd 의 4f 가 core 인지 valence 인지가 그 값으로 갈린다.
+    #     표에 없는 원소(Nd)만 UPF 값을 기저로 쓴다.
+    _CURATED = set(BASIS_FUNCS)
+    basis_used, upf_seen = {}, {}
     for sp in species:
         lab = upf_valence_labels(Path(args.pseudo_dir) / PAW_PSEUDOS[sp])
-        if lab:
+        upf_seen[sp] = lab
+        if sp in _CURATED and sp != "Nd":
+            basis_used[sp] = (BASIS_FUNCS[sp], "표(extended)")
+        elif lab:
             basis_used[sp] = (lab, "UPF")
         else:
             basis_used[sp] = (BASIS_FUNCS[sp], "표(대비값)")
-    print("  LOBSTER basis:")
-    for sp, (lab, src) in basis_used.items():
-        flag = "  ⚠ UPF 를 못 읽었다" if src != "UPF" else ""
-        print(f"    {sp:3s} {lab:<20s} ← {src}{flag}")
+    print("  LOBSTER basis (기저) · UPF valence (참고):")
+    for sp in species:
+        lab, src = basis_used[sp]
+        u = upf_seen[sp] or "⚠ 못 읽음"
+        mark = ""
+        if sp == "Nd":
+            mark = "  ← 4f **in valence**" if (upf_seen[sp] and "4f" in upf_seen[sp]) \
+                   else "  ← 4f in core (frozen-4f 계산과 짝)"
+        print(f"    {sp:3s} {lab:<20s} ({src})   valence={u}{mark}")
     basis_lines = "\n".join(f"basisfunctions  {sp:3s} {basis_used[sp][0]}" for sp in species)
     gens = ["cohpGenerator from 0.5 to 4.0 type Li type S",
             "cohpGenerator from 0.5 to 4.0 type Li type Cl",
