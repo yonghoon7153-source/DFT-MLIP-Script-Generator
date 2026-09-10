@@ -1,0 +1,13 @@
+{
+  "artifact": "degeneracy_300_0147_Li.json",
+  "state": "300_0147",
+  "half_cell_source": "step_005C",
+  "si_source": "Li",
+  "starts": 24,
+  "seed": 0,
+  "w_dqdv_note": "명령별",
+  "data_root": "/mnt/d/가형 관련/degradation mode",
+  "git_commit": "66fdd6ff9652e40e3e076e3dcd3a8611c055a535",
+  "git_dirty": true,
+  "created_utc": "2026-09-10T14:14:23.222357+00:00"
+}
