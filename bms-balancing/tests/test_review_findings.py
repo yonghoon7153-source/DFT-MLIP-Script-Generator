@@ -416,3 +416,75 @@ def test_compare_uses_full_precision_when_file_has_it():
     # ③ 그런데도 **모델 차이라고 과장하면** 안 된다 — 3e-12 는 1e-9 아래다
     assert "목적함수 산술" not in txt, (
         "수치 잡음 수준(3e-12)을 모델 차이로 보고했다.\n" + txt)
+
+
+# ── §2 의 숫자는 커밋된 원표에서 나와야 한다 (2026-09-10) ─────────────────
+
+def _audit97():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "audit97", ROOT / "scripts" / "audit97.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    rows = list(m.load_rows())
+    res = [(r, m.audit(r)) for r in rows]
+    return m, rows, res
+
+
+def test_findings_section2_numbers_come_from_the_committed_table():
+    """§2 는 오랫동안 **원표 없이** 32/97 · 16/97 을 적어 왔다.
+
+    2026-09-10 에 원표를 `out/bms97/` 에 넣었으므로, 이제 그 숫자는 주장이
+    아니라 계산이어야 한다. 이 테스트는 표와 문서가 갈리면 깨진다 — 한쪽만
+    고치는 것을 막는 것이 목적이다.
+    """
+    if not (ROOT / "out" / "bms97").is_dir():
+        return
+    m, rows, res = _audit97()
+    assert len(rows) == 97, f"원표가 97 행이 아니다: {len(rows)}"
+
+    got = {
+        "bound": sum(1 for _, a in res if a["bounds"]),
+        "ne": sum(1 for _, a in res if "LAM_NE_pct" in a["neg"]),
+        "pe": sum(1 for _, a in res if "LAM_PE_pct" in a["neg"]),
+        "lli": sum(1 for _, a in res if "LLI_pct" in a["neg"]),
+    }
+    want = {"bound": 32, "ne": 16, "pe": 2, "lli": 2}
+    assert got == want, f"감사 수치가 달라졌다: {got} vs {want}"
+
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    for label, n in (("경계", 32), ("LAM_NE", 16)):
+        assert f"{n} / 97" in txt, f"§2 에 {label} {n}/97 이 안 적혀 있다"
+
+    lam_ne = [float(r["LAM_NE_pct"]) for r in rows
+              if r["state"] == "300_0009" and r.get("LAM_NE_pct")]
+    span = max(lam_ne) - min(lam_ne)
+    assert f"{span:.2f}" in txt, (
+        f"§2 의 LAM_NE 폭이 원표와 다르다: 표 {span:.2f} %p")
+
+
+def test_negative_lam_ne_is_arithmetic_not_correlation():
+    """§2-1 의 인과 주장이 원표에서 실제로 성립하는지.
+
+    (a) 보고된 LAM_NE 가 정의식으로 재계산되고,
+    (b) 강한 음수(< −10 %)는 전부 「대상만 상한, 기준은 자유」이며,
+    (c) 그 행들에서 음수가 되는 데 필요한 a_NE 문턱이 상자 상한 1.4 보다 낮다
+        — 즉 상한을 낮췄으면 그 값이 나올 수 없었다.
+    """
+    if not (ROOT / "out" / "bms97").is_dir():
+        return
+    m, rows, _ = _audit97()
+    ar = m.mode_arithmetic(rows)
+    assert ar["worst"] < 1e-9, (
+        f"LAM_NE 가 정의식으로 재계산되지 않는다 (최대 |Δ| {ar['worst']:.2e} %p) "
+        "— 표가 자기일관적이지 않다는 뜻이므로 §2-1 의 논증이 성립하지 않는다")
+
+    strong = [d for d in ar["neg"] if d["LAM_NE"] < -10]
+    assert len(strong) == 5, f"강한 음수 행이 5 가 아니다: {len(strong)}"
+    bad = [d for d in strong if not (d["target_at_ub"] and not d["ref_at_ub"])]
+    assert not bad, f"「대상만 상한」이 아닌 강한 음수 행이 있다: {bad}"
+
+    need = max(d["need"] * d["a_NE_ref"] for d in strong)
+    assert need < 1.4, (
+        f"음수가 되는 데 필요한 a_NE 문턱 {need:.3f} 이 상자 상한 1.4 이상이다 "
+        "— 그러면 '상한이 그 값을 만들었다' 고 말할 수 없다")
