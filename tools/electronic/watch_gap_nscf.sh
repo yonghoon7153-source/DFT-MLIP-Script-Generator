@@ -25,11 +25,35 @@
 # 사용
 #   watch -n 60 bash tools/electronic/watch_gap_nscf.sh
 #   bash tools/electronic/watch_gap_nscf.sh --selftest
+#
+# ── 모드 B (러너의 RUNS 모드를 본다, 2026-09-10) ──────────────────────────
+#   run_gap_nscf_gabia.sh 가 RUNS 모드로 돌면 산출이 $OUT/<계>/ 가 아니라
+#   **런 디렉터리 안**($RUNS/<계>/nscf_gap.out)에 떨어지고, 계 이름도 comp1/modelc
+#   가 아니다. 그래서 RUNS·SYSTEMS·LOG 를 받는다. 정본 irr k / 재현 목표가 없는
+#   계는 그 대조를 **건너뛴다** — 없는 기준을 맞다고 하지 않는다.
+#
+#   RUNS=$HOME/work/runs/nd_scf_2026_09_08 \
+#   SYSTEMS="ndo_lpscl16_n4fu_O-distributed ndo_lpscl16_n5fu_O-distributed" \
+#   LOG=/tmp/gap_nscf_nd.log \
+#   watch -n 60 bash tools/electronic/watch_gap_nscf.sh
 # =============================================================================
 set -u
 
 OUT=${OUT:-/data/work/runs/gap_nscf}
+RUNS=${RUNS:-}
+EXT=0; [ -n "$RUNS" ] && EXT=1
+# 계 목록·로그 위치. 모드 B 는 런 디렉터리가 곧 계 디렉터리다.
+if [ "$EXT" = 1 ]; then
+    SYSLIST=${SYSTEMS:-$(ls -1 "$RUNS" 2>/dev/null | grep -v '^_' | tr '\n' ' ')}
+    LOG=${LOG:-/tmp/gap_nscf_nd.log}
+    PWPAT=${PWPAT:-'qe-.*-gpu/bin/pw\.x'}
+else
+    SYSLIST=${SYSTEMS:-"comp1 modelc"}
+    LOG=${LOG:-$OUT/run.log}
+    PWPAT=${PWPAT:-'qe-.*-cpu/bin/pw\.x'}
+fi
 REPO=${REPO:-/data/work/repo}
+[ -d "$REPO/tools/electronic" ] || REPO=$PWD
 [ -d "$REPO/tools/electronic" ] || REPO=$HOME/Yonghoon-DEM-DFT
 SRC=$REPO/tools/electronic/standard_dos
 declare -A KIRR=( [comp1]=170     [modelc]=68 )
@@ -183,27 +207,36 @@ EOF2
 fi
 
 hhmm() { date '+%m-%d %H:%M:%S'; }
-echo "════════ $(hhmm)  gabia — comp1·modelc fixed-occ gap nscf ════════"
+if [ "$EXT" = 1 ]; then
+    echo "════════ $(hhmm)  fixed-occ gap nscf (모드 B) — $RUNS ════════"
+else
+    echo "════════ $(hhmm)  gabia — comp1·modelc fixed-occ gap nscf ════════"
+fi
 
 # ① 프로세스
-PIDS=$(pgrep -f 'run_gap_nscf_gabia|qe-.*-cpu/bin/pw\.x' 2>/dev/null | tr '\n' ' ')
+PIDS=$(pgrep -f "run_gap_nscf_gabia|$PWPAT" 2>/dev/null | tr '\n' ' ')
 if [ -n "${PIDS// /}" ]; then
     # ⛔ 런처를 랭크로 세지 않는다 (2026-08-31 오경보) — comm 이 pw.x 인 것만
-    NR=$(rank_pids 'qe-.*-cpu/bin/pw\.x' | wc -l); NR=${NR:-0}
-    echo "■ 프로세스 ✅ 살아있음  (CPU pw.x rank ${NR}개)"
+    NR=$(rank_pids "$PWPAT" | wc -l); NR=${NR:-0}
+    echo "■ 프로세스 ✅ 살아있음  (pw.x rank ${NR}개)"
 else
     echo "■ 프로세스 ⛔ 없음 — 끝났거나 죽었다"
 fi
 
 # 최근 상태 줄
-if [ -s "$OUT/run.log" ]; then
-    echo "■ run.log 최근"
-    grep -a '^\[\|^   ★\|^   ⚠\|^!!\|^   VBM\|^   CBM\|^   GAP\|재현 목표' "$OUT/run.log" \
+if [ -s "$LOG" ]; then
+    echo "■ 로그 최근 ($LOG)"
+    grep -a '^\[\|^   ★\|^   ⚠\|^!!\|^   VBM\|^   CBM\|^   GAP\|재현 목표' "$LOG" \
         | tail -6 | sed 's/^/   /'
 fi
 
-for S in comp1 modelc; do
-    D=$OUT/$S
+# GPU 를 쓰는 판이면 VRAM 도 본다 — kgy 는 공유고, 여기서 죽은 전례가 있다.
+if [ "$EXT" = 1 ] && command -v nvidia-smi >/dev/null 2>&1; then
+    echo "■ GPU $(nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader | head -1)"
+fi
+
+for S in $SYSLIST; do
+    if [ "$EXT" = 1 ]; then D=$RUNS/$S; else D=$OUT/$S; fi
     [ -d "$D" ] || continue
     echo "■ $S"
 
@@ -259,7 +292,10 @@ for S in comp1 modelc; do
         NK=$(grep -a 'number of k points' "$F" | head -1 \
              | sed 's/.*number of k points=[[:space:]]*//' | awk '{print $1}')
         if [ "$STAGE" = "nscf_gap" ] && [ -n "$NK" ]; then
-            if [ "$NK" = "${KIRR[$S]}" ]; then
+            if [ -z "${KIRR[$S]:-}" ]; then
+                # 없는 기준과 다르다고 경고하면 그건 오경보다.
+                echo "        irr k-point $NK (정본 기록 없는 계 — 대조 건너뜀)"
+            elif [ "$NK" = "${KIRR[$S]}" ]; then
                 echo "        ★ irr k-point $NK = 정본 기록과 일치 — 셋업 계보 확인"
             else
                 echo "        ⚠ irr k-point $NK ≠ 정본 ${KIRR[$S]} — 셋업이 정본과 다르다"
@@ -272,7 +308,11 @@ for S in comp1 modelc; do
             echo "   $STAGE: ✅ JOB DONE ($CONV)${E:+  E=$E Ry}$([ "$_OLD" = 1 ] && echo '  · 지난 실행에서 완료, 이번엔 건너뜀')"
             if [ "$STAGE" = "nscf_gap" ]; then
                 python3 "$SRC/extract_gap.py" "$F" 2>/dev/null | sed 's/^/     /'
-                echo "     ── 재현 목표: VBM ${TVBM[$S]}  CBM ${TCBM[$S]}  gap ${TGAP[$S]} ──"
+                if [ -n "${TGAP[$S]:-}" ]; then
+                    echo "     ── 재현 목표: VBM ${TVBM[$S]}  CBM ${TCBM[$S]}  gap ${TGAP[$S]} ──"
+                else
+                    echo "     ── 재현 목표 없는 계 — 이 절대값은 인용 대상이 아니다 ──"
+                fi
             fi
             continue
         fi
@@ -391,3 +431,56 @@ for S in comp1 modelc; do
         echo
     done
 done
+
+# ── 모드 B: 두 셀이 다 끝났으면 G5(셀 선택)를 계산한다 ──────────────────────
+#   ⛔ 문턱을 여기 박지 않는다 — **카드에서 읽는다.** 문턱이 두 곳에 있으면
+#     결과를 보고 한쪽을 고치는 길이 열린다 (mlip_committee.py _card_thresholds 선례).
+#     카드를 못 읽으면 갭만 나열하고 **판정하지 않는다.**
+if [ "$EXT" = 1 ]; then
+    GAPS=""
+    for S in $SYSLIST; do
+        F=$RUNS/$S/nscf_gap.out
+        grep -aq 'JOB DONE' "$F" 2>/dev/null || continue
+        G=$(python3 "$SRC/extract_gap.py" "$F" 2>/dev/null | awk '/GAP =/{print $3}')
+        [ -n "$G" ] && GAPS="$GAPS $S=$G"
+    done
+    N=$(echo $GAPS | wc -w)
+    echo "■ G5 (셀 선택)"
+    if [ "$N" -lt 2 ]; then
+        echo "   아직 $N/2 — 두 셀이 다 끝나야 판정한다"
+    else
+        CARD=${CARD:-$REPO/db/properties/ndo_lpscl16_o_motif_estimand_2026_09_09.json}
+        python3 - "$CARD" $GAPS <<'PY'
+import json, re, sys
+card, pairs = sys.argv[1], sys.argv[2:]
+vals = {}
+for p in pairs:
+    k, v = p.rsplit("=", 1); vals[k] = float(v)
+ks = sorted(vals)
+d = abs(vals[ks[0]] - vals[ks[1]])
+for k in ks:
+    print(f"   {k}: gap {vals[k]:.4f} eV")
+print(f"   |Δgap| = {d:.4f} eV")
+try:
+    c = json.load(open(card, encoding="utf-8"))
+    g5 = c["4_검증_게이트_결과_보기_전에"]["G5_셀선택"]
+except Exception as e:
+    print(f"   ⛔ 카드를 못 읽었다 ({e.__class__.__name__}) — 판정하지 않는다.")
+    print(f"      CARD=<경로> 로 지정해라: {card}")
+    raise SystemExit(0)
+m = re.search(r"<\s*([\d.]+)\s*eV", g5)
+if not m:
+    print("   ⛔ 카드 G5 에서 문턱을 못 읽었다 — 판정하지 않는다.")
+    raise SystemExit(0)
+th = float(m.group(1))
+small = [k for k in ks if "n4" in k] or [ks[0]]
+print(f"   카드 문턱: |Δgap| < {th} eV → 싼 셀")
+if d < th:
+    print(f"   ⇒ **{small[0]}** 에서 ICOHP·DOS·PDOS (|Δgap| {d:.4f} < {th})")
+else:
+    big = [k for k in ks if k not in small]
+    print(f"   ⇒ **{big[0] if big else ks[-1]}** 에서 ICOHP·DOS·PDOS (|Δgap| {d:.4f} ≥ {th})")
+print("   ⚠ 이 갭 절대값은 셀 선택 통계다 — 인용 대상이 아니다 (카드 §5)")
+PY
+    fi
+fi
