@@ -42,15 +42,32 @@ from bms_balancing.model import Blend, HalfCell          # noqa: E402
 GRID = np.linspace(0.02, 0.98, 400)     # 양 끝은 외삽이라 뺀다
 
 
-def fitted_gamma(root: pathlib.Path, out_dir: pathlib.Path, state: str,
-                 src: str, si: str) -> float | None:
-    """`matrix_<state>.csv` 에서 그 조합의 자유-γ 적합값."""
+def fitted_pair(out_dir: pathlib.Path, state: str, src: str,
+                si: str) -> tuple[float, float] | None:
+    """`matrix_<state>.csv` 의 **한 행에서** (그 상태의 γ, 그 실행의 기준 γ).
+
+    ⚠ 짝을 같은 행에서 꺼내는 것이 중요하다. `matrix` 는 조합마다 pristine 을
+      **다시 적합**하므로, 기준 γ 가 파일마다·조합마다 다르다. 다른 행의 기준을
+      가져다 쓰면 있지도 않은 변화를 만들어 낸다.
+      (그리고 `matrix_pristine.csv` 는 애초에 없다 — pristine 은 상태가 아니라
+      매 실행의 기준이다. 첫 판이 그걸 찾다가 전부 nan 을 냈다.)
+    """
     for f in sorted(out_dir.glob(f"matrix_{state}*.csv"), reverse=True):
         for r in csv.DictReader(f.open(encoding="utf-8")):
             if (r.get("half_cell") == src and r.get("si") == si
                     and float(r.get("w_dqdv", 1)) == 0):
-                return float(r["gamma_Si"])
+                if not r.get("ref_gamma_Si"):
+                    return None          # 옛 판 산출 — ref_* 열이 없다
+                return float(r["gamma_Si"]), float(r["ref_gamma_Si"])
     return None
+
+
+def raw_ne_capacity(path: pathlib.Path) -> float:
+    """정규화 **전** 음극 용량. (a) 의 변화가 모양 탓인지 용량 탓인지 가르려고."""
+    import pandas as pd
+    df = pd.read_excel(path)
+    c = pd.to_numeric(df["NE_capacity"], errors="coerce").dropna().to_numpy()
+    return float(c.max()) if c.size else float("nan")
 
 
 def main() -> int:
@@ -70,50 +87,59 @@ def main() -> int:
 
     meas = {s: HalfCell(D.half_cell_path(root, a.source, s),
                         window=11, poly_order=3).E_NE(GRID) for s in states}
+    cap = {s: raw_ne_capacity(D.half_cell_path(root, a.source, s)) for s in states}
     si_c, si_v, gr_c, gr_v = D.load_literature(root, a.si_source)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
-    gam = {s: fitted_gamma(root, out_dir, s, a.source, a.si_source) for s in states}
 
     print(f"반쪽전지 {a.source} · 문헌 Si {a.si_source} · 상태 {len(states)}개")
     print(f"기준은 pristine. 격자 x={GRID[0]:.2f}~{GRID[-1]:.2f} ({GRID.size}점)\n")
 
-    base_m = meas["pristine"]
-    g0 = gam.get("pristine")
-    base_b = blend.E(GRID, g0) if g0 is not None else None
-
-    print(f"{'state':10}{'γ 적합':>9}{'(a) 측정 ΔE_NE':>18}{'(b) 모델 ΔE_NE':>18}"
-          f"{'(b)/(a)':>10}")
-    print(f"{'':10}{'':9}{'max |mV|':>18}{'max |mV|':>18}")
+    base_m, base_cap = meas["pristine"], cap["pristine"]
+    print(f"{'state':10}{'NE 용량':>12}{'용량 Δ%':>9}"
+          f"{'γ':>8}{'γ(기준)':>9}{'(a) 측정':>10}{'(b) 모델':>10}{'(b)/(a)':>9}")
+    print(f"{'':10}{'(원단위)':>12}{'':9}{'':8}{'':9}{'max mV':>10}{'max mV':>10}")
+    print(f"{'pristine':10}{base_cap:>12.6g}{0.0:>9.2f}")
     rows = []
     for s in states:
         if s == "pristine":
             continue
         da = float(np.max(np.abs(meas[s] - base_m))) * 1e3
-        db = (float(np.max(np.abs(blend.E(GRID, gam[s]) - base_b))) * 1e3
-              if (base_b is not None and gam.get(s) is not None) else float("nan"))
-        ratio = db / da if da > 0 else float("inf")
+        pair = fitted_pair(out_dir, s, a.source, a.si_source)
+        if pair is None:
+            db, ratio, g, gr = float("nan"), float("nan"), None, None
+        else:
+            g, gr = pair
+            db = float(np.max(np.abs(blend.E(GRID, g) - blend.E(GRID, gr)))) * 1e3
+            ratio = db / da if da > 0 else float("inf")
         rows.append((s, da, db, ratio))
-        print(f"{s:10}{(f'{gam[s]:.4f}' if gam.get(s) is not None else '—'):>9}"
-              f"{da:>18.2f}{db:>18.2f}{ratio:>10.2f}")
+        print(f"{s:10}{cap[s]:>12.6g}{100*(cap[s]/base_cap-1):>9.2f}"
+              f"{(f'{g:.4f}' if g is not None else '—'):>8}"
+              f"{(f'{gr:.4f}' if gr is not None else '—'):>9}"
+              f"{da:>10.2f}{db:>10.2f}{ratio:>9.2f}")
 
     print()
     ok = [r for r in rows if r[3] == r[3]]
     if not ok:
-        print("γ 적합값을 못 찾았다 — `--out-dir` 에 matrix_<state>.csv 가 있어야 한다")
+        print("γ 짝을 못 찾았다 — `--out-dir` 에 `ref_gamma_Si` 열이 있는")
+        print("matrix_<state>.csv 가 있어야 한다 (v2 이후 산출).")
         return 1
     worst = max(ok, key=lambda r: r[3])
-    print(f"측정된 음극 모양 변화는 최대 {max(r[1] for r in ok):.2f} mV,")
-    print(f"γ 가 만들어 낸 모델 변화는 최대 {max(r[2] for r in ok):.2f} mV 다.")
+    print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in ok):.2f} mV,")
+    print(f"γ 가 만들어 낸 모델 변화 최대 {max(r[2] for r in ok):.2f} mV.")
     if worst[3] > 3:
         print(f"\n→ 모델 변화가 측정 변화의 **{worst[3]:.1f} 배** ({worst[0]}). γ 는 음극")
         print("  모양 변화를 따라가는 것이 아니라 **다른 것을 흡수하고 있다.**")
-    elif worst[3] < 0.5:
-        print(f"\n→ 모델 변화가 측정 변화보다 작다 ({worst[3]:.2f} 배). γ 가 실제")
-        print("  모양 변화를 **덜** 표현하고 있다 — 그것대로 따로 볼 문제다.")
+    elif worst[3] < 0.34:
+        print(f"\n→ 모델 변화가 측정 변화의 **{worst[3]:.2f} 배**에 그친다. 실제 음극은")
+        print("  γ 가 표현할 수 있는 것보다 **훨씬 크게** 변한다 — 그러면 그 차이는")
+        print("  a_NE·b_NE 로 새어 들어가고, 그것이 곧 LAM_NE 다.")
     else:
         print(f"\n→ 두 변화가 같은 규모다 (최대 {worst[3]:.1f} 배). γ 가 측정된 모양")
         print("  변화를 대략 따라간다 — 자유 파라미터로 둘 근거가 있다.")
-    print("\n⚠ 이것은 **크기 비교**다. 모양이 같은 방향으로 바뀌는지는 따로 봐야 한다.")
+    print("\n⚠ (a) 는 **정규화 뒤** 변화다. 음극 용량이 줄면(위 '용량 Δ%') 곡선이")
+    print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
+    print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
+    print("⚠ 이것은 **크기 비교**다. 방향이 같은지는 따로 봐야 한다.")
     return 0
 
 
