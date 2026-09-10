@@ -323,8 +323,15 @@ for S in $SYSLIST; do
         #   상태였다 (실측: 3.4시간째 도는데 화면은 '반복 전, 6분 경과').
         #   nscf 진행은 계산된 k-point 수로 본다.
         if [ "$STAGE" != "scf" ]; then
-            KD=$(grep -ac 'Computing kpt #' "$F")
-            [ "$KD" = "0" ] && KD=$(grep -ac 'ethr =' "$F")
+            # ⛔ 판본·설정에 따라 QE 가 찍는 진행 표시가 다르다. 하나만 보면
+            #   **도는 잡을 0/N 으로 읽는다** (2026-09-10 실측: n5fu nscf_dos 가
+            #   5/10 인데 화면은 0/10 이었다 — 'Computing kpt #' 가 안 찍히는 판이었다).
+            #   ⇒ 여러 표시를 보고 **가장 큰 값**을 쓴다. 못 세는 쪽이 0 을 내도
+            #     세는 쪽이 이긴다.
+            KD=0
+            for _pat in 'Computing kpt #' 'c_bands: ' 'ethr =' 'total cpu time spent up to now'; do
+                _n=$(grep -ac "$_pat" "$F"); [ "${_n:-0}" -gt "$KD" ] && KD=$_n
+            done
             # ⛔⛔ 2026-08-21 — **QE 는 pool 0 의 진행만 찍는다.**
             #   -nk 10 이면 pool 0 은 170 중 17개만 맡는데, 화면은 그 17개를 170 에
             #   대고 재던 것이다. 그래서 진행률도 ETA 도 **npool 배 비관적**이었다.

@@ -527,7 +527,18 @@ for S in ${SYSTEMS:-comp1 modelc}; do
             -e "/tprnfor *=/d" -e "/tstress *=/d" \
             -e "s|conv_thr *=.*|conv_thr = 1.0d-10|" \
             -e "s|^\( *ntyp *= *[0-9]*\)$|\1\n    nbnd  = ${NB}|" "$D/scf.in" \
-          | awk -v k="$KD" '/K_POINTS/{print; getline; print k; next} {print}' > "$D/nscf_dos.in"
+          | awk -v k="$KD" '
+              # ⛔ K_POINTS 카드는 두 모양이다.
+              #   automatic → 다음 줄이 격자다 (그 줄을 버리고 새 격자로 바꾼다)
+              #   gamma     → **뒤에 줄이 없다**. getline 하면 다음 카드(ATOMIC_POSITIONS 등)를
+              #               통째로 먹어 입력이 조용히 망가진다 (b2o3 실측, 2026-09-10).
+              /^[[:space:]]*K_POINTS/ {
+                  card = tolower($0)
+                  print "K_POINTS automatic"; print k
+                  if (card ~ /automatic/) getline
+                  next
+              }
+              { print }' > "$D/nscf_dos.in"
         grep -q "nbnd" "$D/nscf_dos.in" || sed -i "s|    ecutwfc|    nbnd  = ${NB}\n    ecutwfc|" "$D/nscf_dos.in"
         for chk in "occupations = 'tetrahedra_opt'" "calculation = 'nscf'" "nbnd"; do
             grep -q "$chk" "$D/nscf_dos.in" || { fail "$S" "nscf_dos 입력에 '$chk' 없음"; continue 2; }
