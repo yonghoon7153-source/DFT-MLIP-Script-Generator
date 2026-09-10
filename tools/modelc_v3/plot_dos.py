@@ -97,7 +97,13 @@ def read_pdos_files(pdos_dir: Path, prefix: str):
     per_elem[el]:        summed PDOS over all atoms & orbitals of element el
     per_elem_orb[el][o]: summed PDOS for orbital o ('s','p','d','f') of element el
     """
-    pat = re.compile(rf"{re.escape(prefix)}_pdos\.pdos_atm#(\d+)\(([A-Za-z]+)\)_wfc#(\d+)\(([a-z])\)$")
+    # ⛔ 2026-09-10 — 여기도 관례가 갈려 있었다. 이 도구는 `<prefix>_pdos.pdos_atm#…`
+    #   만 찾는데 projwfc.x 는 `<prefix>.pdos.pdos_atm#…` 으로 쓴다
+    #   (sum_pdos.py 는 후자를 보고 169개를 멀쩡히 읽었다). 그래서 E_p 가 None 이 되어
+    #   character_at_edge 에서 TypeError 로 죽었다 — **원인이 파일명인데 예외는 비교
+    #   연산에서 났다.** 둘 다 받는다.
+    pat = re.compile(rf"{re.escape(prefix)}[._]pdos\.pdos_atm#(\d+)\(([A-Za-z]+)\)"
+                     rf"_wfc#(\d+)\(([a-z])\)$")
     per_elem = {}
     per_elem_orb = {}
     E_ref = None
@@ -116,6 +122,13 @@ def read_pdos_files(pdos_dir: Path, prefix: str):
         per_elem_orb.setdefault(elem, {})
         per_elem_orb[elem].setdefault(orb, np.zeros_like(ldos))
         per_elem_orb[elem][orb] += ldos
+    if E_ref is None:
+        have = sorted(x.name for x in pdos_dir.iterdir() if "pdos" in x.name)[:4]
+        raise SystemExit(
+            f"⛔ PDOS 파일을 하나도 못 읽었다 (prefix='{prefix}')\n"
+            f"   찾는 형태: <prefix>.pdos.pdos_atm#N(El)_wfc#M(l)  또는  <prefix>_pdos.pdos_atm#…\n"
+            f"   폴더의 pdos 파일 예: {have or '없음'}\n"
+            f"   projwfc.x 가 아직 안 돌았으면 그것부터 돌린다.")
     return E_ref, per_elem, per_elem_orb
 
 
@@ -214,7 +227,8 @@ def plot_raw(E, DOS, EF, vbm, cbm, vbm_peak, cbm_peak, gap, out_path,
         ax.axvline(EF, color="red", ls="--", lw=1.0, label=f"E$_F$ = {EF:.3f} eV")
     if vbm is not None and cbm is not None:
         ax.axvspan(vbm, cbm, color="lightyellow", alpha=0.6,
-                   label=f"gap = {gap:.2f} eV ({vbm:.2f} → {cbm:.2f})")
+                   label=f"gap = {gap:.2f} eV ({vbm:.2f} → {cbm:.2f})"
+                         f"  [{globals().get('_GAP_SRC','?')}]")
     if vbm_peak is not None:
         ax.axvline(vbm_peak[0], color="#0066CC", ls=":", lw=0.9, alpha=0.7)
         ax.annotate(f"VBM peak\n{vbm_peak[0]:.2f}", xy=(vbm_peak[0], vbm_peak[1]),
@@ -254,7 +268,7 @@ def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
         ax.axvline(EF, color="red", ls="--", lw=1.0, label=f"E$_F$ = {EF:.2f} eV")
     if vbm is not None and cbm is not None:
         ax.axvspan(vbm, cbm, color="lightyellow", alpha=0.5,
-                   label=f"gap = {gap:.2f} eV")
+                   label=f"gap = {gap:.2f} eV  [{globals().get('_GAP_SRC','?')}]")
     ax.set_xlim(*xlim)
     ax.set_ylim(bottom=0)
     ax.set_xlabel("E (eV)")
@@ -275,6 +289,17 @@ def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
 
 def main():
     ap = argparse.ArgumentParser()
+    # ⛔⛔ CLAUDE.md 데이터 규율: **Band gap 은 fixed-occupations nscf 의 VBM/CBM
+    #   고유값만 인정하고 DOS-threshold 판독은 금지**다. 그런데 이 도구는 DOS 문턱으로
+    #   구한 갭을 그림 라벨에 `gap = X.XX eV` 로 그대로 박아 왔다 — 그 PNG 가 발표·
+    #   webapp 으로 나가면 금지된 수가 인용 가능한 수처럼 보인다.
+    #   실측(2026-09-10, ndo_lpscl16_n5fu): DOS 문턱 2.260 eV vs fixed-occ 정본 2.1616 eV.
+    #   ⇒ 정본을 주면 그걸 쓰고, 안 주면 **라벨에 '인용 불가' 를 같이 그린다**
+    #     (경고를 옆에 두는 게 아니라 라벨 안에 넣는다 — 값이 잘려 나가도 따라가게).
+    ap.add_argument("--vbm", type=float, default=None,
+                    help="fixed-occ nscf 의 VBM (eV). --cbm 과 같이 주면 그림 갭이 정본이 된다")
+    ap.add_argument("--cbm", type=float, default=None,
+                    help="fixed-occ nscf 의 CBM (eV)")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--prefix", default="V0")
     ap.add_argument("--out_prefix", default=None)
@@ -300,6 +325,20 @@ def main():
         print(f"  PDOS sum for {el}: integral = {np.trapezoid(p, E_p):.2f} states")
 
     vbm, cbm, gap = find_gap(E, DOS, EF, e_min=args.e_min, dos_thresh=args.dos_thresh)
+    if (args.vbm is None) != (args.cbm is None):
+        raise SystemExit("⛔ --vbm 과 --cbm 은 **둘 다** 줘야 한다 (하나만 주면 갭이 섞인다)")
+    if args.vbm is not None:
+        _dos_gap = gap
+        vbm, cbm = args.vbm, args.cbm
+        gap = cbm - vbm
+        GAP_SRC = "fixed-occ nscf"
+        print(f"  ★ 갭을 fixed-occ 정본으로 대체: {gap:.4f} eV "
+              f"(DOS-threshold 였다면 {_dos_gap:.3f} eV — 차 {abs(gap-_dos_gap):.3f})")
+    else:
+        GAP_SRC = "DOS threshold — not citable"
+        print("  ⚠ --vbm/--cbm 이 없다 — 그림 갭은 **DOS-threshold** 이고 "
+              "CLAUDE.md 상 인용 불가다. 라벨에 그렇게 적어 나간다.")
+    globals()["_GAP_SRC"] = GAP_SRC
     if vbm is None:
         print("no gap found"); return
     i_vbm = int(np.argmin(np.abs(E - vbm)))
@@ -329,6 +368,9 @@ def main():
         "VBM_eV": vbm,
         "CBM_eV": cbm,
         "band_gap_eV": gap,
+        "band_gap_source": globals().get("_GAP_SRC", "?"),
+        "⛔": ("DOS-threshold 갭은 CLAUDE.md 상 인용 불가다 — 정본은 fixed-occ nscf 의 "
+               "VBM/CBM 고유값이다. --vbm/--cbm 으로 주면 이 값이 정본으로 바뀐다."),
         "VBM_peak_eV": vbm_peak_t[0] if vbm_peak_t else None,
         "CBM_peak_eV": cbm_peak_t[0] if cbm_peak_t else None,
         "VBM_character": vbm_char,
