@@ -625,3 +625,54 @@ def test_prepare_cell_builds_a_tree_data_py_can_read():
         assert c.size == 0, "300_0147 이 없어야 하는데 자료가 나왔다"
     except (IndexError, KeyError):
         pass
+
+
+# ── `interp1` 은 내림차순 x 를 받는다. `np.interp` 는 못 받는다 (2026-09-10) ──
+
+def test_interp_handles_descending_x_like_matlab():
+    """MATLAB `interp1` 은 **단조 감소** x 도 받는다. `np.interp` 는 못 받는다.
+
+    실측 계기: 원통형 셀(#168) 을 붙였더니 `E_PE(0.5)` 가 **29.96 V** 로
+    나왔다 (양극 OCP 가 30 V 일 수 없다). 그 셀의 양극 반쪽전지는 파우치와
+    **반대 방향으로 측정**돼서, `HalfCell` 의 방향 정규화
+    (`pe_c = 1 - pe_c/pe_c[-1]`)를 지나면 x 가 내림차순이 된다.
+
+    파우치 자료는 오름차순이라 이 자리가 여태 안 드러났다. `np.interp` 는
+    오름차순을 **가정만 하고 검사하지 않으므로** 조용히 틀린 값을 낸다 —
+    범위 안 점까지 전부.
+    """
+    import numpy as np
+    from bms_balancing.model import _interp_lin_extrap
+
+    xs = np.linspace(0.0, 1.0, 11)
+    ys = 4.4726 - 0.85 * xs ** 1.3
+    for q in (0.0, 0.25, 0.5, 0.75, 1.0, 1.2, -0.2):
+        up = float(_interp_lin_extrap(xs, ys, q)[0])
+        dn = float(_interp_lin_extrap(xs[::-1], ys[::-1], q)[0])
+        assert abs(up - dn) < 1e-12, (
+            f"x={q}: 같은 곡선을 뒤집었더니 {up:.6f} vs {dn:.6f} 로 갈린다 — "
+            "MATLAB interp1 은 두 방향 모두 같은 값을 낸다")
+
+
+def test_interp_ascending_path_is_untouched():
+    """내림차순을 고치면서 **오름차순 경로를 건드리면** 안 된다.
+
+    파우치 셀의 모든 숫자가 오름차순 경로를 지나고, 그 값들은 MATLAB 과
+    1e-13 수준에서 맞춰 놓은 것이다 (§1-0 · §1-8). 이 경로가 한 자리라도
+    움직이면 그 대조가 전부 무효가 된다.
+    """
+    import numpy as np
+    from bms_balancing.model import _interp_lin_extrap
+
+    rng = np.random.default_rng(11)
+    xs = np.sort(rng.random(200))
+    ys = rng.normal(size=200)
+    xq = np.concatenate([rng.random(50) * 1.4 - 0.2, xs[:5], xs[-5:]])
+    got = _interp_lin_extrap(xs, ys, xq)
+
+    # 손대기 전의 정의를 여기 그대로 다시 적어 대조한다
+    want = np.interp(xq, xs, ys)
+    lo, hi = xq < xs[0], xq > xs[-1]
+    want[lo] = ys[0] + (ys[1] - ys[0]) / (xs[1] - xs[0]) * (xq[lo] - xs[0])
+    want[hi] = ys[-1] + (ys[-1] - ys[-2]) / (xs[-1] - xs[-2]) * (xq[hi] - xs[-1])
+    assert np.array_equal(got, want), "오름차순 경로가 바뀌었다 — 기존 대조가 무효가 된다"

@@ -66,10 +66,26 @@ def _pchip(xq_src: np.ndarray, y_src: np.ndarray, xq: np.ndarray) -> np.ndarray:
 
 
 def _interp_lin_extrap(xs: np.ndarray, ys: np.ndarray, xq):
-    """MATLAB interp1(...,'linear','extrap')."""
+    """MATLAB interp1(...,'linear','extrap').
+
+    ⚠ 2026-09-10: MATLAB `interp1` 은 x 가 **단조 증가든 단조 감소든** 받는다.
+      `np.interp` 는 증가를 **가정만 하고 검사하지 않는다** — 감소하는 x 를
+      주면 조용히 틀린 값을 낸다 (범위 안 점까지 전부).
+
+      드러난 경위: 원통형 셀(#168)을 붙였더니 `E_PE(0.5)` 가 **29.96 V** 로
+      나왔다. 그 셀 양극 반쪽전지가 파우치와 반대 방향으로 측정돼서, 방향
+      정규화(`pe_c = 1 - pe_c/pe_c[-1]`)를 지나면 x 가 내림차순이 된다.
+      파우치 자료는 오름차순이라 이 자리가 여태 안 드러났다.
+
+      파우치 결과는 영향이 없다 — 그 경로는 오름차순이고, 아래 뒤집기는
+      내림차순일 때만 걸린다. (그리고 파우치 값들은 MATLAB 과 1e-13 에서
+      맞춰 놓은 것이라, 만약 내림차순이었다면 그 대조가 진작 깨졌다.)
+    """
     xs = np.asarray(xs, dtype=float)
     ys = np.asarray(ys, dtype=float)
     xq = np.atleast_1d(np.asarray(xq, dtype=float))
+    if xs.size >= 2 and xs[0] > xs[-1]:
+        xs, ys = xs[::-1], ys[::-1]
     out = np.interp(xq, xs, ys)
     # 범위 밖은 양 끝 기울기로 선형 외삽 (np.interp 는 끝값을 유지한다)
     if xs.size >= 2:
