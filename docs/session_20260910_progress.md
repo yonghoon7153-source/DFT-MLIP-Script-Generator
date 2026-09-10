@@ -145,3 +145,58 @@ git rev-parse b5db1639^{tree}
 3. **SELF-17** — 커밋된 receipt 의 `code_sha` 가 **origin 에서 풀리는지** 검사하는 자리가 없다
    (`check_cohort_packages.py` 는 `code_sha` 를 보지 않는다).  오늘 건은 손으로 잡았다.
 4. `probe015` 다음 수 — Phase A 판정을 하려면 설계 격자점을 **전부** 채워야 한다 (fail-closed ①).
+
+---
+
+## 6. Phase A `h = 0.15` 캠페인 — 착수 · 중단 2회 (원인은 **카드 공유**)
+
+10:14 착수.  런처 `~/pa/phaseA_h015.sh` = `probe015.sh` 에서 `KITS`·`ARMS`·`OUTDIR` 세 줄만
+바꾼 것 (재구성하지 않았다 — `phase_a_plan.py` 가 폐기된 이유가 그것이다).
+
+### 봉인 (사전등록 §5 와 한 글자도 안 어긋난다)
+
+```
+arms 8 · vox_um 0.15 · bridge_um 0.24 · fibre_stamp segment · ptfe_stamp centerline
+sigma_ptfe = 0 (미지정 = exact-zero DOF) · periodic_xy false · LEAN 2 (--no-ion --no-pore)
+origins = {0, 0.075}³ 완전 factorial       receipt_digest 9fd74d421c84
+code_sha 70b9e37a  ← **`+dirty` 없음** (인용 금지 조항 통과)
+```
+
+⚠ 러너가 찍는 *"진단 팔 … 생산 규약 아님 (CDXR2-6)"* 은 **SDCP 캠페인** 기준의 말이다.
+Phase A 에서는 그것이 **등록된 규약**이고, probe015 도 같은 배너를 찍었다.
+
+### 진행 (2026-09-10 22:57 기준)
+
+| | |
+|---|---|
+| 완료 | **11 / 32** (가벼운 3킷 24팔 중 11) |
+| 속도 | 팔당 **≈ 1.1 h** (14:05 → 22:53 에 8팔) |
+| 중단 | 2회 — `4_1_a0` (dof 50.5 M) · `3_1_a3` (3 wt%) |
+
+### ★ 중단 원인 — 조성이 아니라 **GPU 자리**다 (실측으로 닫음)
+
+```
+우리 팔 1개        ≈ 9.9 GB   (14:05 실측: 총 14,625 − 확산 3,916 − 표시 0.8k)
+확산 잡 1776487      3.9 GB   (tools/modelc_v3/disorder_ensemble_diffus…, 37 h째, 고정)
+conda   2444560     14.3 GB   ★ 14:05 엔 없었고 그 뒤에 떴다 — 이것이 3_1_a3 를 죽였다
+표시·기타            0.8 GB
+────────────────────────────
+                    19.0 GB / 24.6 GB  →  남는 5.5 GB  <  필요 9.9 GB
+```
+
+2차 중단이 **3 wt%**(최중량 4 wt% 가 아니다)에서 난 것이 조성 가설을 기각한다.
+⇒ 처방은 하나 — **재개 전에 카드에 10 GB 이상 비어 있는지 보고 건다.**
+
+★ **봉인이 제 일을 했다** — `--step3-require-gpu` 가 CPU 폴백을 **거부**했다.  안 그랬으면
+그 팔 하나만 다른 backend 로 풀려 캠페인에 조용히 섞였을 것이다.  그리고 `SKIP` 캐시 덕에
+손해는 매번 in-flight 팔 **하나**뿐이고, 실제로 3 → 11 로 밀었다.
+
+⚠ **영수증은 나눠 돌려도 안 깨진다** — 봉인 축에 `KITS` 가 없어 `receipt_digest` 가 불변이다.
+그래서 가벼운 3킷(24팔)과 4 wt%(8팔)를 갈라 돌려도 같은 캠페인이다.
+
+### ⬜ 재개 조건 · 남은 것
+
+1. 카드에 **≥ 10 GB** 확보 (PID 2444560 의 정체 확인이 선행).
+2. 남은 21팔 = 가벼운 13 + 4 wt% 8.  순수 계산 **≈ 23 h**.
+3. 32팔 완주 후 `python3 scripts/phase_a_order_verdict.py --dir ~/pa/phaseA_h015`.
+   ⚠ 역전이 나오면 `ORDER-UNRESOLVED` 로 **즉시 중단**하고 0.20·0.25 는 안 돈다.
