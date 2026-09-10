@@ -309,7 +309,9 @@ EOF
 fi
 
 hhmm() { date '+%m-%d %H:%M:%S'; }
-if [ "$EXT" = 1 ]; then
+if [ "$MODE" = lobster ]; then
+    echo "════════ $(hhmm)  LOBSTER/ICOHP (모드 C) — $RUNS ════════"
+elif [ "$EXT" = 1 ]; then
     echo "════════ $(hhmm)  fixed-occ gap nscf (모드 B) — $RUNS ════════"
 else
     echo "════════ $(hhmm)  gabia — comp1·modelc fixed-occ gap nscf ════════"
