@@ -38,6 +38,27 @@
 #   tail -f /data/work/runs/gap_nscf/run.log
 #   SYSTEMS=comp1 bash ...        # 하나만
 #   bash tools/electronic/run_gap_nscf_gabia.sh --selftest
+#
+# ── 모드 B: 이미 끝난 scf 를 이어받는다 (RUNS=..., 2026-09-10) ───────
+#   왜 붙였나 — Nd–O 공도핑 카드의 G5(셀 선택)는 갭 nscf 2점을 요구하는데,
+#   그 scf 는 2026-09-08 에 이미 kgy 에서 끝났고 **전하밀도가 살아 있다**
+#   (426M / 637M). 위 모드 A 는 scf 를 처음부터 돌리고 pseudo 를 사냥하는데,
+#   Nd 계는 ① scf.in 이 이미 유효하고 ② 원소가 6종(Nd·O 추가)이라 모드 A 의
+#   4종 치환 awk 가 오히려 입력을 깬다. ⇒ scf 를 건너뛰고 nscf 만 잇는다.
+#   ★ 실행은 **그 런 디렉터리 안에서** 한다 — outdir='./tmp' 가 상대경로라
+#     복사하면 1 GB 를 옮기게 된다.
+#
+#   모드 B 가 모드 A 와 다른 점 (그 외는 전부 같은 코드다)
+#     · pseudo 사냥·치환 안 한다 (입력이 이미 완결)
+#     · scf 안 돌린다 — charge-density.dat 이 없으면 **시작하지 않는다**
+#     · nbnd 를 scf.out 의 전자수에서 유도한다 (표에 안 박는다)
+#     · 재현 목표(TGAP/TVBM/TCBM)·irr k 계보가 없는 계는 대조를 건너뛴다
+#     · PWX 가 GPU 빌드면 MPI 를 **ldd 로 유도**한다 (CLAUDE.md — 추측 금지)
+#
+#   RUNS=$HOME/work/runs/nd_scf_2026_09_08 \
+#   SYSTEMS="ndo_lpscl16_n4fu_O-distributed ndo_lpscl16_n5fu_O-distributed" \
+#   PWX=$HOME/apps/qe-7.4.1-gpu/bin/pw.x \
+#   bash tools/electronic/run_gap_nscf_gabia.sh
 # =============================================================================
 set -u; set +H
 
@@ -188,24 +209,118 @@ EOF
     [ "$bad" != "$nat" ] && say "✓" "[음성] nat 대조가 망가진 입력을 잡아낸다 ($bad ≠ $nat)" \
         || say "✗" "nat 대조가 망가진 입력을 통과시킨다"
 
+    # ── 모드 B (RUNS) 가드 — 전부 음성 경로다 (2026-09-10) ────────────────
+    #   양성만 있는 selftest 는 통과해도 아무것도 보증 못 한다 (CLAUDE.md).
+    mkdir -p "$T/runB/tmp/x.save"
+    nb() { awk -v n="$1" 'BEGIN{ if(n<=0){print 0; exit} printf "%d", int((n/2)*1.33+0.999) }'; }
+    [ "$(nb 260)" = "173" ] && say "✓" "nbnd 유도 260 e → 173" || say "✗" "nbnd 260 e → $(nb 260)"
+    [ "$(nb 318)" = "212" ] && say "✓" "nbnd 유도 318 e → 212" || say "✗" "nbnd 318 e → $(nb 318)"
+    [ "$(nb '')" = "0" ] && say "✓" "[음성] 전자수 결측 → 0 (추측 금지 경로)" \
+        || say "✗" "결측인데 nbnd 를 지어냈다: $(nb '')"
+
+    printf 'JOB DONE.\n' > "$T/runB/scf.out"
+    if grep -aq "JOB DONE" "$T/runB/scf.out" && grep -aq "convergence has been achieved" "$T/runB/scf.out"
+    then say "✗" "미수렴 scf 를 완료로 통과시킨다"; else say "✓" "[음성] JOB DONE 만으로는 완료가 아니다"; fi
+    printf 'convergence has been achieved in 40 iterations\nJOB DONE.\n' > "$T/runB/scf.out"
+    if grep -aq "JOB DONE" "$T/runB/scf.out" && grep -aq "convergence has been achieved" "$T/runB/scf.out"
+    then say "✓" "수렴+JOB DONE 이면 이어받는다"; else say "✗" "정상 scf 를 거부한다"; fi
+
+    c=$(ls "$T/runB"/tmp/*.save/charge-density* 2>/dev/null | head -1)
+    [ -z "$c" ] && say "✓" "[음성] 전하밀도 없음을 검출 (scf 를 조용히 다시 안 돌린다)" \
+        || say "✗" "없는 전하밀도를 있다고 본다"
+    : > "$T/runB/tmp/x.save/charge-density.dat"
+    c=$(ls "$T/runB"/tmp/*.save/charge-density* 2>/dev/null | head -1)
+    [ -n "$c" ] && say "✓" "전하밀도가 있으면 찾는다" || say "✗" "있는 전하밀도를 못 찾는다"
+
+    printf 'convergence has been achieved\n\000\nJOB DONE.\n' > "$T/runB/nul.out"
+    grep -aq "JOB DONE" "$T/runB/nul.out" && say "✓" "[음성] NUL 오염 출력도 grep -a 로 읽는다" \
+        || say "✗" "NUL 이 섞이니 못 읽는다"
+
     rm -rf "$T"
     [ "$ok" = 1 ] && { echo "selftest PASS"; exit 0; } || { echo "selftest FAIL"; exit 1; }
 fi
 
 # ── 환경 ────────────────────────────────────────────────────────────────────
 REPO=${REPO:-/data/work/repo}
+[ -d "$REPO/tools/electronic" ] || REPO=$PWD
 [ -d "$REPO/tools/electronic" ] || REPO=$HOME/Yonghoon-DEM-DFT
 [ -d "$REPO/tools/electronic" ] || { echo "ERROR: repo 못 찾음 (REPO=... 로 지정)"; exit 1; }
-OUT=${OUT:-/data/work/runs/gap_nscf}; mkdir -p "$OUT"
+# ⚠ OUT 의 mkdir 은 RUNS 를 읽은 **뒤에** 한다 — kgy 에는 /data/work 가 없다
+#   (2026-09-03 SEI 로그 실측: '/data/work/runs/...: No such file or directory').
+OUT=${OUT:-}
 SRC=$REPO/tools/electronic/standard_dos
 CPU=${CPU:-/data/apps/qe-7.4.1-cpu/bin}
-[ -x "$CPU/pw.x" ] || { echo "ERROR: CPU 빌드 pw.x 없음 ($CPU) — ls /data/apps 붙여줘"; exit 1; }
+
+# ── 모드 B (RUNS): 이미 끝난 scf 를 이어받는다 ──────────────────
+RUNS=${RUNS:-}
+EXT=0; [ -n "$RUNS" ] && EXT=1
+if [ "$EXT" = 1 ]; then
+    [ -d "$RUNS" ] || { echo "ERROR: RUNS 디렉터리 없음: $RUNS"; exit 1; }
+    [ -n "${SYSTEMS:-}" ] || { echo "ERROR: RUNS 모드는 SYSTEMS 를 명시해야 한다 (계 이름 = 하위 폴더명)"; exit 1; }
+fi
+
+# pw.x 결정. PWX 를 주면 그걸 쓰고, 아니면 모드 A 의 gabia CPU 빌드.
+#   ⛔ 2026-09-09 (force_check) 교훈 — 기본값이 CPU 라 GPU 를 의도하고도 조용히
+#      CPU 로 떨어진 사고가 있었다. 여기서는 어느 쪽을 쓰는지 항상 찍는다.
+PWX=${PWX:-$CPU/pw.x}
+[ -x "$PWX" ] || { echo "ERROR: pw.x 를 못 찾는다: $PWX  (PWX=... 또는 CPU=... 로 지정)"; exit 1; }
+IS_GPU=0; case "$PWX" in *gpu*) IS_GPU=1;; esac
+
+# OUT 기본값 — 모드 B 는 런 디렉터리 옆에 둔다 (그 기계에 /data/work 가 없을 수 있다).
+if [ -z "$OUT" ]; then
+    if [ "$EXT" = 1 ]; then OUT=$RUNS/_gap_nscf; else OUT=/data/work/runs/gap_nscf; fi
+fi
+mkdir -p "$OUT" || { echo "ERROR: OUT 을 못 만든다: $OUT  (OUT=... 로 지정)"; exit 1; }
 
 # 중복 실행 가드: pgrep 은 tmux 래퍼까지 물어서 못 쓴다 (chain_gpu_release.sh:34, 2026-08-03).
 exec 9>"$OUT/.lock"
 flock -n 9 || { echo "이미 도는 중이다 ($OUT/.lock) — 중복 실행 안 한다"; exit 0; }
 
+# ⛔⛔ GPU 빌드는 런타임을 **추측하지 않는다 — ldd 로 바이너리에게 묻는다.**
+#   CLAUDE.md 가 이름으로 부르는 사고: kgy 에서 같은 자리를 세 번 틀렸다
+#   (① conda mpirun 탓 → ② 런처를 빼니 libgomp: TODO → ③ hpcx 자동탐지했는데
+#   실제 링크는 ~/apps/openmpi-4.1.6). 머신마다 다르므로 규칙이 아니라 링크가 근거다.
+#   못 읽으면 **시작하지 않는다** (run_force_check_scf.sh 와 같은 계약).
+_derive_gpu_runtime() {
+    command -v ldd >/dev/null 2>&1 || return 1
+    local out; out=$(ldd "$PWX" 2>/dev/null) || return 1
+    local m; m=$(echo "$out" | awk '/libmpi\.so/{print $3; exit}')
+    [ -n "$m" ] || return 1
+    local mdir mprefix; mdir=$(dirname "$m"); mprefix=$(dirname "$mdir")
+    export OPAL_PREFIX="$mprefix"; export PATH="$mprefix/bin:$PATH"
+    local extra; extra=$(echo "$out" | awk '/libnvomp/{print $3; exit}')
+    [ -n "$extra" ] && extra=$(dirname "$extra")
+    export LD_LIBRARY_PATH="$mdir${extra:+:$extra}:${LD_LIBRARY_PATH:-}"
+    # ★ libnvomp 와 libgomp 가 둘 다 링크돼 있으면 OpenMP 런타임이 둘이라 즉사한다.
+    if echo "$out" | grep -q "libnvomp" && echo "$out" | grep -q "libgomp"; then
+        export OMP_NUM_THREADS=1
+        echo "   ⚠ libnvomp + libgomp 동시 링크 → OMP_NUM_THREADS=1 (libgomp: TODO 회피)"
+    fi
+    [ -x "$mprefix/bin/mpirun" ] && { MPIRUN="$mprefix/bin/mpirun"; return 0; }
+    return 0
+}
 MPIRUN=${MPIRUN:-/usr/bin/mpirun}; [ -x "$MPIRUN" ] || MPIRUN=mpirun
+if [ "$IS_GPU" = 1 ]; then
+    _derive_gpu_runtime || { echo "⛔ ldd 로 pw.x 의 MPI 를 못 읽었다 — 추측하지 않는다. 시작하지 않는다."; exit 2; }
+    # GPU 하나당 랭크 하나가 이 repo 의 검증된 관례 (2026-09-09: np 8 → 19초 만에 즉사).
+    NP=${NP:-1}; NPOOL=${NPOOL:-1}
+    if [ "$NP" != 1 ] && [ "${FORCE_MULTIRANK:-0}" != 1 ]; then
+        echo "⛔ GPU 빌드인데 NP=$NP. FORCE_MULTIRANK=1 없이는 안 간다"; exit 2
+    fi
+    MPI_OVERSUB=""; MPI_MCA=${MPI_MCA:-}
+    # VRAM 가드 — kgy 는 공유다. n4fu O-bo4 가 이 GPU 에서 CUDA OOM 으로 죽은 적이 있다.
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        FREE=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -1)
+        MINFREE=${MINFREE_MIB:-12000}
+        echo "   GPU free ${FREE} MiB (문턱 ${MINFREE})"
+        if [ "${FREE:-0}" -lt "$MINFREE" ]; then
+            echo "⛔ free ${FREE} MiB < ${MINFREE} — 던지지 않는다."
+            echo "   누가 쓰는지 보고(fuser -v /dev/nvidia* · pgrep -af 'pw.x|python3') 비운 뒤 다시 하거나,"
+            echo "   좁은 걸 알고 강행하려면 MINFREE_MIB=<값> 을 낮춰라. (nscf 는 빈 밴드 때문에 scf 보다 더 먹는다)"
+            exit 3
+        fi
+    fi
+fi
 # ⛔⛔ 2026-08-31 실측 사고 — **BTL 을 안 정하면 OpenMPI 가 단일 노드인데도 TCP 를
 #   고른다.** modelc nscf 가 6.5일 돌다가 08-30 09:14 에 로컬 TCP 소켓이 끊겨
 #   (`mca_btl_tcp_recv_blocking recv(25) failed: Connection reset by peer`)
@@ -242,8 +357,14 @@ if [ -z "${NPOOL:-}" ]; then
 fi
 ts() { date '+%m-%d %H:%M:%S'; }
 echo "[$(ts)] repo=$REPO  out=$OUT  np=$NP -nk $NPOOL  OMP=$OMP_NUM_THREADS"
+echo "[$(ts)] pw.x=$PWX  ($([ "$IS_GPU" = 1 ] && echo 'GPU 빌드' || echo 'CPU 빌드'))  mode=$([ "$EXT" = 1 ] && echo B/RUNS || echo A)"
 echo "[$(ts)] mpi: ${MPI_OVERSUB:-(no-oversubscribe)} $MPI_MCA  ← 단일 노드는 TCP 를 쓰지 않는다 (2026-08-31 사고)"
 
+if [ "$EXT" = 1 ]; then
+    # 모드 B — 입력이 이미 완결이고 **그 pseudo 로 이미 돌았다.** 다시 사냥하면
+    #   경로만 바뀌고 얻는 게 없다 (Nd 계는 원소가 6종이라 아래 4종 표에 아예 없다).
+    echo "[$(ts)] 모드 B — pseudo 사냥·치환 건너뜀 (scf.in 이 이미 유효)"
+else
 # ── pseudo 4종 (USPP) — KISTI 표기 / gabia 표기 둘 다 뒤진다 ────────────────
 #
 # ⛔⛔ 2026-08-20 실측 사고. 첫 판의 P 패턴이 `P*rrkjus_psl*UPF` 였는데
@@ -285,6 +406,7 @@ for e in Li P S Cl; do
     GOT[$e]=$(basename "$f")
     echo "[pseudo] $e <- ${GOT[$e]}   (element 확인 완료)"
 done
+fi
 
 # ── 계통별 파라미터 ────────────────────────────────────────────────────────
 #   nbnd = ceil(N_occ × 1.33).  comp1 240 e → N_occ 120 → 160
@@ -302,7 +424,32 @@ FAILED=""
 fail() { FAILED="$FAILED $1"; echo "!! $1: $2"; }
 
 for S in ${SYSTEMS:-comp1 modelc}; do
+  if [ "$EXT" = 1 ]; then
+    # ── 모드 B: 런 디렉터리 안에서 그대로 돈다 (outdir='./tmp' 가 상대경로) ──
+    D=$RUNS/$S
+    [ -d "$D" ] || { fail "$S" "런 디렉터리 없음: $D"; continue; }
+    [ -f "$D/scf.in" ] || { fail "$S" "$D/scf.in 없음"; continue; }
+    # scf 가 실제로 끝났고 전하밀도가 살아 있어야 한다. 없으면 **시작하지 않는다**
+    #   — 조용히 scf 를 다시 돌리면 하루를 쓰고도 사람은 그걸 모른다.
+    grep -aq "JOB DONE" "$D/scf.out" 2>/dev/null \
+      || { fail "$S" "scf.out 에 JOB DONE 이 없다 — scf 가 안 끝났다"; continue; }
+    grep -aq "convergence has been achieved" "$D/scf.out" 2>/dev/null \
+      || { fail "$S" "scf 가 수렴하지 않았다 (JOB DONE 만으로 완료로 보지 않는다)"; continue; }
+    CHG=$(ls "$D"/tmp/*.save/charge-density* 2>/dev/null | head -1)
+    [ -n "$CHG" ] \
+      || { fail "$S" "전하밀도가 없다 ($D/tmp/*.save/) — nscf 는 scf 밀도를 이어받는다"; continue; }
+    # nbnd 를 **표에 박지 않고** scf.out 의 전자수에서 유도한다 (관례 ×1.33).
+    NELEC=$(grep -a "number of electrons" "$D/scf.out" | head -1 | sed 's/.*=//' | awk '{print $1}')
+    NB=$(awk -v n="$NELEC" 'BEGIN{ if(n<=0){print 0; exit} printf "%d", int((n/2)*1.33+0.999) }')
+    if [ "${NB:-0}" -le 0 ]; then
+        fail "$S" "scf.out 에서 전자수를 못 읽었다 — nbnd 를 추측하지 않는다"; continue
+    fi
+    # k 격자는 scf 와 **같은 것**을 쓴다 (두 셀을 같은 프로토콜로 재기 위해).
+    KM=$(grep -aA1 "K_POINTS" "$D/scf.in" | tail -1 | xargs)
+    echo "[$(ts)] $S — scf 이어받음: E=$(grep -a '^!' "$D/scf.out" | tail -1 | awk '{print $5}') Ry · 전자 $NELEC · nbnd $NB · k $KM"
+  else
     D=$OUT/$S; mkdir -p "$D"
+    NB=${NBND[$S]}; KM=${KMESH[$S]}
     SCF0=$SRC/$S/${S}_scf.in
     [ -f "$SCF0" ] || { echo "!! $SCF0 없음 — 건너뜀"; continue; }
 
@@ -345,30 +492,34 @@ for S in ${SYSTEMS:-comp1 modelc}; do
         echo "[$(ts)] $S scf: 이미 완료 — 건너뜀"
     else
         echo "[$(ts)] $S scf 시작 (k $(grep -A1 K_POINTS "$D/scf.in" | tail -1))"
-        ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$CPU/pw.x" -nk "$NPOOL" -in scf.in > scf.out 2>&1 )
+        ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$PWX" -nk "$NPOOL" -in scf.in > scf.out 2>&1 )
         grep -aq "JOB DONE" "$D/scf.out" || { fail "$S" "scf 실패 — 마지막 20줄:"; grep -a . "$D/scf.out" | tail -20; continue; }
         echo "[$(ts)] $S scf 완료  E=$(grep -a '^!' "$D/scf.out" | tail -1 | awk '{print $5}') Ry"
     fi
+
+  fi
 
     # ---- ② nscf: occupations='fixed' + nbnd + 조밀 k ----
     sed -e "s|calculation *=.*|calculation = 'nscf'|" \
         -e "s|occupations *=.*|occupations = 'fixed'|" \
         -e "/smearing *=/d" -e "/degauss *=/d" \
         -e "s|conv_thr *=.*|conv_thr = 1.0d-10|" \
-        -e "s|^\( *ntyp *= *[0-9]*\)$|\1\n    nbnd  = ${NBND[$S]}|" "$D/scf.in" \
-      | awk -v k="${KMESH[$S]}" '/K_POINTS/{print; getline; print k; next} {print}' > "$D/nscf_gap.in"
-    grep -q "nbnd" "$D/nscf_gap.in" || sed -i "s|    ecutwfc|    nbnd  = ${NBND[$S]}\n    ecutwfc|" "$D/nscf_gap.in"
+        -e "s|^\( *ntyp *= *[0-9]*\)$|\1\n    nbnd  = ${NB}|" "$D/scf.in" \
+      | awk -v k="${KM}" '/K_POINTS/{print; getline; print k; next} {print}' > "$D/nscf_gap.in"
+    grep -q "nbnd" "$D/nscf_gap.in" || sed -i "s|    ecutwfc|    nbnd  = ${NB}\n    ecutwfc|" "$D/nscf_gap.in"
     for chk in "occupations = 'fixed'" "calculation = 'nscf'" "nbnd"; do
         grep -q "$chk" "$D/nscf_gap.in" || { fail "$S" "nscf 입력에 '$chk' 없음"; continue 2; }
     done
     grep -q "smearing\|degauss" "$D/nscf_gap.in" && { fail "$S" "smearing 잔존 — fixed 와 충돌한다"; continue; }
 
-    echo "[$(ts)] $S nscf(fixed, nbnd ${NBND[$S]}, k ${KMESH[$S]}) 시작 — 몇 시간 간다"
-    ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$CPU/pw.x" -nk "$NPOOL" -in nscf_gap.in > nscf_gap.out 2>&1 )
+    echo "[$(ts)] $S nscf(fixed, nbnd ${NB}, k ${KM}) 시작 — 몇 시간 간다"
+    ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$PWX" -nk "$NPOOL" -in nscf_gap.in > nscf_gap.out 2>&1 )
 
     # ---- ③ 계보 확인: irreducible k-point 수 ----
     NK=$(grep -a 'number of k points' "$D/nscf_gap.out" | head -1 | sed 's/.*number of k points=\s*//' | awk '{print $1}')
-    if [ "$NK" = "${KIRR[$S]}" ]; then
+    if [ -z "${KIRR[$S]:-}" ]; then
+        echo "   irr k-point $NK (이 계는 정본 기록이 없다 — 대조 건너뜀)"
+    elif [ "$NK" = "${KIRR[$S]}" ]; then
         echo "   ★ irr k-point $NK = 정본 기록과 일치 — 셋업 계보 확인"
     else
         echo "   ⚠ irr k-point $NK ≠ 정본 기록 ${KIRR[$S]} — **셋업이 정본과 다르다**"
@@ -381,12 +532,20 @@ for S in ${SYSTEMS:-comp1 modelc}; do
     python3 "$SRC/extract_gap.py" "$D/nscf_gap.out" | sed 's/^/   /'
     echo "   ── 참고: 옛 comp1/modelc 값을 만든 EF-기준 파서 ──"
     python3 "$SRC/parse_eig_gap.py" "$D/nscf_gap.out" 2>/dev/null | sed 's/^/   /' || echo "   (EF 없음 = fixed-occ 정상)"
-    echo "   ── 재현 목표: VBM ${TVBM[$S]}  CBM ${TCBM[$S]}  gap ${TGAP[$S]} ──"
+    if [ -n "${TGAP[$S]:-}" ]; then
+        echo "   ── 재현 목표: VBM ${TVBM[$S]}  CBM ${TCBM[$S]}  gap ${TGAP[$S]} ──"
+    else
+        echo "   ── 재현 목표 없음 (새 계) — 이 값이 판정이 아니다. 카드 게이트로 판정한다 ──"
+    fi
 done
 
 if [ -n "$FAILED" ]; then
     echo "[$(ts)] ⛔ 실패한 계:$FAILED — **gap 값이 안 나왔다.** 위 오류를 먼저 고쳐야 한다."
     exit 1
 fi
-echo "[$(ts)] 끝. 산출: $OUT/{comp1,modelc}/{scf.in,scf.out,nscf_gap.in,nscf_gap.out}"
+if [ "$EXT" = 1 ]; then
+    echo "[$(ts)] 끝. 산출: $RUNS/<계>/nscf_gap.{in,out}"
+else
+    echo "[$(ts)] 끝. 산출: $OUT/{comp1,modelc}/{scf.in,scf.out,nscf_gap.in,nscf_gap.out}"
+fi
 echo "  ⚠ 정본(db/properties/electronic.json)은 **자동으로 안 고친다.** 위 숫자를 붙여주면 판정한다."
