@@ -240,7 +240,7 @@ for S in $SYSLIST; do
     [ -d "$D" ] || continue
     echo "■ $S"
 
-    for STAGE in scf nscf_gap; do
+    for STAGE in scf nscf_gap nscf_dos; do
         F=$D/$STAGE.out
         [ -s "$F" ] || { [ "$STAGE" = scf ] && echo "   $STAGE: 아직 출력 없음"; continue; }
 
@@ -291,7 +291,7 @@ for S in $SYSLIST; do
         # ★ irr k-point 계보 (nscf 에서 의미가 있다)
         NK=$(grep -a 'number of k points' "$F" | head -1 \
              | sed 's/.*number of k points=[[:space:]]*//' | awk '{print $1}')
-        if [ "$STAGE" = "nscf_gap" ] && [ -n "$NK" ]; then
+        if [ "$STAGE" != "scf" ] && [ -n "$NK" ]; then
             if [ -z "${KIRR[$S]:-}" ]; then
                 # 없는 기준과 다르다고 경고하면 그건 오경보다.
                 echo "        irr k-point $NK (정본 기록 없는 계 — 대조 건너뜀)"
@@ -322,7 +322,7 @@ for S in $SYSLIST; do
         #   첫 판은 그걸 "초기화 중" 으로 찍다가 15분 뒤 "초기화가 너무 길다" 고 오경보할
         #   상태였다 (실측: 3.4시간째 도는데 화면은 '반복 전, 6분 경과').
         #   nscf 진행은 계산된 k-point 수로 본다.
-        if [ "$STAGE" = "nscf_gap" ]; then
+        if [ "$STAGE" != "scf" ]; then
             KD=$(grep -ac 'Computing kpt #' "$F")
             [ "$KD" = "0" ] && KD=$(grep -ac 'ethr =' "$F")
             # ⛔⛔ 2026-08-21 — **QE 는 pool 0 의 진행만 찍는다.**
@@ -430,6 +430,29 @@ for S in $SYSLIST; do
         [ "$AGE" -gt 30 ] && printf "  ⚠ 30분 무갱신"
         echo
     done
+
+    # ── DOS 후처리 (dos.x -> projwfc.x -> pdos 파일) ─────────────────────
+    #   nscf_dos 가 끝났는데 여기가 비어 있으면 후처리에서 멈춘 것이다.
+    #   "nscf 끝났다" 만 보고 끝난 줄 알면 pdos 가 없는 걸 몇 시간 뒤에 안다.
+    if grep -aq 'JOB DONE' "$D/nscf_dos.out" 2>/dev/null; then
+        EF=$(grep -a 'Fermi energy' "$D/nscf_dos.out" | tail -1 | awk '{print $(NF-1)}')
+        [ -n "$EF" ] && echo "   nscf_dos: E_F = $EF eV (tetrahedra — 갭은 이 값이 아니라 nscf_gap 의 VBM/CBM 이다)"
+        for X in dos projwfc; do
+            if [ ! -s "$D/$X.out" ]; then
+                echo "   $X.x: 아직 안 돌았다"
+            elif grep -aq 'JOB DONE' "$D/$X.out"; then
+                echo "   $X.x: OK 완료"
+            else
+                echo "   $X.x: 실패 — $(grep -a . "$D/$X.out" | tail -2 | tr '\n' ' ')"
+            fi
+        done
+        PFX=$(grep -a "prefix" "$D/scf.in" 2>/dev/null | head -1 | sed "s/.*=[[:space:]]*'\([^']*\)'.*/\1/")
+        if [ -n "$PFX" ]; then
+            NPD=$(ls "$D/$PFX".pdos* 2>/dev/null | wc -l)
+            if [ -s "$D/$PFX.dos" ]; then DOSSZ=$(du -h "$D/$PFX.dos" | cut -f1); else DOSSZ="없음"; fi
+            echo "   산출: pdos 파일 ${NPD}개 · ${PFX}.dos ${DOSSZ}"
+        fi
+    fi
 done
 
 # ── 모드 B: 두 셀이 다 끝났으면 G5(셀 선택)를 계산한다 ──────────────────────
