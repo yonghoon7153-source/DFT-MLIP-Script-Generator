@@ -21,8 +21,38 @@ cd "$HERE" || exit 1
 STATES="${STATES:-100 200 300_0147}"
 STARTS="${STARTS:-24}"
 SI="${SI:-Li}"
-SRC="${SRC:-GITT}"
-mkdir -p out
+# SRC 를 주면 그 소스로 **고정**한다 (없으면 그 상태는 건너뛴다).
+# 안 주면 상태마다 GITT -> step_005C 순으로 있는 것을 고른다 (pick_src).
+FORCE_SRC="${SRC:-}"
+USED=""            # 상태별로 실제 무엇을 썼는지 — 마지막에 찍는다
+OUT="${OUT:-out}"  # 산출 디렉터리. 시험 실행은 여기를 바꿔서 out/ 을 안 더럽힌다
+
+# ⚠ 산출마다 **설정을 옆에 적는다** (`.meta.json`). 2026-09-10 실측: 합성
+#   데이터로 STARTS=4 짜리 시험을 돌렸더니 `out/matrix_300_0147.csv` 가
+#   생겼는데, **파일 이름만으로는 진짜 산출과 구별이 안 됐다.** 정본이
+#   artifact 인 저장소에서 그건 치명적이다. 무엇으로 만든 값인지가 파일에
+#   붙어 있어야 한다.
+write_meta () {  # write_meta <산출파일> <state> <src>
+  local art="$1" st="$2" src="$3"
+  python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" <<'PYMETA'
+import json, subprocess, sys, datetime, pathlib
+art, st, src, starts, si, root = sys.argv[1:7]
+try:
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
+                         text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                                capture_output=True, text=True).stdout.strip())
+except Exception:
+    sha, dirty = "", None
+pathlib.Path(art + ".meta.json").write_text(json.dumps({
+    "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
+    "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
+    "data_root": root, "git_commit": sha, "git_dirty": dirty,
+    "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PYMETA
+}
+mkdir -p "$OUT"
 
 # ⚠ 진행 표시는 **전부 stderr 로**. degeneracy 는 JSON 을 stdout 으로만 내므로
 #   stdout 에 한 줄이라도 찍으면 그 줄이 **JSON 안에 섞인다** (2026-09-10 실측:
@@ -69,30 +99,60 @@ run () {
 }
 
 fail=0
+# 상태마다 반쪽전지 소스를 고른다. `GITT` 에 그 상태 파일이 없으면
+# `step_005C` 로 넘어간다 — 2026-09-10 실측: `300_0147` 이 GITT 에만 없어서
+# degeneracy 가 죽었다 (`dd_verify('check')` 의 "상태 파일 4/5" 가 이것이다).
+# ⚠ 소스가 섞이면 **행끼리 비교하면 안 된다.** 그래서 무엇을 썼는지 찍는다.
+pick_src () {
+  local st="$1"
+  if [ -n "$FORCE_SRC" ]; then
+    case "$FORCE_SRC" in
+      GITT)      [ -f "$BMS_DATA_ROOT/data/half_cell/GITT/${st}.xlsx" ] && echo GITT ;;
+      step_005C) [ -f "$BMS_DATA_ROOT/data/half_cell/step_005C/${st}_005C.xlsx" ] \
+                   && echo step_005C ;;
+    esac
+    return
+  fi
+  if [ -f "$BMS_DATA_ROOT/data/half_cell/GITT/${st}.xlsx" ]; then echo GITT
+  elif [ -f "$BMS_DATA_ROOT/data/half_cell/step_005C/${st}_005C.xlsx" ]; then echo step_005C
+  else echo ""; fi
+}
+
 for st in $STATES; do
+  SRC="$(pick_src "$st")"
+  if [ -z "$SRC" ]; then
+    say '\n\033[31m== %s 건너뜀\033[0m — 어느 소스에도 반쪽전지가 없다\n' "$st"
+    fail=$((fail+1)); continue
+  fi
+  USED="$USED $st=$SRC"
+  say '\n\033[1m-- %s : 반쪽전지 소스 %s --\033[0m\n' "$st" "$SRC"
   # 검사 대상은 **명령이 실제로 쓴 파일**(임시)이다. 최종 경로를 보게 두면
   # mv 전이라 늘 "없다" 가 나오고 mv 가 영영 안 된다 (2026-09-10 실측).
-  tmp="out/.degeneracy_${st}_${SI}.part"
-  if run "degeneracy $st" "$tmp" "$tmp" "out/degeneracy_${st}_${SI}.json.log" \
+  tmp="$OUT/.degeneracy_${st}_${SI}.part"
+  if run "degeneracy $st" "$tmp" "$tmp" "$OUT/degeneracy_${st}_${SI}.json.log" \
       env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify degeneracy \
         --state "$st" --si-source "$SI" --source "$SRC" --w-dqdv 0 \
         --tol 0.01 --starts "$STARTS" --seed 0 --grid 21 --samples 400; then
-    mv "$tmp" "out/degeneracy_${st}_${SI}.json"
+    mv "$tmp" "$OUT/degeneracy_${st}_${SI}.json"
+    write_meta "$OUT/degeneracy_${st}_${SI}.json" "$st" "$SRC"
   else
     fail=$((fail+1)); rm -f "$tmp"
   fi
 
-  run "matrix $st" "out/matrix_${st}.csv" - "out/matrix_${st}.csv.log" \
+  run "matrix $st" "$OUT/matrix_${st}.csv" - "$OUT/matrix_${st}.csv.log" \
     env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify matrix \
       --state "$st" --starts "$STARTS" --seed 0 \
-      --out "out/matrix_${st}.csv" || fail=$((fail+1))
+      --out "$OUT/matrix_${st}.csv" && write_meta "$OUT/matrix_${st}.csv" "$st" "$SRC" \
+      || fail=$((fail+1))
 
-  run "profile $st" "out/profile_gamma_${st}_${SI}.csv" - \
-      "out/profile_gamma_${st}_${SI}.csv.log" \
+  run "profile $st" "$OUT/profile_gamma_${st}_${SI}.csv" - \
+      "$OUT/profile_gamma_${st}_${SI}.csv.log" \
     env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify profile \
       --state "$st" --si-source "$SI" --source "$SRC" --w-dqdv 0 \
       --starts "$STARTS" --seed 0 --grid 21 \
-      --out "out/profile_gamma_${st}_${SI}.csv" || fail=$((fail+1))
+      --out "$OUT/profile_gamma_${st}_${SI}.csv" \
+      && write_meta "$OUT/profile_gamma_${st}_${SI}.csv" "$st" "$SRC" \
+      || fail=$((fail+1))
 done
 
 say '\n=====================================\n'
@@ -102,5 +162,7 @@ if [ "$fail" -eq 0 ]; then
 else
   say '실패 %d 건 — 위의 .log 를 볼 것\n' "$fail"
 fi
-say "설정: STATES='%s' STARTS=%s SI=%s SRC=%s\n" "$STATES" "$STARTS" "$SI" "$SRC"
+say "설정: STATES='%s' STARTS=%s SI=%s\n" "$STATES" "$STARTS" "$SI"
+say "반쪽전지 소스:%s\n" "$USED"
+say "⚠ 소스가 섞였으면 그 상태끼리는 직접 비교하지 말 것 (축이 다르다)\n"
 exit $((fail > 0))

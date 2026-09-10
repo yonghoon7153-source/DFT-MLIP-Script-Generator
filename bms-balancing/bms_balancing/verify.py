@@ -35,7 +35,22 @@ from .model import (LB5, UB5, Blend, HalfCell, Objective, average_duplicates,
 def build(root: Path, source: str, state: str, si_source: str,
           w_dqdv: float = 0.0, use_peak_weight: bool = True,
           scale_seed: int = 0) -> Objective:
-    half = HalfCell(D.half_cell_path(root, source, state), window=11, poly_order=3)
+    # ⚠ 입력이 없으면 **적합을 시작하기 전에** 죽는다. 2026-09-10 실측:
+    #   `degeneracy --state 300_0147 --source GITT` 가 기준(pristine) 적합
+    #   24 회를 다 돌린 **뒤에** 대상 파일이 없다는 걸 알았다 (23 초 낭비, 그리고
+    #   로그 첫 줄이 성공한 multistart 라 실패 원인이 가려졌다).
+    hc = D.half_cell_path(root, source, state)
+    if not hc.is_file():
+        have = sorted(s2 for s2 in D.STATES
+                      if D.half_cell_path(root, source, s2).is_file())
+        other = [src for src in D.HALF_FILE if src != source
+                 and D.half_cell_path(root, src, state).is_file()]
+        raise SystemExit(
+            f"반쪽전지 파일이 없다: {hc}\n"
+            f"  `{source}` 에 있는 상태: {', '.join(have) or '(없음)'}\n"
+            + (f"  `{state}` 는 `--source {other[0]}` 에는 있다.\n" if other else "")
+            + "  (상태마다 반쪽전지를 따로 재는 파이프라인이라 없는 상태는 못 돈다)")
+    half = HalfCell(hc, window=11, poly_order=3)
     si_c, si_v, gr_c, gr_v = D.load_literature(root, si_source)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
     c, v = D.load_full_cell(root, state)

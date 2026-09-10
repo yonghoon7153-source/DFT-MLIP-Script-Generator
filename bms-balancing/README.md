@@ -76,10 +76,22 @@ tail -f out/run_states.log
 300_0147)면 아홉 번이다. **몇 시간** 걸린다. 조절은 환경변수로:
 
 ```bash
-STATES=100 ./scripts/run_states.sh          # 하나만
-STARTS=6 STATES=100 ./scripts/run_states.sh # 배관 확인용 (수치는 못 쓴다)
-SI=Kunz SRC=step_005C ./scripts/run_states.sh
+STATES=100 ./scripts/run_states.sh                    # 하나만
+OUT=/tmp/smoke STARTS=6 ./scripts/run_states.sh       # 배관 확인용
+SI=Kunz SRC=step_005C ./scripts/run_states.sh         # 소스 고정
 ```
+
+**반쪽전지 소스는 상태마다 자동으로 고른다** — `GITT` 에 그 상태 파일이 없으면
+`step_005C` 로 넘어간다. `300_0147` 이 실제로 GITT 에만 없다
+(`dd_verify('check')` 의 "상태 파일 4/5" 가 이것이다). `SRC` 를 주면 그 소스로
+고정하고, 없는 상태는 건너뛴다. 마지막에 상태별로 무엇을 썼는지 찍는다 —
+**소스가 섞였으면 그 상태끼리 직접 비교하면 안 된다.**
+
+**시험 실행은 `OUT` 을 반드시 바꿔라.** 2026-09-10 에 합성 데이터로 `STARTS=4`
+시험을 돌렸더니 `out/matrix_300_0147.csv` 가 생겼고, **파일 이름만으로는 진짜
+산출과 구별이 안 됐다.** 정본이 artifact 인 저장소에서 그건 치명적이다.
+그래서 산출마다 `.meta.json` 을 옆에 쓴다 (상태 · 소스 · `starts` · `data_root`
+· git 커밋 · dirty 여부 · 시각). 무엇으로 만든 값인지가 파일에 붙어 있어야 한다.
 
 **왜 스크립트인가**: 아홉 번이 같은 설정이어야 비교가 성립한다. 손으로 아홉 줄을
 치면 한 줄에서 `--starts` 를 흘리는 순간 그 행만 다른 조건이 되고, 나중에 그것을
