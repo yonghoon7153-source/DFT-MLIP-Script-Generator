@@ -11,6 +11,7 @@ function dd_verify(mode, varargin)
 %   틀렸으면 그 위의 모든 숫자가 틀린다.
 %
 % 사용법
+%   dd_verify('check')                % ★ 먼저 이것. 경로·툴박스·데이터를 몇 초 만에 확인
 %   dd_verify('dump')                 % 여러 설정에서 적합 결과를 한 줄씩 출력
 %   dd_verify('profile')              % γ_Si 를 고정하고 나머지 넷 재적합
 %   dd_verify('scalenoise')           % 같은 설정을 5번 — 목적함수 scale 의 난수 영향
@@ -41,12 +42,19 @@ function dd_verify(mode, varargin)
     p.parse(varargin{:});
     o = p.Results;
 
+    % ── 공통 설정 — main_blend_final.m 과 **같은 값**을 쓴다 ──
+    diff_params = struct('window', 11, 'poly_order', 3);
+
+    % check 는 **아무것도 없어도** 돌아야 한다 — 없는 것을 알려 주는 게 일이다.
+    if strcmpi(mode, 'check')
+        local_check(o, diff_params);
+        return
+    end
+
     if isempty(o.FullCellFile)
         o.FullCellFile = local_find_fullcell();
     end
 
-    % ── 공통 설정 — main_blend_final.m 과 **같은 값**을 쓴다 ──
-    diff_params = struct('window', 11, 'poly_order', 3);
     fit_params  = struct('peak_weight', 7, 'sigma_ratio', 0.03, ...
                          'use_peak_weight', true, 'weight_pe_peaks', false, ...
                          'w_pocv', 1.0, 'w_dvdq', 1.0, 'w_dqdv', o.WDqdv);
@@ -108,6 +116,137 @@ function dd_verify(mode, varargin)
 
     otherwise
         error('dd_verify: 모르는 mode "%s" (dump|profile|scalenoise)', mode);
+    end
+end
+
+% ══════════════════════════════════════════════════════════════════════
+function local_check(o, diff_params)
+%LOCAL_CHECK  긴 적합을 돌리기 전에 몇 초 만에 확인한다.
+%
+%   여기서 나오는 [FAIL] 은 전부 **적합을 시작하면 몇십 분 뒤에 죽을 것**들이다.
+%   하나도 안 죽이고 끝까지 센 다음 요약을 낸다 (첫 실패에서 멈추지 않는다).
+
+    fails = 0; warns = 0;
+    fprintf('\n=== dd_verify check ===\n현재 폴더: %s\n\n', pwd);
+
+    % ① 그들 함수가 경로에 있는가
+    need = {'electrode_balancing_blend','electrode_ocv','build_blend_functions', ...
+            'differential','extractMyData','averageDuplicates'};
+    for k = 1:numel(need)
+        if isempty(which(need{k}))
+            fprintf('[FAIL] 함수 없음: %s.m — 프로젝트 루트에서 실행하고 있나?\n', need{k});
+            fails = fails + 1;
+        else
+            fprintf('[ ok ] %s.m\n', need{k});
+        end
+    end
+
+    % ② 툴박스 — 없으면 적합 도중에 죽는다
+    tb = {'fmincon','Optimization Toolbox'; ...
+          'MultiStart','Global Optimization Toolbox'; ...
+          'sgolayfilt','Signal Processing Toolbox'; ...
+          'findpeaks','Signal Processing Toolbox'; ...
+          'createOptimProblem','Global Optimization Toolbox'};
+    fprintf('\n');
+    for k = 1:size(tb,1)
+        if isempty(which(tb{k,1}))
+            fprintf('[FAIL] %-18s 없음 → %s 가 필요하다\n', tb{k,1}, tb{k,2});
+            fails = fails + 1;
+        else
+            fprintf('[ ok ] %-18s (%s)\n', tb{k,1}, tb{k,2});
+        end
+    end
+
+    % ③ 데이터 — 반쪽전지
+    fprintf('\n');
+    states = {'pristine','100','200','300_0009','300_0147'};
+    for d = {'data/half_cell/GITT/','data/half_cell/step_005C/'}
+        dirp = d{1};
+        if ~isfolder(dirp)
+            fprintf('[warn] 폴더 없음: %s (이 소스는 못 쓴다)\n', dirp);
+            warns = warns + 1;
+            continue
+        end
+        n_ok = 0;
+        for s = states
+            f = fullfile(dirp, local_halfcell_name(dirp, s{1}));
+            if isfile(f), n_ok = n_ok + 1; end
+        end
+        fprintf('[ ok ] %s — 상태 파일 %d/5\n', dirp, n_ok);
+    end
+
+    % ④ 데이터 — 풀셀 워크북 (2행 헤더 레이아웃까지 확인)
+    fprintf('\n');
+    try
+        f = o.FullCellFile;
+        if isempty(f), f = local_find_fullcell(); end
+        fprintf('[ ok ] 풀셀 워크북: %s\n', f);
+        M = readmatrix(f, 'Range', 'A3');
+        if size(M,2) < 10
+            fprintf('[FAIL] 컬럼이 %d개다 — 상태 5개면 10개(용량·전압 쌍)여야 한다\n', size(M,2));
+            fails = fails + 1;
+        else
+            for i = 1:5
+                c = M(:, 2*i-1); c = c(~isnan(c));
+                fprintf('        %-10s c_cell = %.3f\n', states{i}, max(c));
+            end
+        end
+    catch ME
+        fprintf('[FAIL] 풀셀 워크북: %s\n', ME.message);
+        fails = fails + 1;
+    end
+
+    % ⑤ 데이터 — 문헌 곡선 8종
+    fprintf('\n');
+    sis = {'Baggetto','Friedrich','Jiang','Kunz','Li','Lu','Sethuraman','Wetjen'};
+    miss = {};
+    for k = 1:numel(sis)
+        if ~isfile(fullfile('data','literature','Si_OCP_sources',[sis{k} '.csv']))
+            miss{end+1} = sis{k}; %#ok<AGROW>
+        end
+    end
+    if isempty(miss)
+        fprintf('[ ok ] 문헌 Si OCP 8종 전부\n');
+    else
+        fprintf('[FAIL] 문헌 Si OCP 없음: %s\n', strjoin(miss, ', '));
+        fails = fails + 1;
+    end
+    if isfile(fullfile('data','literature','Si_Gr_literature_OCP.xlsx'))
+        fprintf('[ ok ] Si_Gr_literature_OCP.xlsx\n');
+    else
+        fprintf('[FAIL] Si_Gr_literature_OCP.xlsx 없음\n');
+        fails = fails + 1;
+    end
+
+    % ⑥ 실제로 한 번 읽고 섞어 본다 (적합은 안 한다 — 몇 초면 끝난다)
+    fprintf('\n');
+    if fails == 0
+        try
+            t0 = tic;
+            ro = electrode_ocv(o.HalfCellDir, local_halfcell_name(o.HalfCellDir, 'pristine'), diff_params);
+            lit = local_load_lit(o.SiSource);
+            [E_NE, ~] = build_blend_functions(lit.Si_capacity, lit.Si_voltage, ...
+                                              lit.Gr_capacity, lit.Gr_voltage, diff_params);
+            v = ro.E_PE(0.5) - E_NE(0.5, 0.25);
+            fprintf('[ ok ] 배관 확인 — E_PE(0.5) − E_NE(0.5, γ=0.25) = %.4f V  (%.1f 초)\n', v, toc(t0));
+            if v < 2.5 || v > 4.5
+                fprintf('[warn] 그 값이 셀 전압 범위(2.5~4.5 V) 밖이다 — 방향 규약을 의심할 것\n');
+                warns = warns + 1;
+            end
+        catch ME
+            fprintf('[FAIL] 배관: %s\n', ME.message);
+            fails = fails + 1;
+        end
+    else
+        fprintf('[skip] 배관 확인 — 위 [FAIL] 부터 고칠 것\n');
+    end
+
+    fprintf('\n=== 결과: FAIL %d · warn %d ===\n', fails, warns);
+    if fails == 0
+        fprintf('돌려도 된다:\n');
+        fprintf("  dd_verify('dump','State','300_0009','WDqdv',0,'Out','dd_dump_gitt_w0.csv')\n\n");
+    else
+        fprintf('위 [FAIL] 을 먼저 고칠 것. 지금 dump 를 돌리면 도중에 죽는다.\n\n');
     end
 end
 
