@@ -285,3 +285,40 @@ def test_matrix_summary_reports_matched_pairs():
     assert "matched" in src or "대응쌍" in src, (
         "요약이 off/on 을 대응쌍으로 묶지 않는다 — 비대응 비교는 부호가 섞인다 "
         "(실측: 전체 16쌍 중 음수 5개, 범위 −21.03~+2.74 %p)")
+
+
+# ── 문서에 적힌 폭이 **artifact 와 같은가** (2026-09-10) ──────────────────
+
+def test_quoted_spreads_match_artifact():
+    """정본은 `out/` 의 산출이고 문서 숫자는 사본이다 — 사본이 늙지 않게 잰다.
+
+    실측 계기: `README.md` 가 LAM_NE 폭을 **8.93 %p** 로 적고 있었는데 그건
+    `matrix_300_0009.csv`(v1, multistart 수정 **전**) 값이었다. 정본인 v2 는
+    **10.8774 %p** 이고 `FINDINGS.md` §4-1 · `FOR_BMS_TEAM.md` §5-1 은 그쪽을
+    적고 있었다. 즉 한 저장소 안에서 같은 조건의 같은 양이 두 값으로 돌아다녔다.
+    """
+    import csv
+    art = ROOT / "out" / "matrix_300_0009_v2.csv"
+    if not art.exists():                      # 산출이 없는 체크아웃에서는 건너뛴다
+        return
+    rows = [r for r in csv.DictReader(art.open())
+            if "GITT" in r["half_cell"] and float(r["w_dqdv"]) == 0]
+    assert len(rows) == 8, f"GITT · dQ/dV off 조합이 8개가 아니다: {len(rows)}"
+    span = {k: max(float(r[k]) for r in rows) - min(float(r[k]) for r in rows)
+            for k in ("LAM_NE_pct", "LAM_PE_pct", "LLI_pct")}
+
+    # 문서가 이 조건으로 인용하는 값 — 소수 둘째 자리까지
+    want = f"{span['LAM_NE_pct']:.2f}"        # 10.88
+    stale = f"{8.9251:.2f}"                   # v1 값 — 어디에도 남아 있으면 안 된다
+    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md"):
+        txt = (ROOT / name).read_text(encoding="utf-8")
+        assert stale not in txt, (
+            f"{name} 에 v1 의 옛 폭 {stale} %p 가 남아 있다. 정본(v2)은 {want} %p 다 "
+            f"— multistart 수정으로 답이 최대 5.857 %p 움직인 뒤의 값이다.")
+    # 문서마다 자리수가 다르다 (FINDINGS 는 10.8774, 나머지는 10.88) — 둘 다 허용
+    forms = {f"{span['LAM_NE_pct']:.{d}f}" for d in (2, 3, 4)}
+    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md"):
+        txt = (ROOT / name).read_text(encoding="utf-8")
+        assert any(f in txt for f in forms), (
+            f"{name} 이 정본 폭 {want} %p 를 어떤 자리수로도 안 적고 있다 "
+            f"(허용: {sorted(forms)})")
