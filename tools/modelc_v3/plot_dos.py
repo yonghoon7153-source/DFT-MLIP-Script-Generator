@@ -226,8 +226,35 @@ def format_character(breakdown, top_n=3):
     return " + ".join(parts)
 
 
+def _ylim_in_window(xlim, *series):
+    """x 창 **안**의 값만으로 y 상한을 정한다 → (top, 창밖최대/창안최대).
+
+    ⛔⛔ 2026-09-10 실측 — 이 도구는 `set_xlim` 만 하고 y 는 matplotlib 자동배율에
+      맡겼다. 자동배율은 **그려 넣은 전 구간**을 보므로, 창 밖(깊은 준core)의 거대한
+      델타가 y 상한을 끌어올려 **창 안 곡선이 전부 바닥에 깔렸다**
+      (ndo_lpscl16_n5fu: y축이 5×10⁵ states/eV 까지 갔고 그림이 백지로 보였다).
+      원인은 계산이 아니라 **축 설정**이었다.
+
+    이 함수가 못 하는 것: 창 밖 스파이크의 정체를 밝히지 않는다. 비율만 돌려주므로
+      호출부가 그 사실을 사람에게 알릴 수 있다.
+    """
+    lo, hi = xlim
+    tops_in, tops_all = [], []
+    for E, y in series:
+        E = np.asarray(E); y = np.asarray(y)
+        m = (E >= lo) & (E <= hi)
+        if m.any():
+            tops_in.append(float(np.max(y[m])))
+        tops_all.append(float(np.max(y)))
+    if not tops_in:
+        return None, 1.0
+    t_in, t_all = max(tops_in), max(tops_all)
+    return t_in * 1.08, (t_all / t_in if t_in > 0 else float("inf"))
+
+
 def plot_raw(E, DOS, EF, vbm, cbm, vbm_peak, cbm_peak, gap, out_path,
              xlim=(-15, 10), title="Total DOS"):
+    _extra_series = ()
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(E, DOS, color="black", lw=1.0)
     ax.fill_between(E, 0, DOS, color="lightgray", alpha=0.6)
@@ -250,7 +277,11 @@ def plot_raw(E, DOS, EF, vbm, cbm, vbm_peak, cbm_peak, gap, out_path,
                     fontsize=8, color="#CC0066",
                     arrowprops=dict(arrowstyle="-", lw=0.7, color="#CC0066"))
     ax.set_xlim(*xlim)
-    ax.set_ylim(bottom=0)
+    _top, _ratio = _ylim_in_window(xlim, (E, DOS), *_extra_series)
+    ax.set_ylim(bottom=0, top=_top)
+    if _ratio > 3:
+        print(f"  ⚠ 창({xlim[0]}..{xlim[1]} eV) 밖 최대가 창 안의 {_ratio:.0f}배다 — "
+              f"깊은 준core 델타로 보인다. y 상한은 **창 안 기준**으로 잡았다.")
     ax.set_xlabel("E (eV)")
     ax.set_ylabel("DOS (states/eV/cell)")
     if _HOUSE:
@@ -266,6 +297,7 @@ def plot_raw(E, DOS, EF, vbm, cbm, vbm_peak, cbm_peak, gap, out_path,
 
 def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
               vbm_char, cbm_char, out_path, xlim=(-15, 10), title=None):
+    _extra_series = tuple((E_p, v) for v in per_elem.values())
     fig, ax = plt.subplots(figsize=(9, 5.5))
     ax.plot(E, DOS, color="black", lw=1.2, label="Total")
     for el in ELEM_ORDER:
@@ -278,7 +310,11 @@ def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
         ax.axvspan(vbm, cbm, color="lightyellow", alpha=0.5,
                    label=f"gap = {gap:.2f} eV  [{globals().get('_GAP_SRC','?')}]")
     ax.set_xlim(*xlim)
-    ax.set_ylim(bottom=0)
+    _top, _ratio = _ylim_in_window(xlim, (E, DOS), *_extra_series)
+    ax.set_ylim(bottom=0, top=_top)
+    if _ratio > 3:
+        print(f"  ⚠ 창({xlim[0]}..{xlim[1]} eV) 밖 최대가 창 안의 {_ratio:.0f}배다 — "
+              f"깊은 준core 델타로 보인다. y 상한은 **창 안 기준**으로 잡았다.")
     ax.set_xlabel("E (eV)")
     ax.set_ylabel("DOS / PDOS (states/eV/cell)")
     if _HOUSE:
