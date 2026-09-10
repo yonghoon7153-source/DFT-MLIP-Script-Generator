@@ -144,9 +144,10 @@ function local_check(o, diff_params)
     % ② 툴박스 — 없으면 적합 도중에 죽는다
     tb = {'fmincon','Optimization Toolbox'; ...
           'MultiStart','Global Optimization Toolbox'; ...
+          'createOptimProblem','Global Optimization Toolbox'; ...
           'sgolayfilt','Signal Processing Toolbox'; ...
           'findpeaks','Signal Processing Toolbox'; ...
-          'createOptimProblem','Global Optimization Toolbox'};
+          'quantile','Statistics and Machine Learning Toolbox'};
     fprintf('\n');
     for k = 1:size(tb,1)
         if isempty(which(tb{k,1}))
@@ -246,7 +247,10 @@ function local_check(o, diff_params)
         fprintf('돌려도 된다:\n');
         fprintf("  dd_verify('dump','State','300_0009','WDqdv',0,'Out','dd_dump_gitt_w0.csv')\n\n");
     else
-        fprintf('위 [FAIL] 을 먼저 고칠 것. 지금 dump 를 돌리면 도중에 죽는다.\n\n');
+        fprintf('위 [FAIL] 을 먼저 고칠 것. 지금 dump 를 돌리면 도중에 죽는다.\n');
+        fprintf('툴박스가 없다면: 적합은 못 하지만 **목적함수 평가**는 된다 —\n');
+        fprintf("  addpath('dd_shims'); dd_eval()\n");
+        fprintf('  (dd_shims 는 sgolayfilt·quantile 의 우리 대체 구현이다. MathWorks 것이 아니다.)\n\n');
     end
 end
 
