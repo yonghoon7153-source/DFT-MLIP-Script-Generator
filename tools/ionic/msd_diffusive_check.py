@@ -2065,6 +2065,24 @@ def main():
         lab = "/".join(keep)
         return lab[-width:] if len(lab) > width else lab
 
+    # ⛔⛔ 2026-09-10 실측 — 같은 라벨이 한 표에 **세 번** 찍혔다:
+    #   arrhenius_6pt(궤적없음) · arrhenius_6pt_traj(있음) · mto_pilot 의 b2o3/T700_s2.
+    #   궤적 없는 런의 "종별 MSD 없음" 과 진짜 결과가 같은 이름을 달면, 로그를 나중에
+    #   읽는 사람이 **어느 줄이 어느 런인지 가를 방법이 없다**. 라벨은 식별자다.
+    #   ⇒ 겹치면 표 전체에 같은 깊이를 더 준다 (줄마다 규칙이 다르면 더 헷갈린다).
+    def _label_map(paths, width=46):
+        base = {q: case_label(q) for q in paths}
+        if len(set(base.values())) == len(set(paths)):
+            return base
+        for k in range(5, 10):
+            cand = {q: "/".join([x for x in q.split(os.sep)[:-1] if x][-k:]) for q in paths}
+            if len(set(cand.values())) == len(set(paths)):
+                return {q: (v[-width:] if len(v) > width else v) for q, v in cand.items()}
+        return {q: q[-width:] for q in paths}
+
+    LBL = _label_map(files)
+
+
     # ── Haven 비 직접 측정 (2026-09-07) ─────────────────────────────────
     if a.haven:
         print(f"Haven 비 H_R = D*/D_σ  (창 {lo}–{hi} ps · 자유절편 · COM 드리프트 제거)")
@@ -2075,7 +2093,7 @@ def main():
             r = haven_from_traj(f, save_fs=a.save_fs if hasattr(a, "save_fs") else None,
                                 lo=lo, hi=hi)
             if not r or r.get("haven_ratio") is None:
-                miss.append(case_label(f)); continue
+                miss.append(LBL.get(f, case_label(f))); continue
             h = r["haven_ratio"]
             v = ("협동 이동 (NE 과소)" if h < 0.8 else
                  "상관 없음 ≈ NE 맞음" if h <= 1.25 else "역상관 (NE 과대)")
@@ -2112,7 +2130,7 @@ def main():
             t, y = _curve(d, a.mto, f, a.rebuild_mto)
             if not t or not y:
                 continue
-            lab = case_label(f)
+            lab = LBL.get(f, case_label(f))
             sysname = lab.split("/")[0] if "/" in lab else lab   # 계 이름
             byST.setdefault((sysname, int(d.get("T_K", 0))), []).append((t, y, f))
         print(f"계·온도별 MSD 앙상블 평균 (창 {lo}–{hi} ps)"
@@ -2185,7 +2203,7 @@ def main():
         else:
             D = d.get("D_Li_cm2_s")
             D_src = "STO"
-        tag = case_label(f)
+        tag = LBL.get(f, case_label(f))
         # ⚠ P1-6 — D 가 null 인 msd.json 하나만 있어도 옛 코드는 TypeError 로 죽어
         #   **전수 게이트가 통째로** 날아갔다 (MD 가 중간에 죽으면 실제로 생긴다).
         _f = (lambda v, sp: "—".rjust(len(sp.format(0)))
@@ -2514,7 +2532,7 @@ def main():
         print(f"\n{'case':30s} {'그룹':>9s} {'n':>4s} {'beta':>6s} {'MSD끝':>8s}")
         _vs, _us = {}, {}
         for f in files:
-            tag = case_label(f)
+            tag = LBL.get(f, case_label(f))
             try:
                 _sf = json.load(open(f)).get("save_fs")
             except (OSError, ValueError):
@@ -2566,7 +2584,7 @@ def main():
               f"{'Li(원)':>8s} {'Li(공동계)':>10s}  판정")
         _cnt = {}
         for f in files:
-            tag = case_label(f)
+            tag = LBL.get(f, case_label(f))
             try:
                 _sf = json.load(open(f)).get("save_fs")
             except (OSError, ValueError):
@@ -2608,7 +2626,7 @@ def main():
                 d = json.load(open(f))
             except (OSError, ValueError):
                 continue
-            tag = case_label(f)
+            tag = LBL.get(f, case_label(f))
             if a.from_traj and _elem_msd(d) and not (
                     d.get("n_atoms_per_elem")
                     or (d.get("msd_data") or {}).get("n_atoms_per_elem")):
