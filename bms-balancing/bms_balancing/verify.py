@@ -247,7 +247,7 @@ def near_optimal_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
 
 def mode_profile_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
                          tol: float, n_grid: int = 21, n_starts: int = 3,
-                         seed: int = 0):
+                         seed: int = 0, hint: dict | None = None):
     """각 mode 값 v 가 근최적 집합 안에서 **도달 가능한가**를 직접 묻는다.
 
         for v in grid:   min_p obj(p)  s.t.  mode(p) = v,  lb ≤ p ≤ ub
@@ -277,7 +277,23 @@ def mode_profile_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
         vals_box = np.array([mode_of(q, key) for q in box])
         v_lo, v_hi = float(vals_box.min()), float(vals_box.max())
         v_best = mode_of(best, key)
-        grid = np.unique(np.concatenate([np.linspace(v_lo, v_hi, n_grid), [v_best]]))
+
+        # ⚠ 2026-09-10 실측: 상자 전체에 격자를 깔면 근최적 집합 근처가 성기다.
+        #   LLI 는 22 개 중 **1 개**, LAM_PE 는 2 개만 도달 가능했다 — 방법이
+        #   실패한 게 아니라 격자가 엉뚱한 데 깔린 것이다. 제약 최적화가 이미
+        #   찾아 놓은 범위를 힌트로 받아 그 둘레(폭의 ±50 %)에 격자를 모은다.
+        #   힌트 밖으로도 밀 수 있게 넓혀서 깔아야 하한이 더 조여진다.
+        if hint and key in hint:
+            h_lo, h_hi = hint[key]
+            h_lo, h_hi = h_lo / 100.0, h_hi / 100.0        # % → 분수
+            pad = max((h_hi - h_lo) * 0.5, 1e-4)
+            g_lo = max(v_lo, h_lo - pad)
+            g_hi = min(v_hi, h_hi + pad)
+            if g_hi <= g_lo:
+                g_lo, g_hi = v_lo, v_hi
+        else:
+            g_lo, g_hi = v_lo, v_hi
+        grid = np.unique(np.concatenate([np.linspace(g_lo, g_hi, n_grid), [v_best]]))
         starts = [np.asarray(best, float)]
         starts += list(LB5 + rng.random((n_starts, 5)) * (UB5 - LB5))
 
@@ -308,6 +324,8 @@ def mode_profile_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
         out[key] = {"min": float(a.min()), "max": float(a.max()),
                     "span": float(a.max() - a.min()),
                     "n_grid_attainable": int(a.size), "n_grid": int(grid.size),
+                    "grid_range_pct": [g_lo * 100.0, g_hi * 100.0],
+                    "grid_from_hint": bool(hint and key in hint),
                     "is_lower_bound": True}
     return out
 
@@ -364,10 +382,12 @@ def cmd_degeneracy(args):
                                best, best_val, args.tol,
                                seeds=[p for _, p in keep[1:]],
                                n_starts=8, seed=args.seed)
+    # 제약 최적화를 **먼저** 돌려 그 범위를 프로파일 격자의 힌트로 준다.
     prof = mode_profile_extrema(obj, ref_best, ref_obj.c_cell, obj.c_cell,
                                 best, best_val, args.tol,
                                 n_grid=getattr(args, "grid", 21),
-                                n_starts=3, seed=args.seed)
+                                n_starts=3, seed=args.seed,
+                                hint={k: (v["min"], v["max"]) for k, v in ext.items()})
     for k in ("LAM_PE", "LAM_NE", "LLI"):
         lo = min(ext[k]["min"], prof[k]["min"])
         hi = max(ext[k]["max"], prof[k]["max"])
