@@ -106,7 +106,8 @@ def main() -> int:
         if not deg:
             print(f"\n[{label}] {d} — degeneracy 산출 없음"); continue
         print(f"\n[{label}] {d}")
-        print(f"  {'state':12}{'LAM_PE':>17}{'LAM_NE':>17}{'LLI':>17}"
+        srcs = set()
+        print(f"  {'state':12}{'src':10}{'LAM_PE':>17}{'LAM_NE':>17}{'LLI':>17}"
               f"  {'최광':7} 파일")
         for st, e in deg.items():
             j = e["j"]
@@ -116,14 +117,21 @@ def main() -> int:
             narrow = min(spans, key=spans.get)
             if narrow != "LLI":
                 ok_llI_narrowest = False
+            src = j.get("half_cell", "?")
+            srcs.add(src)
             cells = "".join(f"{best[k]:8.2f}±{spans[k]/2:<7.2f}" for k in MODES)
-            print(f"  {st:12}{cells}  {widest:7} {e['file']}")
+            print(f"  {st:12}{src:10}{cells}  {widest:7} {e['file']}")
             b = j.get("best_active_bounds") or []
             rb = j.get("ref_active_bounds") or []
             if b or rb:
                 print(f"  {'':12}⚠ 경계 — 대상 {b or '—'} · 기준 {rb or '—'}")
             if e["meta"] and e["meta"].get("starts", 24) < 24:
                 print(f"  {'':12}⚠ starts={e['meta']['starts']} — 시험 산출이다")
+        if len(srcs) > 1:
+            print(f"  ⚠ **반쪽전지 소스가 섞였다** ({', '.join(sorted(srcs))}) — 이 표의")
+            print(f"    상태들을 서로 비교하지 마라. 소스가 바뀌면 `E_PE` 가 바뀌고")
+            print(f"    그러면 LAM_PE 가 다른 것을 재게 된다 (`prepare_cell.py` 머리말 2번).")
+            print(f"    같은 소스끼리만 묶어서 읽을 것.")
 
     print("\n" + "=" * 78)
     print("B. 모델 선택(Si 8 종)이 만드는 폭 — **다른 축**이다. 위와 합치지 말 것")
