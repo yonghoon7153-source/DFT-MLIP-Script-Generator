@@ -310,14 +310,14 @@ def test_quoted_spreads_match_artifact():
     # 문서가 이 조건으로 인용하는 값 — 소수 둘째 자리까지
     want = f"{span['LAM_NE_pct']:.2f}"        # 10.88
     stale = f"{8.9251:.2f}"                   # v1 값 — 어디에도 남아 있으면 안 된다
-    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md"):
+    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md", "INTRO.md"):
         txt = (ROOT / name).read_text(encoding="utf-8")
         assert stale not in txt, (
             f"{name} 에 v1 의 옛 폭 {stale} %p 가 남아 있다. 정본(v2)은 {want} %p 다 "
             f"— multistart 수정으로 답이 최대 5.857 %p 움직인 뒤의 값이다.")
     # 문서마다 자리수가 다르다 (FINDINGS 는 10.8774, 나머지는 10.88) — 둘 다 허용
     forms = {f"{span['LAM_NE_pct']:.{d}f}" for d in (2, 3, 4)}
-    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md"):
+    for name in ("README.md", "FINDINGS.md", "FOR_BMS_TEAM.md", "INTRO.md"):
         txt = (ROOT / name).read_text(encoding="utf-8")
         assert any(f in txt for f in forms), (
             f"{name} 이 정본 폭 {want} %p 를 어떤 자리수로도 안 적고 있다 "
