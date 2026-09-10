@@ -244,3 +244,30 @@ def test_compare_does_not_cry_wolf_on_printed_precision():
     assert "전부 일치" in txt, (
         "적힌 자리수 안에서 같은 값인데 불일치로 보고했다 — 문턱이 파일 "
         f"정밀도보다 빡빡하다.\n{txt}")
+
+
+# ── B4-4 [P1] matrix 는 기준(pristine)의 전체 적합을 같이 남겨야 한다 ──────
+
+def test_matrix_row_carries_reference_fit():
+    """`LAM = 1 − state/ref` 는 기준이 움직여도, 대상이 움직여도 같은 값이다.
+
+    그래서 CSV 에 **기준의 전체 파라미터·목적함수**가 없으면 LAM/LLI 변화의
+    원인을 분리할 수 없다. 커밋된 산출에는 `ref_bounds` 만 있다 (리뷰 B4).
+    """
+    import inspect
+    src = inspect.getsource(verify.cmd_matrix)
+    need = ["ref_a_PE", "ref_b_PE", "ref_a_NE", "ref_b_NE",
+            "ref_gamma_Si", "ref_obj", "ref_c_cell", "c_cell"]
+    missing = [k for k in need if f'"{k}"' not in src]
+    assert not missing, (
+        f"matrix 행이 기준 적합을 안 남긴다 — 빠진 것: {missing}. "
+        "기준이 움직인 것인지 대상이 움직인 것인지 분리할 수 없다")
+
+
+def test_matrix_summary_reports_matched_pairs():
+    """dQ/dV on/off 는 **같은 조합의 대응쌍**으로만 보고해야 한다 (리뷰 B4)."""
+    import inspect
+    src = inspect.getsource(verify.cmd_matrix)
+    assert "matched" in src or "대응쌍" in src, (
+        "요약이 off/on 을 대응쌍으로 묶지 않는다 — 비대응 비교는 부호가 섞인다 "
+        "(실측: 전체 16쌍 중 음수 5개, 범위 −21.03~+2.74 %p)")

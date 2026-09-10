@@ -633,12 +633,20 @@ def cmd_matrix(args):
                                  "error": f"{type(e).__name__}: {e}"})
                     continue
                 m = degradation_modes(rp, ro.c_cell, p, o.c_cell)
+                # ⚠ 리뷰 [B4-4]: 전 판은 `ref_bounds` 만 남겼다. 그러면
+                #   LAM = 1 − state/ref 의 변화가 **기준이 움직인 것인지 대상이
+                #   움직인 것인지 분리할 수 없다** (둘 다 같은 LAM 을 낸다).
+                #   기준 적합의 전체 파라미터·목적함수·c_cell 을 같이 남긴다.
                 rows.append({
                     "half_cell": hc, "si": si, "w_dqdv": w,
                     "obj": val, "rmse_pocv": o.rmse_pocv(p),
                     "a_PE": p[0], "b_PE": p[1], "a_NE": p[2], "b_NE": p[3],
-                    "gamma_Si": p[4],
+                    "gamma_Si": p[4], "c_cell": o.c_cell,
                     "bounds": ",".join(active_bounds(p)) or "-",
+                    "ref_a_PE": rp[0], "ref_b_PE": rp[1], "ref_a_NE": rp[2],
+                    "ref_b_NE": rp[3], "ref_gamma_Si": rp[4],
+                    "ref_obj": float(ro(rp)), "ref_rmse_pocv": ro.rmse_pocv(rp),
+                    "ref_c_cell": ro.c_cell,
                     "ref_bounds": ",".join(active_bounds(rp)) or "-",
                     "LAM_PE_pct": m["LAM_PE"] * 100,
                     "LAM_NE_pct": m["LAM_NE"] * 100,
@@ -657,6 +665,60 @@ def cmd_matrix(args):
             summary[k] = {"min": float(v.min()), "max": float(v.max()),
                           "span": float(v.max() - v.min()),
                           "median": float(np.median(v))}
+
+    # ── 축별 폭은 **분모를 제목에 적어서** 낸다 (리뷰 B4) ──
+    #   전 판은 "경계에 안 붙은 10" 과 "그중 6" 사이에서 기준을 설명 없이
+    #   바꿨다. 사후선택 집합과 전체를 나란히 적어 그 일이 다시 없게 한다.
+    def _span(g, k):
+        v = [r[k] for r in g]
+        return (float(max(v) - min(v)), len(g)) if v else (None, 0)
+
+    axes = {}
+    for hc in sorted({r["half_cell"] for r in ok}):
+        g = [r for r in ok if r["half_cell"] == hc and r["w_dqdv"] == 0.0]
+        if g:
+            sp, n = _span(g, "LLI_pct")
+            axes[f"{hc}_dqdv_off_all_Si"] = {
+                "n": n, "si_sources": sorted({r["si"] for r in g}),
+                "LLI_span_pct": sp,
+                "LAM_NE_span_pct": _span(g, "LAM_NE_pct")[0],
+                "LAM_PE_span_pct": _span(g, "LAM_PE_pct")[0]}
+    interior = [r for r in ok
+                if r["bounds"] == "-" and r["ref_bounds"] == "-" and r["w_dqdv"] == 0.0]
+    if interior:
+        sp, n = _span(interior, "LLI_pct")
+        axes["dqdv_off_BOTH_interior_only"] = {
+            "n": n, "half_cells": sorted({r["half_cell"] for r in interior}),
+            "si_sources": sorted({r["si"] for r in interior}),
+            "LLI_span_pct": sp,
+            "warning": "사후선택 집합이다 — '문헌 곡선 선택' 축의 값이 아니다"}
+    summary["axes_with_denominator"] = axes
+
+    # ── dQ/dV on/off 는 **같은 조합의 대응쌍**으로만 (리뷰 B4) ──
+    by = {(r["half_cell"], r["si"], r["w_dqdv"]): r for r in ok}
+    matched, all_pairs = [], []
+    for hc in sorted({r["half_cell"] for r in ok}):
+        for si in sorted({r["si"] for r in ok}):
+            a, b = by.get((hc, si, 0.0)), by.get((hc, si, 1.0))
+            if a is None or b is None:
+                continue
+            d = b["LLI_pct"] - a["LLI_pct"]
+            all_pairs.append(d)
+            if all(r["bounds"] == "-" and r["ref_bounds"] == "-" for r in (a, b)):
+                matched.append({"half_cell": hc, "si": si, "delta_LLI_pct": d})
+    if all_pairs:
+        v = np.array(all_pairs, dtype=float)
+        summary["dqdv_paired_contrast"] = {
+            "all_pairs": {"n": int(v.size), "n_positive": int((v > 0).sum()),
+                          "n_negative": int((v < 0).sum()),
+                          "median_pct": float(np.median(v)),
+                          "min_pct": float(v.min()), "max_pct": float(v.max())},
+            "both_endpoints_interior": {
+                "n": len(matched), "rows": matched,
+                "delta_range_pct": [min(m["delta_LLI_pct"] for m in matched),
+                                    max(m["delta_LLI_pct"] for m in matched)]
+                if matched else None},
+            "note": "비대응 비교는 부호가 섞인다 — 대응쌍으로만 말할 것"}
     print("\nSUMMARY " + json.dumps(summary, ensure_ascii=False, default=float))
     if args.out:
         import csv
