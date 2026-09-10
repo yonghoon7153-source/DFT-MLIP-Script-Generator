@@ -537,3 +537,91 @@ def test_rice_sigma_collapses_on_presmoothed_signal_and_is_detectable():
     assert ac1(ys) > 0, "평활된 신호인데 감지가 안 된다 — 경고 장치가 무효다"
     assert rice_sigma(ys) < 0.5 * rice_sigma(y), (
         "평활 뒤 σ 가 안 무너졌다 — 그러면 이 테스트가 지키는 함정이 없는 것이다")
+
+
+# ── 원통형 셀 변환기 (2026-09-10) ────────────────────────────────────────
+
+def _make_cyl_source(root: pathlib.Path, caps=(0.379049, 0.377735, 0.363715, 0.345661)):
+    """`prepare_cell.py` 가 기대하는 배치의 합성 소스."""
+    import numpy as np, pandas as pd
+    (root / "experiment/cylindrical").mkdir(parents=True, exist_ok=True)
+    (root / "half cell ocv").mkdir(parents=True, exist_ok=True)
+
+    def stage(x, x0, w):
+        return 1 / (1 + np.exp(-(x - x0) / w))
+
+    cols, n = {}, 800
+    for k, ce in enumerate(caps):
+        c = np.linspace(1e-5, ce, n)
+        x = c / ce
+        cols[f"{k}_capacity"] = c
+        cols[f"{k}_voltage"] = (2.90 + 1.30 * x ** 0.8
+                                - 0.06 * stage(x, 0.30, 0.035)
+                                - 0.055 * stage(x, 0.62, 0.040))
+    pd.DataFrame(cols).to_excel(
+        root / "experiment/cylindrical/pOCV_#168.xlsx", index=True)
+
+    m = 600
+    pc = np.linspace(5.8e-8, 3.0e-4, m)
+    nc = np.linspace(5.8e-8, 3.0e-4, m)
+    u = nc / nc[-1]
+    pd.DataFrame({
+        "PE_capacity": pc, "PE_voltage": 4.4726 - 0.85 * (pc / pc[-1]) ** 1.3,
+        "NE_capacity": nc,
+        "NE_voltage": (1.11 * np.exp(-u / 0.012) + 0.24 * np.exp(-u / 0.9)
+                       - 0.10 * stage(u, 0.30, 0.05)
+                       - 0.05 * stage(u, 0.62, 0.05) + 0.005),
+    }).to_excel(root / "half cell ocv/320mAh_cylindrical_cell_half_cell_ocv.xlsx",
+                index=False)
+
+
+def test_prepare_cell_builds_a_tree_data_py_can_read():
+    """변환기가 만든 트리를 **실제로 적재해** 본다.
+
+    `data.py` 를 고치지 않고 자료 쪽을 옮기는 것이 이 스크립트의 존재 이유다.
+    그러므로 검사도 "파일이 생겼나" 가 아니라 **"검증 대상 적재기가 읽나"** 여야
+    한다. 여기서 깨지면 새 셀 숫자를 하나도 못 믿는다.
+    """
+    import subprocess, tempfile, importlib.util
+    import numpy as np
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    src, out = tmp / "src", tmp / "out"
+    # 문헌 곡선은 합성 xlsx 생성기에서 빌린다 (셀과 무관한 자료)
+    subprocess.run([sys.executable, str(ROOT / "matlab/tests/gen_synth_xlsx.py"),
+                    str(src)], check=True, capture_output=True)
+    _make_cyl_source(src)
+
+    r = subprocess.run([sys.executable, str(ROOT / "scripts/prepare_cell.py"),
+                        "--src", str(src), "--cell", "#168", "--out", str(out)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, f"변환기가 죽었다:\n{r.stdout}\n{r.stderr}"
+
+    from bms_balancing import data as D
+    caps = (0.379049, 0.377735, 0.363715, 0.345661)
+    for state, want in zip(("pristine", "100", "200", "300_0009"), caps):
+        c, v = D.load_full_cell(out, state)
+        assert abs(c[-1] - want) < 1e-9, f"{state} 의 c_cell 이 원본과 다르다"
+        assert v[0] < v[-1], f"{state} 전압이 오름차순이 아니다"
+
+    # ⚠ 상태 **이름**이 맞게 붙었나. 위치 왕복만 보면 STATE_OF_COL 을 뒤집어도
+    #   통과한다 (2026-09-10 변이 시험). 이름을 붙드는 것은 물리 제약뿐이다:
+    #   열화하면 용량이 준다.
+    got = [D.load_full_cell(out, s)[0][-1]
+           for s in ("pristine", "100", "200", "300_0009")]
+    assert all(x > y for x, y in zip(got, got[1:])), (
+        f"상태 이름과 용량이 안 맞는다: {got} — 열화하면 c_cell 이 줄어야 한다")
+
+    # 반쪽전지가 상태마다 **같은 측정**인가 (머리말 2번의 가정)
+    import hashlib
+    h = {s: hashlib.sha256(D.half_cell_path(out, "GITT", s).read_bytes()).hexdigest()
+         for s in ("pristine", "100", "200", "300_0009")}
+    assert len(set(h.values())) == 1, (
+        "상태별 반쪽전지 파일이 서로 다르다 — 이 셀은 한 번만 쟀으므로 같아야 한다")
+
+    # `300_0147` 은 **없어야** 한다. 조용히 다른 상태를 읽으면 안 된다.
+    try:
+        c, _ = D.load_full_cell(out, "300_0147")
+        assert c.size == 0, "300_0147 이 없어야 하는데 자료가 나왔다"
+    except (IndexError, KeyError):
+        pass
