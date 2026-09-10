@@ -3,13 +3,57 @@
 > 세션이 바뀌어도 유지되는 미결 사항 추적. 닫을 때 날짜+근거를 남기고 ✅로 옮긴다.
 > 등록: 2026-07-27 (MAX 감사 후속).
 
-## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-09**)
+## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-10**)
 
 > 순서가 있다. 앞이 끝나야 뒤가 뜻이 있다.
 >
 > ⚠ **이 절의 상태 문장은 실측으로만 쓴다.** 2026-09-07 까지 여기 머리가 "ORCA 8잡 실행 중"
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
+
+### ⏭-NOW. 2026-09-10 23:20 기준 **실측** 상태 (ps·nvidia-smi·git log 로 받침)
+
+**▶ 지금 돌고 있는 것 (둘)**
+- **gabia 탄성 26잡** — `tmux el` · `/data/work/runs/elastic_{modelc_2x,b2o3}` · pw.x 30.9 GB.
+  modelc_2x V0 relax SCF 3회차에서 시작. 러너 `tools/elastic/run_elastic_relaxedion_gabia.sh`
+  (SYS=modelc_2x → b2o3 순차), 감시 `tools/elastic/watch_elastic.sh`. **2~4일.**
+  사전등록: `db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json` (판정 네 갈래 봉인).
+- **kgy 힘대조** — b2o3 9점 재시도 (`~/work/runs/force_check_700K`).
+  아침에 `--collect` 20/20 → `force_contrast` R.
+
+**⏸ 오늘 멈춘 것 — 되살려야 한다**
+- **SEI 큐 전체 정지.** `tools/sei/restart_qe_relax.sh --run` 드라이버를 죽였고(GPU 양보),
+  r2·r3 를 `prefix.EXIT` 로 깔끔히 종료했다. r2 박제:
+  `/data/work/runs/sei_control/li3nd_mp-976264_p333_r2/PAUSED_0910_2304/`
+  (step 40 · |F| 0.032609 · E −14652.33022106 Ry · `.bfgs` sha 3feb4c36).
+  ⛔ **탄성이 끝나야** `cd /data/work/repo && tmux new -s sei -d 'bash tools/sei/restart_qe_relax.sh --run'`.
+  먼저 걸면 드라이버 가드(GPU_FREE_MIB=20000)가 탄성 잡 사이 틈에 끼어들어 둘이 서로 민다.
+
+**✅ 오늘 닫힌 것**
+- **ndo_lpscl16 n5fu ICOHP** — spilling 1.75 % · **Nd–P 쌍 없음** · 배위수가 조성을 재구성
+  (P 3개 전부 PS₃O · Nd 2개 전부 NdS₅Cl) · P–O −8.416 이 lpsocl −8.41 과 일치.
+  → `db/properties/ndo_lpscl16_n5fu_icohp_2026_09_10.json`
+- **DOS/PDOS** — gap 2.1616 (fixed-occ) · CBM 에 Nd 없음(S p 40 % + P s 25 % + Li p 16 %).
+  CSV·PNG 가 `db/properties/ndo_lpscl16_n5fu_*` · `docs/figures/ndo_lpscl16/`.
+- **b2o3 셀확장 진단** — 회색(판정 없음). 그리고 같은 날 감사가 그 해석을 좁혔다
+  (`b2o3_vs_modelc_framework_fair_2026_09_10.json`): **"b2o3 고유" 는 공정 비교에서도 산다**
+  (온도별 대면 4/4 분리) · 인용해 온 800 K 기준선 **0.79 는 P 가 만든 값**이라 modelc 과
+  나란히 쓸 때는 {Cl,S} 기준 **0.66** · 온도 단조성 없음(900 K 0.21/0.77/0.29).
+
+**⛔ 남은 사무 (짧다)**
+- ICOHP·DOS CSV **원장 등재 + claim 결속** — 인용 제한 셋을 값 요소 *안*에:
+  P–S −6.288 을 `ICOHP_PS` 와 못 섞음(방법 대조 안 함) · Rietveld 유래 대조군이라
+  main track(cfg141)으로 못 옮김 · frozen-4f 라 4f 주장 불가 · DOS **곡선**은 irr 10 k
+  tetrahedra 라 표시용(갭·성분비는 유효).
+- `elastic.json` 의 **b2o3_champion 에 setup/strain_step/n_scfs 가 없다** (나머지 넷은 있다).
+  2026-07-03 판의 입력이 어디에도 없어 그 Cij(K 27.02 포함)는 설정 미확인으로 남는다.
+  canonical B0 24.48 은 별개 EOS 라 무관.
+
+**오늘 고친 도구 (전부 우리 도구끼리 관례가 갈린 것)**
+`<prefix>_dos.dat` vs `.dos` · `_pdos.` vs `.pdos.` · `E-EF` vs `E_minus_Ef` · repo 두 벌 ·
+plot_dos 가 스무딩 없음(family σ 0.15) · plot_dos 가 y 자동배율을 창 밖 준core 델타에 맡김 ·
+plot_dos 가 **DOS-threshold 갭을 인용 가능한 수처럼 라벨에 박음**(→ `[fixed-occ nscf]` 결속) ·
+msd_diffusive_check 의 save_fs 가정·thin 표기 죽은 코드·라벨 중복 · 탄성 VRAM 가드 14000→32000(실측).
 
 **2026-09-07~08 에 들어와 이 원장이 모르고 있던 것** (전부 `db/governance/decisions.json` 에 active):
 - `D-2026-09-08-lpsocl-box331-closure-conditions` — LPSOCl 3×3×1 400 ps 9런 **닫힘 조건 확정**
