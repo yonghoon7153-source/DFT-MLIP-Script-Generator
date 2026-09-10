@@ -1,11 +1,11 @@
 ---
 title: 이 계보는 모드 분해를 재면서 그 분해의 유일성은 모드 좌표에서 재지 않았다
-description: "Fourteen papers report LLI/LAM decompositions; one (Mohtat 2019) quantifies identifiability but not in mode coordinates, and none reports the direction of the degeneracy — yet the instruments are already scattered across the same fourteen"
+description: "Fifteen papers report LLI/LAM decompositions; one (Mohtat 2019) quantifies identifiability but not in mode coordinates, and none reports the direction of the degeneracy — yet the instruments are already scattered across the same fifteen"
 created: 2026-09-03
-updated: 2026-09-04
+updated: 2026-09-10
 type: synthesis
 tags: [battery, degradation, identifiability, research]
-sources: [raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
+sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
 confidence: high
 explored: false
 verificationStatus: unverified
@@ -18,9 +18,9 @@ targetVenue: 다음 연구세미나 발표 도입부 + degradation-degeneracy �
 
 ## Thesis
 
-흡수한 14편은 LLI/LAM 분해(또는 그 등가물)를 **보고**하지만 그 분해가 **유일한지**를
+흡수한 15편(2026-09-10 Schmitt 2022 추가)은 LLI/LAM 분해(또는 그 등가물)를 **보고**하지만 그 분해가 **유일한지**를
 **모드 좌표에서, 축퇴의 방향까지, 추정기로** 잰 논문은 하나도 없고, 그러면서
-**그것을 잴 도구는 이미 이 14편 안에 흩어져 있다** — 빠진 것은 도구가 아니라
+**그것을 잴 도구는 이미 이 15편 안에 흩어져 있다** — 빠진 것은 도구가 아니라
 **그 도구를 자기 결과에 겨누는 한 걸음**이다.
 
 > **⚠ 2026-09-04 — 이 Thesis 는 좁혀졌다.** 원래 문장은 "그 분해가 유일한지를 잰
@@ -171,6 +171,8 @@ pristine 보다 오히려 가깝다. 정본 `mode-observability/results/phase1h/
 
 ### 6. 그리고 **재지 않은 대가**가 한 번 실측됐다
 
+> **2026-09-10 — 두 번째 실측이 §8 에 붙었다** (Schmitt 2022, 이번엔 모드 좌표).
+
 Marongiu 2016 이 관측을 하나로 줄인 채 **초기값만** 10 % → 0 % 로 바꾼다:
 오차 **6.38 → 14.46 %**(충전) · **4.33 → 12.51 %**(방전). `[인쇄]` 저자 설명 —
 "the smaller initial value **which is kept for the final calculation** … due to the
@@ -209,6 +211,41 @@ Marongiu 2016 이 관측을 하나로 줄인 채 **초기값만** 10 % → 0 % �
 로 반대다. **분할 판정이다.** 그리고 두 매개화 모두 열 상대오차가 190~220 %라,
 위 각도들이 지지하는 것은 **"u_min 이 (1,1,1) 근방인가" 라는 이분법뿐**이다
 (전문: `mode-observability/docs/PHASE1N_NOTES.md`).
+
+### 8. **★ 재지 않은 대가의 두 번째 실측 — 이번엔 모드 좌표에서 (2026-09-10, Schmitt 2022)**
+
+§6 의 Marongiu 사례는 **`θ` 좌표의 오차율**이었다. 15번째 편
+(`raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md`) 은 같은
+현상을 **모드 좌표에서 직접** 보여준다 — 이 논지가 계속 비어 있다고 지적해 온
+바로 그 좌표에서.
+
+같은 셀·같은 데이터·같은 추정기(DV 목적함수 + `lsqnonlin`)에 **음극 half-cell
+OCP 곡선만 바꿔** 넣는다 (pristine ↔ 해당 열화 상태에서 실제로 측정한 것
+↔ blend 모델 합성):
+
+| | LAM_an | LAM_cat | LLI | OCV RMSE | 제한 전극 |
+|---|---|---|---|---|---|
+| pristine 곡선 | `[인쇄]` **15.5 %** | `[도표]` ≈2.3 % | `[도표]` ≈13.2 % | **9.9 mV** | 음극 |
+| aged 곡선 | `[도표]` ≈13.0 % | `[도표]` ≈5.3 % | `[도표]` ≈14.2 % | **9.6 mV** | 양극 |
+| blend 모델 | `[인쇄]` **13.1 %** | `[도표]` ≈6.5 % | `[도표]` ≈14.2 % | **8.2 mV** | 양극 |
+
+`[해석]` **적합도 1.7 mV 안에서 모드가 2~4 pp 움직이고 정성적 결론이 뒤집힌다.**
+그리고 원전은 `identifiability`·`degeneracy`·`parameter correlation`·
+`confidence region` 을 **한 번도 쓰지 않는다** — §2 의 "인쇄됐으나 계산되지
+않았다" 패턴의 **네 번째** 사례이며, 이번에는 인쇄된 문장이 특히 명시적이다
+`[인쇄]`: "**As both effects would lead to the same results with regard to the
+full-cell OCV**, the left-shift … can be **misinterpreted** as resulting solely
+from an overall anode active material loss."
+
+**★ 그리고 이 편은 이 논지에 없던 축을 하나 연다: 좌표의 불완전성.**
+지금까지 이 문서의 모든 논의는 `U_an(·)`, `U_cat(·)` 를 **고정 함수**로 두고
+창 좌표만 다뤘다. Schmitt 는 blend 음극에서 그 함수가 **`γ_Si` 로 매개화된
+족**임을 실험으로 보인다 ([[halfcell-ocp-shape-invariance]]) — 즉 이 계보의
+비식별성 논의는 **애초에 좌표가 맞다는 가정 위에** 서 있었다. 그 가정이
+깨지면 축퇴와 모델 오설정이 **같은 증상**을 낸다.
+**이 편도 자기가 연 축퇴는 재지 않았다**: `γ_Si` 를 다섯 번째 자유 파라미터로
+열어 놓고 `(α_an, γ_Si)` 상관을 뽑지 않았고, Fig. 7 의 `γ_Si` 는 오차막대 없는
+단일 점 7개다. → **Thesis 를 무너뜨리지 않고 확장한다.**
 
 ## Counter-arguments
 
@@ -545,7 +582,7 @@ electrodes**", 그리고 식 (26) `σ_y·α = σ_x·β`. **다만 그 의존성�
    1쪽 좌하단에 인쇄된 값으로 대조). **자기의심이 지목한 반례가 실재했고, Thesis 를
    좁혔다** (Counter-argument (f)). 이 항목은 이제 편향의 *증거*가 아니라 **자기의심이
    실제로 작동한 사례**로 남긴다.
-   **남은 편향은 그대로다**: 14편은 여전히 우리가 고른 것이 아니라 사용자가 준 것이고,
+   **남은 편향은 그대로다**: 15편은 여전히 우리가 고른 것이 아니라 사용자가 준 것이고,
    Mohtat 이 인용한 **[15] Lee 2020**(*IEEE TII* 16(5), 3376) 은 아직 미독이다.
    그리고 이번 한 편이 논지를 좁혔다는 사실 자체가, **아직 안 읽은 편이 더 좁힐 수
    있음**을 말한다.

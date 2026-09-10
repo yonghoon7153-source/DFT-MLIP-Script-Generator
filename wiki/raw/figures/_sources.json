@@ -64,6 +64,13 @@
    "978ee242-Towards_better_estimability_of_electrodespecific_state_of_health_Decoding_the_cell_expansion.pdf"
   ]
  },
+ "natterer2026_re-halfcell-anode-potential-aging": {
+  "figures": 9,
+  "generated": "2026-09-10",
+  "pdfs": [
+   "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf"
+  ]
+ },
  "navidi2024_piml-degradation-diagnostics-comparison": {
   "figures": 25,
   "generated": "2026-09-03",
@@ -85,6 +92,13 @@
   "pdfs": [
    "f6f9bc36-12._Interpretation_of_highdimensional_linear_regression_Effects_of_nullspace_and_regularization_demonstrated_on_battery_data.pdf",
    "7fc14377-12._Sup_Interpretation_of_highdimensional_linear_regression_Effects_of_nullspace_and_regularization_demonstrated_on_battery_data.pdf"
+  ]
+ },
+ "schmitt2022_sic-ocp-shape-change-degradation-modes": {
+  "figures": 9,
+  "generated": "2026-09-10",
+  "pdfs": [
+   "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf"
   ]
  },
  "su2024_drt-soh-health-features": {

@@ -2,10 +2,10 @@
 title: 22p 결과는 물리인가 fitting degeneracy 인가
 description: "Is the seminar 22p LLI/LAM decomposition (LAM_PE=LAM_NE=13%, LLI=17%) real physics or an artifact of non-identifiability"
 created: 2026-08-11
-updated: 2026-09-04
+updated: 2026-09-10
 type: research-question
 tags: [battery, degradation, research]
-sources: [raw/repositories/degradation-degeneracy-audit.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
+sources: [raw/repositories/degradation-degeneracy-audit.md, raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
 confidence: medium
 explored: false
 verificationStatus: unverified
@@ -124,6 +124,27 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   `[해석]` 이 카드가 다루는 22p 분해도 목적함수 최소점에서 읽은 값이다.
   **낮은 잔차는 참에 가깝다는 증거가 아니다** — 우리 파이프라인이 `|err|`
   (복원 오차)로 판정하도록 설계된 이유이기도 하다.
+
+- **[2026-09-10] "half-cell OCP 모델 오차가 분해를 방향성 있게 밀어낸다" 의
+  야생 실측이 나왔다** (Schmitt 2022, `raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md`).
+  본 실행이 새로 드러낸 축 (a)(모델 오차 민감도)의 **실셀 대응물**이다.
+  같은 셀·같은 데이터·같은 추정기에 **음극 half-cell OCP 곡선만 바꿔** 넣으면
+  (pristine ↔ 그 열화 상태에서 실제로 측정한 것) `[인쇄]`
+  **LAM_an 15.5 % ↔ 13.1 %**, `[도표]` **LAM_cat ≈2.3 % ↔ ≈6.5 %**,
+  **LLI ≈13.2 % ↔ ≈14.2 %** 로 갈리는데 **full-cell OCV 재구성 RMSE 는
+  9.9 ↔ 8.2 mV** 밖에 안 움직인다. 심지어 "충전 종료를 제한하는 전극이 어느
+  쪽인가" 라는 **정성적 결론이 뒤집힌다** (음극 제한 → 음극 비제한).
+  `[해석]` 이것은 이 카드의 명제 — **낮은 잔차는 참에 가깝다는 증거가 아니다**
+  — 를 열화 모드 좌표에서 직접 보여준 두 번째 사례다 (첫째는 2026-09-03 (6)
+  Schaeffer 그림판).
+  **범위 한정 3개** (과대 인용 방지): (a) 이것은 **축퇴가 아니라 모델 오설정**
+  이다 — 원인이 다르고 증상만 같다 ([[halfcell-ocp-shape-invariance]]).
+  22p 분해에 이 편향이 실제로 걸리려면 **22p 셀의 음극이 blend** 여야 하고,
+  그 확인은 아직 안 했다. (b) 원전에 **오차 막대가 없고** aging state 당 셀
+  1개다. 같은 그림에서 LAM_cat 이 **−2.6 %** (물리적 불가) 까지 내려가므로
+  추정 잡음이 주장 효과 크기(1–3 pp)와 같은 자릿수다 → **방향은 신뢰, 크기는
+  유보**. (c) 원전은 `identifiability`·`degeneracy` 를 **한 번도 쓰지 않고**
+  축퇴를 재지 않는다 — 이 항목은 원전의 주장이 아니라 원전 데이터의 재해석이다.
 
 ## Evidence Against
 - (방향성 관측, 인용 금지 등급) half-cell 기준(Case 1)과 dQ/dV 항 추가가 복원
@@ -856,6 +877,22 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   ★ 같은 편이 준 두 번째 단서 — **관측 창의 위치가 어느 전극을 보이게 하는지 고른다**
   (폭이 같은 두 창에서 NE 오차가 2배 차이, Table IV). 우리가 아직 안 흔든 축이고,
   판별 실험 후보다 (비교표: [[halfcell-window-parametrization-lineage]]).
+
+- **[2026-09-10] Schmitt 2022 흡수 — 이 카드에 새 축이 붙었다: 좌표의 불완전성.**
+  지금까지 이 카드는 "**주어진 4-파라미터 창 좌표 안에서** 세 모드가 갈리는가"
+  만 물었다. Schmitt 2022 는 그 **좌표 자체가 blend 전극에서 불완전**함을
+  실험으로 보인다 — 열화한 Si/graphite 곡선은 pristine 곡선의 아핀 변환이
+  아니다 (`γ_Si` 9.52 → 5.55 %). 새 개념 페이지:
+  [[halfcell-ocp-shape-invariance]].
+  **우리에게 뜻하는 것** `[해석]`: `degradation-degeneracy` 는 PyBaMM 합성
+  truth 를 쓰므로 생성·적합이 **같은 OCP 함수**를 공유한다 → 형상 불변이
+  **정의상 참**이다. 즉 **우리가 재는 축퇴는 이상적 조건에서의 하한**이고,
+  실셀에서는 형상 오설정 편향이 그 위에 **더해진다**. 이 문장은 우리 결과의
+  유효 범위 표기로 쓸 수 있다 (그리고 22p 셀 음극이 blend 인지 확인하는
+  후속 항목을 남긴다).
+  **미실행**: `γ_Si` 를 5번째 파라미터로 열었을 때 `(α_NE, γ_Si)` 평면의 축퇴
+  지도 — 원전이 "같은 서명" 이라고 쓰고도 재지 않은 자리이며, 우리 프레임으로
+  잴 수 있는 것이다.
 
 ### 이 카드가 속한 논지 (2026-09-03)
 

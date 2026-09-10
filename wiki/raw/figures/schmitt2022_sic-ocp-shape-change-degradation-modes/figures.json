@@ -1,0 +1,191 @@
+{
+ "slug": "schmitt2022_sic-ocp-shape-change-degradation-modes",
+ "dpi": 300,
+ "maxpx": 3000,
+ "generated": "2026-09-10",
+ "sources": [
+  "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf"
+ ],
+ "figures": [
+  {
+   "key": "f1",
+   "kind": "figure",
+   "label": "1",
+   "page": 3,
+   "file": "fig_1.png",
+   "caption": "Fig. 1. (a) Reconstruction of a pristine full-cell OCV curve by linear scaling and shifting of pristine half-cell OCP curves. (b) Flowchart describing the method applied in this study for analyzing the impact of changes in the anode half-cell OCP curve on the determination of degradation modes. (c) Schematic representation of the definition of the lithium inventory.",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    49.8,
+    563.7,
+    478.8
+   ],
+   "w": 1097,
+   "h": 1788,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.729
+  },
+  {
+   "key": "f2",
+   "kind": "figure",
+   "label": "2",
+   "page": 5,
+   "file": "fig_2.png",
+   "caption": "Fig. 2. (a) Reconstruction of the measured pristine silicon–graphite OCP curve based on the normalized lithiation curves of the electrode components using the blend electrode model. The lithiation curve of silicon is obtained from Ref. [38]. (b) Measurement and model calculation of a pristine and a cycle aged (488 EFC) silicon–graphite electrode. (c) Fraction of the silicon–graphite electrode capacity provided by silicon determined by fitting silicon–graphite half-cell curves at different aging states with the blend electrode model.",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    49.8,
+    563.7,
+    563.7
+   ],
+   "w": 1097,
+   "h": 2142,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.91
+  },
+  {
+   "key": "f3",
+   "kind": "figure",
+   "label": "3",
+   "page": 7,
+   "file": "fig_3.png",
+   "caption": "Fig. 3. (a) Quasi-stationary OCV curve of full-cells at different aging states during low-current (C/30) charging. (b) Normalized differential voltage of cells at different aging states during low-current charging.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    294.7,
+    382.2
+   ],
+   "w": 1097,
+   "h": 1386,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.903
+  },
+  {
+   "key": "f4",
+   "kind": "figure",
+   "label": "4",
+   "page": 7,
+   "file": "fig_4.png",
+   "caption": "Fig. 4. Reconstruction of the quasi-stationary OCV during charging of a full-cell cycled for 486 EFC using (a) the anode half-cell curve of the pristine material, (b) the anode half-cell curve of the aged material, and (c) a synthetic anode OCP curve representing the half-cell curve of aged material calculated with the blend electrode model.",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    49.8,
+    563.7,
+    559.9
+   ],
+   "w": 1097,
+   "h": 2126,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.872
+  },
+  {
+   "key": "f5",
+   "kind": "figure",
+   "label": "5",
+   "page": 8,
+   "file": "fig_5.png",
+   "caption": "Fig. 5. Root-mean-square error for the reconstruction of the full-cell OCV at different aging states. The RMSE is plotted for using the pristine anode OCP, the aged anode OCP at a certain aging state, and synthetic OCP curves calculated with the blend electrode model.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    294.7,
+    221.6
+   ],
+   "w": 1097,
+   "h": 717,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.911
+  },
+  {
+   "key": "f6",
+   "kind": "figure",
+   "label": "6",
+   "page": 9,
+   "file": "fig_6.png",
+   "caption": "Fig. 6. Alignment parameters obtained by reconstructing the full-cell OCV curve at different aging states using different types of anode half-cell curves: (a) anode scaling factor, (b) anode offset, (c) cathode scaling factor, (d) cathode offset.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    563.7,
+    340.9
+   ],
+   "w": 2218,
+   "h": 1214,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.918
+  },
+  {
+   "key": "f7",
+   "kind": "figure",
+   "label": "7",
+   "page": 9,
+   "file": "fig_7.png",
+   "caption": "Fig. 7. Estimate of the fraction of anode capacity provided by the silicon at dif- ferent aging states. Results obtained by reconstruction of half-cell OCP curves of silicon–graphite and full-cell OCV curves are shown.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    371.2,
+    294.7,
+    543.7
+   ],
+   "w": 1097,
+   "h": 720,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.911
+  },
+  {
+   "key": "f8",
+   "kind": "figure",
+   "label": "8",
+   "page": 10,
+   "file": "fig_8.png",
+   "caption": "Fig. 8. (a) Loss of active material of the anode, (b) loss of active material of the cathode, and (c) loss of lithium inventory for cells cycled for a different number of equivalent full-cycles estimated via reconstruction of full-cell quasi-stationary OCV curves. The results obtained using the pristine anode half-cell curve, aged anode half- cell curves, and synthetic anode half-cell curves calculated with the blend electrode model are shown.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    294.7,
+    552.6
+   ],
+   "w": 1097,
+   "h": 2096,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.912
+  },
+  {
+   "key": "t1",
+   "kind": "table",
+   "label": "1",
+   "page": 2,
+   "file": "tab_1.png",
+   "caption": "Table 1 Nominal cycles during the cycling period and full-cell charging capacity of cells at different aging states.",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.3,
+    563.3,
+    747.2
+   ],
+   "w": 2213,
+   "h": 2984,
+   "dpi": 300,
+   "src": "55a6f97e-Determination_of_degradation_modes_of_lithiumion_batteries_considering_aginginduced_changes_in_the_halfcell_opencircuit_potential_curve_of_silicon_graphite.pdf",
+   "blank": 0.84
+  }
+ ]
+}

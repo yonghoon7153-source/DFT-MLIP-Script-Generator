@@ -2,10 +2,10 @@
 title: 반쪽전지 창 매개화 계보 비교 (자유도와 제약)
 description: "같은 4개 창 좌표를 무엇으로 매개화하고 여분을 어떻게 죽이는가 — Dubarry 2012 부터 우리 파이프라인까지"
 created: 2026-09-03
-updated: 2026-09-04
+updated: 2026-09-10
 type: comparison
 tags: [battery, degradation, research]
-sources: [raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md]
+sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md]
 confidence: high
 explored: false
 verificationStatus: unverified
@@ -41,6 +41,7 @@ their estimation" 의 구체적 목록이다.
 | **[[data-window-identifiability]] (Lee 2020)** | `y₁₀₀, C_p, x₁₀₀, C_n` | **4** | **1** (`V_max` 등식 — 무제약/제약 **둘 다** 보고) | 소거하지 않고 **제약 CRB 로 대가를 잰다** | full-cell OCV, **DOD 구간 `[Q_s, Q_e]` 로 잘라서** |
 | [[np-lip-ocv-reparametrization]] (Lin 2024) | `r_N/P`, `z₀⁺` | **2** | 0 | **재매개화로 애초에 안 만든다** | SOC 정규화 OCV **형상** |
 | Navidi 2024 (부록 A1) | `m_p, δ_p, m_n, δ_n` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 |
+| **Schmitt 2022 (2026-09-10 추가)** | `α_cat, β_cat, α_an, β_an` **+ `γ_Si`** | **5** | **0** (단 `β<0` 부호 제약) | **여분을 죽이지 않고 늘린다** — 다섯째는 창이 아니라 **반쪽전지 곡선의 모양**을 매개화 | full-cell C/30 충전 곡선의 **DV** |
 | [[fused-lasso-feature-design-framework]] SI S11 | `β_c, β_a, Q_rem, V_shift` | **4** | 0 | 여분 없음 | C/20 RPT 곡선 |
 | **우리 (`degradation-degeneracy`)** | `α_PE, β_PE, α_NE, β_NE` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 (+옵션 dQ/dV) |
 
@@ -108,6 +109,30 @@ DW." `[해석]` [[constrained-crb-identifiability]] 의 Mohtat 은 **폭**만 �
 > 겨눈다. 식 (10)–(12) 로 `LLI/LAM` 사상을 인쇄해 놓고 **§III-A 이후 쓰지 않으므로**,
 > 위 표를 "모드 오차가 창에 따라 이렇게 변한다" 로 읽으면 **틀린다.** 그 변환은
 > 아직 아무도 하지 않았다 (`mode-identifiability-unmeasured-lineage` 반론 (g)).
+
+## ★ 다섯 번째 축 — **반쪽전지 곡선 자체를 매개화한다** (2026-09-10, Schmitt 2022)
+
+위 표의 모든 문헌은 창 좌표 `(α, β)` 를 어떻게 다루느냐로 갈렸다. 공통 전제는
+**`U_an(·)`, `U_cat(·)` 라는 함수 자체는 고정**이라는 것이다
+([[halfcell-ocp-shape-invariance]]).
+
+Schmitt 2022 는 그 전제를 깬다. Si/graphite blend 음극에서 `[인쇄]`
+**`γ_Si` = 9.52 % → 5.55 % (488 EFC)** 로 성분 비율이 바뀌면 곡선의 **모양**이
+바뀌고, 아핀 변환으로는 표현할 수 없다. 처방은 `γ_Si` 를 **다섯 번째 자유
+파라미터**로 두어 4개 정렬 파라미터와 **동시 최적화**하는 것이다.
+
+`[해석]` **이것은 앞의 세 처방과 방향이 반대다.** 등식·사전믿음·재매개화는
+전부 자유도를 **줄인다**. 이쪽은 **늘린다** — 줄여야 할 여분이 아니라
+**모델이 표현하지 못하는 물리**가 문제였기 때문이다. 그리고 그 대가로 저자
+스스로 인정한 새 축퇴가 생긴다 `[인쇄]`: "**both effects would lead to the same
+results with regard to the full-cell OCV**" (`γ_Si ↓` 와 `α_an ↓`).
+**저자는 그 축퇴를 재지 않았다** — Fig. 7 의 `γ_Si` 는 오차막대 없는 단일 점이다.
+
+`[인쇄]` 재지 않은 대가의 크기 (486 EFC 셀): `α_an` 이 **1.027 ↔ 1.057** 로,
+`α_cat` 이 **1.216 ↔ 1.174** 로 갈리는데 OCV 재구성 RMSE 는 **9.9 ↔ 8.2 mV**
+밖에 차이나지 않는다. 심지어 "충전 종료를 제한하는 전극" 이라는 **정성적 결론이
+뒤집힌다**. → 이 위키의 `mode-identifiability-unmeasured-lineage` 논지의
+**야생 실측 두 번째 사례** (첫째는 Marongiu 의 초기값 민감도 6.38 → 14.46 %).
 
 ## ★ Marongiu 식 (2)–(5) 의 null 을 닫힌 형태로 풀었다
 

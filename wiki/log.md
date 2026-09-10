@@ -1160,3 +1160,56 @@ correlation" 은 **맞는 문장이었다.**
 **측정 못 한 것**: 무제약 NE 쌍 `(e_x₁₀₀, e_Cn)` 은 노랑에 완전히 가려 불가.
 Fig. 8(b) 의 전극 이용률(우리 Phase 1j 의 65.61 %/96.70 % 대응물)은 범례 색
 견본과 점선 끝점이 섞여 **신뢰할 수치가 안 나와 적지 않았다.**
+
+## [2026-09-10] ingest | Schmitt et al. 2022 — Si/graphite half-cell OCP 형상 변화와 열화 모드 (JPS 532, 231296)
+
+사용자가 **MATLAB electrode balancing 코드(5-파라미터 `[a_PE, b_PE, a_NE, b_NE,
+γ_Si]`)의 α·β 검증**을 준비하며 지목한 논문. 이 논문의 모델이 정확히 그
+5-파라미터다 — 그래서 digest 의 무게중심을 "무엇을 발견했나" 가 아니라
+**"우리 코드가 깔고 있는 전제가 어디서 깨지는가"** 에 뒀다.
+
+**raw**: `raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md`
+(sha256 봉인, 페이지·절별 STANDALONE 해체분석 16절). 크로핑
+`raw/figures/schmitt2022_sic-ocp-shape-change-degradation-modes/` — **fig 1–8
+전부를 Read 로 직접 보고** 썼다 (표 1장만 PDF 텍스트로).
+
+**핵심 (사용자 4문항)**:
+1. **전제가 깨지는 지점** = 음극이 **blend(Si/graphite)** 일 때. Si 가 graphite
+   보다 빨리 죽으면 `γ_Si` 가 바뀌고 blend OCP 는 두 성분 곡선의 **역함수
+   합성**이라 **모양 자체**가 변한다 — α·β 아핀 변환으로는 표현 불가.
+   정량 지표는 곡선 오차가 아니라 **`γ_Si` 9.52 % → 5.55 %** (초기의 58 %).
+2. **처방** = 곡선을 다시 재는 게 아니라 **`γ_Si` 를 다섯 번째 자유 파라미터로**
+   두고 4개 정렬 파라미터와 동시 최적화. 대가: 자유도 4→5 + 저자 스스로
+   "같은 서명" 이라 인정한 `(α_an, γ_Si)` 축퇴를 **재지 않음**.
+3. **정의식·좌표 규약**을 전부 옮겨 적고 **수치로 검산**했다 —
+   `C_lit = (α_cat + β_cat − β_an)·C_full` (★ LLI 는 `α_an` 에 **무관**),
+   `LAM = 1 − α·C_full/(α_ini·C_full,ini)` (★ `C_full` 이 반드시 들어간다).
+   이 두 식으로 논문 Fig. 8 수치가 재현된다 (digest §11.3).
+4. **검증**: 모드의 ground truth **없음**. 있는 것은 OCV RMSE < 12 mV,
+   half-cell RMSE < 6.9 mV, `γ_Si` 두 경로 교차일치 < 0.8 pp(단 7/7 점 계통
+   편향), 질량 정합 < 6 %. **오차막대 0개, aging state 당 셀 1개.**
+
+**★ 이 저장소에 가장 날카로운 것**: 같은 데이터·같은 추정기에 **음극 곡선만**
+바꾸면 LAM_an 15.5 ↔ 13.1 %, LAM_cat ≈2.3 ↔ ≈6.5 %, LLI ≈13.2 ↔ ≈14.2 % 로
+갈리는데 **OCV RMSE 는 9.9 ↔ 8.2 mV** 다. "충전 종료를 제한하는 전극" 이라는
+정성 결론까지 뒤집힌다. 원전은 `identifiability`·`degeneracy` 를 **한 번도 쓰지
+않는다**.
+
+**본문↔그림 불일치 1건 발견**: §4.5 의 "aged anode curves … 15.5 % LAM_an"
+문장이 Fig. 8(a)(≈13 %) 및 같은 절 앞부분(13.1 %)과 모순 — pristine 값을 잘못
+옮긴 것으로 보인다. 그 문장만 인용하면 논문의 논지와 **정반대** 값을 인용하게
+된다 (digest §11.1).
+
+**컴파일**:
+- 신규 concept [[halfcell-ocp-shape-invariance]] (index 등록).
+- [[halfcell-window-parametrization-lineage]] — Schmitt 행 추가 + 새 절
+  "**다섯 번째 축 — 반쪽전지 곡선 자체를 매개화한다**" (앞의 세 처방은 자유도를
+  줄이고 이것은 늘린다).
+- [[22p-physics-or-degeneracy]] — Evidence For 1건 + Status Log 1건.
+  ★ 카드에 새 축을 달았다: **좌표의 불완전성**. 우리 합성 truth 는 생성·적합이
+  같은 OCP 함수를 쓰므로 형상 불변이 **정의상 참** → **우리가 재는 축퇴는
+  이상적 조건의 하한**이고 실셀에선 형상 오설정 편향이 더해진다.
+- [[mode-identifiability-unmeasured-lineage]] — §8 신설(모드 좌표에서의 두 번째
+  "재지 않은 대가" 실측), 계보 14편 → **15편**.
+
+`python3 wiki/tools/lint.py` → **0 errors** 확인.
