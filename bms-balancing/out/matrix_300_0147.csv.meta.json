@@ -1,0 +1,13 @@
+{
+  "artifact": "matrix_300_0147.csv",
+  "state": "300_0147",
+  "half_cell_source": "step_005C",
+  "si_source": "Li",
+  "starts": 24,
+  "seed": 0,
+  "w_dqdv_note": "명령별",
+  "data_root": "/mnt/d/가형 관련/degradation mode",
+  "git_commit": "9053b217cfafec5c71f016f52284e950905f9eda",
+  "git_dirty": true,
+  "created_utc": "2026-09-10T14:32:02.673031+00:00"
+}
