@@ -375,7 +375,10 @@ for S in $SYSLIST; do
                 echo "           (run_gap_nscf_gabia.sh 는 2026-08-31 부터 그게 기본값)"
             fi
             if [ -n "${PIDS// /}" ]; then
-                ADV=$(cpu_advancing)
+                # ⛔ 인자를 안 넘기면 기본값이 **CPU 패턴**이라 GPU 런에서
+                #   "랭크 없음" 오경보가 난다 — 바로 위 줄은 $PWPAT 로 제대로
+                #   세고 있어서 한 화면 안에서 두 줄이 서로 모순됐다 (2026-09-10 실측).
+                ADV=$(cpu_advancing "$PWPAT")
                 printf "        CPU 전진 %s 랭크 (%s초 표본)" "$ADV" "${CPU_SAMPLE_S:-5}"
                 case "$ADV" in
                     0/0) printf "  — 랭크 없음" ;;
