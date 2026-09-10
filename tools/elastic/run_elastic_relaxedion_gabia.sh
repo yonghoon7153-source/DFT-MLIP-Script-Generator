@@ -25,6 +25,11 @@
 #   · clamped-ion 을 하지 않는다 (1저자 결정 2026-09-10). 내부이완을 금지하면
 #     구조적으로 항상 positive-definite 라 **실패할 수 없는 검사**다.
 #   · V0 부피를 정하지 않는다. STRUCT 가 이미 BM-EOS V0 여야 한다.
+#   · 필요 VRAM 을 예측하지 않는다. MINFREE 는 **실측에서 온 수**다 —
+#     2026-09-10 에 14000 으로 잡았다가 124원자 V0 relax 가 OOM 으로 죽었고,
+#     그 출력이 `Estimated max dynamical RAM per process > 23.83 GB` 를 찍었다
+#     (newd_gpu:newq_gpu 에서 7.98 GB 단일 할당 실패 · 가용 4.84 GB).
+#     ⇒ 128원자급은 26000. 다른 크기를 돌릴 때는 **첫 잡의 그 줄을 보고** 고친다.
 #   · 계 간 비교 가능성을 보증하지 않는다 — 그건 설정이 같은지 사람이 보는 일이고,
 #     그래서 DRY_RUN 이 해석된 설정을 전부 찍는다.
 # =============================================================================
@@ -55,7 +60,7 @@ case "$SYS" in
     DEGAUSS=0.01; CONV_THR=1e-10; MIXBETA=0.2; MIXMODE="local-TF"; NOSYM="1"
     PREFIX=b2o3v0
     PSEUDOS='{"Li":"li_pbe_v1.4.uspp.F.UPF","P":"P.pbe-n-rrkjus_psl.1.0.0.UPF","S":"s_pbe_v1.4.uspp.F.UPF","Cl":"cl_pbe_v1.4.uspp.F.UPF","B":"b_pbe_v1.4.uspp.F.UPF","O":"O.pbe-n-kjpaw_psl.0.1.UPF"}'
-    MINFREE=14000 ;;
+    MINFREE=26000 ;;
   modelc_2x)  # 124원자 무도핑 통제군. b2o3 와 **같은 프레임**이다
               # (7.007/7.007/70.071 Å vs 6.997/6.984/70.387 · Cl 16개로 동일).
     STRUCT_D=$REPO/db/structures/modelc_2x_V0.xyz
@@ -63,7 +68,7 @@ case "$SYS" in
     DEGAUSS=0.01; CONV_THR=1e-10; MIXBETA=0.2; MIXMODE="local-TF"; NOSYM="1"
     PREFIX=mc2xv0
     PSEUDOS='{"Li":"li_pbe_v1.4.uspp.F.UPF","P":"P.pbe-n-rrkjus_psl.1.0.0.UPF","S":"s_pbe_v1.4.uspp.F.UPF","Cl":"cl_pbe_v1.4.uspp.F.UPF"}'
-    MINFREE=14000 ;;
+    MINFREE=26000 ;;
   *) echo "⛔ SYS 를 모른다: '$SYS' (아는 것: comp2 · b2o3 · modelc_2x) — 시작하지 않는다"; exit 2 ;;
 esac
 STRUCT=${STRUCT:-$STRUCT_D}; STRAIN=${STRAIN:-$STRAIN_D}; KLINE=${KLINE:-$KLINE_D}
