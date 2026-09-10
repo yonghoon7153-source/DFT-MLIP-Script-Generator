@@ -557,8 +557,14 @@ for S in ${SYSTEMS:-comp1 modelc}; do
 
         printf "&DOS\n    prefix = '%s'\n    outdir = './tmp'\n    fildos = '%s.dos'\n    DeltaE = 0.01\n/\n" "$PFX" "$PFX" > "$D/dos.in"
         printf "&PROJWFC\n    prefix  = '%s'\n    outdir  = './tmp'\n    filpdos = '%s.pdos'\n    DeltaE  = 0.01\n/\n" "$PFX" "$PFX" > "$D/projwfc.in"
-        ( cd "$D" && "$BINDIR/dos.x"     -in dos.in     > dos.out     2>&1 )
-        ( cd "$D" && "$BINDIR/projwfc.x" -in projwfc.in > projwfc.out 2>&1 )
+        # ⛔⛔ dos.x/projwfc.x 도 **pw.x 와 같은 런처로** 던진다.
+        #   첫 판은 직접 실행했는데 kgy GPU 빌드에서 dos.x 가 0바이트 출력으로
+        #   17분 매달렸다 (2026-09-10 실측, PID 2420285). CLAUDE.md 가 이름으로
+        #   부르는 사고 ② 와 같은 뿌리다 — NVHPC/MPI 로 빌드된 바이너리를
+        #   런처 없이 띄우면 OpenMP·MPI 초기화에서 죽거나 멈춘다.
+        #   ldd 유도로 잡은 $MPIRUN 을 그대로 쓴다.
+        ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np 1 "$BINDIR/dos.x"     -in dos.in     > dos.out     2>&1 )
+        ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np 1 "$BINDIR/projwfc.x" -in projwfc.in > projwfc.out 2>&1 )
         for x in dos projwfc; do
             grep -aq "JOB DONE" "$D/$x.out" || { fail "$S" "$x.x 실패 — 마지막 15줄:"; grep -a . "$D/$x.out" | tail -15; continue 2; }
         done
