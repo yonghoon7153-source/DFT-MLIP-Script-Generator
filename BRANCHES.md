@@ -137,3 +137,21 @@ claude/zip-git-gpu-setup-vdqdtd  →  claude/14-gate-code-review-9qkx05
    쓰고 있어 충돌만 남고, 연구 파이프라인의 `source_digest` 가 오염된다.
 3. 원격 브랜치 삭제는 **사람 승인 후에만**. 위 흡수 목록은 근거이지 실행 지시가
    아니다.
+
+## 2026-09-10 — `claude/bms-alpha-beta-verify` 분기
+
+`claude/14-gate-code-review-9qkx05` 의 `56a35a88` 에서 갈랐다. **경로를 겹치지
+않게 나눈 것**이 전부다:
+
+| 브랜치 | 소유 경로 |
+|---|---|
+| `claude/14-gate-code-review-9qkx05` | `degradation-degeneracy/` · `webapp/` · `wiki/` · 루트 문서 |
+| `claude/bms-alpha-beta-verify` | **`bms-balancing/` 만** |
+
+이유: α·β 검증(규진팀 MATLAB 포팅·축퇴 측정)은 게이트 리뷰 루프와 **일정도
+자원도 다르다.** 같은 브랜치에서 둘을 돌리면 게이트의 증거 사슬(`source_digest`
+· 영수증 · 전수 재생)이 무관한 커밋으로 흔들린다. `bms-balancing/` 은 RUN_SCOPE
+밖이므로 갈라도 `source_digest` 는 안 움직인다 — 그것이 이 분기가 안전한 이유다.
+
+합치는 방향은 **본체가 서브를 merge** 하는 쪽 하나다. 반대로 하면 게이트
+브랜치의 이력이 서브로 흘러가 판정 대상 커밋을 흐린다.
