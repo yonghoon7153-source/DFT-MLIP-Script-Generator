@@ -21,6 +21,14 @@ ELEM = {
     "O":  "#be123c",  # crimson (dopant O -> bold lw ~2.6)
     "B":  "#0284c7",  # sky    (dopant B -> bold)
     "N":  "#2563eb",  # blue
+    # ── 2026-09-10 추가. Nd 가 캠페인 원소가 됐다 (ndo_lpscl16 계열 DOS/PDOS/COHP).
+    #   Nd 그림에 같이 나오는 원소는 Li·P·S·Cl·O 다 — B·N 과는 한 그림에 안 나온다.
+    #   pink-600 은 그 다섯과 색상·명도가 다 갈린다. 유일하게 가까운 O(crimson)는
+    #   하우스 관례상 **도펀트라 굵게(lw~2.6)** 그리므로 굵기로도 갈린다.
+    "Nd": "#db2777",  # pink-600  (lanthanide dopant)
+    # Br 은 comp2~comp5 에서 쓰는데 팔레트에 없어 각 도구가 제멋대로 골라 왔다
+    #   (plot_dos.py 는 #A0522D sienna 를 써서 S 와 겹쳤다). 어두운 갈색으로 고정한다.
+    "Br": "#7c2d12",  # orange-900
 }
 
 # system colors for cross-system comparisons

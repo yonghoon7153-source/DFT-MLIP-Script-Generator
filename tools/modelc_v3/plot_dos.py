@@ -29,17 +29,27 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
+# ⛔ 2026-09-10 — 이 도구는 자체 팔레트를 갖고 있었고 **하우스와 전부 달랐다**
+#   (Li 회색 vs #0d9488 · P 주황 vs #7c3aed · S 금색 vs #c05621 · Cl 초록 vs #65a30d ·
+#    O 빨강 vs #be123c · Br sienna 는 S 와 겹침). 같은 계의 DOS 와 COHP 그림이
+#   원소마다 다른 색으로 나오면 사람이 둘을 같은 계로 못 읽는다. 팔레트를 한 곳에서 온다.
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "figures"))
+try:
+    import house_style as _hs
+    _HOUSE = True
+except ImportError:          # house_style 이 없으면 그림은 나오되 그 사실을 밝힌다
+    _HOUSE = False
+    print("  ⚠ house_style 을 못 읽었다 — 하우스 팔레트가 아닌 대비색으로 그린다")
 
-ELEM_COLOR = {
-    "Li": "#888888",   # gray
-    "P":  "#FF9933",   # orange
-    "S":  "#E0C200",   # yellow-gold
-    "Cl": "#3E8E41",   # green
-    "Br": "#A0522D",   # sienna
-    "O":  "#D62728",   # red
-    "Nd": "#17BECF",   # teal
-}
-ELEM_ORDER = ["Li", "P", "S", "Cl", "Br", "O", "Nd"]
+
+# 하우스 팔레트가 정본. 폴백은 house_style 이 없을 때만 쓰고, 그 사실을 위에서 찍는다.
+_FALLBACK_COLOR = {"Li": "#888888", "P": "#FF9933", "S": "#E0C200", "Cl": "#3E8E41",
+                   "Br": "#A0522D", "O": "#D62728", "Nd": "#17BECF", "B": "#0284c7"}
+ELEM_COLOR = dict(_hs.ELEM) if _HOUSE else dict(_FALLBACK_COLOR)
+for _e, _c in _FALLBACK_COLOR.items():      # 하우스에 없는 원소는 폴백으로 메운다
+    ELEM_COLOR.setdefault(_e, _c)
+ELEM_ORDER = ["Li", "P", "S", "Cl", "Br", "O", "B", "Nd"]
 ORB_LABEL = {"s": "s", "p": "p", "d": "d", "f": "f"}
 
 
@@ -195,11 +205,13 @@ def plot_raw(E, DOS, EF, vbm, cbm, vbm_peak, cbm_peak, gap, out_path,
     ax.set_ylim(bottom=0)
     ax.set_xlabel("E (eV)")
     ax.set_ylabel("DOS (states/eV/cell)")
+    if _HOUSE:
+        _hs.apply_axes(ax)   # spines top/right 제거 · 하우스 글꼴·눈금
     ax.set_title(title)
     ax.legend(loc="upper left", fontsize=9)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(out_path, dpi=200, facecolor="white", bbox_inches="tight")
+    plt.savefig(out_path, dpi=300, facecolor="white", bbox_inches="tight")
     print(f"  → {out_path}")
     plt.close()
 
@@ -221,6 +233,8 @@ def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
     ax.set_ylim(bottom=0)
     ax.set_xlabel("E (eV)")
     ax.set_ylabel("DOS / PDOS (states/eV/cell)")
+    if _HOUSE:
+        _hs.apply_axes(ax)   # spines top/right 제거 · 하우스 글꼴·눈금
     t = title or "Total DOS + element-resolved PDOS"
     if vbm_char and cbm_char:
         t += f"\nVBM: {vbm_char}    CBM: {cbm_char}"
@@ -228,7 +242,7 @@ def plot_pdos(E, DOS, EF, vbm, cbm, gap, E_p, per_elem,
     ax.legend(loc="upper left", fontsize=9, ncol=2)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(out_path, dpi=200, facecolor="white", bbox_inches="tight")
+    plt.savefig(out_path, dpi=300, facecolor="white", bbox_inches="tight")
     print(f"  → {out_path}")
     plt.close()
 
