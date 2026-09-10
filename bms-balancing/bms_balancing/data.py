@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -48,10 +49,19 @@ def half_cell_path(root: Path, source: str, state: str) -> Path:
 
 def full_cell_workbook(root: Path) -> Path:
     d = root / "data" / "full_cell" / "large_cell_033C"
-    cands = [p for p in d.glob("*.xlsx")
-             if "pristine" not in p.name and "300cycle" not in p.name]
+    # `sorted` 는 장식이 아니다: MATLAB 쪽(`dd_eval.m`·`dd_verify.m`)은 `dir()`
+    # 이 주는 **이름순** 목록의 첫 항목을 쓴다. `Path.glob` 은 순서를 보장하지
+    # 않으므로(파일시스템 순서), 후보가 둘 이상이면 두 구현이 **다른 파일**을
+    # 골라 놓고 그걸 "포팅 불일치" 로 오해하게 된다.
+    cands = sorted((p for p in d.glob("*.xlsx")
+                    if "pristine" not in p.name and "300cycle" not in p.name),
+                   key=lambda p: p.name)
     if not cands:
         raise SystemExit(f"{d} 에서 상태별 풀셀 워크북을 못 찾았다")
+    if len(cands) > 1:
+        print(f"[data] 풀셀 워크북 후보가 {len(cands)}개다 — 이름순 첫 것을 쓴다: "
+              f"{cands[0].name} (나머지: {', '.join(p.name for p in cands[1:])})",
+              file=sys.stderr)
     return cands[0]
 
 

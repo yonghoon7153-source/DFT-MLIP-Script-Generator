@@ -25,11 +25,22 @@
   python -m bms_balancing.verify port --state pristine --si-source Li
   ```
 
+## MATLAB 쪽
+
+`matlab/` 에 사용자 기계에서 돌릴 것이 있다. 그 기계에는 **툴박스가 하나도
+없어서**(기본 MATLAB 뿐) 규진팀 `main_blend_final.m` 이 그대로는 안 돈다 —
+우회로와 절차는 `matlab/README.md`.
+
+`matlab/tests/` 는 그 MATLAB 파일들을 GNU Octave 8.4 로 **실제 실행해 본**
+검사다 (`matlab/tests/run_all.sh`). 무엇이 닫혔고 무엇이 아직 열려 있는지는
+`matlab/tests/README.md` 에 표로 적혀 있다.
+
 ## 명령
 
 | 명령 | 무엇을 묻나 |
 |---|---|
 | `port` | **포팅이 그들 모델인가** — 보고된 파라미터가 우리 목적함수의 최적점 근처인가 |
+| `eval` | 같은 질문의 **툴박스 없는 길** — 적합 없이 주어진 p 에서 rmse 만. `--compare` 로 `matlab/dd_eval.m` 산출과 대조하고 갈린 단계를 짚는다 |
 | `degeneracy` | 최적 목적함수의 (1+ε) 안에 드는 답들이 만드는 LAM/LLI 폭 |
 | `matrix` | 문헌 Si 소스 8 × 반쪽전지 소스 2 × dQ/dV 포함 2 — **모델 선택**이 답을 얼마나 움직이나 |
 | `profile` | γ_Si 를 고정하고 나머지 넷을 재적합 — γ ↔ a_NE 축퇴 |

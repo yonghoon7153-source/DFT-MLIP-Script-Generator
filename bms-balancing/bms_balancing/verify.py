@@ -174,6 +174,168 @@ def cmd_degeneracy(args):
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 
+# ── A2. dd_eval.m 대조 — **적합 없이** 같은 p 에서 목적함수만 ──────────
+
+#: `matlab/dd_eval.m` 의 기본 격자와 **같은 순서·같은 값**이어야 한다.
+#: 한쪽만 고치면 대조가 조용히 어긋나므로 둘을 같이 고칠 것.
+DD_EVAL_P = [
+    [1.077218, -0.022949, 1.001342, 0.000309, 0.295099],
+    [1.076074, -0.022129, 1.001279, 0.000299, 0.295298],
+    [1.181472, -0.141171, 1.080759, -0.000775, 0.239466],
+    [1.080000, -0.040000, 1.050000, -0.030000, 0.250000],
+    [1.100000, -0.050000, 1.100000, -0.010000, 0.100000],
+    [1.100000, -0.050000, 1.100000, -0.010000, 0.200000],
+    [1.100000, -0.050000, 1.100000, -0.010000, 0.300000],
+    [1.100000, -0.050000, 1.100000, -0.010000, 0.400000],
+]
+
+#: 앵커 → 그 값이 갈리면 **어느 단계**가 범인인가. 순서가 곧 이분 순서다.
+ANCHOR_STAGE = [
+    ("c_cell",         "풀셀 적재 + averageDuplicates + 방향 정규화"),
+    ("dv_lo",          "풀셀 differential + quantile(0.15)"),
+    ("dv_hi",          "풀셀 differential + quantile(0.85)"),
+    ("dv_n",           "dV/dQ 창 마스크가 먹은 격자점 수"),
+    ("dq_lo",          "풀셀 differential + quantile(0.05)"),
+    ("dq_hi",          "풀셀 differential + quantile(0.95)"),
+    ("E_PE_0p5",       "반쪽전지 적재 (electrode_ocv) — PE OCP"),
+    ("E_NE_0p5_0p25",  "문헌 적재 + build_blend_functions — 블렌드 OCP"),
+    ("dv_PE_0p5",      "반쪽전지 differential — PE dV/dQ"),
+    ("dv_NE_0p5_0p25", "블렌드 differential — NE dV/dQ"),
+]
+
+
+def dd_eval_anchors(obj: Objective) -> list[tuple[str, float]]:
+    """`matlab/dd_eval.m` 이 CSV 앞머리에 적는 앵커와 **같은 이름·같은 순서**."""
+    return [
+        ("c_cell",         float(obj.c_cell)),
+        ("dv_lo",          float(obj.dv_window[0])),
+        ("dv_hi",          float(obj.dv_window[1])),
+        ("dv_n",           float(len(obj.cap_dv_fit))),
+        ("dq_lo",          float(obj.dq_window[0])),
+        ("dq_hi",          float(obj.dq_window[1])),
+        ("E_PE_0p5",       float(np.atleast_1d(obj.half.E_PE(0.5))[0])),
+        ("E_NE_0p5_0p25",  float(np.atleast_1d(obj.blend.E(np.atleast_1d(0.5), 0.25))[0])),
+        ("dv_PE_0p5",      float(np.atleast_1d(obj.half.dv_PE(0.5))[0])),
+        ("dv_NE_0p5_0p25", float(np.atleast_1d(obj.blend.dv(np.atleast_1d(0.5), 0.25))[0])),
+    ]
+
+
+def read_dd_eval_csv(path):
+    """dd_eval.m 산출(`# 이름,값` 앞머리 + 파라미터 행)을 읽는다."""
+    anchors, rows = {}, []
+    for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if line.startswith("#") and "," in line:
+            k, _, v = line.lstrip("# ").partition(",")
+            try:
+                anchors[k.strip()] = float(v)
+            except ValueError:
+                pass
+        elif line and not line.startswith("#") and not line.startswith("a_PE"):
+            try:
+                rows.append([float(x) for x in line.split(",")])
+            except ValueError:
+                pass
+    return anchors, rows
+
+
+def cmd_eval(args):
+    """적합 없이 주어진 p 에서 rmse 를 찍고, 원하면 MATLAB 산출과 대조한다.
+
+    툴박스가 없는 기계에서도 포팅 대조를 할 수 있게 만든 우회로다:
+    포팅이 맞는지 묻는 데 정말 필요한 것은 최적화기가 아니라 **모델**이므로,
+    같은 p 에서 두 구현이 같은 rmse 를 내는지만 보면 된다.
+    """
+    root = D.data_root(args.data_root)
+    obj = build(root, args.source, args.state, args.si_source,
+                w_dqdv=args.w_dqdv, scale_seed=args.seed)
+
+    anchors = dd_eval_anchors(obj)
+    print(f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
+          f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}")
+    for k, v in anchors:
+        print(f"# {k},{v:.17g}")
+
+    P = np.array(DD_EVAL_P, dtype=float)
+    lines = ["a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq"]
+    print(lines[0])
+    for q in P:
+        r = f"{q[0]:.6f},{q[1]:.6f},{q[2]:.6f},{q[3]:.6f},{q[4]:.6f}," \
+            f"{obj.rmse_pocv(q):.10f},{obj.rmse_dvdq(q):.10f}"
+        lines.append(r)
+        print(r)
+
+    if args.out:
+        head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
+                f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}"]
+        head += [f"# {k},{v:.17g}" for k, v in anchors]
+        Path(args.out).write_text("\n".join(head + lines) + "\n", encoding="utf-8")
+        print(f"\nwrote {args.out}")
+
+    if args.compare:
+        _compare_dd_eval(dict(anchors), [list(q) + [obj.rmse_pocv(q), obj.rmse_dvdq(q)]
+                                         for q in P], args.compare)
+
+
+def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
+    """MATLAB 산출과 대조하고, **갈린 첫 단계**를 이름으로 말한다."""
+    m_anchors, m_rows = read_dd_eval_csv(matlab_csv)
+    print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
+    if not m_anchors and not m_rows:
+        print("  ! 읽을 내용이 없다 — 경로가 맞나?")
+        return
+
+    def rel(a, b):
+        return abs(a - b) / max(abs(b), 1e-30)
+
+    print(f"  {'앵커':<16} {'MATLAB':>22} {'Python':>22} {'상대차':>10}   단계")
+    first_bad = None
+    for k, stage in ANCHOR_STAGE:
+        if k not in m_anchors:
+            print(f"  {k:<16} {'(없음)':>22} — 옛 dd_eval.m 산출인가?")
+            continue
+        a, b = m_anchors[k], py_anchors[k]
+        if k == "dv_n":
+            mark = "" if a == b else "  ← 다르다"
+            print(f"  {k:<16} {a:>22.0f} {b:>22.0f} {'':>10}{mark}   {stage}")
+            if a != b and first_bad is None:
+                first_bad = (k, stage)
+            continue
+        r = rel(a, b)
+        mark = "  ←" if r > 1e-9 else ""
+        print(f"  {k:<16} {a:>22.12g} {b:>22.12g} {r:>10.2e}{mark}   {stage}")
+        if r > 1e-9 and first_bad is None:
+            first_bad = (k, stage)
+
+    print()
+    worst_row = 0.0
+    if len(m_rows) != len(py_rows):
+        print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_rows)}")
+    else:
+        print(f"  {'p 행':<5} {'rmse_pocv 상대차':>18} {'rmse_dvdq 상대차':>18}")
+        for i, (mr, pr) in enumerate(zip(m_rows, py_rows)):
+            if len(mr) < 7:
+                continue
+            if max(abs(mr[j] - pr[j]) for j in range(5)) > 1e-6:
+                print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다")
+                continue
+            r1, r2 = rel(mr[5], pr[5]), rel(mr[6], pr[6])
+            worst_row = max(worst_row, r1, r2)
+            print(f"  {i:<5} {r1:>18.2e} {r2:>18.2e}")
+
+    print()
+    if first_bad:
+        k, stage = first_bad
+        print(f"판정: **{k}** 에서 처음 갈린다 → 범인 단계는 「{stage}」")
+        print("      그 앞 앵커는 맞았으므로 그 앞 단계는 용의선상에서 빠진다.")
+    elif worst_row > 1e-9:
+        print(f"판정: 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
+        print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
+    else:
+        print(f"판정: 앵커 10개와 rmse 16개가 전부 일치 (rmse 최대 상대차 {worst_row:.2e}).")
+        print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
+
+
 # ── D. scale 비결정성 ──────────────────────────────────────────────────
 
 def cmd_scale_noise(args):
@@ -340,7 +502,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn in (("port", cmd_port), ("degeneracy", cmd_degeneracy),
                      ("scale-noise", cmd_scale_noise), ("matrix", cmd_matrix),
-                     ("profile", cmd_profile)):
+                     ("profile", cmd_profile), ("eval", cmd_eval)):
         p = sub.add_parser(name)
         p.add_argument("--data-root", default=None)
         p.add_argument("--source", default="GITT", choices=list(D.HALF_FILE))
@@ -356,6 +518,8 @@ def main(argv=None):
         p.add_argument("--only-source", action="store_true")
         p.add_argument("--only-wdqdv", action="store_true")
         p.add_argument("--grid", type=int, default=21)
+        p.add_argument("--compare", default=None,
+                       help="dd_eval.m 이 낸 CSV 와 대조한다 (eval 전용)")
         p.set_defaults(func=fn)
     args = ap.parse_args(argv)
     return args.func(args)

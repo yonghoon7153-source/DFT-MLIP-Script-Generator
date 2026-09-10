@@ -29,6 +29,18 @@ function dd_eval(varargin)
 %   'WDqdv'        기본 0        (1 이면 findpeaks 대체품이 더 필요하다)
 %   'P'            평가할 파라미터 행렬 (n x 5). 비우면 아래 기본 격자
 %   'Out'          CSV 경로
+%
+% 산출 CSV
+%   앞머리에 `# 이름,값` 으로 **이분 앵커 10개**(c_cell · dv_lo/hi · dv_n ·
+%   dq_lo/hi · E_PE(0.5) · E_NE(0.5,0.25) · dv_PE(0.5) · dv_NE(0.5,0.25))를
+%   적고, 그 뒤에 파라미터 행이 온다. 갈렸을 때 어느 단계가 범인인지 좁히는
+%   값들이라 화면뿐 아니라 파일에도 남긴다.
+%
+%   그 CSV 하나를 Python 쪽에 그대로 먹이면 대조가 끝난다:
+%       python -m bms_balancing.verify eval --state pristine --si-source Li \
+%              --compare dd_eval_pristine_Li.csv
+%   ⚠ 기본 파라미터 격자를 여기서 고치면 `verify.py` 의 `DD_EVAL_P` 도 같이
+%     고쳐야 한다. 한쪽만 고치면 대조가 조용히 어긋난다.
 
     p = inputParser;
     p.addParameter('HalfCellDir', 'data/half_cell/GITT/');
@@ -74,17 +86,31 @@ function dd_eval(varargin)
     cap_dv = d.capacity_uniform2(idx);
     dv_dat = d.dvdq(idx);
 
-    fprintf('\n=== dd_eval ===\n');
-    fprintf('state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
-    fprintf('c_cell            = %.6f\n', c_cell);
-    fprintf('dv 창 (15%%,85%%)   = [%.10f, %.10f]  (n=%d)\n', lo, hi, sum(idx));
     vlo = quantile(d.voltage_uniform, 0.05);
     vhi = quantile(d.voltage_uniform, 0.95);
-    fprintf('dq 창 (5%%,95%%)    = [%.10f, %.10f]\n', vlo, vhi);
-    fprintf('E_PE(0.5)         = %.10f\n', ro.E_PE(0.5));
-    fprintf('E_NE(0.5, 0.25)   = %.10f\n', E_NE(0.5, 0.25));
-    fprintf('dv_PE(0.5)        = %.10f\n', ro.dv_PE(0.5));
-    fprintf('dv_NE(0.5, 0.25)  = %.10f\n\n', dv_NE(0.5, 0.25));
+
+    % ── 이분(bisection) 앵커 ──
+    %   갈렸을 때 **어느 단계에서** 갈렸는지 좁히는 값들이다. CSV 앞머리에
+    %   `# 이름,값` 으로 같이 적는다 — 화면에만 찍으면 사용자가 CSV 만
+    %   보내 왔을 때 이분할 근거가 사라진다.
+    anchors = { ...
+        'c_cell',         c_cell; ...
+        'dv_lo',          lo;     ...
+        'dv_hi',          hi;     ...
+        'dv_n',           sum(idx); ...
+        'dq_lo',          vlo;    ...
+        'dq_hi',          vhi;    ...
+        'E_PE_0p5',       ro.E_PE(0.5); ...
+        'E_NE_0p5_0p25',  E_NE(0.5, 0.25); ...
+        'dv_PE_0p5',      ro.dv_PE(0.5); ...
+        'dv_NE_0p5_0p25', dv_NE(0.5, 0.25)};
+
+    fprintf('\n=== dd_eval ===\n');
+    fprintf('state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
+    for k = 1:size(anchors, 1)
+        fprintf('%-16s = %.17g\n', anchors{k, 1}, anchors{k, 2});
+    end
+    fprintf('\n');
 
     % ── 평가할 파라미터 ──
     P = o.P;
@@ -115,6 +141,11 @@ function dd_eval(varargin)
 
     if ~isempty(o.Out)
         fid = fopen(o.Out, 'w');
+        fprintf(fid, '# dd_eval  state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', ...
+                o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
+        for k = 1:size(anchors, 1)
+            fprintf(fid, '# %s,%.17g\n', anchors{k, 1}, anchors{k, 2});
+        end
         fprintf(fid, 'a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq\n');
         for k = 1:numel(rows), fprintf(fid, '%s\n', rows{k}); end
         fclose(fid);
