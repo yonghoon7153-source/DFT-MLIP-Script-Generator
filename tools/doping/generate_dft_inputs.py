@@ -410,9 +410,24 @@ def collect_results(out_dir, label, seed, max_dev_A=1e-6):
             _c, _s, cart = parse_pw_in_positions((w / "scf.in").read_text())
             if _s != at.get_chemical_symbols():
                 raise ValueError("scf.in 과 frame.xyz 의 원소 순서가 다르다")
-            dev = float(_np.abs(_np.asarray(cart) - at.get_positions()).max())
+            # ⛔⛔ 주기경계를 봐야 한다. 첫 판은 데카르트 좌표를 그냥 뺐는데,
+            #   frame.xyz 와 scf.in 이 원자를 **서로 다른 주기 이미지**에 적으면
+            #   (wrapping 관례 차이) 편차가 통째로 격자벡터 크기로 나온다.
+            #   2026-09-10 실측: 20점 **전부** 실패했고 편차가 57.58 Å(b2o3 c_z)·
+            #   35.04 Å 처럼 **격자벡터 값 몇 종류로만 반복**됐다 — 좌표가 틀렸으면
+            #   제각각 나왔을 값이다.
+            #   ⚠ 문턱을 느슨하게 푸는 게 아니다. **격자 병진 정수배만** 용서하고,
+            #     그 나머지(잔차)는 원래 문턱으로 그대로 잰다. 원자가 실제로
+            #     움직였으면 잔차가 남아 여전히 실패한다.
+            _cellA = _np.asarray(_c, dtype=float)
+            _d = _np.asarray(cart) - at.get_positions()
+            _fr = _d @ _np.linalg.inv(_cellA)          # 격자 단위 편차
+            _n = _np.round(_fr)                         # 정수 병진분
+            dev = float(_np.abs((_fr - _n) @ _cellA).max())   # 이미지 접은 뒤 잔차
+            n_img = int(_np.abs(_n).max())              # 몇 칸이나 옮겨 적혔나
             if dev > max_dev_A:
-                raise ValueError(f"좌표가 어긋난다: 최대 {dev:.3e} Å > {max_dev_A:.0e}")
+                raise ValueError(f"좌표가 어긋난다: 이미지 접은 뒤 최대 {dev:.3e} Å "
+                                 f"> {max_dev_A:.0e} (병진 {n_img}칸)")
             e, F, fl = parse_pw_out((w / "scf.out").read_text(errors="ignore"))
             if len(F) != len(at):
                 raise ValueError(f"힘 {len(F)}개 · 원자 {len(at)}개")
@@ -426,12 +441,17 @@ def collect_results(out_dir, label, seed, max_dev_A=1e-6):
         frames.append(at)
         rows.append({"tag": rec["tag"], "time_ps": rec["time_ps"],
                      "E_eV": e, "F_max_eVA": float(_np.abs(_np.asarray(F)).max()),
-                     "coord_max_dev_A": dev, "coord_sha256": rec["coord_sha256"]})
+                     "coord_max_dev_A": dev, "coord_image_shift_cells": n_img,
+                     "coord_sha256": rec["coord_sha256"]})
     res = {"card": man["card"], "label": label, "seed": seed,
            "n_ok": len(rows), "n_expected": len(man["snapshots"]),
-           "coord_check": {"기준": "frame.xyz ↔ scf.in 카티전 최대편차",
+           "coord_check": {"기준": "frame.xyz ↔ scf.in — **주기 이미지를 접은 뒤** 최대편차",
                            "문턱_A": max_dev_A,
-                           "⚠": "비트 동일이 아니라 문턱 판정이다 — 분수좌표 왕복 때문."},
+                           "⚠": "비트 동일이 아니라 문턱 판정이다 — 분수좌표 왕복 때문.",
+                           "⚠_이미지": "coord_image_shift_cells 는 두 파일이 원자를 몇 칸 "
+                                      "다른 주기 이미지에 적었는지다. 0 이 아니어도 물리적으로 "
+                                      "같은 배치이고, 격자 병진 정수배만 용서한다 — 그 나머지 "
+                                      "잔차는 문턱으로 그대로 잰다 (2026-09-10 수정)."},
            "pseudos": man["pseudos"], "points": rows, "failed": bad}
     (out_dir / f"RESULTS_{label}_{seed}.json").write_text(
         json.dumps(res, ensure_ascii=False, indent=1))
