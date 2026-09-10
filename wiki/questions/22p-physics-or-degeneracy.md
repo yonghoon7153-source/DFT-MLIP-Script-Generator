@@ -5,7 +5,7 @@ created: 2026-08-11
 updated: 2026-09-10
 type: research-question
 tags: [battery, degradation, research]
-sources: [raw/repositories/degradation-degeneracy-audit.md, raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
+sources: [raw/repositories/degradation-degeneracy-audit.md, raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/natterer2026_re-halfcell-anode-potential-aging.md]
 confidence: medium
 explored: false
 verificationStatus: unverified
@@ -173,6 +173,34 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   나온다** — 저자는 셀별 제작 아티팩트로 설명하지만 "LAM_PE 방향이 잘 안
   갈린다"는 축퇴 해석도 같은 데이터를 설명하고, 원전은 그 대안을 검토하지
   않는다.
+- **[2026-09-10] ★★ 축퇴 방향 바로 옆에 앉은 실셀을 기준전극이 실제로 분해했다.**
+  Natterer et al. 2026 (*J. Power Sources* **678**, 240036, raw:
+  `raw/papers/natterer2026_re-halfcell-anode-potential-aging.md`) 은 NMC-811‖Gr
+  단층 파우치에 **LTO 기준전극**을 심고 1000 사이클을 돌려, **최적화 없이**
+  전극별 DVA 특징점 산술만으로 세 모드를 얻는다
+  ([[reference-electrode-halfcell-dma]]). 500 EFC 에서 `[도표, Fig. 6a–c]`
+  **LAM_neg ≈ 8.2 % · LAM_pos ≈ 8.1 % · LLI ≈ 9.3 %**.
+  `[재현]` 이 삼중항을 [[np-lip-ocv-reparametrization]] 식 (16) 좌표로 옮기면
+  `r_N/P` 는 **0.11 %**, `z₀⁺` 는 **1.31 %** 밖에 안 움직였다 —
+  **1년치 열화 전체가 full-cell OCV 형상이 거의 못 보는 방향을 따라 갔다.**
+  그런데 half-cell 채널은 그 셋을 갈라서 보고한다.
+  `[해석]` **이 카드의 가설에 대한 반대 근거다.** "세 모드가 비슷하게 나온다"는
+  것이 **자동으로 축퇴의 산물은 아니다** — 최적화가 아예 없는 절차에서도
+  8~9 % 대 삼중항이 나온다. 즉 22p 의 대칭성은 **물리로도 설명 가능**하며,
+  그 물리 통로 하나가 같은 논문 식 (20) 에 인쇄돼 있다 (Sulzer 를 따라
+  **LAM 이 LLI 를 생성**한다: `∂n_Li/∂t = A·L·(∂ε_s,avg/∂t)·c_s,avg`).
+  **범위 한정 4개** (과대 인용 방지):
+  (a) **세 값에 오차 막대가 없다.** 8.2 vs 8.1 의 차이가 판독 잡음보다 크다는
+      근거가 없다 — 지지되는 것은 "**셋이 8~9 % 대에 모여 있다**" 까지이고
+      "**셋이 서로 다르다**" 는 아니다.
+  (b) **셀 1개** (4셀 중 3셀을 잃었다 — 원문 §2.5).
+  (c) **화학·프로토콜이 22p 와 다르다** (NMC-811‖순수 graphite, 0.5 C 대칭,
+      25 °C, 2.8–4.2 V).
+  (d) 원문은 **full-cell 만으로 같은 분해를 시도한 대조군을 만들지 않았다** —
+      "full-cell 로는 못 했을 것" 은 우리 `[해석]` 이지 그 논문의 실측이 아니다.
+      그 대조 실행은 같은 PyBaMM 모델에서 half-cell 항만 빼면 되므로 **우리가
+      값싸게 채울 수 있는 자리**다.
+
 - **[2026-09-03] 합성 검증은 반대 근거로 세지 않는다.** 원전 Fig. 7 의 3점
   완전 복원(RMSE 0.0 mV)은 **생성 모델 = 적합 모델, 노이즈 0** 의 inverse crime
   이다. 저자의 "proves … uniquely identify" 문장은 그 설계가 지지하는 범위를
@@ -893,6 +921,24 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   **미실행**: `γ_Si` 를 5번째 파라미터로 열었을 때 `(α_NE, γ_Si)` 평면의 축퇴
   지도 — 원전이 "같은 서명" 이라고 쓰고도 재지 않은 자리이며, 우리 프레임으로
   잴 수 있는 것이다.
+
+- **[2026-09-10] Natterer 2026 흡수 — 이 카드의 무대가 "관측 채널" 로 넓어졌다.**
+  Evidence Against 에 항목 하나 추가(위). 이 카드에 준 것 셋:
+  - **반대 근거 1건**: 축퇴 방향 근처의 실셀을 **최적화 없는** half-cell 절차가
+    분해했고, 세 모드가 비슷하게 나오는 것에 **물리적 통로**(원문 식 20,
+    LAM → LLI)가 하나 제시된다.
+  - **Gap 하나의 출처 확정**: 이 계보에 파라미터 민감도·식별 가능성 분석이
+    **존재하지 않는다**는 진술이 2026년 4월 게재 논문에 인쇄돼 있다
+    (`[인쇄, §3.3.2]` "as of today, **no such parametric analyses exist for the
+    presented model or comparable ones in the literature**"). 저자들은
+    "compensating parameters" 라는 말도 쓴다. 이 카드의 존재 이유에 대한
+    **계보 내부의 확인**이다.
+  - **새 개념 페이지** [[reference-electrode-halfcell-dma]] — "half-cell 로
+    검증했다" 는 주장을 심사하는 기준 2개(최적화가 있었는가 / pristine OCP 를
+    재사용했는가)를 여기 고정했다.
+  **미실행 후속 (값싸다)**: 같은 PyBaMM 모델에서 **half-cell 항만 뺀 적합**을
+  돌려 원문의 가장 강한 반사실 주장("RE 없었으면 양극 저항 증가가 음극에
+  오귀속됐을 것")을 정량화하는 것. 그것이 곧 [[fitting-degeneracy]] 의 직접 측정이다.
 
 ### 이 카드가 속한 논지 (2026-09-03)
 

@@ -1213,3 +1213,50 @@ Fig. 8(b) 의 전극 이용률(우리 Phase 1j 의 65.61 %/96.70 % 대응물)은
   "재지 않은 대가" 실측), 계보 14편 → **15편**.
 
 `python3 wiki/tools/lint.py` → **0 errors** 확인.
+
+## [2026-09-10] ingest | Natterer et al. 2026 — 기준전극 half-cell 분해 측정과 anode 전위 (JPS 678, 240036)
+
+PDF 16쪽 전문 + 그림 10장(부록 2장 포함)을 **전부 직접 판독**하고 페이지/절별
+STANDALONE digest 를 봉인했다 (`raw/papers/natterer2026_re-halfcell-anode-potential-aging.md`,
+sha256 `6a1ae22e…`). 크로핑: `raw/figures/natterer2026_re-halfcell-anode-potential-aging/`
+(도구가 fig 8 + tab 1, **부록 `Fig. A.1`/`A.2` 는 캡션 정규식이 못 잡아 이 세션에서
+따로 잘라 `fig_A1.png`/`fig_A2.png` 로 추가** — `figures.json` 은 불변층이라
+덧쓰지 않았고 A1/A2 항목이 없다).
+
+**왜 이 논문인가**: 우리가 찾던 "손으로 맞춘 α·β 를 검증할 독립 근거" 의 **형태**가
+여기 있다 — LTO 기준전극으로 1000 사이클 in-situ half-cell 전위를 찍고,
+**수치 최적화 없이** DVA 특징점 산술(식 1–4)만으로 LLI·LAM_neg·LAM_pos 를 낸다
+(`[인쇄, §3.1]` "eliminates numerical fitting procedures"). 새 개념 페이지
+[[reference-electrode-halfcell-dma]] 에 절차·대가 6개·심사 기준 2개를 고정했다.
+
+**가장 무거운 발견** `[재현]`: 500 EFC 실측 삼중항 `(LLI, LAM_pos, LAM_neg) ≈
+(9.3, 8.1, 8.2) %` 를 [[np-lip-ocv-reparametrization]] 좌표로 옮기면 `r_N/P` 0.11 %,
+`z₀⁺` 1.31 % 이동뿐 — **1년치 열화가 full-cell OCV 형상이 거의 못 보는 방향을 따라
+갔는데 half-cell 채널은 그것을 갈라서 보고한다.** [[22p-physics-or-degeneracy]] 의
+Evidence Against 에 넣었다 (오차 막대 없음·셀 1개·화학 상이·반사실 대조군 부재의
+범위 한정 4개와 함께).
+
+**인용 가치 최상의 저자 진술** `[인쇄, §3.3.2]`: "as of today, **no such parametric
+analyses exist for the presented model or comparable ones in the literature**" —
+이 계보에 민감도·식별 가능성 분석이 없다는 것을 2026년 4월 게재 논문이 스스로
+확인한다. 저자들은 "compensating parameters" 라는 말도 쓰고 "sensitivity results
+inform but do not fully resolve identifiability" 로 둘을 구분한다.
+
+[[pvs-sev-lli-lampe-separability]]: Evidence Against 1건(부호가 아니라 **모양**이
+다른 관측 쌍 — LAM 은 수직 평행이동, 양극 저항은 창 절단) + Gap 2건(기준전극
+**위치**가 20 mV 를 흔든다 · 한 셀 안에서 두 전극 저항 변화의 **부호가 반대**:
+양극 +52 %, 음극 −26 %).
+
+**본문 서술과 그림이 어긋난 것 2건** (digest §11-8 에 기록):
+(a) Fig. A.2 의 음극 DC 저항은 본문의 "relatively constant" 가 아니라 **−26 % 단조 감소**,
+(b) Fig. A.1 의 "good agreement" 는 전위 곡선에서만 성립하고 **양극·full-cell DVA
+에서는 어긋난다** — 판정하려던 대상(노화된 NMC-811 OCP 형상 변화)이 바로 미분
+축에서만 보이는 성질이다. 이 두 번째 건은 같은 날 흡수된
+[[halfcell-ocp-shape-invariance]] 와 직접 맞물린다 (그쪽은 Si/Gr blend 음극,
+이쪽은 Ni-rich 양극).
+
+**미실행 후속 (값싸다)**: 같은 PyBaMM 모델에서 **half-cell 항만 뺀 적합**을 돌려
+원문의 가장 강한 반사실 주장("RE 없었으면 양극 저항 증가가 음극에 오귀속됐을 것")을
+정량화하는 것 — 원문에 대조군이 없다.
+
+`python3 wiki/tools/lint.py` → **0 errors** 확인.

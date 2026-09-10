@@ -1,0 +1,191 @@
+{
+ "slug": "natterer2026_re-halfcell-anode-potential-aging",
+ "dpi": 300,
+ "maxpx": 3000,
+ "generated": "2026-09-10",
+ "sources": [
+  "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf"
+ ],
+ "figures": [
+  {
+   "key": "f1",
+   "kind": "figure",
+   "label": "1",
+   "page": 4,
+   "file": "fig_1.png",
+   "caption": "Fig. 1. Negative electrode potential during 0.2 C charging plotted against full-cell capacity over the course of the aging experiment to evaluate LTO- RE stability (a). Corresponding DVA curves over the aging trajectory. Arrows indicate characteristic feature shifts due to aging (b). Potential difference of the aged half-cell curves evaluated at ≈ 6.5 mAh with the initial half-cell charging curve measured after 50 cycles as reference (c).",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    45.7,
+    298.4,
+    322.1
+   ],
+   "w": 1113,
+   "h": 1153,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.87
+  },
+  {
+   "key": "f2",
+   "kind": "figure",
+   "label": "2",
+   "page": 5,
+   "file": "fig_2.png",
+   "caption": "Fig. 2. Peak tracking approach for the calculation of LAMneg between the phase transition of graphite stages II and III (a) and LAMpos between the phase transition peaks of NMC-811 C1 and C3 (b). 𝑄LAM serves as an indicator for the available capacity of the respective electrode, gradually decreasing with aging. For better overview, only 𝑄LAM for the first RPT is annotated. Broken lines refer to the identified features in the DVA, used for peak tracking.",
+   "rotated_deg": 0,
+   "bbox": [
+    27.2,
+    45.7,
+    298.5,
+    330.4
+   ],
+   "w": 1131,
+   "h": 1187,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.833
+  },
+  {
+   "key": "f3",
+   "kind": "figure",
+   "label": "3",
+   "page": 5,
+   "file": "fig_3.png",
+   "caption": "Fig. 3. LLI calculation approach based on relative peak displacement progres- sion over aging. Bow tie markers indicate a locked reference point for LAM scaling [55]. Gray background denotes full-cell utilization window. 500 cycles until end of simulation were taken into account for the LLI calculation. Only the offsets of the first RPT are shown for readability. Dotted lines refer to measured curves, dashed to scaled OCP curves. DVA of measured negative half- cell curve, obtained from a 0.2 C charging regime in RPT (a). DVA of scaled, pristine OCP curve of the negative half-cell (b). DVA of measured positive half- cell curve, obtained from a 0.2 C charging regime in RPT (c). DVA of scaled, pristine OCP curve of the positive half-cell (d). Progression of the available capacity, where the upper bar denotes the positive electrode, the lower bar describes the negative electrode (e).",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    46.1,
+    567.0,
+    452.4
+   ],
+   "w": 1111,
+   "h": 1694,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.57
+  },
+  {
+   "key": "f4",
+   "kind": "figure",
+   "label": "4",
+   "page": 9,
+   "file": "fig_4.png",
+   "caption": "Fig. 4. Comparison of the proposed aging-sensitive model (green and gray, solid) in its pristine condition with half-cell measurements from the previously studied SLP 1 ⃝ from [35] with the integrated LTO-RE (orange, dashed), and two GWREs (yellow and purple, dotted) shown for 0.2 C (a), 0.5 C (b), and 0.75 C (c).",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    45.7,
+    298.0,
+    470.2
+   ],
+   "w": 1111,
+   "h": 1770,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.908
+  },
+  {
+   "key": "f5",
+   "kind": "figure",
+   "label": "5",
+   "page": 10,
+   "file": "fig_5.png",
+   "caption": "Fig. 5. Comparison of simulated (solid) and measured (dashed) half-cell and full-cell curves at 0.2 C (a)–(c), 0.5 C (d)–(f), and 0.75 C (g)–(k). Each row shows either half-cell or full-cell results. Dotted lines represent the absolute modeling error. Roman numerals indicate the cycle number for each panel (i: 50, ii: 200, iii: 350, iv: 500 cycles). Annotations indicate the small overpotential build up of the negative half-cell over the aging trajectory (a), (d), (g), or highlight the gradual overpotential increase on the positive half-cell (b), (e), (h), captured by the proposed aging model and inserted RE, respectively. and influences the charge transfer overpotential as well as the SEI overpotential. In the model examined, this effect is approximately 7 mV at 0.75 C, as indicated in Fig. 7f. experimentally verified charging behavior of the SLP cell. Starting at 1.5 C, the current is r",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    60.4,
+    567.0,
+    481.3
+   ],
+   "w": 2232,
+   "h": 1755,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.856
+  },
+  {
+   "key": "f6",
+   "kind": "figure",
+   "label": "6",
+   "page": 11,
+   "file": "fig_6.png",
+   "caption": "Fig. 6. Comparison of simulated (full degradation model) and extracted, experimental aging quantities with degradation modes for the respective electrodes (a)–(c), charge capacity for CC (dashed) and CCCV (solid) charging (d), and the absolute difference between simulated and measured charging capacities (e).",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.5,
+    298.4,
+    275.8
+   ],
+   "w": 1113,
+   "h": 943,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.857
+  },
+  {
+   "key": "f7",
+   "kind": "figure",
+   "label": "7",
+   "page": 11,
+   "file": "fig_7.png",
+   "caption": "Fig. 7. Simulative behavior of the proposed aging model after 500 cycles of simulated aging with 0.5 C charging and discharging. Charging at 0.2 C (a)–(b), 0.5 C (c)–(d), and 0.75 C (e)–(f), neglecting particle crack propagation (blue), LAM (green), and SEI growth (orange) submodels. The magnification subplots demonstrate the consequences of excluding the respective submodels when predicting the anode potential. (b), (d) and (f) depict the absolute deviation from the reference simulation (red, dashed) in dotted lines.",
+   "rotated_deg": 0,
+   "bbox": [
+    295.8,
+    46.1,
+    568.1,
+    593.1
+   ],
+   "w": 1136,
+   "h": 2280,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.866
+  },
+  {
+   "key": "f8",
+   "kind": "figure",
+   "label": "8",
+   "page": 12,
+   "file": "fig_8.png",
+   "caption": "Fig. 8. MCC charging initiated at 1.5 C with various simulation configurations for impact analysis, neglecting the indicated aging submodels of the previously proposed aging-sensitive model. Simulation is conducted after 500 cycles of aging at predominantly 0.5 C charge/discharge. The current is recursively reduced by 1% upon reaching the 20 mV threshold, resulting in a steadily decreasing C-rate during MCC (a). Model-predicted negative electrode poten- tial at the separator interface (b), model-predicted positive electrode potential at the separator interface (c), and model-predicted full-cell voltage (d).",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    49.5,
+    567.0,
+    578.9
+   ],
+   "w": 1111,
+   "h": 2207,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.883
+  },
+  {
+   "key": "t1",
+   "kind": "table",
+   "label": "1",
+   "page": 8,
+   "file": "tab_1.png",
+   "caption": "Table 1 Overview of the validation data and metrics used for the proposed electro- chemical model, derived from the outlined experimental aging study with SLPs. The potential curves were always recorded between 2.8 and 4.2 V at full-cell level. Capacities and degradation modes always refer to RPTs, which has been conducted every 50 cycles. Validation data C-Rate/− Number of cycles/− Neg. half-cell potential/V 0.2, 0.5, 0.75 500 Pos. half-cell potential/V 0.2, 0.5, 0.75 500 Full-cell potential/V 0.2, 0.5, 0.75 500 Charge capacity CC/mAh 0.2 500 Charge capacity CCCV/mAh 0.2 500 LAMneg/% 0.2 500 LAMpos/% 0.2 500 LLI/% 0.2 500",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.0,
+    563.3,
+    746.9
+   ],
+   "w": 2213,
+   "h": 2983,
+   "dpi": 300,
+   "src": "08e897b2-Modeling_and_halfcellresolved_measurement_of_the_influence_of_cell_degradation_on_the_anode_potential_of_highenergy_lithiumion_cells.pdf",
+   "blank": 0.856
+  }
+ ]
+}

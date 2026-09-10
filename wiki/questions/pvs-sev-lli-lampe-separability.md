@@ -2,10 +2,10 @@
 title: PVS·SEV 는 LLI 와 LAM_PE 를 가르는가
 description: "Do the two physics-inspired features add an independent direction separating LLI from LAM_PE, or do they share one contrast"
 created: 2026-09-03
-updated: 2026-09-04
+updated: 2026-09-10
 type: research-question
 tags: [battery, degradation, research]
-sources: [raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/transcripts/2026-09-03-voice-memo-007-degradation-mode-ml.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
+sources: [raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/transcripts/2026-09-03-voice-memo-007-degradation-mode-ml.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/natterer2026_re-halfcell-anode-potential-aging.md]
 confidence: medium
 explored: false
 verificationStatus: unverified
@@ -253,6 +253,26 @@ H2 가 참일 수 있음에 주의한다 — 부호가 같다고 벡터가 평�
   다루지 않는다 (그 용어 0회). 위 확장은 `[해석]` 이며, 판정 가능한 형태는
   이 카드가 이미 적어 둔 **agnostic 기준선 paired 비교** (2026-09-03 (7)) 다.
 
+- **[2026-09-10] ★ 서명의 *부호* 가 아니라 *모양* 이 다른 관측 쌍 — 실물 사례.**
+  Natterer et al. 2026 (raw: `raw/papers/natterer2026_re-halfcell-anode-potential-aging.md`)
+  의 OAAT 분석(원문 Fig. 7·8, 500 사이클 노화 후 DFN)에서 두 열화 경로가 음극
+  표면 전위에 남기는 자취의 **기하가 다르다**:
+  - **LAM**: `ε_s`↓ → 비표면적 `a`↓ → 국소 전류밀도↑ → **곡선 전체가 아래로
+    평행이동**. `[도표, Fig. 7]` Δ ≈ **+2 mV**(0.2 C) / **+4 mV**(0.5 C) /
+    **+5~7 mV**(0.75 C) — **C-rate 에 비례해 커진다**.
+  - **양극 저항(pSEI)**: 양극 분극↑ → full-cell 4.2 V **조기 도달** → 음극
+    리튬화가 **짧게 잘린다**. 세로 이동이 아니라 **종료점의 가로 이동**이다.
+    `[도표]` SEI 를 끄면 SoC 0.75–0.9 에서 Δ ≈ **−10 ~ −13 mV**.
+  `[해석]` **이 카드에 주는 것은 새 부호표가 아니라 새 판정 축이다.** 지금까지
+  이 카드는 "PVS·SEV 의 **부호**가 같다" 를 H1 의 축으로 삼아 왔다. 이 사례는
+  같은 부호라도 **응답의 모양(수직 평행이동 vs 창 절단)과 C-rate 의존성**이
+  다르면 두 방향이 분리될 수 있음을 보여 준다 — H2 쪽 근거이며,
+  [[thermo-kinetic-loss-partition]] 의 다전류 관측 후보와 같은 계열이다.
+  **범위 한정 3개**: (a) **LLI 는 이 축에서 거의 무신호**다 — 원문은 nSEI 과전압
+  기여가 작다고 적는다(전위 의존 성장률). 즉 이 관측은 `LAM` 대 `양극 저항` 을
+  가르지 `LLI` 대 `LAM_PE` 를 직접 가르지 않는다. (b) 전부 **모델 안의 OAAT** 이고
+  실측 분해가 아니다. (c) 크기가 10 mV 급이라 아래 Gap 의 20 mV 와 다툰다.
+
 - **[2026-09-03] 두 feature 의 물리 경로가 다르다.** PVS 는 **열역학적**
   신호(OCV 미분의 형상), SEV 는 **동역학적** 신호(charge-transfer 저항)다.
   물리 경로가 다르면 같은 부호라도 모드별 **감도 비**가 다를 개연성이 있고,
@@ -422,6 +442,35 @@ H2 가 참일 수 있음에 주의한다 — 부호가 같다고 벡터가 평�
   also in the EIS." `[해석]` SEV 를 실측에 쓰려면 절대값 대비가 아니라 **같은
   셀 안의 상대 변화**만 써야 할 가능성이 높은데, 모드를 가르는 설계는 **절대적
   부호·크기 구조**에 의존한다 — 두 요구가 긴장 관계다.
+- **[2026-09-10] ★ 동역학 축 관측의 실측 상한 하나: 기준전극 위치가 20 mV 를
+  흔든다.** 같은 논문 `[도표, Fig. 4]` — **같은 pristine 셀**에서 스택 **밖**
+  LTO 기준전극과 스택 **안** 금선 기준전극이 서로 다른 음극 전위를 준다:
+  0.2 C ≈ **10 mV**, 0.5 C ≈ **15 mV**, 0.75 C ≈ **20–25 mV** 차이. 0.75 C 충전
+  후반(≈72 mAh)에서 **금선 RE 는 ≈ −5 mV(도금 문턱 아래), LTO-RE 는 ≈ +18 mV**
+  라고 말한다. 저자는 이를 물리가 아니라 전해질 저항 오프셋으로 보고 상수
+  `R_GWRE→LTO-RE = 0.35 Ω` 로 흡수하는데, 그 오프셋이 **노화 중에도 상수인지는
+  검증하지 않는다** (자기 모델의 식 (17) 이 다공도 감소를 모델링하는데도).
+  `[해석]` SEV 류(전위·저항 기반 스칼라)를 실측에서 모드 관측으로 쓸 때,
+  **분해하려는 효과(≈10 mV)보다 계측 기하가 만드는 오차(≈20 mV)가 클 수 있다.**
+  이것은 [[zhang2020-eis-aging-dataset]] 계열의 "셀 고유 오프셋" 문제의
+  **셀 내부(전극 내 위치) 판**이다.
+  **중요한 구분**: 같은 논문의 **모드 계산**(식 1–4)은 전위의 세로 절대값을
+  전혀 쓰지 않고 DVA 특징점의 **가로 위치**만 쓴다 — 그래서 이 20 mV 는
+  전위 결론을 위협하지 모드 결론을 직접 위협하지는 않는다
+  ([[reference-electrode-halfcell-dma]] 의 "대가" 5번).
+- **[2026-09-10] 한 셀 안에서 두 전극의 저항 변화 부호가 반대다.** 같은 논문
+  `[도표, Fig. A.2]` (1 C·10 s DC 펄스, 50 → 505 EFC): **양극 0.95 → 1.44 Ω
+  (+52 %)**, **음극 0.27 → 0.20 Ω (−26 %)**, full-cell 1.21 → 1.64 Ω (+36 %).
+  본문은 음극을 "**relatively constant**" 라고 서술하는데 **그림은 단조 감소**다.
+  `[재현]` `ΔR_pos + ΔR_neg = 0.49 − 0.07 = 0.42 Ω` ≈ 측정 `ΔR_full = 0.43 Ω`
+  (합이 맞는다) → full-cell 만 봤다면 양극 증가폭을 `0.43/0.49 = 0.88`, 즉
+  **약 12 % 낮게** 봤을 것이고, **음극이 내려갔다는 사실은 아예 볼 수 없었을 것**이다. 저자 자신의 후보 설명도 인쇄돼
+  있다: 음극 부피 변화로 **표면적이 늘어 전하전달 저항이 내려가고** nSEI 두께
+  증가와 상쇄된다 — 그리고 `[인쇄]` "this theoretically possible effect is **not
+  included in any of the DFN-based aging models in the literature**".
+  `[해석]` SEV 의 전제(노화 → R_ct 증가)가 **전극 수준에서 부호가 갈린다**는
+  뜻이며, 이 카드가 이미 갖고 있는 Su 2024 의 "셀 간 부호 뒤집힘" 과 같은
+  병의 **전극 간** 판이다.
 - **LOGO-CV 의 group 정의가 원문에 인쇄되지 않았다.** 셀 단위인지 프로토콜
   단위인지에 따라 p.13 수치의 의미가 갈린다. 프로토콜 식별자가 입력에 있으므로
   group 이 셀이면 같은 프로토콜의 형제 셀로부터 예측하는 구조가 된다.
@@ -830,6 +879,19 @@ H2 가 참일 수 있음에 주의한다 — 부호가 같다고 벡터가 평�
      전처리에 넣으면 1회다. 같은 이유로 `identifiab*` 22→23,
      `observab*` 10→11, `expansion` 81→87 로 바뀐다. **앞선 열세 편의 0회
      판정 중 이 함정에 걸린 것이 있는지는 미확인이다.**
+
+- [2026-09-10] open 유지 — Natterer 2026 (기준전극 half-cell DMA) 흡수. 이 카드에
+  준 것 셋:
+  - **Evidence Against 1건**: 부호가 아니라 **모양**이 다른 관측 쌍 (LAM = 수직
+    평행이동 · 양극 저항 = 창 절단). 판정 축이 "부호표" 에서 "응답 기하 +
+    C-rate 의존" 으로 하나 넓어졌다.
+  - **Gap 2건**: 기준전극 **위치**가 20 mV 를 흔든다는 실측(동역학 축 관측의
+    상한), 그리고 **한 셀 안에서 두 전극의 저항 변화 부호가 반대**라는 실측.
+  - **경계 확정**: 이 논문의 half-cell 관측은 **모드 결론(가로축)** 과
+    **전위 결론(세로축)** 의 신뢰도가 다르다. 새 개념 페이지
+    [[reference-electrode-halfcell-dma]] 에 그 구분을 고정했다.
+  이 카드의 두 후보 중 **SEV 쪽에만** 걸리는 자료다 — PVS(열역학, 곡선의 함수)
+  에는 새 정보를 주지 않는다.
 
 ### 이 카드가 속한 논지 (2026-09-03)
 

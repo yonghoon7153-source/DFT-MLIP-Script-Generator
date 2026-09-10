@@ -1,7 +1,7 @@
 # 위키 색인
 
 > 내용 목록. 모든 위키 페이지를 종류별로 한 줄 요약과 함께 싣는다.
-> 마지막 갱신: 2026-09-10 | 전체 페이지: 28
+> 마지막 갱신: 2026-09-10 | 전체 페이지: 29
 
 ## Entities (satellite 프로젝트)
 
@@ -27,6 +27,7 @@
 - [[constrained-crb-identifiability]] — 등식 제약이 걸린 상태의 Fisher/CRB (Stoica–Ng nullspace 사영, Mohtat 2019 식 28–34): 판정이 **이분법(𝒪ᵀ𝓘_f𝒪 특이 여부) + 정도(sqrt diag Σ)** 두 층이라는 것, 이 계보가 `Σ` 를 구해 놓고 **대각선만 보고하는 공통 습관**, 그리고 **제약 추가(모르는 방향을 줄임) ≠ 관측 추가(정보를 늘림)** 의 구분과 관측 추가가 이득이 되는 기계적 조건(새 감도 열 ≠ 0).
 - [[data-window-identifiability]] — 관측 창 `DW = [Q_s, Q_e]`(DOD 구간)이 식별 가능성을 정하는 **세 번째 조작**(제약 추가·관측 추가와 구분: 감도행렬의 **행을 갈아 끼운다**). Lee 2020 의 창 전수 삼각지도와 처방 `DOD = [0.35, 0.73]`, 같은 폭 40 %라도 위치가 **어느 전극이 보이는지**를 고른다는 실측, 그리고 "넓을수록 좋다" 가 깨지는 자리(`y₁₀₀`: shallow 14.2 % < medium 25.1 %).
 - [[halfcell-ocp-shape-invariance]] — 모든 electrode balancing 진단이 깔고 있는 **아핀 재조정 전제**(열화 전극 OCP = pristine 곡선의 α·β 변환)와 그 파괴: Si/graphite blend 에서 `γ_Si` 가 9.52 → 5.55 % 로 움직이면 **곡선 모양 자체가 바뀌고**, `γ_Si ↓` 는 `α_an ↓` 와 full-cell 에 **같은 서명**을 남긴다. 강제 시 편향은 방향이 정해져 있다 (LAM_an +2.4 pp 과대 · LAM_cat −3 pp · LLI −1.1 pp) — 그런데 OCV RMSE 는 9.9 → 8.2 mV 로 거의 안 변한다.
+- [[reference-electrode-halfcell-dma]] — 기준전극을 셀에 심어 **최적화 없이** 전극별 열화를 재는 DMA (Natterer 2026): LAM 은 한 전극 **안** 두 DVA feature 사이 거리로, LLI 는 스케일한 pristine OCP 대비 **가로 이동량**으로. 축퇴가 풀리는 것이 아니라 **불확실성이 최적화 지형에서 특징점 판독으로 이동**하며, 그 대가 6개(feature 불변·0.2 C≈OCP·pristine OCP 재사용·판독 절차 미인쇄·RE 위치 20 mV·셀 1개)가 여기 정리돼 있다.
 - [[dv-peak-heterogeneity-descriptor]] — Kim 2023 의 DV `Peak_S2`: 진폭이 아니라 **ridge 절대 높이**이며(진폭은 valley 노이즈로 폐기), LFP‖Gr 에서의 음극 단일 귀속은 PVS 해석과 충돌하지 않는다 — 좌표를 맞추면 오히려 일치.
 
 ## Comparisons (비교)
