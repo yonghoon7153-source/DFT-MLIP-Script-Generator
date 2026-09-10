@@ -36,16 +36,39 @@
 #   SYSTEMS="ndo_lpscl16_n4fu_O-distributed ndo_lpscl16_n5fu_O-distributed" \
 #   LOG=/tmp/gap_nscf_nd.log \
 #   watch -n 60 bash tools/electronic/watch_gap_nscf.sh
+#
+# ── 모드 C: LOBSTER/ICOHP (MODE=lobster, 2026-09-10) ────────────────────────
+#   build_lobster_paw_inputs.py 가 낸 run_lobster.sh 는 **같은 pw.x 를 두 번**
+#   (lobster_scf → lobster_nscf) 돌리고 lobster 를 붙인다. 단계 이름만 다르지
+#   봐야 하는 것(수렴 궤적·밴드 대각화 진행·생사 판정·VRAM)은 모드 B 와 같다.
+#   ⇒ 새 watch 를 만들지 않고 **단계 목록과 마무리 블록만** 갈아 끼운다.
+#   갭·G5 판정은 하지 않는다 (여긴 갭을 재는 계산이 아니다).
+#
+#   MODE=lobster RUNS=/data/work/runs SYSTEMS=icohp_n5fu \
+#   watch -n 60 bash tools/electronic/watch_gap_nscf.sh
 # =============================================================================
 set -u
 
 OUT=${OUT:-/data/work/runs/gap_nscf}
 RUNS=${RUNS:-}
 EXT=0; [ -n "$RUNS" ] && EXT=1
+# gap = fixed-occ 갭 nscf (기본) · lobster = LOBSTER/ICOHP 단계열
+MODE=${MODE:-gap}
+case "$MODE" in
+    gap)     STAGELIST=${STAGELIST:-"scf nscf_gap nscf_dos"} ;;
+    lobster) STAGELIST=${STAGELIST:-"lobster_scf lobster_nscf"}; EXT=1 ;;
+    *) echo "⛔ MODE 는 gap 또는 lobster 다 (받은 값: $MODE) — 시작하지 않는다"; exit 2 ;;
+esac
 # 계 목록·로그 위치. 모드 B 는 런 디렉터리가 곧 계 디렉터리다.
 if [ "$EXT" = 1 ]; then
     SYSLIST=${SYSTEMS:-$(ls -1 "$RUNS" 2>/dev/null | grep -v '^_' | tr '\n' ' ')}
-    LOG=${LOG:-/tmp/gap_nscf_nd.log}
+    if [ "$MODE" = lobster ]; then
+        # 러너가 런 디렉터리 안에 run.log 를 쓴다. 계가 하나뿐인 게 보통이다.
+        _S1=$(echo ${SYSTEMS:-} | awk '{print $1}')
+        LOG=${LOG:-$RUNS/${_S1:-.}/run.log}
+    else
+        LOG=${LOG:-/tmp/gap_nscf_nd.log}
+    fi
     PWPAT=${PWPAT:-'qe-.*-gpu/bin/pw\.x'}
 else
     SYSLIST=${SYSTEMS:-"comp1 modelc"}
@@ -107,6 +130,33 @@ cpu_advancing() {    # → "늘어난랭크수/전체랭크수" (표본 ${CPU_SA
         tot=$((tot+1)); [ "$t1" -gt "$t0" ] 2>/dev/null && adv=$((adv+1))
     done <<< "$a"
     echo "$adv/$tot"
+}
+
+# ── LOBSTER 판독 헬퍼 ────────────────────────────────────────────────────────
+#   ⚠ 본문과 selftest 가 **같은 함수**를 쓴다. 시험이 본문 코드를 베끼면
+#     본문만 고쳐도 시험은 계속 통과한다 (그건 시험이 아니다).
+lobster_spill() {    # $1 = lobsterout → spilling 줄 + 5% 판정
+    local sp
+    sp=$(grep -aiE 'spilling' "$1" 2>/dev/null | grep -avi 'spillings:' | tail -3)
+    [ -n "$sp" ] || return 0
+    echo "$sp" | sed 's/^ *//;s/^/        /'
+    # 5 % 는 build_lobster_paw_inputs.py docstring 의 기준이다.
+    echo "$sp" | grep -aoE '[0-9]+\.[0-9]+ *%' | tr -d ' %' | awk '{
+        if ($1+0 > 5) bad=1 } END {
+        if (bad) print "        ⚠ 5 % 초과 — 기저가 유사포텐셜과 어긋났을 수 있다 (ICOHP 정량 인용 보류)"
+        else if (NR>0) print "        ✅ 5 % 미만 — 기저 적합" }'
+}
+
+icohp_pairs() {      # $1 = ICOHPLIST.lobster → 원소쌍별 쌍수·ΣICOHP
+    awk 'NR>1 && NF>=5 {a=$2;b=$3;gsub(/[0-9]/,"",a);gsub(/[0-9]/,"",b);
+              if(a>b){t=a;a=b;b=t}; k=a"-"b; n[k]++; s[k]+=$(NF)}
+         END{for(k in n) printf "        %-8s %3d쌍  ΣICOHP %8.3f eV (평균 %6.3f)\n", k, n[k], s[k], s[k]/n[k]}' \
+        "$1" 2>/dev/null | sort
+}
+
+icohp_has_pair() {   # $1 = ICOHPLIST, $2/$3 = 원소 → 그 쌍이 있으면 0
+    awk -v x="$2" -v y="$3" 'NR>1 && NF>=5 {a=$2;b=$3;gsub(/[0-9]/,"",a);gsub(/[0-9]/,"",b);
+        if ((a==x&&b==y)||(a==y&&b==x)) {found=1}} END{exit found?0:1}' "$1" 2>/dev/null
 }
 
 # ── 셀프테스트 (음성 경로 포함) ─────────────────────────────────────────────
@@ -202,6 +252,58 @@ EOF2
         && say "✓" "[음성] 없는 프로세스를 '돌고 있다' 고 하지 않는다" \
         || say "✗" "없는 프로세스를 돈다고 했다"
 
+    # ── LOBSTER 판독 (모드 C) ────────────────────────────────────────────
+    cat > "$T/lo_good" <<'EOF'
+spillings:
+      abs. charge spilling: 1.82 %
+      abs. total spilling: 3.44 %
+finished in 421 s
+EOF
+    cat > "$T/lo_bad" <<'EOF'
+spillings:
+      abs. charge spilling: 11.70 %
+      abs. total spilling: 18.02 %
+EOF
+    O=$(lobster_spill "$T/lo_good")
+    echo "$O" | grep -q '✅ 5 % 미만' && say "✓" "spilling 1.82 % 를 적합으로 읽는다" \
+        || say "✗" "spilling 1.82 % 판정 실패: $O"
+    O=$(lobster_spill "$T/lo_bad")
+    echo "$O" | grep -q '⚠ 5 % 초과' && say "✓" "[음성] spilling 11.7 % 를 통과시키지 않는다" \
+        || say "✗" "[음성] spilling 11.7 % 를 놓쳤다: $O"
+    : > "$T/lo_empty"
+    [ -z "$(lobster_spill "$T/lo_empty")" ] && say "✓" "[음성] spilling 줄이 없으면 판정하지 않는다" \
+        || say "✗" "[음성] 없는 spilling 을 판정했다"
+
+    # ICOHPLIST — Nd 는 있고 Nd–P 는 **없는** 실제 예상 형태
+    cat > "$T/ic_noNdP" <<'EOF'
+COHP#  atomMU  atomNU  distance  transX  transY  transZ  ICOHP
+1  Nd57  S12  2.681  0 0 0  -1.204
+2  Nd57  S13  2.744  0 0 0  -1.150
+3  Nd57  Cl4  2.889  0 0 0  -0.702
+4  P3    S20  2.045  0 0 0  -4.310
+EOF
+    cat > "$T/ic_NdP" <<'EOF'
+COHP#  atomMU  atomNU  distance  transX  transY  transZ  ICOHP
+1  Nd57  P3   3.120  0 0 0  -0.081
+2  P3    S20  2.045  0 0 0  -4.310
+EOF
+    icohp_has_pair "$T/ic_noNdP" Nd P && say "✗" "[음성] 없는 Nd–P 쌍을 있다고 했다" \
+        || say "✓" "[음성] Nd–P 가 없으면 없다고 한다"
+    icohp_has_pair "$T/ic_NdP" Nd P && say "✓" "Nd–P 쌍이 있으면 잡는다" \
+        || say "✗" "있는 Nd–P 쌍을 놓쳤다"
+    icohp_has_pair "$T/ic_noNdP" Nd Cl && say "✓" "Nd–Cl 쌍을 순서 무관하게 잡는다" \
+        || say "✗" "Nd–Cl 쌍을 놓쳤다"
+    O=$(icohp_pairs "$T/ic_noNdP")
+    echo "$O" | grep -q 'Nd-S *2쌍' && say "✓" "원소쌍 집계 (Nd-S 2쌍)" \
+        || say "✗" "원소쌍 집계 실패: $O"
+    echo "$O" | awk '/Nd-S/{exit ($4+2.354<0.001 && $4+2.354>-0.001)?0:1}' \
+        && say "✓" "ΣICOHP 합산 (Nd-S −2.354 eV)" || say "✗" "ΣICOHP 합산 실패: $O"
+    # ⛔ 헤더를 데이터로 세면 **없는 원소쌍 하나**(atomMU-atomNU)가 더 생긴다.
+    #   (출력 줄 자체에 'ΣICOHP' 가 들어 있어 'COHP' 로 찾으면 자기 출력에 걸린다)
+    NK=$(echo "$O" | grep -c .)
+    [ "$NK" = 3 ] && say "✓" "[음성] 헤더 줄을 쌍으로 세지 않는다 (원소쌍 3종)" \
+        || say "✗" "[음성] 원소쌍이 3종이 아니다 (${NK}종) — 헤더가 섞였나: $O"
+
     rm -rf "$T"
     [ "$ok" = 1 ] && { echo "selftest PASS"; exit 0; } || { echo "selftest FAIL"; exit 1; }
 fi
@@ -214,7 +316,9 @@ else
 fi
 
 # ① 프로세스
-PIDS=$(pgrep -f "run_gap_nscf_gabia|$PWPAT" 2>/dev/null | tr '\n' ' ')
+# 러너 이름은 모드마다 다르다 — 모드 C 에서 gap 러너를 찾으면 **영원히 '없음'** 이다.
+RUNPAT=${RUNPAT:-$([ "$MODE" = lobster ] && echo 'run_lobster\.sh|/lobster' || echo 'run_gap_nscf_gabia')}
+PIDS=$(pgrep -f "$RUNPAT|$PWPAT" 2>/dev/null | tr '\n' ' ')
 if [ -n "${PIDS// /}" ]; then
     # ⛔ 런처를 랭크로 세지 않는다 (2026-08-31 오경보) — comm 이 pw.x 인 것만
     NR=$(rank_pids "$PWPAT" | wc -l); NR=${NR:-0}
@@ -241,6 +345,13 @@ fi
 # GPU 를 쓰는 판이면 VRAM 도 본다 — kgy 는 공유고, 여기서 죽은 전례가 있다.
 if [ "$EXT" = 1 ] && command -v nvidia-smi >/dev/null 2>&1; then
     echo "■ GPU $(nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader | head -1)"
+    # ⛔⛔ 2026-09-10 실측 — "MD 없음" 인데 VRAM 40 GB 가 잡혀 있었다. 남은 것이
+    #   pw.x 인지 죽다 만 UMA python 인지 **used/free 두 숫자로는 알 수 없다.**
+    #   CLAUDE.md 의 gabia 규칙(pw.x 와 UMA 동시 실행 금지)은 이걸 봐야 지킬 수 있다.
+    nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>/dev/null \
+        | sed 's/^/     /' | head -6
+    nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | grep -q . \
+        || echo "     (점유 프로세스 없음 — VRAM 이 잡혀 있다면 드라이버가 아직 회수 중이다)"
 fi
 
 for S in $SYSLIST; do
@@ -248,9 +359,10 @@ for S in $SYSLIST; do
     [ -d "$D" ] || continue
     echo "■ $S"
 
-    for STAGE in scf nscf_gap nscf_dos; do
+    _FIRST=$(echo $STAGELIST | awk '{print $1}')
+    for STAGE in $STAGELIST; do
         F=$D/$STAGE.out
-        [ -s "$F" ] || { [ "$STAGE" = scf ] && echo "   $STAGE: 아직 출력 없음"; continue; }
+        [ -s "$F" ] || { [ "$STAGE" = "$_FIRST" ] && echo "   $STAGE: 아직 출력 없음"; continue; }
 
         AGE=$(( ( $(date +%s) - $(stat -c %Y "$F") ) / 60 ))
 
@@ -272,8 +384,10 @@ for S in $SYSLIST; do
         #     ③ 그 단계 자신의 .in → modelc 의 지난 판 오류가 다시 살아났다
         #   ⇒ 경계는 **run.log 의 첫 타임스탬프**다. 러너가 실행 때마다 run.log 를 새로 쓴다.
         #     그보다 오래된 .out 은 무조건 지난 판이다. 간접 지표를 그만 쓴다.
-        if [ -z "${RUNSTART_EPOCH:-}" ] && [ -s "$OUT/run.log" ]; then
-            _t=$(grep -aom1 '^\[[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\]' "$OUT/run.log" | tr -d '[]')
+        # ⚠ 종전엔 $OUT/run.log 고정이라 **모드 B/C 에서 이 판별이 통째로 죽어 있었다**
+        #   (모드 A 에선 LOG 기본값이 바로 그 파일이라 동작이 같다).
+        if [ -z "${RUNSTART_EPOCH:-}" ] && [ -s "$LOG" ]; then
+            _t=$(grep -aom1 '^\[[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\]' "$LOG" | tr -d '[]')
             [ -n "$_t" ] && RUNSTART_EPOCH=$(date -d "$(date +%Y)-${_t/ / }" +%s 2>/dev/null)
         fi
         # ⭐ 다섯 번째 판 — 시각 비교를 **완료 여부 뒤로** 뺐다. 규칙 방향이 틀렸었다.
@@ -299,7 +413,7 @@ for S in $SYSLIST; do
         # ★ irr k-point 계보 (nscf 에서 의미가 있다)
         NK=$(grep -a 'number of k points' "$F" | head -1 \
              | sed 's/.*number of k points=[[:space:]]*//' | awk '{print $1}')
-        if [ "$STAGE" != "scf" ] && [ -n "$NK" ]; then
+        if [ "$STAGE" != "$_FIRST" ] && [ -n "$NK" ]; then
             if [ -z "${KIRR[$S]:-}" ]; then
                 # 없는 기준과 다르다고 경고하면 그건 오경보다.
                 echo "        irr k-point $NK (정본 기록 없는 계 — 대조 건너뜀)"
@@ -330,7 +444,7 @@ for S in $SYSLIST; do
         #   첫 판은 그걸 "초기화 중" 으로 찍다가 15분 뒤 "초기화가 너무 길다" 고 오경보할
         #   상태였다 (실측: 3.4시간째 도는데 화면은 '반복 전, 6분 경과').
         #   nscf 진행은 계산된 k-point 수로 본다.
-        if [ "$STAGE" != "scf" ]; then
+        if [ "$STAGE" != "$_FIRST" ]; then
             # ⛔ 판본·설정에 따라 QE 가 찍는 진행 표시가 다르다. 하나만 보면
             #   **도는 잡을 0/N 으로 읽는다** (2026-09-10 실측: n5fu nscf_dos 가
             #   5/10 인데 화면은 0/10 이었다 — 'Computing kpt #' 가 안 찍히는 판이었다).
@@ -450,6 +564,7 @@ for S in $SYSLIST; do
     done
 
     # ── DOS 후처리 (dos.x -> projwfc.x -> pdos 파일) ─────────────────────
+    if [ "$MODE" = gap ]; then
     #   nscf_dos 가 끝났는데 여기가 비어 있으면 후처리에서 멈춘 것이다.
     #   "nscf 끝났다" 만 보고 끝난 줄 알면 pdos 가 없는 걸 몇 시간 뒤에 안다.
     if grep -aq 'JOB DONE' "$D/nscf_dos.out" 2>/dev/null; then
@@ -471,13 +586,46 @@ for S in $SYSLIST; do
             echo "   산출: pdos 파일 ${NPD}개 · ${PFX}.dos ${DOSSZ}"
         fi
     fi
+    fi
+
+    # ── LOBSTER 단계 (모드 C) ─────────────────────────────────────────────
+    #   ⛔ nscf 가 JOB DONE 이라고 끝난 게 아니다. LOBSTER 는 그 뒤에 따로 돌고,
+    #     **charge spilling 이 나쁘면 조용히 나쁜 ICOHP 를 낸다** (에러가 아니다).
+    if [ "$MODE" = lobster ]; then
+        LO=$D/lobsterout
+        if [ ! -s "$LO" ]; then
+            grep -aq 'JOB DONE' "$D/lobster_nscf.out" 2>/dev/null \
+                && echo "   lobster: ⏳ nscf 는 끝났는데 아직 시작 안 했다 (후처리 대기)" \
+                || echo "   lobster: 아직 (nscf 먼저)"
+        else
+            LAGE=$(( ( $(date +%s) - $(stat -c %Y "$LO") ) / 60 ))
+            if grep -aq 'finished in' "$LO"; then
+                echo "   lobster: ✅ 완료 ($(grep -a 'finished in' "$LO" | tail -1 | sed 's/^ *//'))"
+            else
+                echo "   lobster: ⏳ 진행 중 (로그 갱신 ${LAGE}분 전)"
+            fi
+            lobster_spill "$LO"
+            IC=$D/ICOHPLIST.lobster
+            if [ -s "$IC" ]; then
+                echo "        ICOHPLIST $(( $(wc -l < "$IC") - 1 )) 쌍"
+                icohp_pairs "$IC"
+                # ★ 이 계의 물음: Nd 가 P 자리에 있는데 **Nd–P 결합이 있나**.
+                #   lobsterin 에 Nd–P 생성자를 일부러 넣었다 — 비어 있으면 그게 답이다.
+                if icohp_has_pair "$IC" Nd P; then
+                    echo "        ★ Nd–P 쌍이 **있다**"
+                else
+                    echo "        ★ Nd–P 쌍이 **비어 있다** — 생성자를 넣었는데 없으면 그게 결론이다"
+                fi
+            fi
+        fi
+    fi
 done
 
 # ── 모드 B: 두 셀이 다 끝났으면 G5(셀 선택)를 계산한다 ──────────────────────
 #   ⛔ 문턱을 여기 박지 않는다 — **카드에서 읽는다.** 문턱이 두 곳에 있으면
 #     결과를 보고 한쪽을 고치는 길이 열린다 (mlip_committee.py _card_thresholds 선례).
 #     카드를 못 읽으면 갭만 나열하고 **판정하지 않는다.**
-if [ "$EXT" = 1 ]; then
+if [ "$EXT" = 1 ] && [ "$MODE" = gap ]; then
     GAPS=""
     for S in $SYSLIST; do
         F=$RUNS/$S/nscf_gap.out
