@@ -1801,6 +1801,19 @@
     "scripts/check_audit_adjudication.py"
    ],
    "claimed_fixed_sha": "0dee4f33"
+  },
+  {
+   "id": "SELF-17",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/session_20260910_progress.md",
+   "title": "런 receipt 의 `code_sha` 부재를 **예외 등재로 정상화**했다 — 한 줄 push 로 닫히는 것이었다",
+   "note": "2026-09-10 실측.  kgy `~/pa/phaseA_probe015_arm1/run_receipt.json` 의 `\"code_sha\": \"70b9e37a\"` 가 이 리포에서 풀리지 않았다 (`fatal: Not a valid object name`).  전 브랜치를 fetch 한 뒤에도 없었다 = **푸시된 적 없는 커밋**이고, `+dirty` 가 안 붙었으니 트리는 깨끗했다.  ⇒ 그 팔의 코드 정체를 아무도 되살릴 수 없는 상태였다 (원장 §19 receipt 계약이 막으려던 자리).\n★ **문서 축은 검사가 있었고 제대로 돌았다** — `check_doc_refs` + `doc_refs_sha_exceptions.tsv` 가 어제 그 sha 를 사유와 함께 등재했고, 오늘 push 로 도달 가능해지자 **등재가 낡았다고 스스로 지적**했다 (등록부 머리의 ⓐ 조항).  그 기계는 흠이 없다.\n⛔ 문제는 **그 예외에 적힌 사유**다 — *\"이 리포에서 도달 불가한 것이 정상이다\"*.  정상이 아니었다. `git push origin 70b9e37a:refs/heads/claude/phase-a-96arm-kgy` **한 줄**로 닫혔고, 닫고 보니 그 커밋은 내용을 하나도 안 들고 있었다 (`git merge-tree --write-tree b5db1639 70b9e37a` 가 `b5db1639^{tree}` 와 동일 = `105ea5b363d3df38857e9390b867bc4282547033`).  ⇒ **예외가 최후 수단이 아니라 안착 상태로 쓰였다.** 고치는 비용이 0 인데 등재로 덮으면, 그 기계가 초기화되는 순간 provenance 가 영구 소실된다.\n⬜ 남은 구멍 (이번 건과 같은 뿌리, 아직 안 닫힘): **커밋된 패키지의 receipt** 에는 같은 검사가 없다. `check_cohort_packages.py` 는 `code_sha` 를 아예 읽지 않고(grep 0 건), `run_contract.py` 는 러너↔결과의 `code_sha` 가 **서로 같은지**만 본다 (`RCPT|code_sha|differ`) — 둘이 사이좋게 같은 유령 sha 를 적어도 통과한다.  처방 후보는 `check_review_findings.py` 의 `_commit_exists` 를 **재사용**하는 것이다 (새로 짜지 말 것 — 규율 ①).  ⚠ 외부 기계에서만 사는 sha 를 무조건 거부하면 반입이 막히므로 `verified_repo` 와 같은 **명시 예외 + 사유**가 함께 필요하고, 그 사유는 *\"정상이다\"* 가 아니라 *\"왜 push 할 수 없는가\"* 여야 한다.\n경위 전문: `docs/session_20260910_progress.md` §2.",
+   "evidence_tests": [
+    "scripts/check_cohort_packages.py"
+   ]
   }
  ]
 }
