@@ -208,3 +208,39 @@ def test_port_offers_blind_mode():
     src = inspect.getsource(verify.cmd_port)
     assert "args.blind" in src or "blind" in src, (
         "cmd_port 가 보고값을 항상 첫 시작점으로 넣는다 — 그건 독립 재적합이 아니다")
+
+
+# ── 대조기가 **파일 정밀도보다 빡빡하게** 재면 안 된다 (2026-09-10 실측) ──
+
+def test_compare_does_not_cry_wolf_on_printed_precision():
+    """`%.10f` 로 적힌 CSV 를 1e-9 상대문턱으로 재면 없는 불일치를 보고한다.
+
+    실측: MATLAB dd_eval 과 Python 이 rmse_pocv=0.0117453809 에서 상대차
+    2.49e-09 로 나왔다. 그런데 `%.10f` 의 절대 양자화 ±0.5e-10 은 그 값에서
+    **상대 4.26e-09** 다. 즉 관측된 차이는 두 구현의 차이가 아니라 **출력
+    자리수**이고, 그 파일로는 그보다 정밀하게 비교할 수 없다.
+    """
+    import io, contextlib, tempfile
+    from bms_balancing.verify import _compare_dd_eval, DD_EVAL_P
+
+    BASE = {"c_cell": 74.671, "dv_lo": 0.1492985972, "dv_hi": 0.8507014028,
+            "dv_n": 350.0, "dq_lo": 2.7926653307, "dq_hi": 4.1273346693,
+            "E_PE_0p5": 3.8756842582, "E_NE_0p5_0p25": 0.1133989996,
+            "dv_PE_0p5": 1.1237428984, "dv_NE_0p5_0p25": -0.0738972448}
+    tmp = pathlib.Path(tempfile.mkdtemp()) / "_wolf.csv"
+    py_rows = [list(q) + [0.0117453809 + 4.0e-11, 0.1182321473 + 2.0e-11]
+               for q in DD_EVAL_P[:1]]
+    lines = ["# dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0"]
+    lines += [f"# {k},{v:.17g}" for k, v in BASE.items()]
+    lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq")
+    lines.append(",".join([f"{x:.6f}" for x in DD_EVAL_P[0]]
+                          + ["0.0117453809", "0.1182321473"]))
+    tmp.write_text("\n".join(lines) + "\n")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        _compare_dd_eval(dict(BASE), py_rows, tmp)
+    txt = buf.getvalue()
+    tmp.unlink(missing_ok=True)
+    assert "전부 일치" in txt, (
+        "적힌 자리수 안에서 같은 값인데 불일치로 보고했다 — 문턱이 파일 "
+        f"정밀도보다 빡빡하다.\n{txt}")

@@ -142,7 +142,10 @@ def main(argv=None):
         r_pocv = float(np.sqrt(np.mean((vol - e_model) ** 2)))
         dv_model = ro["dv_PE"]((cap_dv - q[1]) / q[0]) - dv_NE((cap_dv - q[3]) / q[2], q[4])
         r_dvdq = float(np.sqrt(np.mean((dv_dat - dv_model) ** 2)))
-        lines.append(",".join([f"{x:.6f}" for x in q] + [f"{r_pocv:.10f}", f"{r_dvdq:.10f}"]))
+        # dd_eval.m 과 같은 자리수(%.17g). %.10f 는 rmse≈0.01 에서 상대 4e-9 를
+        # 만들어 대조가 없는 불일치를 보고한다 (2026-09-10 실측).
+        lines.append(",".join([f"{x:.6f}" for x in q]
+                              + [f"{r_pocv:.17g}", f"{r_dvdq:.17g}"]))
     print("\n".join(lines))
     if a.out:
         pathlib.Path(a.out).write_text("\n".join(lines) + "\n")

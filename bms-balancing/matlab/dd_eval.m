@@ -141,7 +141,11 @@ function dd_eval(varargin)
         r_pocv   = sqrt(mean((vol - e_model) .^ 2));
         dv_model = ro.dv_PE((cap_dv - q(2)) / q(1)) - dv_NE((cap_dv - q(4)) / q(3), q(5));
         r_dvdq   = sqrt(mean((dv_dat - dv_model) .^ 2));
-        rows{end+1} = sprintf('%.6f,%.6f,%.6f,%.6f,%.6f,%.10f,%.10f', ...
+        % ⚠ rmse 는 %.17g 로 적는다. 전 판은 %.10f 였는데, 그러면 절대
+        %   양자화가 ±0.5e-10 이라 rmse≈0.0117 에서 그것만으로 상대 4.3e-9 다.
+        %   그 자리수로 적힌 파일을 상대 1e-9 로 재면 **없는 불일치**가 나온다
+        %   (2026-09-10 실측). 전정밀도로 적어야 대조가 그 아래로 내려간다.
+        rows{end+1} = sprintf('%.6f,%.6f,%.6f,%.6f,%.6f,%.17g,%.17g', ...
             q(1), q(2), q(3), q(4), q(5), r_pocv, r_dvdq); %#ok<AGROW>
         fprintf('%s\n', rows{end});
     end

@@ -446,6 +446,31 @@ def read_dd_eval_csv(path):
     return anchors, rows
 
 
+def printed_abs_tol(path, default_decimals: int = 10) -> float:
+    """CSV 에 **적힌 자리수**가 허용하는 절대 오차.
+
+    ⚠ 2026-09-10 실측: `dd_eval.m` 은 rmse 를 `%.10f` 로 쓴다. 그러면 절대
+      양자화가 ±0.5e-10 이고, rmse_pocv≈0.0117 에서 그것만으로 **상대 4.3e-9**
+      가 된다. 그 파일을 상대 1e-9 문턱으로 재면 **없는 불일치를 보고**한다
+      (실제로 그랬다). 양쪽 다 반올림하므로 한계는 그 두 배로 잡는다.
+    """
+    d = default_decimals
+    try:
+        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("a_PE"):
+                continue
+            for field in line.split(",")[5:]:
+                if "e" in field.lower():
+                    d = min(d, 17)          # 전정밀도 — 상대문턱이 지배한다
+                elif "." in field:
+                    d = min(d, len(field.split(".")[1]))
+            break
+    except OSError:
+        pass
+    return 10.0 ** (-d)
+
+
 def cmd_eval(args):
     """적합 없이 주어진 p 에서 rmse 를 찍고, 원하면 MATLAB 산출과 대조한다.
 
@@ -487,7 +512,10 @@ def cmd_eval(args):
 def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
     """MATLAB 산출과 대조하고, **갈린 첫 단계**를 이름으로 말한다."""
     m_anchors, m_rows = read_dd_eval_csv(matlab_csv)
+    atol = printed_abs_tol(matlab_csv)
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
+    print(f"  (적힌 자리수가 허용하는 절대 한계 {atol:.1e} — 이보다 작은 차이는"
+          f" 두 구현의 차이가 아니라 출력 반올림이다)")
     if not m_anchors and not m_rows:
         print("  ! 읽을 내용이 없다 — 경로가 맞나?")
         return
@@ -519,16 +547,21 @@ def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
     if len(m_rows) != len(py_rows):
         print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_rows)}")
     else:
-        print(f"  {'p 행':<5} {'rmse_pocv 상대차':>18} {'rmse_dvdq 상대차':>18}")
+        print(f"  {'p 행':<5} {'rmse_pocv 상대차':>18} {'rmse_dvdq 상대차':>18}   판정")
         for i, (mr, pr) in enumerate(zip(m_rows, py_rows)):
             if len(mr) < 7:
                 continue
             if max(abs(mr[j] - pr[j]) for j in range(5)) > 1e-6:
                 print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다")
                 continue
+            d1, d2 = abs(mr[5] - pr[5]), abs(mr[6] - pr[6])
             r1, r2 = rel(mr[5], pr[5]), rel(mr[6], pr[6])
-            worst_row = max(worst_row, r1, r2)
-            print(f"  {i:<5} {r1:>18.2e} {r2:>18.2e}")
+            # 적힌 자리수 안이면 "차이" 가 아니다
+            eff = max(r1 if d1 > atol else 0.0, r2 if d2 > atol else 0.0)
+            worst_row = max(worst_row, eff)
+            tag = "" if eff == 0.0 else "  ←"
+            print(f"  {i:<5} {r1:>18.2e} {r2:>18.2e}"
+                  f"   {'적힌 자리수 안' if eff == 0.0 else '자리수 밖'}{tag}")
 
     print()
     if first_bad:
@@ -539,7 +572,9 @@ def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
         print(f"판정: 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
         print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
     else:
-        print(f"판정: 앵커 10개와 rmse 16개가 전부 일치 (rmse 최대 상대차 {worst_row:.2e}).")
+        print("판정: 앵커 10개와 rmse 16개가 **적힌 자리수 안에서 전부 일치**.")
+        print(f"      남은 차이는 전부 CSV 출력 반올림({atol:.0e}) 안이다 —")
+        print("      이 파일로는 그보다 정밀하게 비교할 수 없다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
 
 
