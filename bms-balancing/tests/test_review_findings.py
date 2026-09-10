@@ -488,3 +488,52 @@ def test_negative_lam_ne_is_arithmetic_not_correlation():
     assert need < 1.4, (
         f"음수가 되는 데 필요한 a_NE 문턱 {need:.3f} 이 상자 상한 1.4 이상이다 "
         "— 그러면 '상한이 그 값을 만들었다' 고 말할 수 없다")
+
+
+# ── 잡음 추정기가 아는 σ 를 되찾는가 (2026-09-10) ─────────────────────────
+
+def test_rice_sigma_recovers_known_noise():
+    """`verify noise` 의 결론은 σ 추정치 위에 서 있다. 그 추정기를 먼저 잰다.
+
+    반복측정이 없어도 σ 를 잴 수 있다는 것이 이 명령의 전제다. 2 차 차분
+    추정기는 참 곡선이 매끄럽고 이웃 잡음이 독립일 때 그것을 준다 — 여기서는
+    **σ 를 알고 있는 합성 곡선**에 걸어서 되찾는지 본다.
+    """
+    import numpy as np
+    from bms_balancing.verify import rice_sigma
+
+    rng = np.random.default_rng(20260910)
+    q = np.linspace(0, 1, 1200)
+    v = 3.05 + 1.15 * q ** 0.8 - 0.06 / (1 + np.exp(-(q - 0.30) / 0.035))
+    for s_true in (0.05e-3, 0.2e-3, 0.5e-3, 1.0e-3, 2.0e-3):
+        est = rice_sigma(v + rng.normal(0, s_true, q.size))
+        assert 0.9 < est / s_true < 1.1, (
+            f"σ={s_true*1e3:.2f} mV 를 {est*1e3:.3f} mV 로 추정했다 (비율 "
+            f"{est/s_true:.3f}) — 10 % 밖이면 이 추정기 위의 결론을 못 쓴다")
+
+
+def test_rice_sigma_collapses_on_presmoothed_signal_and_is_detectable():
+    """**이미 평활된 신호에 쓰면 σ 가 무너진다.** 그것을 감지할 수 있어야 한다.
+
+    이 함정이 실재한다: 재표본·평활된 곡선에 2 차 차분을 걸면 잡음이 상관되어
+    추정치가 몇 배로 작아지고, 그러면 "부적합/잡음" 비율이 **거짓으로 커진다.**
+    감지 장치는 1 차 차분의 lag-1 자기상관 — 독립 잡음이면 음수, 평활됐으면 양수.
+    """
+    import numpy as np
+    from scipy.signal import savgol_filter
+    from bms_balancing.verify import rice_sigma
+
+    rng = np.random.default_rng(7)
+    q = np.linspace(0, 1, 1200)
+    v = 3.05 + 1.15 * q ** 0.8 - 0.06 / (1 + np.exp(-(q - 0.30) / 0.035))
+    y = v + rng.normal(0, 0.5e-3, q.size)
+
+    def ac1(z):
+        d = np.diff(z)
+        return float(np.corrcoef(d[:-1], d[1:])[0, 1])
+
+    assert ac1(y) < 0, "원신호인데 lag-1 자기상관이 음수가 아니다"
+    ys = savgol_filter(y, 11, 3)
+    assert ac1(ys) > 0, "평활된 신호인데 감지가 안 된다 — 경고 장치가 무효다"
+    assert rice_sigma(ys) < 0.5 * rice_sigma(y), (
+        "평활 뒤 σ 가 안 무너졌다 — 그러면 이 테스트가 지키는 함정이 없는 것이다")
