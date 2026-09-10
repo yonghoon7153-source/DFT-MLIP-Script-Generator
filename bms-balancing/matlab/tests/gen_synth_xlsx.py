@@ -47,11 +47,24 @@ for name, k in (("Baggetto",0.55),("Friedrich",0.70),("Jiang",0.85),("Kunz",1.00
     pd.DataFrame({"normalizedCapacity": si_c, "voltage": si_v}).to_csv(
         root / f"data/literature/Si_OCP_sources/{name}.csv", index=False)
 
+# ⚠ 풀셀 전압은 **평탄부(스테이지)가 있어야** 한다. 매끈한 단조 곡선이면
+#   dQ/dV 에 봉우리가 하나도 안 생기고(`find_peaks` → 0개), 그러면 피크
+#   가중이 전부 1 이 되어 **가중 경로가 무가중과 구별되지 않는다**. 그 상태로
+#   두면 dQ/dV 대조가 통과한 척만 한다 (2026-09-10 실측: n_peaks=0 으로
+#   test_py_smoke 의 "피크 가중이 무가중과 다르다" 가 처음부터 FAIL 이었다).
+#   그래서 흑연 스테이지를 닮은 완만한 계단 둘을 넣는다. 진폭·폭은 기울기가
+#   양수로 남도록 잡았다 (단조가 깨지면 `unique(v_smooth)` 가 점을 버린다).
+def _stage(x, x0, w):
+    return 1.0 / (1.0 + np.exp(-(x - x0) / w))
+
+
 n, cols = 300, []
 for si, st in enumerate(STATES):
     cap_end = 74.671 - 2.5 * si
     c = np.linspace(0, cap_end, n)
-    v = 3.05 + 1.15 * (c / cap_end) ** 0.8 - 0.01 * si
+    x = c / cap_end
+    v = (3.05 + 1.15 * x ** 0.8 - 0.01 * si
+         - 0.060 * _stage(x, 0.30, 0.035) - 0.055 * _stage(x, 0.62, 0.040))
     drop = si * 7
     if drop:
         c, v = c.copy(), v.copy()

@@ -351,6 +351,9 @@ class Objective:
         w = np.ones_like(dq)
         prom = 0.1 * (dq.max() - dq.min())
         locs, _ = find_peaks(dq, prominence=prom)
+        # 몇 개를 찾았는지 남긴다 — dd_eval.m 대조의 `n_peaks` 앵커가 이것이다
+        # (같은 규칙을 verify.py 에 다시 쓰지 않으려고 여기 둔다).
+        self.peak_locs = locs
         if locs.size == 0:
             return w
         sigma = sigma_ratio * (vol.max() - vol.min())

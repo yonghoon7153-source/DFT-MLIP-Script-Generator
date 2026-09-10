@@ -8,16 +8,26 @@
   · `sgolayfilt` shim ≡ Python `sgolay`(scipy savgol_filter, mode='interp').
     특히 **가장자리** 구간 — model.py 가 "완전히 같은 수는 아닐 수 있다" 고
     적어 둔 바로 그 자리다.
+  · `findpeaks` shim ≡ Python `scipy.signal.find_peaks(prominence=...)`.
+    위치(1-based↔0-based)와 **개수**까지 본다.
 
 무엇을 증명 못 하나:
-  MathWorks 의 진짜 `sgolayfilt`. 이 컨테이너에도 사용자 기계에도 Signal
-  Processing Toolbox 가 없다. 사용자 기계에서도 `sgolayfilt` 는 **항상 이
-  shim** 이므로, 그쪽 MATLAB↔Python 대조는 이 자리에서만큼은 같은 정의끼리
-  비교하는 것이 맞다.
+  MathWorks 의 진짜 `sgolayfilt`·`findpeaks`. 이 컨테이너에 Signal Processing
+  Toolbox 가 없다. `findpeaks` 는 Octave core 에도 없어서(`exist` → 0) 3자
+  대조가 아니라 **shim↔scipy 2자** 대조다 — 제3의 독립 구현이 없다.
+  평탄 꼭대기 규약은 scipy 쪽에 맞춰져 있고 MathWorks 와 다를 수 있다
+  (dd_shims/findpeaks.m 머리말).
+
+  ⚠ 사용자 기계에는 툴박스 **라이선스가 있다**(2026-09-10 `license('test')`
+    4종 전부 1). 설치하면 `addpath(...,'-end')` 때문에 진짜 함수가 이기고
+    shim 은 안 쓰인다. 그때 `dd_eval` 이 CSV 에 적는 `# impl_sgolayfilt,matlab`
+    이 그 사실의 증거이고, 그 산출을 이 shim 기준 산출과 비교하면 **MathWorks
+    구현과 우리 정의의 차이**가 처음으로 측정된다.
 """
 import sys, csv, pathlib
 import numpy as np
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+from scipy.signal import find_peaks
 from bms_balancing.model import matlab_quantile, sgolay
 
 D = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".") / "cases"
@@ -70,10 +80,30 @@ with open(D/"sgcases.csv") as fh:
         core = d[m:len(x)-m].max()
         print(f"  {n:11s} order={od} f={fl:2d}: max|Δ|={d.max():.3e}  (가장자리 {edge:.3e} / 내부 {core:.3e})")
 worst_c = max(maxes.values())
+
+print("=== 3. findpeaks (shim vs scipy — 제3 구현 없음) ===")
+fp_bad, fp_n = [], 0
+with open(D/"fpcases.csv") as fh:
+    for r in csv.DictReader(fh):
+        n, prom = r["vec"], float(r["prominence"])
+        x = np.atleast_1d(np.loadtxt(D/f"fpvec_{n}.csv"))
+        key = f"{prom:.17g}"
+        cnt = int(oct_shim[("findpeaks", n, key, "", 0)])
+        sh = [int(oct_shim[("findpeaks", n, key, "", k+1)]) for k in range(cnt)]
+        py = (find_peaks(x, prominence=prom)[0] + 1).tolist()   # 1-based 로 맞춘다
+        fp_n += 1
+        if sh != py:
+            fp_bad.append((n, prom, sh, py))
+        print(f"  {n:8s} prom={prom:<5g} n={cnt:<4d} {'일치' if sh == py else 'X 불일치'}")
+for n, prom, sh, py in fp_bad:
+    print(f"  ! {n} prom={prom:g}: shim={sh}  scipy={py}")
+print(f"  → {fp_n - len(fp_bad)}/{fp_n} 조합 일치")
+
 print()
 print(f"WORST quantile shim-vs-python : {worst_a:.3e}")
 print(f"WORST quantile shim-vs-octave : {worst_b:.3e}")
 print(f"WORST sgolay  shim-vs-python  : {worst_c:.3e}")
-ok = worst_a < 1e-12 and worst_b < 1e-12 and worst_c < 1e-9
+print(f"findpeaks shim-vs-scipy      : {fp_n - len(fp_bad)}/{fp_n} 조합 일치")
+ok = (worst_a < 1e-12 and worst_b < 1e-12 and worst_c < 1e-9 and not fp_bad)
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

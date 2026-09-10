@@ -56,11 +56,20 @@ def main():
     vals = []
     for g in (0.05, 0.15, 0.25, 0.35, 0.45):
         p = base.copy(); p[4] = g
-        vals.append((obj.rmse_pocv(p), obj.rmse_dvdq(p)))
-    spread_p = max(v[0] for v in vals) - min(v[0] for v in vals)
-    spread_d = max(v[1] for v in vals) - min(v[1] for v in vals)
-    chk(f"γ 가 rmse_pocv 를 움직인다 (폭 {spread_p:.3e})", spread_p > 1e-4)
-    chk(f"γ 가 rmse_dvdq 를 움직인다 (폭 {spread_d:.3e})", spread_d > 1e-4)
+        vals.append((obj.rmse_pocv(p), obj.rmse_dvdq(p),
+                     obj.rmse_dqdv(p, False), obj.rmse_dqdv(p, True)))
+    spread = [max(v[j] for v in vals) - min(v[j] for v in vals) for j in range(4)]
+    chk(f"γ 가 rmse_pocv 를 움직인다 (폭 {spread[0]:.3e})", spread[0] > 1e-4)
+    chk(f"γ 가 rmse_dvdq 를 움직인다 (폭 {spread[1]:.3e})", spread[1] > 1e-4)
+    # dQ/dV 항도 같은 감사를 받는다. 이 항은 보간 범위에 5 점을 못 넣으면
+    # 원본 규약대로 **모든 p 에서 1e6** 을 내는데, 그러면 대조는 통과하고
+    # 경로는 안 탄다 — 그 상태를 여기서 잡는다 (check_e2e.py 와 같은 취지).
+    chk(f"γ 가 rmse_dqdv 를 움직인다 (폭 {spread[2]:.3e})", spread[2] > 1e-4)
+    chk("rmse_dqdv 가 1e6 으로 죽지 않는다",
+        all(v[2] < 1e6 and v[3] < 1e6 for v in vals), str([v[2] for v in vals]))
+    chk("피크 가중이 무가중과 다르다",
+        any(abs(v[2] - v[3]) > 1e-12 for v in vals),
+        f"n_peaks={len(obj.peak_locs)}")
 
     # 3. 앵커 이름·순서가 dd_eval.m 과 같은가
     from bms_balancing.verify import ANCHOR_STAGE
@@ -72,10 +81,10 @@ def main():
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         cmd_eval(A(data_root=str(root), out=str(out)))
-    an2, rows2 = read_dd_eval_csv(out)
+    an2, rows2, hdr2 = read_dd_eval_csv(out)
     want = dict(dd_eval_anchors(build(root, "GITT", "pristine", "Li")))
-    chk("CSV 왕복: 앵커 10개 보존",
-        len(an2) == 10 and all(abs(an2[k] - want[k]) <= 1e-12 * max(abs(want[k]), 1)
+    chk(f"CSV 왕복: 앵커 {len(want)}개 보존",
+        len(an2) == len(want) and all(abs(an2[k] - want[k]) <= 1e-12 * max(abs(want[k]), 1)
                                for k in want))
     chk("CSV 왕복: 파라미터 8행 보존",
         len(rows2) == len(DD_EVAL_P) and

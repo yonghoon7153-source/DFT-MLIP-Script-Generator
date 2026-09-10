@@ -23,7 +23,7 @@ if [ "$have_octave" -eq 1 ]; then
     else echo "  FAIL $f.m"; octave-cli --no-init-file --path "$T/.." \
          --eval "nargin('$f');" 2>&1 | head -3; fail=$((fail+1)); fi
   done
-  for f in sgolayfilt quantile; do
+  for f in sgolayfilt quantile findpeaks; do
     if octave-cli --no-init-file --path "$T/../dd_shims" \
          --eval "nargin('$f');" >/dev/null 2>&1; then echo "  OK   dd_shims/$f.m"
     else echo "  FAIL dd_shims/$f.m"; fail=$((fail+1)); fi

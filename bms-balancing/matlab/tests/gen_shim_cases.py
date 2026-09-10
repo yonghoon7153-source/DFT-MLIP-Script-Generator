@@ -43,4 +43,35 @@ with open(d / "sgcases.csv", "w") as fh:
     for a, b, c in sg:
         fh.write(f"{a},{b},{c}\n")
 
-print(f"wrote {len(vecs)} vectors + {len(sg)} sgolay cases -> {d}")
+# ── findpeaks 케이스 ────────────────────────────────────────────────────
+# ⚠ Octave core 에는 findpeaks 가 없다(`exist('findpeaks')` → 0). 그러므로
+#   이 항목만은 **3자 대조가 안 되고** 우리 shim ↔ scipy 2자 대조다.
+#   MathWorks 구현과의 알려진 차이(평탄 꼭대기 규약)는 dd_shims/findpeaks.m
+#   머리말에 적어 두었다.
+fp_rng = np.random.default_rng(20260910)
+_v = np.linspace(0, 6 * np.pi, 200)
+fpvecs = {
+    "simple":  np.array([0., 1., 0., 2., 0., 3., 0., 2., 0., 1., 0.]),
+    "plateau": np.array([0., 1., 2., 2., 2., 1., 3., 3., 1., 5., 5., 5., 5., 0.]),
+    "flat":    np.zeros(20),                       # 봉우리가 하나도 없다
+    "mono":    np.linspace(0, 10, 30),             # 단조 — 끝점은 봉우리가 아니다
+    "noisy":   np.sin(_v) + 0.05 * fp_rng.normal(size=_v.size),
+    # 실제 dQ/dV 를 닮은 모양 — 큰 봉우리 셋 + 잔물결
+    "dqdv":    (3.0 * np.exp(-((_v - 4.0) ** 2) / 0.6)
+                + 2.0 * np.exp(-((_v - 9.0) ** 2) / 0.9)
+                + 1.2 * np.exp(-((_v - 14.0) ** 2) / 1.4)
+                + 0.08 * np.sin(9 * _v)),
+    "edge":    np.array([5., 4., 3., 2., 1., 2., 3., 4., 5.]),   # 골짜기뿐
+    "two":     np.array([0., 5., 0., 5., 0.]),                   # 동점 봉우리
+}
+for k, v in fpvecs.items():
+    np.savetxt(d / f"fpvec_{k}.csv", v, fmt="%.17g")
+
+FP_PROM = [0.0, 0.1, 0.5, 1.0, 2.0]
+with open(d / "fpcases.csv", "w") as fh:
+    fh.write("vec,prominence\n")
+    for k in fpvecs:
+        for pr in FP_PROM:
+            fh.write(f"{k},{pr:.17g}\n")
+
+print(f"wrote {len(vecs)} vectors + {len(sg)} sgolay cases + {len(fpvecs)}x{len(FP_PROM)} findpeaks cases -> {d}")

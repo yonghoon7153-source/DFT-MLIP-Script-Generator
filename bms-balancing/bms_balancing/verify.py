@@ -424,6 +424,12 @@ ANCHOR_STAGE = [
     ("dv_n",           "dV/dQ 창 마스크가 먹은 격자점 수"),
     ("dq_lo",          "풀셀 differential + quantile(0.05)"),
     ("dq_hi",          "풀셀 differential + quantile(0.95)"),
+    ("dq_n",           "dQ/dV 창 마스크가 먹은 격자점 수"),
+    ("n_peaks",        "findpeaks(prominence=0.1·range) 가 찾은 피크 수"),
+    ("w_peak_sum",     "피크 가중 합 — peak_weight·sigma_ratio·피크 위치"),
+    ("w_peak_max",     "피크 가중 최댓값 — 가중 봉우리가 겹쳤는지"),
+    ("dq_nuniq_p1",    "첫 행 p 에서 unique(v_smooth) 뒤 남은 점 (모델 단조성)"),
+    ("dq_nin_p1",      "첫 행 p 에서 보간 범위에 든 실측 점 (5 미만이면 1e6)"),
     ("E_PE_0p5",       "반쪽전지 적재 (electrode_ocv) — PE OCP"),
     ("E_NE_0p5_0p25",  "문헌 적재 + build_blend_functions — 블렌드 OCP"),
     ("dv_PE_0p5",      "반쪽전지 differential — PE dV/dQ"),
@@ -431,8 +437,16 @@ ANCHOR_STAGE = [
 ]
 
 
-def dd_eval_anchors(obj: Objective) -> list[tuple[str, float]]:
-    """`matlab/dd_eval.m` 이 CSV 앞머리에 적는 앵커와 **같은 이름·같은 순서**."""
+def dd_eval_anchors(obj: Objective, p1=None) -> list[tuple[str, float]]:
+    """`matlab/dd_eval.m` 이 CSV 앞머리에 적는 앵커와 **같은 이름·같은 순서**.
+
+    `p1` 은 dQ/dV 쪽 앵커(`dq_nuniq_p1`·`dq_nin_p1`)를 재는 파라미터 —
+    dd_eval.m 은 격자의 **첫 행**에서 잰다. 그 둘은 원본이 점을 조용히
+    버리는 두 자리(비단조 모델전압 · 보간범위 밖)를 각각 드러낸다.
+    """
+    p1 = np.array(DD_EVAL_P[0], dtype=float) if p1 is None else np.asarray(p1, float)
+    v_u, _ = obj._model_dqdv(p1)
+    nin = int(((obj.vol_dq_fit >= v_u.min()) & (obj.vol_dq_fit <= v_u.max())).sum())
     return [
         ("c_cell",         float(obj.c_cell)),
         ("dv_lo",          float(obj.dv_window[0])),
@@ -440,6 +454,12 @@ def dd_eval_anchors(obj: Objective) -> list[tuple[str, float]]:
         ("dv_n",           float(len(obj.cap_dv_fit))),
         ("dq_lo",          float(obj.dq_window[0])),
         ("dq_hi",          float(obj.dq_window[1])),
+        ("dq_n",           float(len(obj.vol_dq_fit))),
+        ("n_peaks",        float(len(obj.peak_locs))),
+        ("w_peak_sum",     float(obj.w_peak.sum())),
+        ("w_peak_max",     float(obj.w_peak.max())),
+        ("dq_nuniq_p1",    float(len(v_u))),
+        ("dq_nin_p1",      float(nin)),
         ("E_PE_0p5",       float(np.atleast_1d(obj.half.E_PE(0.5))[0])),
         ("E_NE_0p5_0p25",  float(np.atleast_1d(obj.blend.E(np.atleast_1d(0.5), 0.25))[0])),
         ("dv_PE_0p5",      float(np.atleast_1d(obj.half.dv_PE(0.5))[0])),
@@ -448,8 +468,13 @@ def dd_eval_anchors(obj: Objective) -> list[tuple[str, float]]:
 
 
 def read_dd_eval_csv(path):
-    """dd_eval.m 산출(`# 이름,값` 앞머리 + 파라미터 행)을 읽는다."""
-    anchors, rows = {}, []
+    """dd_eval.m 산출(`# 이름,값` 앞머리 + 헤더 + 파라미터 행)을 읽는다.
+
+    ⚠ 열 구성이 판마다 다르다. 2026-09-10 이전 산출은 `rmse_pocv`·`rmse_dvdq`
+      둘뿐이고 그 뒤는 dQ/dV 두 열이 더 붙는다. **헤더를 읽어서** 양쪽에 다
+      있는 열만 대조한다 — 그래야 옛 산출 4개(104 값 일치)가 무효가 되지 않는다.
+    """
+    anchors, rows, header = {}, [], []
     for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
         if line.startswith("#") and "," in line:
@@ -458,12 +483,14 @@ def read_dd_eval_csv(path):
                 anchors[k.strip()] = float(v)
             except ValueError:
                 pass
-        elif line and not line.startswith("#") and not line.startswith("a_PE"):
+        elif line.startswith("a_PE"):
+            header = [c.strip() for c in line.split(",")]
+        elif line and not line.startswith("#"):
             try:
                 rows.append([float(x) for x in line.split(",")])
             except ValueError:
                 pass
-    return anchors, rows
+    return anchors, rows, header
 
 
 def printed_abs_tol(path, default_decimals: int = 10) -> float:
@@ -502,18 +529,23 @@ def cmd_eval(args):
     obj = build(root, args.source, args.state, args.si_source,
                 w_dqdv=args.w_dqdv, scale_seed=args.seed)
 
-    anchors = dd_eval_anchors(obj)
+    P = np.array(DD_EVAL_P, dtype=float)
+    anchors = dd_eval_anchors(obj, P[0])
     print(f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
           f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}")
     for k, v in anchors:
         print(f"# {k},{v:.17g}")
 
-    P = np.array(DD_EVAL_P, dtype=float)
-    lines = ["a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq"]
+    # ⚠ 열 이름·순서는 `matlab/dd_eval.m` 의 `hdr` 과 **같아야 한다**.
+    cols = ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"]
+    vals = {"rmse_pocv":   [obj.rmse_pocv(q) for q in P],
+            "rmse_dvdq":   [obj.rmse_dvdq(q) for q in P],
+            "rmse_dqdv":   [obj.rmse_dqdv(q, False) for q in P],
+            "rmse_dqdv_w": [obj.rmse_dqdv(q, True) for q in P]}
+    lines = ["a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols)]
     print(lines[0])
-    for q in P:
-        r = f"{q[0]:.6f},{q[1]:.6f},{q[2]:.6f},{q[3]:.6f},{q[4]:.6f}," \
-            f"{obj.rmse_pocv(q):.10f},{obj.rmse_dvdq(q):.10f}"
+    for i, q in enumerate(P):
+        r = ",".join([f"{x:.6f}" for x in q] + [f"{vals[c][i]:.17g}" for c in cols])
         lines.append(r)
         print(r)
 
@@ -525,13 +557,16 @@ def cmd_eval(args):
         print(f"\nwrote {args.out}")
 
     if args.compare:
-        _compare_dd_eval(dict(anchors), [list(q) + [obj.rmse_pocv(q), obj.rmse_dvdq(q)]
-                                         for q in P], args.compare)
+        _compare_dd_eval(dict(anchors), P, vals, args.compare)
 
 
-def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
-    """MATLAB 산출과 대조하고, **갈린 첫 단계**를 이름으로 말한다."""
-    m_anchors, m_rows = read_dd_eval_csv(matlab_csv)
+def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
+    """MATLAB 산출과 대조하고, **갈린 첫 단계**를 이름으로 말한다.
+
+    `py_vals` 는 열이름 → 값 목록. MATLAB CSV 의 **헤더에 있는 열만** 댄다
+    (옛 산출은 rmse 두 열뿐이다).
+    """
+    m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
     atol = printed_abs_tol(matlab_csv)
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
     print(f"  (적힌 자리수가 허용하는 절대 한계 {atol:.1e} — 이보다 작은 차이는"
@@ -564,24 +599,36 @@ def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
 
     print()
     worst_row = 0.0
-    if len(m_rows) != len(py_rows):
-        print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_rows)}")
+    shared = [c for c in m_header[5:] if c in py_vals] if m_header else []
+    if not m_header:
+        shared = ["rmse_pocv", "rmse_dvdq"]        # 헤더 없는 아주 옛 산출
+        print("  (헤더가 없다 — 앞 두 열만 rmse 로 본다)")
+    missing = [c for c in py_vals if c not in shared]
+    if missing:
+        print(f"  (MATLAB 산출에 없는 열은 건너뛴다: {', '.join(missing)}"
+              f" — 옛 dd_eval.m 산출이다)")
+    if len(m_rows) != len(py_P):
+        print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_P)}")
     else:
-        print(f"  {'p 행':<5} {'rmse_pocv 상대차':>18} {'rmse_dvdq 상대차':>18}   판정")
-        for i, (mr, pr) in enumerate(zip(m_rows, py_rows)):
-            if len(mr) < 7:
-                continue
-            if max(abs(mr[j] - pr[j]) for j in range(5)) > 1e-6:
+        head = "  " + f"{'p 행':<5}" + "".join(f"{c + ' 상대차':>22}" for c in shared) + "   판정"
+        print(head)
+        for i, mr in enumerate(m_rows):
+            if max(abs(mr[j] - py_P[i][j]) for j in range(5)) > 1e-6:
                 print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다")
                 continue
-            d1, d2 = abs(mr[5] - pr[5]), abs(mr[6] - pr[6])
-            r1, r2 = rel(mr[5], pr[5]), rel(mr[6], pr[6])
-            # 적힌 자리수 안이면 "차이" 가 아니다
-            eff = max(r1 if d1 > atol else 0.0, r2 if d2 > atol else 0.0)
+            cells, eff = [], 0.0
+            for c in shared:
+                j = m_header.index(c) if m_header else (5 + shared.index(c))
+                mv, pv = mr[j], py_vals[c][i]
+                r = rel(mv, pv)
+                cells.append(f"{r:>22.2e}")
+                # 적힌 자리수 안이면 "차이" 가 아니다
+                if abs(mv - pv) > atol:
+                    eff = max(eff, r)
             worst_row = max(worst_row, eff)
             tag = "" if eff == 0.0 else "  ←"
-            print(f"  {i:<5} {r1:>18.2e} {r2:>18.2e}"
-                  f"   {'적힌 자리수 안' if eff == 0.0 else '자리수 밖'}{tag}")
+            print(f"  {i:<5}" + "".join(cells)
+                  + f"   {'적힌 자리수 안' if eff == 0.0 else '자리수 밖'}{tag}")
 
     print()
     if first_bad:
@@ -592,7 +639,9 @@ def _compare_dd_eval(py_anchors, py_rows, matlab_csv):
         print(f"판정: 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
         print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
     else:
-        print("판정: 앵커 10개와 rmse 16개가 **적힌 자리수 안에서 전부 일치**.")
+        n_rmse = len(m_rows) * len(shared)
+        print(f"판정: 앵커 {len(m_anchors)}개와 rmse {n_rmse}개가"
+              f" **적힌 자리수 안에서 전부 일치**.")
         print(f"      남은 차이는 전부 CSV 출력 반올림({atol:.0e}) 안이다 —")
         print("      이 파일로는 그보다 정밀하게 비교할 수 없다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")

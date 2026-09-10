@@ -241,8 +241,9 @@ def test_compare_does_not_cry_wolf_on_printed_precision():
             "E_PE_0p5": 3.8756842582, "E_NE_0p5_0p25": 0.1133989996,
             "dv_PE_0p5": 1.1237428984, "dv_NE_0p5_0p25": -0.0738972448}
     tmp = pathlib.Path(tempfile.mkdtemp()) / "_wolf.csv"
-    py_rows = [list(q) + [0.0117453809 + 4.0e-11, 0.1182321473 + 2.0e-11]
-               for q in DD_EVAL_P[:1]]
+    py_P = [list(q) for q in DD_EVAL_P[:1]]
+    py_vals = {"rmse_pocv": [0.0117453809 + 4.0e-11],
+               "rmse_dvdq": [0.1182321473 + 2.0e-11]}
     lines = ["# dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0"]
     lines += [f"# {k},{v:.17g}" for k, v in BASE.items()]
     lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq")
@@ -251,7 +252,7 @@ def test_compare_does_not_cry_wolf_on_printed_precision():
     tmp.write_text("\n".join(lines) + "\n")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        _compare_dd_eval(dict(BASE), py_rows, tmp)
+        _compare_dd_eval(dict(BASE), py_P, py_vals, tmp)
     txt = buf.getvalue()
     tmp.unlink(missing_ok=True)
     assert "전부 일치" in txt, (

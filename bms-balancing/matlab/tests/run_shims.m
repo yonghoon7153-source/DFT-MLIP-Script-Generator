@@ -29,6 +29,23 @@ function run_shims(mode, outfile)
       end
     end
     fclose(T);
+
+    % findpeaks 는 Octave core 에 없다 — shim 모드에서만, 그리고 3자가 아니라
+    % scipy 와 2자로만 댄다 (check_shims.py 3절).
+    T = fopen('cases/fpcases.csv'); fgetl(T);
+    while true
+      L = fgetl(T); if ~ischar(L), break; end
+      parts = strsplit(L, ',');
+      vn = parts{1}; pr = str2double(parts{2});
+      x = dlmread(['cases/fpvec_' vn '.csv']);
+      [~, locs] = findpeaks(x, 'MinPeakProminence', pr);
+      % idx=0 행에 개수를 적는다 — 빈 결과도 대조할 수 있게
+      fprintf(fid,'findpeaks,%s,%.17g,,0,%d\n', vn, pr, numel(locs));
+      for k=1:numel(locs)
+        fprintf(fid,'findpeaks,%s,%.17g,,%d,%d\n', vn, pr, k, locs(k));
+      end
+    end
+    fclose(T);
   end
   fclose(fid);
   printf('wrote %s\n', outfile);
