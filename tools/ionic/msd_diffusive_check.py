@@ -1275,6 +1275,47 @@ def framework_check(d, lo, hi):
             "worst_ratio": (frame[worst_el]["ratio_to_Li"] if worst_el else None)}
 
 
+def thin_note(r):
+    """판정에서 뺀 원소를 화면 문구로. 없으면 빈 문자열.
+
+    ⛔⛔ 2026-09-10 — 호출부가 `r["frame"].get("_thin")` 을 봤다. `frame` 은
+      원소기호로 키가 잡힌 사전이라 `_thin` 은 **영원히 None** 이다 ⇒ 제외 원소가
+      화면에 **한 번도 안 찍혔다**. framework_check 는 `thin` 을 제대로 돌려주고
+      selftest 도 그 반환값을 검사해 통과하고 있었다 — 함수는 맞고 **화면만
+      거짓말**이었다. 그래서 표기를 함수로 빼서 selftest 가 화면 문구를 직접 본다.
+
+      대가가 실제로 있었다: b2o3 소형셀(128원자)에서 B(2)·O(3)이 조용히 빠져
+      기준선 0.47–0.79 가 {Cl,P,S} 의 max 였는데, 2×2×1(512원자)에서 B(8)·O(12)가
+      판정에 들어와 **다른 원소집합의 max** 가 됐다. 화면이 제외를 찍었다면
+      그 차이를 그때 봤다.
+    """
+    thin = r.get("thin") or []
+    parts = [f"{e}({r['frame'][e].get('n_atoms')},β{r['frame'][e]['beta']:.2f})"
+             for e in thin
+             if e in r.get("frame", {}) and r["frame"][e].get("beta") is not None]
+    return "  [판정제외 " + ",".join(parts) + "]" if parts else ""
+
+
+def framework_elem_table(r):
+    """원소별 한 줄 (판정에 들어간 것/뺀 것을 나눠서). --framework_elems 용.
+
+    이 함수가 못 하는 것: 부분집합의 max 를 **판정으로 바꾸지 않는다.**
+      봉인된 보고량은 판정 대상 전체의 max 다 — 여기 표는 *무엇이 그 max 를
+      만들었나* 를 보여줄 뿐이다.
+    """
+    rows, judged = [], set(r.get("judged") or [])
+    for e in sorted(r.get("frame", {})):
+        rec = r["frame"][e]
+        b = rec.get("beta")
+        rows.append("      {:<3s} n={:<4s} β={:>6s}  ratio={:>7s}  {}".format(
+            e, str(rec.get("n_atoms") or "?"),
+            "—" if b is None else f"{b:.2f}",
+            "—" if rec.get("ratio_to_Li") is None else f"{rec['ratio_to_Li']:.3f}",
+            ("판정" if e in judged else "제외(표본부족)")
+            + (f" sev={rec['severity']}" if "severity" in rec else "")))
+    return rows
+
+
 def framework_verdict_text(v):
     return {
         "sample_too_thin": ("⚠ **표본 부족 — 판정 못 한다.** 골격 원소가 전부 "
@@ -1448,6 +1489,21 @@ def selftest():
         "[음성⑤] 그래서 판정은 rigid — 단일 대형 사건에 안 휘둘린다")
     chk(tc and "B" in (tc.get("thin") or []),
         "[양성] 제외한 원소는 thin 에 남겨 보고한다 (조용히 버리지 않는다)")
+    # ⛔⛔ 2026-09-10 회귀 — 위 검사는 **반환값**만 봤다. 화면은 죽은 조회
+    #   (`r["frame"]["_thin"]`)를 써서 제외 원소를 한 번도 안 찍었다.
+    #   함수가 맞아도 화면이 거짓말하면 사람은 화면을 인용한다 ⇒ 문구를 직접 본다.
+    chk("B(2" in thin_note(tc), "[음성] 화면 문구에 제외 원소가 **실제로** 나온다")
+    chk(thin_note({"thin": [], "frame": {}}) == "",
+        "[음성] 제외가 없으면 빈 문구 (없는 괄호를 만들지 않는다)")
+    chk(thin_note({"frame": {"B": {"n_atoms": 2, "beta": None}}, "thin": ["B"]}) == "",
+        "[음성] β 를 못 잰 원소는 문구에 넣지 않는다")
+    chk(thin_note({"frame": {}, "thin": ["Zz"]}) == "",
+        "[음성] frame 에 없는 원소 이름에 KeyError 로 죽지 않는다")
+    _rows = framework_elem_table(tc)
+    chk(any(r.strip().startswith("B ") and "제외(표본부족)" in r for r in _rows),
+        "[양성] 원소표가 B 를 '제외(표본부족)' 로 찍는다")
+    chk(any(r.strip().startswith("S ") and "판정" in r and "제외" not in r for r in _rows),
+        "[양성] 원소표가 S 를 '판정' 으로 찍는다")
     chk(tc and "B" in tc["frame"],
         "[양성] 제외해도 frame 에는 값이 남는다 (참고로 볼 수 있어야 한다)")
     allthin = {"times_ps": tt, "msd_Li_A2": _lin(1.0),
@@ -1933,6 +1989,11 @@ def main():
                          "가른다. 골격 질량중심을 매 프레임 빼고 다시 재서, 남는 몫이 "
                          f"{int(DRIFT_KEEP*100)} %% 이하면 흐름(구제 가능) · "
                          f"{int(DRIFT_LOST*100)} %% 이상이면 재배열(구제 불가). 재계산 0.")
+    ap.add_argument("--framework_elems", action="store_true",
+                    help="--framework 에서 **원소별 β·ratio·severity 를 전부** 찍는다. "
+                         "기본 출력은 max 를 만든 원소 하나뿐이라 '어떤 원소집합의 "
+                         "max 인가' 가 안 보인다 — 셀 크기가 달라 판정 원소가 바뀌는 "
+                         "비교(b2o3 128 vs 512원자)에서 그게 결론을 가른다.")
     ap.add_argument("--framework", action="store_true",
                     help="골격(비-Li) 원소가 녹고 있는지 같이 본다. Zhang npj 2026 이 "
                          "MACE-MP-0 의 LGPS 골격이 1050 K 부터 인위적으로 녹는 걸 잡았고, "
@@ -2577,13 +2638,12 @@ def main():
             mark = {"framework_rigid": "⭕", "framework_mobile": "⚠",
                     "framework_melting": "⛔", "sample_too_thin": "▫"}[r["verdict"]]
             lab = f"{we}({n})" if we and n else (we or "—")
-            thin = r["frame"].get("_thin") or []
-            note = ("  [제외 " + ",".join(
-                f"{e}({r['frame'][e].get('n_atoms')},β{r['frame'][e]['beta']:.2f})"
-                for e in thin if r['frame'][e]['beta'] is not None) + "]") if thin else ""
             print(f"{tag:34s} {lab:>7s} {('—' if b is None else f'{b:.2f}'):>6s} "
                   f"{r['worst_ratio']:>7.3f} "
-                  f"{r['li_msd_end_A2']:>8.1f}  {mark} {r['verdict']}{note}")
+                  f"{r['li_msd_end_A2']:>8.1f}  {mark} {r['verdict']}{thin_note(r)}")
+            if a.framework_elems:
+                for line in framework_elem_table(r):
+                    print(line)
             if r["verdict"] != "framework_rigid":
                 fw_bad.append((tag, r))
         print()
