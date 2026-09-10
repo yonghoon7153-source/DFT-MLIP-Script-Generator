@@ -358,9 +358,21 @@ class Objective:
             w = w + (peak_weight - 1.0) * np.exp(-((vol - vol[k]) ** 2) / (2 * sigma ** 2))
         return w
 
-    def _auto_scales(self, seed, n_samples):
+    def _auto_scales(self, seed, n_samples, lb=None, ub=None):
+        """목적함수 항의 scale. 원본은 `samples = lb + rand(n,5).*(ub-lb)`.
+
+        ⚠ 2026-09-10 리뷰 [A1]: `lb`/`ub` 를 받게 열어 둔 이유는, MATLAB
+          검증기의 고정-γ 프로파일이 `lb(5)=ub(5)=g` 를 **넘겨서** fit 을
+          부르기 때문이다. 원 scale 식이 넘겨받은 경계에서 표본을 만들면
+          MATLAB 은 γ 마다 다른 scale 을 쓰고, 전역 경계로 한 번 뽑아 재사용하는
+          우리 프로파일과 **다른 목적함수**를 최적화하게 된다.
+          기본값(전역)은 그대로 두되 선택할 수 있게 한다 — 어느 쪽이 그들
+          절차인지는 그들 소스를 봐야 정해진다.
+        """
+        lb = LB5 if lb is None else np.asarray(lb, dtype=float)
+        ub = UB5 if ub is None else np.asarray(ub, dtype=float)
         rng = np.random.default_rng(seed)
-        s = LB5 + rng.random((n_samples, 5)) * (UB5 - LB5)
+        s = lb + rng.random((n_samples, 5)) * (ub - lb)
         vals = {"pocv": [], "dvdq": [], "dqdv": []}
         for row in s:
             try:

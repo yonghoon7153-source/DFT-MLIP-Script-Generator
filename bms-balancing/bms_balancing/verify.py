@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import NonlinearConstraint, minimize
 
 from . import data as D
 from .model import LB5, UB5, Blend, HalfCell, Objective, degradation_modes
@@ -44,26 +44,49 @@ def build(root: Path, source: str, state: str, si_source: str,
 
 
 def multistart(obj: Objective, n_starts: int = 24, seed: int = 0,
-               x0: np.ndarray | None = None):
-    """fmincon+MultiStart 대응 — L-BFGS-B 다중 시작."""
+               x0: np.ndarray | None = None, require_success: bool = True):
+    """fmincon+MultiStart 대응 — L-BFGS-B 다중 시작.
+
+    ⚠ 2026-09-10 리뷰 [A3]: 전 판은 `OptimizeResult.success` 를 보지 않아
+      **비정상 종료한 결과를 성공한 fit 으로 채택**했다. 합성 반례에서
+      success=False 결과가 그대로 best 와 all_sols 에 들어갔다. 이제
+      기본으로 거른다. 거른 개수는 `multistart.last_stats` 와 stderr 에 남긴다
+      — 조용히 버리면 그것대로 감사가 안 된다.
+    """
     rng = np.random.default_rng(seed)
     starts = [np.asarray(x0, dtype=float)] if x0 is not None else []
     starts += list(LB5 + rng.random((n_starts, 5)) * (UB5 - LB5))
     best, best_val = None, np.inf
     all_sols = []
+    stats = {"tried": 0, "raised": 0, "not_success": 0, "nonfinite": 0, "accepted": 0}
     bounds = list(zip(LB5, UB5))
     for s in starts:
+        stats["tried"] += 1
         try:
             r = minimize(obj, s, method="L-BFGS-B", bounds=bounds,
                          options={"maxiter": 500, "ftol": 1e-12, "gtol": 1e-10})
         except Exception:                               # noqa: BLE001
+            stats["raised"] += 1
             continue
         if not np.isfinite(r.fun):
+            stats["nonfinite"] += 1
             continue
+        if require_success and not bool(getattr(r, "success", True)):
+            stats["not_success"] += 1
+            continue
+        stats["accepted"] += 1
         all_sols.append((float(r.fun), r.x.copy()))
         if r.fun < best_val:
             best, best_val = r.x.copy(), float(r.fun)
+    multistart.last_stats = stats
+    if stats["not_success"] or stats["raised"] or stats["nonfinite"]:
+        print(f"[multistart] 시작점 {stats['tried']}개 중 채택 {stats['accepted']} — "
+              f"비정상종료 {stats['not_success']} · 예외 {stats['raised']} · "
+              f"비유한 {stats['nonfinite']}", file=sys.stderr)
     return best, best_val, all_sols
+
+
+multistart.last_stats = {}
 
 
 def active_bounds(p, tol=1e-6):
@@ -109,11 +132,24 @@ def cmd_port(args):
         out["reported_rmse_dvdq"] = obj.rmse_dvdq(p)
         out["reported_obj"] = obj(p)
 
-    best, val, _ = multistart(obj, n_starts=args.starts, seed=args.seed,
-                              x0=np.array(rep, dtype=float) if rep and all(
-                                  x is not None for x in rep) else None)
+    # ⚠ 2026-09-10 리뷰 [A2]: 전 판은 보고값을 **항상** 첫 시작점으로 넣고
+    #   그 결과를 "독립 재적합" 이라고 불렀다. 그건 독립이 아니다.
+    #   `--blind` 는 보고값을 시작점에서 빼고 무작위 시작만으로 다시 찾는다.
+    seed_x0 = None
+    if rep and all(x is not None for x in rep) and not args.blind:
+        seed_x0 = np.array(rep, dtype=float)
+    out["blind"] = bool(args.blind)
+    out["reported_used_as_start"] = seed_x0 is not None
+    best, val, _ = multistart(obj, n_starts=args.starts, seed=args.seed, x0=seed_x0)
+    out["multistart_stats"] = dict(multistart.last_stats)
     out["our_p"] = [float(x) for x in best]
     out["our_obj"] = val
+    # 산문 대신 **실제 차이**를 적는다 (리뷰 [A2]: 자릿수 주장이 사실과 달랐다)
+    if rep and all(x is not None for x in rep):
+        d = np.abs(np.array(rep, dtype=float) - np.asarray(best, float))
+        out["abs_diff_vs_reported"] = [float(x) for x in d]
+        out["max_abs_diff_vs_reported"] = float(d.max())
+        out["obj_abs_diff_vs_reported"] = float(abs(out.get("reported_obj", np.nan) - val))
     out["our_rmse_pocv"] = obj.rmse_pocv(best)
     out["our_rmse_dvdq"] = obj.rmse_dvdq(best)
     out["active_bounds"] = active_bounds(best)
@@ -126,6 +162,155 @@ def cmd_port(args):
 
 
 # ── C. 축퇴 ────────────────────────────────────────────────────────────
+
+def near_optimal_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
+                         tol: float, seeds: list, n_starts: int = 8, seed: int = 0):
+    """근최적 집합 {p : obj(p) ≤ best_obj·(1+tol)} 위에서 각 mode 의 min·max.
+
+    ⚠ 2026-09-10 리뷰 [B1]: 전 판은 최적점 둘레에 등방 Gaussian 400점을 뿌리고
+      **관측된** min·max 를 '폭' 이라고 불렀다. 그건 폭이 아니라 표집 하한이다.
+      정확히 평평한 굽은 ridge(참 폭 40 %p)를 넣은 반례에서 그 방식은 0 %p 를
+      보고했다 — 식별성이 아니라 표집 실패를 식별성으로 보고한 것이다.
+      더 결정적으로, **우리가 커밋한 γ 프로파일 자신**이 같은 설정에서 1 % 안
+      두 점만으로 1.59 %p 를 보인다 (문서의 0.87 %p 보다 넓다).
+
+    그래서 무작위 대신 제약 최적화로 각 방향의 극값을 직접 민다:
+        maximize / minimize  mode(p)   s.t.  obj(p) ≤ best_val·(1+tol),  lb ≤ p ≤ ub
+
+    이것도 전역 보장은 아니다 (SLSQP 는 국소 해법이다). 여러 시작점에서 밀어
+    가장 넓은 것을 취하므로 **여전히 하한**이지만, 등방 구름보다 훨씬 조인다.
+    반환값에 `is_lower_bound: True` 를 같이 실어 그 사실을 지운 채 인용하지
+    못하게 한다.
+    """
+    limit = best_val * (1.0 + tol)
+    bounds = list(zip(LB5, UB5))
+    rng = np.random.default_rng(seed + 7)
+    # 시작점은 **상자 전체**에 뿌린다. 최적점 둘레에만 뿌리면 멀리 뻗은
+    # 골짜기 끝을 못 민다 — 그게 전 판이 0 %p 를 보고한 이유다.
+    starts = [np.asarray(best, float)]
+    starts += [np.asarray(x, float) for x in seeds[:n_starts]]
+    for i in range(5):                               # 각 축의 양 끝에서 한 번씩
+        for frac in (0.02, 0.98):
+            q = np.asarray(best, float).copy()
+            q[i] = LB5[i] + frac * (UB5[i] - LB5[i])
+            starts.append(q)
+    starts += list(LB5 + rng.random((n_starts, 5)) * (UB5 - LB5))
+
+    def mode_of(p, key):
+        return degradation_modes(ref_p, ref_c, np.asarray(p, float), c_cell)[key]
+
+    con = NonlinearConstraint(lambda p: limit - obj(np.asarray(p, float)), 0.0, np.inf)
+
+    # ── 1단계: 실현가능성 복원 ──
+    #   시작점이 제약 밖이면 SLSQP 가 목적 개선과 복원을 동시에 하다 실패한다
+    #   (합성 ridge 에서 min 방향 시도가 **전부** 버려졌다). 그래서 먼저
+    #   obj 를 낮춰 근최적 집합 안으로 들여보낸 뒤 극값을 민다. 복원된 점
+    #   자체도 집합의 원소이므로 후보에 같이 넣는다.
+    feasible = []
+    for s0 in starts:
+        q = np.asarray(s0, float)
+        if obj(q) > limit:
+            try:
+                r0 = minimize(obj, q, method="L-BFGS-B", bounds=bounds,
+                              options={"maxiter": 300, "ftol": 1e-14})
+                if np.isfinite(r0.fun):
+                    q = np.asarray(r0.x, float)
+            except Exception:                        # noqa: BLE001
+                continue
+        if obj(q) <= limit * (1 + 1e-9):
+            feasible.append(q)
+    if not feasible:
+        feasible = [np.asarray(best, float)]
+
+    out = {}
+    for key in ("LAM_PE", "LAM_NE", "LLI"):
+        vals = [mode_of(best, key)] + [mode_of(q, key) for q in feasible]
+        for sign in (+1.0, -1.0):                    # +1: 최대화, -1: 최소화
+            for s0 in feasible:
+                try:
+                    r = minimize(lambda p: -sign * mode_of(p, key), s0,
+                                 method="SLSQP", bounds=bounds, constraints=[con],
+                                 options={"maxiter": 200, "ftol": 1e-12})
+                except Exception:                    # noqa: BLE001
+                    continue
+                if not np.isfinite(r.fun):
+                    continue
+                # 제약을 실제로 지키는지 직접 확인한다 (SLSQP 는 살짝 넘길 수 있다)
+                if obj(np.asarray(r.x, float)) <= limit * (1 + 1e-9):
+                    vals.append(mode_of(r.x, key))
+        v = np.array(vals, dtype=float) * 100.0
+        out[key] = {"min": float(v.min()), "max": float(v.max()),
+                    "span": float(v.max() - v.min()), "n_points": int(v.size),
+                    "is_lower_bound": True}
+    return out
+
+
+def mode_profile_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
+                         tol: float, n_grid: int = 21, n_starts: int = 3,
+                         seed: int = 0):
+    """각 mode 값 v 가 근최적 집합 안에서 **도달 가능한가**를 직접 묻는다.
+
+        for v in grid:   min_p obj(p)  s.t.  mode(p) = v,  lb ≤ p ≤ ub
+        v 가 도달 가능 ⟺ 그 최소값 ≤ best_obj·(1+tol)
+
+    왜 이쪽이 옳은가 (리뷰 B1 의 ridge 반례가 가르쳐 준 것):
+      제약을 `obj(p) ≤ limit` 로 걸고 mode 를 최적화하면, 정확히 평평한
+      골짜기 위에서 **제약의 기울기가 0 이 된다** (g = limit − 1 − (Δ/ε)²,
+      Δ=0 에서 ∇g=0). LICQ 가 깨져서 SLSQP 가 골짜기를 따라 못 미끄러진다.
+      실측: 참 폭 40 %p 인 ridge 에서 19.9 %p 만 나왔다.
+      반대로 mode 를 **등식 제약**으로 묶고 obj 를 최소화하면 mode 제약은
+      a 에 대해 선형이라 조건수가 좋고, obj 는 골짜기로 곧장 내려간다.
+
+    반환값은 여전히 **하한**이다 (국소 해법 + 격자). `is_lower_bound` 를 같이
+    실어 그 사실을 지운 채 인용하지 못하게 한다.
+    """
+    limit = best_val * (1.0 + tol)
+    bounds = list(zip(LB5, UB5))
+    rng = np.random.default_rng(seed + 11)
+    box = LB5 + rng.random((256, 5)) * (UB5 - LB5)
+
+    def mode_of(p, key):
+        return degradation_modes(ref_p, ref_c, np.asarray(p, float), c_cell)[key]
+
+    out = {}
+    for key in ("LAM_PE", "LAM_NE", "LLI"):
+        vals_box = np.array([mode_of(q, key) for q in box])
+        v_lo, v_hi = float(vals_box.min()), float(vals_box.max())
+        v_best = mode_of(best, key)
+        grid = np.unique(np.concatenate([np.linspace(v_lo, v_hi, n_grid), [v_best]]))
+        starts = [np.asarray(best, float)]
+        starts += list(LB5 + rng.random((n_starts, 5)) * (UB5 - LB5))
+
+        attainable = []
+        for v in grid:
+            con = {"type": "eq", "fun": (lambda p, _v=v, _k=key: mode_of(p, _k) - _v)}
+            hit = np.inf
+            for s0 in starts:
+                try:
+                    r = minimize(obj, s0, method="SLSQP", bounds=bounds,
+                                 constraints=[con],
+                                 options={"maxiter": 200, "ftol": 1e-12})
+                except Exception:                    # noqa: BLE001
+                    continue
+                if not np.isfinite(r.fun):
+                    continue
+                q = np.asarray(r.x, float)
+                # 등식 제약을 실제로 지켰는지 확인 — SLSQP 는 살짝 어긴다
+                if abs(mode_of(q, key) - v) > 1e-6 * max(1.0, abs(v)):
+                    continue
+                hit = min(hit, float(obj(q)))
+            if hit <= limit * (1 + 1e-9):
+                attainable.append(v)
+
+        if not attainable:
+            attainable = [v_best]
+        a = np.array(attainable, dtype=float) * 100.0
+        out[key] = {"min": float(a.min()), "max": float(a.max()),
+                    "span": float(a.max() - a.min()),
+                    "n_grid_attainable": int(a.size), "n_grid": int(grid.size),
+                    "is_lower_bound": True}
+    return out
+
 
 def cmd_degeneracy(args):
     root = D.data_root(args.data_root)
@@ -167,10 +352,32 @@ def cmd_degeneracy(args):
                                degradation_modes(ref_best, ref_obj.c_cell,
                                                  best, obj.c_cell).items()},
     }
+    # ── 2차 진단: 무작위 구름의 **관측** 폭. 폭이 아니라 표집 하한이다 ──
     for k, v in arr.items():
-        out[f"{k}_percent"] = {"min": float(v.min()), "max": float(v.max()),
-                               "span": float(v.max() - v.min()),
-                               "median": float(np.median(v))}
+        out[f"{k}_percent_observed_cloud"] = {
+            "min": float(v.min()), "max": float(v.max()),
+            "span": float(v.max() - v.min()), "median": float(np.median(v)),
+            "warning": "무작위 표집의 관측 폭 — 근최적 집합의 폭이 아니다"}
+
+    # ── 1차: 두 방법의 **합집합**. 둘 다 하한이므로 넓은 쪽이 더 나은 하한이다 ──
+    ext = near_optimal_extrema(obj, ref_best, ref_obj.c_cell, obj.c_cell,
+                               best, best_val, args.tol,
+                               seeds=[p for _, p in keep[1:]],
+                               n_starts=8, seed=args.seed)
+    prof = mode_profile_extrema(obj, ref_best, ref_obj.c_cell, obj.c_cell,
+                                best, best_val, args.tol,
+                                n_grid=getattr(args, "grid", 21),
+                                n_starts=3, seed=args.seed)
+    for k in ("LAM_PE", "LAM_NE", "LLI"):
+        lo = min(ext[k]["min"], prof[k]["min"])
+        hi = max(ext[k]["max"], prof[k]["max"])
+        out[f"{k}_percent"] = {
+            "min": lo, "max": hi, "span": hi - lo, "is_lower_bound": True,
+            "from_constrained_extrema": ext[k], "from_mode_profile": prof[k]}
+    out["span_method"] = (
+        "근최적 집합 {obj ≤ best·(1+tol)} 위에서 (a) mode 등식 제약 프로파일과 "
+        "(b) 직접 제약 최적화를 둘 다 돌려 **합집합**을 취한다. 둘 다 국소 "
+        "해법이므로 결과는 여전히 **하한**이다 — 정확한 폭도, 신뢰구간도 아니다.")
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 
@@ -444,8 +651,19 @@ def cmd_profile(args):
     best, best_val, _ = multistart(obj, n_starts=args.starts, seed=args.seed)
 
     gammas = np.linspace(LB5[4], UB5[4], args.grid)
+    per_gamma_scale = getattr(args, "profile_scale", "global") == "per-gamma"
+    global_scales = dict(obj.scales)
     rows = []
     for g in gammas:
+        if per_gamma_scale:
+            # MATLAB 검증기 절차: lb(5)=ub(5)=g 를 넘겨서 fit 을 부르므로,
+            # 원 scale 식이 넘겨받은 경계를 쓰면 γ 마다 scale 이 달라진다 [A1].
+            # ⚠ 그러면 행마다 **다른 목적함수**라서 obj_ratio_to_best 를 행끼리
+            #   비교할 수 없다. 그 사실을 산출에 같이 적는다.
+            lbg, ubg = LB5.copy(), UB5.copy()
+            lbg[4] = ubg[4] = g
+            obj.scales = obj._auto_scales(args.seed, obj.n_scale_samples,
+                                          lb=lbg, ub=ubg)
         f = lambda q: obj(np.array([q[0], q[1], q[2], q[3], g]))   # noqa: E731
         bnds = list(zip(LB5[:4], UB5[:4]))
         bv, bx = np.inf, None
@@ -476,8 +694,18 @@ def cmd_profile(args):
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]
+    obj.scales = global_scales
     summary = {"state": args.state, "si_source": args.si_source,
                "half_cell": args.source, "best_obj": best_val,
+               "profile_scale": "per-gamma" if per_gamma_scale else "global",
+               "ratio_comparable_across_rows": not per_gamma_scale,
+               "scale_note": (
+                   "per-gamma 는 행마다 목적함수가 달라 obj_ratio_to_best 를 "
+                   "행끼리 비교할 수 없다. global 은 비교는 되지만 MATLAB "
+                   "검증기가 넘기는 경계와 다르다 [리뷰 A1 — 미결]."
+                   if per_gamma_scale else
+                   "global: 모든 행이 같은 목적함수라 비교는 되지만, MATLAB "
+                   "검증기는 γ 를 묶은 경계를 넘긴다 [리뷰 A1 — 미결]."),
                "best_gamma": float(best[4]),
                "tol_percent": args.tol * 100,
                "gamma_inside_tol": [float(min(r["gamma_Si"] for r in inside)),
@@ -518,6 +746,13 @@ def main(argv=None):
         p.add_argument("--only-source", action="store_true")
         p.add_argument("--only-wdqdv", action="store_true")
         p.add_argument("--grid", type=int, default=21)
+        p.add_argument("--blind", action="store_true",
+                       help="port: 보고값을 시작점에서 뺀다 (독립 재적합)")
+        p.add_argument("--profile-scale", choices=["global", "per-gamma"],
+                       default="global",
+                       help="profile: 목적함수 scale 을 전역 경계에서 한 번 뽑을지"
+                            " (기본), γ 를 묶은 경계에서 행마다 다시 뽑을지"
+                            " (MATLAB 검증기 절차)")
         p.add_argument("--compare", default=None,
                        help="dd_eval.m 이 낸 CSV 와 대조한다 (eval 전용)")
         p.set_defaults(func=fn)
