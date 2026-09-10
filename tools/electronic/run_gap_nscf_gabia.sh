@@ -55,6 +55,14 @@
 #     · 재현 목표(TGAP/TVBM/TCBM)·irr k 계보가 없는 계는 대조를 건너뛴다
 #     · PWX 가 GPU 빌드면 MPI 를 **ldd 로 유도**한다 (CLAUDE.md — 추측 금지)
 #
+#   ── DOS/PDOS (DOS=1) ────────────────────────────────────────────
+#   갭용 nscf(fixed, 성긴 k)와 **다른 계산**이다: DOS 는 occupations='tetrahedra_opt'
+#   + 조밀 k 가 필요하다. k 4점으로는 델타함수 빗살이지 상태밀도가 아니다.
+#   nscf_dos -> dos.x -> projwfc.x -> sum_pdos.py 까지 한 번에.
+#   KDOS 로 격자를 준다 (기본 '4 4 1' — 셀이 c 로 5배 길어 z 는 성기게).
+#
+#   DOS=1 KDOS="4 4 1" RUNS=... SYSTEMS=... PWX=... bash tools/electronic/run_gap_nscf_gabia.sh
+#
 #   RUNS=$HOME/work/runs/nd_scf_2026_09_08 \
 #   SYSTEMS="ndo_lpscl16_n4fu_O-distributed ndo_lpscl16_n5fu_O-distributed" \
 #   PWX=$HOME/apps/qe-7.4.1-gpu/bin/pw.x \
@@ -498,6 +506,56 @@ for S in ${SYSTEMS:-comp1 modelc}; do
     fi
 
   fi
+
+    # ---- ②-DOS: tetrahedra_opt + 조밀 k -> dos.x -> projwfc.x ----
+    if [ "${DOS:-0}" = 1 ]; then
+        # ⛔ K_POINTS automatic 은 **숫자 6개**다 (격자 3 + shift 3). 3개만 주면
+        #   QE 가 입력 오류로 죽는다 — 셀프 스모크에서 실제로 잡힌 버그(2026-09-10).
+        KD=${KDOS:-"4 4 1 0 0 0"}
+        if [ "$(echo $KD | wc -w)" != "6" ]; then
+            fail "$S" "KDOS 는 숫자 6개여야 한다 (격자 3 + shift 3) — 받은 값: '$KD'"; continue
+        fi
+        PFX=$(grep -a "prefix" "$D/scf.in" | head -1 | sed "s/.*=[[:space:]]*'\([^']*\)'.*/\1/")
+        [ -n "$PFX" ] || { fail "$S" "scf.in 에서 prefix 를 못 읽었다"; continue; }
+        BINDIR=$(dirname "$PWX")
+        for x in dos.x projwfc.x; do
+            [ -x "$BINDIR/$x" ] || { fail "$S" "$x 가 없다 ($BINDIR) — QE 빌드에 안 들어간 경우가 흔하다"; continue 2; }
+        done
+        sed -e "s|calculation *=.*|calculation = 'nscf'|" \
+            -e "s|occupations *=.*|occupations = 'tetrahedra_opt'|" \
+            -e "/smearing *=/d" -e "/degauss *=/d" \
+            -e "/tprnfor *=/d" -e "/tstress *=/d" \
+            -e "s|conv_thr *=.*|conv_thr = 1.0d-10|" \
+            -e "s|^\( *ntyp *= *[0-9]*\)$|\1\n    nbnd  = ${NB}|" "$D/scf.in" \
+          | awk -v k="$KD" '/K_POINTS/{print; getline; print k; next} {print}' > "$D/nscf_dos.in"
+        grep -q "nbnd" "$D/nscf_dos.in" || sed -i "s|    ecutwfc|    nbnd  = ${NB}\n    ecutwfc|" "$D/nscf_dos.in"
+        for chk in "occupations = 'tetrahedra_opt'" "calculation = 'nscf'" "nbnd"; do
+            grep -q "$chk" "$D/nscf_dos.in" || { fail "$S" "nscf_dos 입력에 '$chk' 없음"; continue 2; }
+        done
+        grep -q "smearing\|degauss" "$D/nscf_dos.in" && { fail "$S" "smearing 잔존 — tetrahedra 와 충돌"; continue; }
+
+        if grep -aq "JOB DONE" "$D/nscf_dos.out" 2>/dev/null; then
+            echo "[$(ts)] $S nscf_dos: 이미 완료 — 건너뜀"
+        else
+            echo "[$(ts)] $S nscf_dos(tetrahedra_opt, nbnd ${NB}, k ${KD}) 시작"
+            ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$PWX" -nk "$NPOOL" -in nscf_dos.in > nscf_dos.out 2>&1 )
+            grep -aq "JOB DONE" "$D/nscf_dos.out" || { fail "$S" "nscf_dos 실패 — 마지막 20줄:"; grep -a . "$D/nscf_dos.out" | tail -20; continue; }
+        fi
+        NKD=$(grep -a 'number of k points' "$D/nscf_dos.out" | head -1 | sed 's/.*number of k points=[[:space:]]*//' | awk '{print $1}')
+        echo "[$(ts)] $S nscf_dos 완료 (irr k ${NKD})"
+
+        printf "&DOS\n    prefix = '%s'\n    outdir = './tmp'\n    fildos = '%s.dos'\n    DeltaE = 0.01\n/\n" "$PFX" "$PFX" > "$D/dos.in"
+        printf "&PROJWFC\n    prefix  = '%s'\n    outdir  = './tmp'\n    filpdos = '%s.pdos'\n    DeltaE  = 0.01\n/\n" "$PFX" "$PFX" > "$D/projwfc.in"
+        ( cd "$D" && "$BINDIR/dos.x"     -in dos.in     > dos.out     2>&1 )
+        ( cd "$D" && "$BINDIR/projwfc.x" -in projwfc.in > projwfc.out 2>&1 )
+        for x in dos projwfc; do
+            grep -aq "JOB DONE" "$D/$x.out" || { fail "$S" "$x.x 실패 — 마지막 15줄:"; grep -a . "$D/$x.out" | tail -15; continue 2; }
+        done
+        NP_FILES=$(ls "$D/$PFX".pdos* 2>/dev/null | wc -l)
+        echo "[$(ts)] $S dos.x·projwfc.x 완료 — pdos 파일 ${NP_FILES}개 · $PFX.dos"
+        python3 "$SRC/sum_pdos.py" "$D" 2>/dev/null | sed 's/^/   /' || echo "   (sum_pdos.py 는 손으로: python3 $SRC/sum_pdos.py $D)"
+        continue
+    fi
 
     # ---- ② nscf: occupations='fixed' + nbnd + 조밀 k ----
     #   ★ tprnfor/tstress 를 뺀다. 갭에는 힘·응력이 필요 없는데, scf.in 에서 sed 로
