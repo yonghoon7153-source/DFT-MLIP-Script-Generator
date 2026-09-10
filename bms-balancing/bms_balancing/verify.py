@@ -926,25 +926,93 @@ def cmd_profile(args):
 
 # ── G. 측정 잡음 규모 — "1 % 띠" 를 정확도 언어로 쓸 수 있나 ──────────────
 
-def rice_sigma(y: np.ndarray) -> float:
-    """2 차 차분(Rice/GSJS) 잡음 추정 — **모델도 반복측정도 필요 없다.**
+def diff_sigma(y: np.ndarray, order: int = 2, stride: int = 1) -> float:
+    """m 차 차분 잡음 추정 — **모델도 반복측정도 필요 없다.**
 
-        σ̂² = 1 / (6(n−2)) · Σ (y_{i−1} − 2y_i + y_{i+1})²
+        sigma^2 = sum (D^m y)^2 / ( (n-m) * C(2m, m) )
 
-    왜 이게 되나: 참 곡선이 매끄러우면 2 차 차분이 그 부분을 거의 지우고
-    잡음만 남는다 (매끄러운 함수의 2 차 차분 ~ h²·f''). 계수 6 은 독립
-    잡음의 2 차 차분 분산이 6σ² 이기 때문이다.
+    m=2 가 고전적인 Rice/GSJS 추정기다 (C(4,2)=6). 왜 되나: 참 곡선이
+    매끄러우면 m 차 차분이 그 부분을 거의 지우고(다항식 차수 m-1 까지는
+    정확히 0) 잡음만 남는다. 계수 C(2m,m) 은 독립 잡음의 m 차 차분 분산이다.
 
-    ⚠ 전제: 표본이 촘촘하고 **이웃 표본의 잡음이 독립**이어야 한다. 데이터가
-      이미 평활·재표본됐으면 잡음이 상관되어 이 추정치가 **아래로 무너진다.**
-      그래서 `cmd_noise` 가 1 차 차분의 lag-1 자기상관을 같이 찍는다 —
-      독립 잡음이면 −0.5 근처가 정상이고, 0 에 가까우면 이미 평활된 신호다.
+    `order` 를 올리면 곡률 오염이 줄고, `stride` 를 올리면 **상관된 잡음이
+    분리된다.** 둘을 같이 훑는 것이 `noise_diagnosis` 의 판정이다.
     """
-    y = np.asarray(y, dtype=float)
-    if y.size < 3:
+    from math import comb
+    y = np.asarray(y, dtype=float)[::max(1, int(stride))]
+    m = int(order)
+    if y.size <= m + 1:
         return float("nan")
-    d2 = y[:-2] - 2.0 * y[1:-1] + y[2:]
-    return float(np.sqrt(np.sum(d2 ** 2) / (6.0 * (y.size - 2))))
+    d = y
+    for _ in range(m):
+        d = np.diff(d)
+    return float(np.sqrt(np.sum(d ** 2) / (d.size * comb(2 * m, m))))
+
+
+def rice_sigma(y: np.ndarray) -> float:
+    """m=2 고정 — 옛 이름 유지."""
+    return diff_sigma(y, order=2, stride=1)
+
+
+def noise_diagnosis(y: np.ndarray) -> dict:
+    """sigma 를 재고, **이 방법이 어디서 멈추는지**를 같이 적는다.
+
+    2026-09-10. 이 함수는 네 번 고쳐 쓴 끝에 "가르지 않는다" 로 끝났다.
+    실패의 기록을 남긴다 — 같은 길을 다시 걷지 않게.
+
+    (1) 1 차 차분의 lag-1 자기상관이 양수면 "평활된 신호" 라고 단정했다.
+        못 가른다. 촘촘히 표본된 깨끗한 신호에서도, 표본 간 전압 변화가 잡음과
+        같은 규모면 양수가 된다. 실측(`300_0009`)이 정확히 그 경계였다
+        (표본당 dV 약 20 uV, sigma 약 28 uV, 자기상관 +0.417).
+    (2) 스트라이드 스캔을 넣고 "커지면 평활" 이라 했다. **곡률도 커진다.**
+        잡음 0 인 해석 곡선에서 406 배 커졌다.
+    (3) 배증당 성장률로 세 경우를 가르려 했다. 문턱이 합성 경계에서 흔들렸다
+        (독립 1.00 / 평활 1.41 / 해석곡선 2.46 — 뒤의 둘이 안 갈린다).
+    (4) 스캔 최댓값을 상한으로 쓰려 했다. **상관 길이보다 스캔이 짧으면
+        상한이 못 된다** (savgol(201) 신호를 k<=64 로 훑으면 참 0.500 mV 를
+        0.033 mV 로 본다). 멀리까지 훑으면 이번엔 곡률이 먼저 올라와서
+        평탄부가 안 생긴다 — 네 합성 케이스 전부 평탄 판정 실패.
+
+    **구조적인 이유**: 한 곡선에서 "측정 잡음" 과 "매끄러운 신호" 를 가르려면
+    둘의 주파수 대역이 갈라져 있어야 한다. 잡음이 이미 필터링됐고 신호에 그와
+    비슷한 스케일의 곡률이 있으면, **한 곡선만으로는 원리적으로 못 가른다.**
+    이 프로젝트가 다루는 축퇴와 같은 종류의 문제다.
+
+    그래서 판정하지 않고 **두 해석을 다 적는다**:
+
+        원자료(필터 안 걸림)이면  -> k=1 의 sigma 가 잡음. 비율을 그대로 씀
+        필터 걸린 자료면          -> k=1 의 sigma 는 하한, 비율은 **상한**
+
+    어느 쪽인지는 **곡선이 아니라 계측 쪽에 물어야 답이 나온다** — 그 질문을
+    `FOR_BMS_TEAM.md` 에 넣었다. 원자료 export 가 따로 있으면 거기에 이 명령을
+    걸어 보는 것이 곧바로 답이다.
+
+    차수 스캔(m=1..4)은 여전히 쓸모가 있다: k=1 에서 m 을 올려도 sigma 가 거의
+    안 변하면 **그 지점에서는 곡률 오염이 없다**는 뜻이다 (합성 독립잡음:
+    0.0328 / 0.0299 / 0.0299 / 0.0299).
+    """
+    orders = {m: diff_sigma(y, order=m) for m in (1, 2, 3, 4)}
+    n = int(np.asarray(y).size)
+    ks, k = [], 1
+    while k <= max(1, n // 64) and k <= 1024:
+        ks.append(k); k *= 2
+    strides = {k: diff_sigma(y, order=4, stride=k) for k in ks}
+    o = [orders[m] for m in (2, 3, 4) if orders[m] == orders[m] and orders[m] > 0]
+    order_flat = bool(o and max(o) / min(o) < 1.15)
+    return {
+        "sigma_by_order_V": orders,
+        "sigma_by_stride_order4_V": strides,
+        "sigma_at_k1_V": strides.get(1, float("nan")),
+        "order_scan_flat": order_flat,
+        "order_scan_reading": (
+            "m=2..4 에서 sigma 가 15 % 안에서 같다 -> k=1 에서 **곡률 오염은 없다**."
+            if order_flat else
+            "m 을 올리면 sigma 가 15 % 넘게 줄어든다 -> k=1 에 **곡률이 섞여 있다** "
+            "(참 잡음은 더 작다)."),
+        "note": ("이 값이 잡음인지 필터의 잔재인지는 **한 곡선으로 못 가른다** "
+                 "(머리말 참조). 원자료 export 에 같은 명령을 걸면 곧바로 답이 "
+                 "나온다."),
+    }
 
 
 def cmd_noise(args):
@@ -974,6 +1042,8 @@ def cmd_noise(args):
     s_res = rice_sigma(resid)
     d1 = np.diff(v_ad)
     ac1 = float(np.corrcoef(d1[:-1], d1[1:])[0, 1]) if d1.size > 2 else float("nan")
+    diag = noise_diagnosis(v_ad)
+    s_k1 = diag["sigma_at_k1_V"]
 
     out = {
         "state": args.state, "si_source": args.si_source, "half_cell": args.source,
@@ -983,21 +1053,17 @@ def cmd_noise(args):
         "lag1_autocorr_of_first_diff": ac1,
         "misfit_rmse_pocv_V": misfit,
         "misfit_over_sigma": misfit / s_raw if s_raw > 0 else float("inf"),
+        "sigma_at_k1_V": s_k1,
+        "misfit_over_sigma_if_raw_data": misfit / s_k1 if s_k1 > 0 else float("inf"),
+        "diagnosis": diag,
         "best_p": [float(x) for x in best], "best_obj": float(best_val),
     }
-    # 독립 잡음이면 1 차 차분의 lag-1 자기상관이 −0.5 다. 매끄러운 신호 성분이
-    # 섞이면 0 쪽으로 올라오고, **이미 평활된 신호면 양수**가 된다 (합성 실측:
-    # 원신호 −0.32 / savgol(11) +0.86 / savgol(51) +0.99, 그때 σ 는 각각
-    # 0.473 → 0.060 → 0.012 mV 로 무너졌다). 그래서 양수면 σ 를 믿지 않는다.
-    out["sigma_trustworthy"] = bool(ac1 < 0.0)
-    if not out["sigma_trustworthy"]:
-        out["sigma_warning"] = (
-            "lag-1 자기상관이 양수({:+.3f})다 — 이 신호는 이미 평활·재표본된 "
-            "것으로 보이고, 그러면 2 차 차분 추정치가 실제보다 훨씬 작아진다. "
-            "아래 σ 와 비율을 **쓰지 말 것.**".format(ac1))
-    r = out["misfit_over_sigma"]
+    # lag-1 자기상관은 **단독으로는 판정 못 한다** (noise_diagnosis 머리말).
+    # 판정은 스트라이드 스캔이 한다. 자기상관은 참고로만 남긴다.
+    # 어느 오염 방향이든 결론이 같은가 — 그것만 본다 (noise_diagnosis 머리말)
+    r = out["misfit_over_sigma_if_raw_data"]
     out["verdict"] = (
-        "부적합이 잡음보다 {:.0f} 배 크다. 목적함수를 likelihood 로 바꿔 신뢰구간을 "
+        "**원자료라면** 부적합이 잡음보다 {:.0f} 배 크다. 목적함수를 likelihood 로 바꿔 신뢰구간을 "
         "만들면 χ² 이 자유도보다 {:.0f}² 배 커서 **거짓으로 좁은** 구간이 나온다. "
         "그러므로 '1 % 띠' 는 오차막대가 아니라 **분석자 선택 민감도**로만 읽어야 "
         "한다 — 이것은 잡음을 못 재서가 아니라, 재고 나서 내린 결론이다."
@@ -1006,8 +1072,9 @@ def cmd_noise(args):
         "구간을 논의할 여지가 있다.".format(r))
     out["caveat"] = (
         "σ 는 **고주파** 성분만 잡는다. 드리프트·오프셋 같은 저주파 측정오차는 "
-        "이 방법으로 안 잡히므로 σ 는 **하한**이다. lag-1 자기상관이 −0.5 에서 "
-        "멀면(0 에 가까우면) 데이터가 이미 평활된 것이고 σ 는 더 무너진다.")
+        "이 방법으로 안 잡히므로 σ 는 **하한**이고 따라서 misfit/σ 는 **상한**이다. "
+        "잡음이 상관돼 있으면 k=1 의 σ 는 더 작게 나오므로 스캔이 평평해지는 "
+        "값을 쓴다.")
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 
