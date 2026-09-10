@@ -84,10 +84,13 @@ scipy 사이에서는** 닫힌다.
   `quantile` 은 **완전히 같고**(16 값), `sgolayfilt` 는 도함수에서
   **상대 1.33e-13** 갈린다. 그 차이는 파일이 담는 자리수보다 3200 배 작아
   rmse 64 값은 전부 같게 찍혔다. 이 컨테이너에는 여전히 툴박스가 없다.
-- **MathWorks 의 진짜 `findpeaks` 와 같은가 — 아직 미측정.** 위 실행은
-  **옛 `dd_eval.m`** 으로 돌아서 `findpeaks` 를 한 번도 부르지 않았다.
-  평탄 꼭대기 규약은 우리가 scipy 쪽에 맞춰 둔 자리라 MathWorks 와 갈릴 수
-  있고, 새 `dd_eval` 의 `n_peaks` 앵커가 그것을 드러낸다.
+- ~~**MathWorks 의 진짜 `findpeaks` 와 같은가.**~~ → **실제 데이터에서는
+  같았다** (2026-09-10, §1-7). `n_peaks`·`w_peak_sum`·`w_peak_max` 12 값이
+  툴박스판과 shim판에서 완전 동일했다 — 봉우리 위치가 하나라도 달랐으면
+  가중 합이 갈렸을 것이다.
+- **`findpeaks` 의 평탄 꼭대기(plateau) 규약은 여전히 미검증.** 실측 dQ/dV 에
+  완전 동수 구간이 없어서 그 분기를 안 탔다. 우리가 scipy 쪽(가운데 인덱스)에
+  맞춰 두고 "MathWorks 와 다를 수 있다" 고 표시한 바로 그 자리다.
 - **dQ/dV 두 열이 그들 식과 같은가.** `compute_dqdv_rmse_blend` 와
   `build_peak_weights_local` 은 그들 `electrode_balancing_blend.m` 의 로컬
   함수라 밖에서 못 부른다. 그래서 그 둘만은 **옮겨 적었고**, 여기 일치는

@@ -194,10 +194,11 @@ dd_eval('P', [1.10 -0.05 1.10 -0.01 0.15; 1.10 -0.05 1.10 -0.01 0.30])
 달라 — 앞머리의 `# impl_sgolayfilt` 가 `dd_shims` 에서 `matlab` 으로 바뀌고,
 두 CSV 를 비교하면 **MathWorks 구현과 우리 정의의 차이**가 측정된다.
 
-2026-09-10 에 이 대조를 한 번 했다 (`FINDINGS.md` §1-7): `quantile` 은 완전히
-같고, `sgolayfilt` 는 도함수에서 상대 **1.33e-13** 갈리며, 그 차이는 파일
-자리수보다 3200 배 작아 rmse 는 전부 같게 찍혔다. 다만 그때는 옛 `dd_eval.m`
-이라 **`findpeaks` 가 안 불렸다** — 그쪽은 새 판으로 다시 돌려야 한다.
+2026-09-10 에 이 대조를 했다 (`FINDINGS.md` §1-7). `quantile` 과 `findpeaks`
+는 **완전히 같고**(각각 16 값 · 12 값), `sgolayfilt` 는 도함수에서 상대
+1.33e-13 갈린다. rmse 128 값에서는 `rmse_pocv` 가 32/32 완전 동일,
+`rmse_dvdq` 2.80e-14, `rmse_dqdv` **1.78e-12** — dQ/dV 항이 같은 평활 차이를
+64 배 증폭한다 (평활된 전압의 도함수로 나누기 때문).
 
 ```matlab
 dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li_TB.csv')
