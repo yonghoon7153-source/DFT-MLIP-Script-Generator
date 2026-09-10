@@ -676,3 +676,44 @@ def test_interp_ascending_path_is_untouched():
     want[lo] = ys[0] + (ys[1] - ys[0]) / (xs[1] - xs[0]) * (xq[lo] - xs[0])
     want[hi] = ys[-1] + (ys[-1] - ys[-2]) / (xs[-1] - xs[-2]) * (xq[hi] - xs[-1])
     assert np.array_equal(got, want), "오름차순 경로가 바뀌었다 — 기존 대조가 무효가 된다"
+
+
+# ── 판 번호가 붙은 산출은 **최신 판**을 읽어야 한다 (2026-09-10) ──────────
+
+def test_compare_states_reads_the_latest_version():
+    """`_v2` 가 있으면 그걸 읽어야 한다.
+
+    이 저장소에서 옛 판을 읽고 쓴 실수가 하루에 **세 번** 있었다:
+      · `README.md` 의 LAM_NE 폭 8.93 %p (v1) — 정본은 10.88 (v2)
+      · `matlab/README.md` 의 dump 대조표 8 행 전부 v1
+      · `compare_states.py` 첫 판이 `degeneracy_..._Li_v2.json` 을 못 잡고
+        v1 을 읽었다 (정규식이 `_v2` 접미사를 안 봤다)
+    도구가 조용히 옛 값을 읽으면 그 위의 모든 판단이 옛 값이 된다.
+    """
+    import importlib.util, json, tempfile
+    spec = importlib.util.spec_from_file_location(
+        "compare_states", ROOT / "scripts" / "compare_states.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+
+    d = pathlib.Path(tempfile.mkdtemp())
+
+    def deg(span):
+        return {"best_modes_percent": {k: 1.0 for k in m.MODES},
+                **{f"{k}_percent": {"span": span} for k in m.MODES}}
+
+    (d / "degeneracy_S_Li.json").write_text(json.dumps(deg(111.0)))
+    (d / "degeneracy_S_Li_v2.json").write_text(json.dumps(deg(222.0)))
+    got = m.load_degeneracy(d)
+    assert set(got) == {"S"}, f"상태가 하나여야 하는데 {sorted(got)} — 판을 상태로 셌다"
+    assert got["S"]["j"]["LLI_percent"]["span"] == 222.0, (
+        f"v1 을 읽었다 ({got['S']['file']}) — 최신 판을 읽어야 한다")
+    assert got["S"]["file"].endswith("_v2.json")
+
+    hdr = ("half_cell,si,w_dqdv,LAM_PE_pct,LAM_NE_pct,LLI_pct,bounds,ref_bounds\n")
+    for name, lo in (("matrix_S.csv", 0.0), ("matrix_S_v2.csv", 50.0)):
+        (d / name).write_text(hdr + "".join(
+            f"GITT,Si{i},0,{lo+i},{lo+i},{lo+i},-,-\n" for i in range(3)))
+    mx = m.load_matrix_axis(d)
+    assert set(mx) == {"S"}, f"상태가 하나여야 하는데 {sorted(mx)}"
+    assert mx["S"]["file"].endswith("_v2.csv"), f"v1 을 읽었다: {mx['S']['file']}"
