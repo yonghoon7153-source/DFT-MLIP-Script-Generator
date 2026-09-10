@@ -59,8 +59,36 @@ pip install -r requirements.txt
 | `eval` | 같은 질문의 **툴박스 없는 길** — 적합 없이 주어진 p 에서 rmse 만. `--compare` 로 `matlab/dd_eval.m` 산출과 대조하고 갈린 단계를 짚는다 |
 | `degeneracy` | 최적 목적함수의 (1+ε) 안에 드는 답들이 만드는 LAM/LLI 폭 |
 | `matrix` | 문헌 Si 소스 8 × 반쪽전지 소스 2 × dQ/dV 포함 2 — **모델 선택**이 답을 얼마나 움직이나 |
-| `profile` | γ_Si 를 고정하고 나머지 넷을 재적합 — γ ↔ a_NE 축퇴 |
+| `profile` | γ_Si 를 고정하고 나머지 넷을 재적합 — γ ↔ α_NE 축퇴 |
 | `scale-noise` | 목적함수 scale 의 난수 seed 가 답을 얼마나 흔드나 |
+
+### 여러 상태를 한 번에 — `scripts/run_states.sh`
+
+`300_0009` 에서 한 것을 다른 상태에도 **같은 설정으로** 돌린다.
+
+```bash
+export BMS_DATA_ROOT='/…/degradation mode'
+nohup ./scripts/run_states.sh > out/run_states.log 2>&1 &
+tail -f out/run_states.log
+```
+
+상태당 `degeneracy` · `matrix` · `profile` 셋, 기본 세 상태(100 · 200 ·
+300_0147)면 아홉 번이다. **몇 시간** 걸린다. 조절은 환경변수로:
+
+```bash
+STATES=100 ./scripts/run_states.sh          # 하나만
+STARTS=6 STATES=100 ./scripts/run_states.sh # 배관 확인용 (수치는 못 쓴다)
+SI=Kunz SRC=step_005C ./scripts/run_states.sh
+```
+
+**왜 스크립트인가**: 아홉 번이 같은 설정이어야 비교가 성립한다. 손으로 아홉 줄을
+치면 한 줄에서 `--starts` 를 흘리는 순간 그 행만 다른 조건이 되고, 나중에 그것을
+알아챌 방법이 없다. 스크립트에 적힌 플래그가 산출의 provenance 다.
+
+**끝났다는 말을 믿기 전에**: 이 스크립트는 각 산출을 **실제로 열어서** 확인한다
+(JSON 이 파싱되나, CSV 에 행이 있나). 종료 코드만 보면 안 되기 때문이다 —
+만드는 과정에서 진행 표시가 stdout 으로 새어 JSON 을 오염시켰는데 python 이
+정상 종료해서 "전부 통과" 가 찍혔다 (`INTRO.md` §4-⑧).
 
 ## 측정된 것 (2026-09-10 적대적 리뷰 반영판, 요지)
 
