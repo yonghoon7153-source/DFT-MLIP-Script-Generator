@@ -122,11 +122,24 @@ _RETRACTION = ("철회", "정정", "거짓", "약화", "전 판", "**신규**", 
 
 
 def _asserting_lines(text: str, *needles: str) -> list[str]:
-    """needles 를 전부 포함하면서 철회 표지가 없는 줄 = 그 숫자를 주장하는 줄."""
+    """needles 를 전부 포함하면서 그 숫자를 **주장하는** 줄만 골라낸다.
+
+    주장이 아닌 두 경우를 뺀다:
+      · 철회·정정을 적은 줄 (`_RETRACTION`)
+      · **비교표 행** — 철회값과 새 정본값을 나란히 놓은 마크다운 표 줄.
+        우리 표 규약상 정본값은 `**…**` 로 굵게 적으므로, `|` 로 시작하면서
+        굵은 값이 같이 있는 줄은 비교이지 주장이 아니다.
+        (2026-09-10: §3-3 의 "철회한 값 vs 새 값" 표가 여기서 오탐을 냈다.)
+    """
     out = []
     for ln in text.splitlines():
-        if all(n in ln for n in needles) and not any(m in ln for m in _RETRACTION):
-            out.append(ln)
+        if not all(n in ln for n in needles):
+            continue
+        if any(m in ln for m in _RETRACTION):
+            continue
+        if ln.lstrip().startswith("|") and "**" in ln:
+            continue                      # 비교표 행
+        out.append(ln)
     return out
 
 
