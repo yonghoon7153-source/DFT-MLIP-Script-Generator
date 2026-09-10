@@ -42,6 +42,14 @@ except ImportError:          # house_style 이 없으면 그림은 나오되 그
     _HOUSE = False
     print("  ⚠ house_style 을 못 읽었다 — 하우스 팔레트가 아닌 대비색으로 그린다")
 
+# ⛔ 스무딩을 여기 다시 구현하지 않는다 — plot_lobster_4panel.gaussian_smooth 가
+#   이미 있고 extract_cohp_curves 도 그걸 빌려 쓴다. 복사하면 규약이 갈라진다.
+import importlib.util as _ilu
+_p4 = Path(__file__).resolve().parent / "plot_lobster_4panel.py"
+_spec = _ilu.spec_from_file_location("_p4", _p4)
+_m4 = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_m4)
+gaussian_smooth = _m4.gaussian_smooth
+
 
 # 하우스 팔레트가 정본. 폴백은 house_style 이 없을 때만 쓰고, 그 사실을 위에서 찍는다.
 _FALLBACK_COLOR = {"Li": "#888888", "P": "#FF9933", "S": "#E0C200", "Cl": "#3E8E41",
@@ -300,6 +308,15 @@ def main():
                     help="fixed-occ nscf 의 VBM (eV). --cbm 과 같이 주면 그림 갭이 정본이 된다")
     ap.add_argument("--cbm", type=float, default=None,
                     help="fixed-occ nscf 의 CBM (eV)")
+    # ⛔⛔ 2026-09-10 실측 — 이 도구는 **스무딩을 전혀 안 했다.** raw dos.x 출력을
+    #   그대로 그리는데, 2×2×1 같은 성긴 k 격자의 tetrahedra DOS 는 델타 빗이라
+    #   y축이 5×10⁵ states/eV 까지 튀고 곡선이 바닥에 깔려 아무것도 안 보였다.
+    #   family 규약은 σ 0.15 eV 다 (tools/figures/export_dos_pdos_csv.py).
+    #   ⚠ 2026-09-07 사고: PDOS 만 0.15 로 올리고 **총 DOS 를 빠뜨렸다**
+    #     (lpsocl_dos_smooth.csv 가 0.05 인 채였다) ⇒ 여기서는 **둘에 같은 σ**를 건다.
+    #   ⛔ 스무딩은 k 격자 미수렴을 고치지 않는다 — 보기 좋게 만들 뿐이다.
+    ap.add_argument("--smooth", type=float, default=0.15,
+                    help="Gaussian sigma (eV). family 규약 0.15. 0 이면 raw")
     ap.add_argument("--dir", required=True)
     ap.add_argument("--prefix", default="V0")
     ap.add_argument("--out_prefix", default=None)
@@ -318,6 +335,7 @@ def main():
     _dosf = find_total_dos(d, args.prefix)
     print(f"  total DOS ← {_dosf.name}")
     E, DOS, EF = read_total_dos(_dosf)
+    _raw_max = float(np.max(DOS))
     print(f"read total DOS: {len(E)} points, EF = {EF}")
 
     E_p, per_elem, per_elem_orb = read_pdos_files(d, args.prefix)
@@ -325,6 +343,12 @@ def main():
         print(f"  PDOS sum for {el}: integral = {np.trapezoid(p, E_p):.2f} states")
 
     vbm, cbm, gap = find_gap(E, DOS, EF, e_min=args.e_min, dos_thresh=args.dos_thresh)
+    if args.smooth and args.smooth > 0:
+        DOS = gaussian_smooth(DOS, E, args.smooth)
+        print(f"  스무딩 σ={args.smooth} eV — 총 DOS 최대 {_raw_max:.3g} → {np.max(DOS):.3g} states/eV")
+        if _raw_max > 1e4:
+            print(f"  ⚠⚠ raw 최대가 {_raw_max:.3g} states/eV 다 — 델타 빗(성긴 k 격자의 "
+                  f"tetrahedra) 신호다. **스무딩은 k 미수렴을 고치지 않는다.**")
     if (args.vbm is None) != (args.cbm is None):
         raise SystemExit("⛔ --vbm 과 --cbm 은 **둘 다** 줘야 한다 (하나만 주면 갭이 섞인다)")
     if args.vbm is not None:
@@ -354,6 +378,9 @@ def main():
     if cbm_peak_t:
         print(f"  closest CBM peak: {cbm_peak_t[0]:.3f} eV (DOS={cbm_peak_t[1]:.2f})")
 
+    if args.smooth and args.smooth > 0:
+        for _el in list(per_elem):
+            per_elem[_el] = gaussian_smooth(per_elem[_el], E_p, args.smooth)
     vbm_break = character_at_edge(E_p, per_elem_orb, vbm,
                                    window=args.char_window, side="valence")
     cbm_break = character_at_edge(E_p, per_elem_orb, cbm,
@@ -369,6 +396,8 @@ def main():
         "CBM_eV": cbm,
         "band_gap_eV": gap,
         "band_gap_source": globals().get("_GAP_SRC", "?"),
+        "smoothing_sigma_eV": args.smooth,
+        "total_dos_raw_max_states_per_eV": _raw_max,
         "⛔": ("DOS-threshold 갭은 CLAUDE.md 상 인용 불가다 — 정본은 fixed-occ nscf 의 "
                "VBM/CBM 고유값이다. --vbm/--cbm 으로 주면 이 값이 정본으로 바뀐다."),
         "VBM_peak_eV": vbm_peak_t[0] if vbm_peak_t else None,
