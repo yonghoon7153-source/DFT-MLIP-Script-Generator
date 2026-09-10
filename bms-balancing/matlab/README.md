@@ -212,20 +212,27 @@ dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li_TB.csv')
 dd_verify('dump', 'State','300_0009', 'WDqdv',0, 'Out','dd_dump_gitt_w0.csv')
 ```
 
-우리 Python 이 같은 조건에서 낸 값 (`out/matrix_300_0009.csv`):
+우리 Python 이 같은 조건에서 낸 값 (**정본: `out/matrix_300_0009_v2.csv`**):
 
-| Si 소스 | LAM_PE % | LAM_NE % | LLI % | 경계 |
-|---|---|---|---|---|
-| Baggetto | 7.02 | 14.67 | 16.09 | a_NE=lb, gamma=lb |
-| Friedrich | 9.32 | 14.67 | 16.50 | a_NE=lb, gamma=lb |
-| Jiang | 6.70 | 6.11 | 15.72 | — |
-| Kunz | 7.19 | 6.36 | 15.81 | — |
-| Li | 6.36 | 7.90 | 15.70 | — |
-| Lu | 6.61 | 8.23 | 15.63 | — |
-| Sethuraman | 5.66 | 7.84 | 15.47 | — |
-| Wetjen | 7.48 | 15.04 | 15.59 | — |
+| Si 소스 | LAM_PE % | LAM_NE % | LLI % | 대상 경계 | **기준 경계** |
+|---|---|---|---|---|---|
+| Baggetto | 7.02 | 14.67 | 16.09 | a_NE=lb, γ=lb | b_PE=ub, a_NE=lb, γ=lb |
+| Friedrich | 9.32 | 14.67 | 16.50 | a_NE=lb, γ=lb | b_PE=ub, a_NE=lb, γ=lb |
+| Jiang | 6.77 | 5.79 | 15.75 | — | — |
+| Kunz | 7.19 | 6.36 | 15.81 | — | — |
+| Li | 6.36 | 7.90 | 15.70 | — | — |
+| Lu | 6.61 | 8.23 | 15.63 | — | a_NE=lb |
+| Sethuraman | 5.65 | 7.84 | 15.47 | — | b_PE=ub |
+| Wetjen | 7.43 | 16.67 | 15.63 | — | b_PE=ub, a_NE=ub |
 
-**차이가 1 %p 안쪽이면** 포팅이 맞다고 본다.
+**차이가 1 %p 안쪽이면** 포팅이 맞다고 본다 — 단 **경계 열이 비어 있는 행만**
+그렇게 볼 수 있다. 경계에 붙은 행의 좌표는 데이터가 아니라 상자가 정한 값이라,
+두 구현이 같은 상자를 쓰면 그 자리는 자동으로 같아지고 다르면 크게 다르다.
+위 8 행 중 **기준이 자유로운 것은 Jiang·Kunz·Li 셋뿐**이다 (§4-2).
+
+> ⚠ 이 표는 `multistart` 수정 **뒤**(v2) 값이다. 그 전 판(v1)과 LAM_NE 가
+> 최대 1.6 %p 다르다 (Wetjen 15.04 → 16.67, Jiang 6.11 → 5.79). v1 표를
+> 들고 대조하면 없는 불일치가 나온다.
 
 ### 3. `profile` — γ_Si 프로파일, LAM_NE 의 실질 오차막대
 

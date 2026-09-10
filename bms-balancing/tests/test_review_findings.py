@@ -322,3 +322,33 @@ def test_quoted_spreads_match_artifact():
         assert any(f in txt for f in forms), (
             f"{name} 이 정본 폭 {want} %p 를 어떤 자리수로도 안 적고 있다 "
             f"(허용: {sorted(forms)})")
+
+
+def test_dump_table_in_matlab_readme_matches_artifact():
+    """`matlab/README.md` 의 대조표는 사용자가 MATLAB 결과를 **맞대 볼 표**다.
+
+    실측 계기: 그 표가 v1(`matrix_300_0009.csv`) 값에 멈춰 있었다 —
+    Wetjen LAM_NE 15.04(v1) vs **16.67**(v2), Jiang 6.11 vs **5.79**.
+    그 상태로 `dd_verify('dump')` 결과를 대면 **없는 불일치가 1.6 %p 나온다.**
+    앞의 `test_quoted_spreads_match_artifact` 는 폭만 봐서 이걸 못 잡았다.
+    """
+    import csv, re
+    art = ROOT / "out" / "matrix_300_0009_v2.csv"
+    if not art.exists():
+        return
+    want = {r["si"]: r for r in csv.DictReader(art.open())
+            if "GITT" in r["half_cell"] and float(r["w_dqdv"]) == 0}
+    txt = (ROOT / "matlab" / "README.md").read_text(encoding="utf-8")
+
+    seen = 0
+    for si, r in want.items():
+        m = re.search(rf"^\|\s*{si}\s*\|(.+)$", txt, re.M)
+        assert m, f"matlab/README.md 대조표에 {si} 행이 없다"
+        cells = [c.strip() for c in m.group(1).split("|")]
+        for j, key in enumerate(("LAM_PE_pct", "LAM_NE_pct", "LLI_pct")):
+            assert cells[j] == f"{float(r[key]):.2f}", (
+                f"matlab/README.md {si} 행의 {key} 가 정본과 다르다: "
+                f"적힌 값 {cells[j]} vs 정본 {float(r[key]):.2f} "
+                f"(v1 표가 남아 있으면 MATLAB 대조에서 없는 불일치가 나온다)")
+        seen += 1
+    assert seen == 8, f"대조표에서 확인한 행이 8개가 아니다: {seen}"
