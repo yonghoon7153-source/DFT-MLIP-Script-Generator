@@ -67,18 +67,18 @@ function dd_verify(mode, varargin)
     switch lower(mode)
     case 'dump'
         rows = {};
-        for w = unique([o.WDqdv, o.WDqdv])
-            fp = fit_params; fp.w_dqdv = w;
-            for si = {'Baggetto','Friedrich','Jiang','Kunz','Li','Lu','Sethuraman','Wetjen'}
-                L = local_load_lit(si{1});
-                rng(0, 'twister');    % ★ 발견 4 — 원본은 seed 가 없다. 비교하려면 고정해야 한다
-                r0 = local_fit(o.RefState, o, L, initial5, lb5, ub5, diff_params, fp);
-                rng(0, 'twister');
-                r1 = local_fit(o.State,    o, L, initial5, lb5, ub5, diff_params, fp);
-                m  = local_modes(r0, r1);
-                rows{end+1} = local_row(si{1}, w, r1, m, lb5, ub5); %#ok<AGROW>
-                fprintf('%s\n', rows{end});
-            end
+        w  = o.WDqdv;                 % 한 번에 한 축만 — 두 축을 섞으면 뭐가 움직였는지 못 가른다
+        fp = fit_params; fp.w_dqdv = w;
+        fprintf('si_source,w_dqdv,a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq,LAM_PE_pct,LAM_NE_pct,LLI_pct,bounds\n');
+        for si = {'Baggetto','Friedrich','Jiang','Kunz','Li','Lu','Sethuraman','Wetjen'}
+            L = local_load_lit(si{1});
+            rng(0, 'twister');    % ★ 발견 4 — 원본은 seed 가 없다. 비교하려면 고정해야 한다
+            r0 = local_fit(o.RefState, o, L, initial5, lb5, ub5, diff_params, fp);
+            rng(0, 'twister');
+            r1 = local_fit(o.State,    o, L, initial5, lb5, ub5, diff_params, fp);
+            m  = local_modes(r0, r1);
+            rows{end+1} = local_row(si{1}, w, r1, m, lb5, ub5); %#ok<AGROW>
+            fprintf('%s\n', rows{end});
         end
         local_save(o.Out, {'si_source,w_dqdv,a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq,LAM_PE_pct,LAM_NE_pct,LLI_pct,bounds'}, rows);
 
