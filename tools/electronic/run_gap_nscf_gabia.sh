@@ -500,9 +500,14 @@ for S in ${SYSTEMS:-comp1 modelc}; do
   fi
 
     # ---- ② nscf: occupations='fixed' + nbnd + 조밀 k ----
+    #   ★ tprnfor/tstress 를 뺀다. 갭에는 힘·응력이 필요 없는데, scf.in 에서 sed 로
+    #     만들다 보니 그대로 따라온다. 그리고 **거기가 실제로 죽은 자리**다 —
+    #     ndo_lpscl16_n4fu_O-bo4 는 SCF 가 수렴한 뒤 힘 계산에서 CUDA OOM 으로
+    #     죽었다 (회신 BK 1-3). 안 쓰는 단계를 지우는 것이라 물리는 안 바뀐다.
     sed -e "s|calculation *=.*|calculation = 'nscf'|" \
         -e "s|occupations *=.*|occupations = 'fixed'|" \
         -e "/smearing *=/d" -e "/degauss *=/d" \
+        -e "/tprnfor *=/d" -e "/tstress *=/d" \
         -e "s|conv_thr *=.*|conv_thr = 1.0d-10|" \
         -e "s|^\( *ntyp *= *[0-9]*\)$|\1\n    nbnd  = ${NB}|" "$D/scf.in" \
       | awk -v k="${KM}" '/K_POINTS/{print; getline; print k; next} {print}' > "$D/nscf_gap.in"
