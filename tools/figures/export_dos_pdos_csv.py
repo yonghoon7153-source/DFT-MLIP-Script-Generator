@@ -158,6 +158,26 @@ rows = list(csv.reader(open(a.csv)))
 hdr = [h.split("#")[0].strip() for h in rows[0]]          # strip trailing "# ..."
 data = np.array([[float(x) for x in r[:len(hdr)]] for r in rows[1:] if r])
 col = {h: data[:, i] for i, h in enumerate(hdr)}
+
+# ⛔ 2026-09-10 — 같은 사슬에서 열 이름이 **세 번째로** 갈렸다.
+#   이 도구는 `E-EF`/`total` 을 찾는데 tools/electronic/standard_dos/sum_pdos.py 는
+#   `E_minus_Ef`/`total_dos` 로 쓴다 (앞에 `E_eV` 열이 하나 더 붙는다).
+#   projwfc → sum_pdos → 이 스무더 가 한 파이프라인인데 중간에서 이름이 끊겼다.
+#   ⇒ 별칭을 받는다. 못 찾으면 **있는 열 이름을 보여준다** — KeyError 만 던지면
+#     사람이 파일이 틀린 건지 이름이 다른 건지 못 가른다.
+def _pick(names, what):
+    for n in names:
+        if n in col:
+            return n
+    raise SystemExit(f"⛔ {what} 열을 못 찾았다. 찾아본 이름: {names}\n"
+                     f"   이 CSV 의 열: {hdr}")
+
+_e   = _pick(["E-EF", "E_minus_Ef", "E_minus_EF_eV"], "에너지(E−E_F)")
+_tot = _pick(["total", "total_dos", "DOS_total"], "총 DOS")
+if _e != "E-EF":
+    col["E-EF"] = col[_e]
+if _tot != "total":
+    col["total"] = col[_tot]
 E = col["E-EF"]
 m = (E >= a.window[0]) & (E <= a.window[1])
 E = E[m]
