@@ -517,7 +517,14 @@ for S in ${SYSTEMS:-comp1 modelc}; do
     done
     grep -q "smearing\|degauss" "$D/nscf_gap.in" && { fail "$S" "smearing 잔존 — fixed 와 충돌한다"; continue; }
 
-    echo "[$(ts)] $S nscf(fixed, nbnd ${NB}, k ${KM}) 시작 — 몇 시간 간다"
+    # 실행시간은 k-point 수와 빌드에 달렸다. "몇 시간" 은 gabia CPU + 조밀 k(170점)
+    #   기준이고, GPU + 성긴 k 면 분 단위다 (2026-09-10 실측: 54원자·k 2 2 1·4 irr →
+    #   9분 28초). 틀린 예고는 사람이 죽은 잡을 기다리게 만든다.
+    if [ "$IS_GPU" = 1 ]; then
+        echo "[$(ts)] $S nscf(fixed, nbnd ${NB}, k ${KM}) 시작 — GPU·k ${KM} 기준 분~수십분"
+    else
+        echo "[$(ts)] $S nscf(fixed, nbnd ${NB}, k ${KM}) 시작 — 몇 시간 간다"
+    fi
     ( cd "$D" && "$MPIRUN" $MPI_OVERSUB $MPI_MCA -np "$NP" "$PWX" -nk "$NPOOL" -in nscf_gap.in > nscf_gap.out 2>&1 )
 
     # ---- ③ 계보 확인: irreducible k-point 수 ----
