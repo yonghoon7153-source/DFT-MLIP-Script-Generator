@@ -39,13 +39,14 @@ PAW_PSEUDOS = {
     #   **파일명으로 정하지 않는다** (Po/P 사고). 실제 basis 는 UPF 의 valence_configuration
     #   에서 읽는다 — upf_valence_labels() 참조.
     "Nd": "Nd.pbe-spdn-kjpaw_psl.1.0.0.UPF",
+    "B":  "B.pbe-n-kjpaw_psl.1.0.0.UPF",   # b2o3 (2026-09-10) — repo 다른 도구와 같은 이름
 }
 SPECIES_MASS = {"Li": 6.941, "P": 30.974, "S": 32.065, "Cl": 35.453, "Br": 79.904,
-                "O": 15.999, "Nd": 144.242}
+                "O": 15.999, "Nd": 144.242, "B": 10.811}
 BASIS_FUNCS = {"Li": "1s 2s 2p", "P": "3s 3p 3d", "S": "3s 3p 3d",
                "Cl": "3s 3p 3d", "Br": "4s 4p", "O": "2s 2p",
                # Nd 는 UPF 에서 읽어 덮어쓴다 (아래). 이 값은 못 읽었을 때의 대비다.
-               "Nd": "5s 5p 5d 6s"}
+               "Nd": "5s 5p 5d 6s", "B": "2s 2p"}
 
 
 def upf_valence_labels(upf_path):
@@ -301,6 +302,12 @@ def main():
     if "O" in species:
         gens += ["cohpGenerator from 0.5 to 4.0 type P  type O",
                  "cohpGenerator from 0.5 to 4.0 type Li type O"]
+    if "B" in species:
+        # b2o3 의 핵심은 B-O 골격이다. B-S 도 넣는다 — 황화물 안에서 B 가 S 와
+        # 결합하는지가 골격 creep 논의의 대상이었다 (md_run_ledger ★_VERDICT).
+        gens += ["cohpGenerator from 0.5 to 3.0 type B  type O",
+                 "cohpGenerator from 0.5 to 3.5 type B  type S",
+                 "cohpGenerator from 0.5 to 4.0 type Li type B"]
     if "Nd" in species:
         # Nd 는 이완 후 6배위(S 5 + Cl 1, 2.68-2.98 Å)라 상한을 4.0 그대로 두면 충분하다.
         # P-Nd 도 넣는다 — 장부상 Nd 가 P 자리라 **정말 P 와 결합이 없는지**가 확인 대상이다.
