@@ -639,6 +639,35 @@ def cmd_directional(a):
     return 0
 
 
+def resolve_save_fs(json_path, save_fs=None):
+    """프레임 간격을 정한다 → (값, 가정했나, 출처문구).
+
+    ⛔⛔ 2026-09-10 — 종전엔 호출자가 안 주면 **곧바로 100 fs 를 가정**했다.
+      그런데 드라이버(disorder_ensemble_diffusion.py:264)가 `msd.json` **옆에**
+      `aimd_results.json` 을 쓰고 거기에 `save_fs` 가 들어 있다. 답이 같은 폴더에
+      있는데 가정한 것이다.
+      이게 왜 중요한가: 시간축이 바뀌면 창 2–50 ps 가 **다른 프레임 구간**을
+      집으므로 β 가 달라진다 (일정 배율이라 기울기가 불변인 게 아니다 — 창이
+      프레임을 고른다). b2o3 셀확장 카드(2026-09-07)의 §무효조건에
+      *"save_fs 가정과 실행 인자가 어긋난다"* 가 명시돼 있어, 가정으로 낸 β 는
+      그 조항에 걸린다.
+
+    이 함수가 못 하는 것: sidecar 가 **실행 인자와 일치하는지**는 확인 못 한다.
+      드라이버가 쓴 값을 그대로 믿는다 (드라이버가 argparse 값을 그대로 쓴다).
+    """
+    if save_fs is not None:
+        return float(save_fs), False, "호출자 지정"
+    side = pathlib.Path(json_path).parent / "aimd_results.json"
+    if side.exists():
+        try:
+            got = json.load(open(side)).get("save_fs")
+        except (OSError, ValueError):
+            got = None
+        if got:
+            return float(got), False, f"{side.name}"
+    return 100.0, True, None
+
+
 def elem_msd_from_traj(json_path, save_fs=None, cache=True):
     """`msd.json` 옆의 `traj.xyz` 에서 **종별 MSD 를 다시 계산**한다. 없으면 None.
 
@@ -658,10 +687,7 @@ def elem_msd_from_traj(json_path, save_fs=None, cache=True):
     if not traj.exists():
         print(f"   · {jp.parent.name}: traj.xyz 가 없다 — 골격 검사 원리적 불가")
         return None
-    if save_fs is None:
-        save_fs, assumed = 100.0, True
-    else:
-        assumed = False
+    save_fs, assumed, sf_src = resolve_save_fs(jp, save_fs)
     src = pathlib.Path(__file__).resolve().parents[1] / "modelc_v3" / "aimd_mlip.py"
     if not src.exists():
         print(f"   ⛔ {src} 가 없다 — 산식을 빌려올 곳이 없다")
@@ -680,7 +706,9 @@ def elem_msd_from_traj(json_path, save_fs=None, cache=True):
             print(f"      → 환경 문제다. `conda activate uma` 로 ase 가 있는 환경에서 다시.")
         return None
     print(f"   … {traj.parent.name}/traj.xyz 에서 종별 MSD 계산"
-          + (f" (save_fs={save_fs:g} fs **가정**)" if assumed else f" (save_fs={save_fs:g} fs)"))
+          + (f" (save_fs={save_fs:g} fs **가정** — 옆에 aimd_results.json 이 없거나"
+             f" 그 안에 save_fs 가 없다. 카드 무효조건 대상이다)"
+             if assumed else f" (save_fs={save_fs:g} fs · {sf_src})"))
     try:
         out = mod.compute_msd_per_element(traj, dt_save_fs=save_fs)
     except BaseException as e:
@@ -693,7 +721,8 @@ def elem_msd_from_traj(json_path, save_fs=None, cache=True):
             d["msd_per_elem_A2"] = out["msd_per_elem_A2"]
             d["n_atoms_per_elem"] = out.get("n_atoms_per_elem", {})
             d.setdefault("times_ps", out["times_ps"])
-            d["_elem_msd_source"] = f"recomputed from traj.xyz (save_fs={save_fs:g} fs)"
+            d["_elem_msd_source"] = (f"recomputed from traj.xyz (save_fs={save_fs:g} fs, "
+                                     f"{'ASSUMED' if assumed else sf_src})")
             json.dump(d, open(jp, "w"))
             print(f"   … {jp.name} 에 저장 (다음부터는 즉시)")
         except (OSError, ValueError) as e:
@@ -1853,6 +1882,28 @@ def selftest():
             "[MTO·끝단·회귀] --rebuild_mto 경로도 궤적을 실제로 읽는다 "
             "(2026-09-07 이전엔 NameError 를 except 가 삼켜 조용히 실패)")
 
+    # ── save_fs 해석 (2026-09-10) ────────────────────────────────────────
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        tdp = pathlib.Path(td)
+        mj = tdp / "msd.json"; mj.write_text("{}")
+        v, a, src = resolve_save_fs(mj)
+        chk((v, a) == (100.0, True), "sidecar 가 없으면 100 fs 를 **가정이라고 밝히고** 쓴다")
+        (tdp / "aimd_results.json").write_text(json.dumps({"T_K": 800, "save_fs": 50.0}))
+        v, a, src = resolve_save_fs(mj)
+        chk((v, a, src) == (50.0, False, "aimd_results.json"), "sidecar 의 save_fs 를 읽는다 (가정 아님)")
+        # ⛔음성: 옛 판의 94바이트 빈 sidecar — save_fs 키가 없다
+        (tdp / "aimd_results.json").write_text(json.dumps({"T_K": 800}))
+        v, a, src = resolve_save_fs(mj)
+        chk((v, a) == (100.0, True), "[음성] save_fs 없는 빈 sidecar 를 값으로 읽지 않는다")
+        # ⛔음성: 깨진 json 을 예외로 터뜨리지 않고 가정으로 떨어진다
+        (tdp / "aimd_results.json").write_text("{not json")
+        v, a, src = resolve_save_fs(mj)
+        chk((v, a) == (100.0, True), "[음성] 깨진 sidecar 에서 터지지 않는다")
+        # ⛔음성: 호출자가 준 값이 sidecar 를 이긴다 (명시가 추론을 이긴다)
+        (tdp / "aimd_results.json").write_text(json.dumps({"save_fs": 50.0}))
+        v, a, src = resolve_save_fs(mj, 20.0)
+        chk((v, a) == (20.0, False), "[음성] 호출자 지정이 sidecar 를 이긴다")
     print(f"selftest {'PASS' if not n_bad else 'FAIL'} — {n_ok} ok, {n_bad} bad")
     return 1 if n_bad else 0
 
