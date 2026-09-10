@@ -216,8 +216,13 @@ echo "[$(ts)] 점 ${#INS[@]}개 · $MPI · pw.x=$PWX · pseudo=$PSD"
 if [ "$DRY_RUN" = 1 ]; then
   for i in "${INS[@]}"; do
     d=$(dirname "$i")
+    # ⛔ 여기도 _fc_ok 를 쓴다. 이 스크립트가 스스로 적어둔 규칙 —
+    #   "완료 판정은 **한 곳에만** 둔다. 재개(건너뛸까)와 성공(셌나)이 같은 기준이어야
+    #   한다" — 을 DRY_RUN 화면만 어기고 있었다 (맨 grep "JOB DONE").
+    #   2026-09-10 실측: 미수렴 9점을 "완료(건너뜀)" 으로 찍어 **사람에게만 거짓말**했다.
+    #   실행 루프는 제대로 다시 돌렸을 텐데, 화면을 믿고 안 던졌으면 영영 안 고쳐진다.
     st="대기"
-    grep -aq "JOB DONE" "$d/scf.out" 2>/dev/null && st="완료(건너뜀)"
+    _fc_ok "$d/scf.out" && st="완료(건너뜀)"
     printf "  %-28s %s\n" "$(basename "$d")" "$st"
   done
   echo "[$(ts)] DRY_RUN — 계산은 하지 않았다"; exit 0
