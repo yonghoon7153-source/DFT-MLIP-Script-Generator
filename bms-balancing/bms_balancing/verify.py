@@ -750,9 +750,11 @@ def main(argv=None):
                        help="port: 보고값을 시작점에서 뺀다 (독립 재적합)")
         p.add_argument("--profile-scale", choices=["global", "per-gamma"],
                        default="global",
-                       help="profile: 목적함수 scale 을 전역 경계에서 한 번 뽑을지"
-                            " (기본), γ 를 묶은 경계에서 행마다 다시 뽑을지"
-                            " (MATLAB 검증기 절차)")
+                       help="profile: 목적함수 scale 을 전역 경계에서 한 번 "
+                            "뽑을지(기본 — 원 파이프라인과 같다), γ 를 묶은 "
+                            "경계에서 행마다 다시 뽑을지. per-gamma 는 그들 "
+                            "절차가 아니라 dd_verify.m profile 모드의 부작용을 "
+                            "재현하는 진단용이다 (행끼리 비교 불가)")
         p.add_argument("--compare", default=None,
                        help="dd_eval.m 이 낸 CSV 와 대조한다 (eval 전용)")
         p.set_defaults(func=fn)
