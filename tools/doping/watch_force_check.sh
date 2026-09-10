@@ -52,6 +52,19 @@ fc_state() {   # $1 = scf.out 경로 [$2 = 정체 판정 분(기본 STALL_MIN)] 
   echo "… 진행|SCF 반복 ${it:-0}회"
 }
 
+# ⛔⛔ 2026-09-10 실측 — 화면이 "modelc 점당 평균 **-654분**" 을 찍었다.
+#   이번 배치가 20점의 scf.in 을 새로 썼는데(electron_maxstep 균일 적용) modelc 는
+#   이미 수렴해 있어 **건너뛰었다** ⇒ scf.out 이 scf.in 보다 옛것이라 차가 음수다.
+#   음수 소요시간은 낮은 값이 아니라 **측정 불가**다. 그걸 평균에 넣으면 ETA 가
+#   거짓이 되고, 음수를 본 사람은 화면 전체를 못 믿는다.
+fc_secs() {   # $1=scf.in $2=scf.out → 이번 배치의 소요 초. 못 재면 빈 문자열.
+    [ -f "$1" ] && [ -f "$2" ] || return 0
+    local a b
+    a=$(stat -c %Y "$1"); b=$(stat -c %Y "$2")
+    [ "$b" -gt "$a" ] && echo $(( b - a ))
+    return 0
+}
+
 if [ "${1:-}" = "--selftest" ]; then
   ok=0; bad=0
   t=$(mktemp -d); chk() { if [ "$2" = "$3" ]; then echo "  ⭕ $1"; ok=$((ok+1));
@@ -88,6 +101,16 @@ if [ "${1:-}" = "--selftest" ]; then
   # ⭕양성 경계: 반복이 찍히고 있으면 오래돼도 '진행' 이다 (정체 경고는 호출부가 낸다)
   printf '     iteration #  1\n' > "$t/j"; touch -d '3 hours ago' "$t/j"
   chk "⭕양성: 반복이 있으면 오래돼도 진행" "$(fc_state "$t/j" 45 | cut -d'|' -f1)" "… 진행"
+  # ── 소요시간 (2026-09-10 회귀: -654분) ──────────────────────────────────
+  mkdir -p "$t/dur"
+  touch -d '2026-09-10 10:00:00' "$t/dur/scf.in"
+  touch -d '2026-09-10 10:30:00' "$t/dur/scf.out"
+  chk "⭕양성: out 이 in 보다 새로우면 초를 잰다" "$(fc_secs "$t/dur/scf.in" "$t/dur/scf.out")" "1800"
+  # ⛔음성: 건너뛴 점 — 이번 배치가 .in 을 새로 썼고 .out 은 이전 배치 것이다
+  touch -d '2026-09-10 20:19:00' "$t/dur/scf.in"
+  chk "⛔음성: out 이 in 보다 옛것이면 **음수가 아니라 측정 불가**" \
+      "$(fc_secs "$t/dur/scf.in" "$t/dur/scf.out")" ""
+  chk "⛔음성: .out 이 없으면 측정 불가" "$(fc_secs "$t/dur/scf.in" "$t/dur/nope")" ""
   rm -rf "$t"; echo "  selftest: ⭕ $ok · ⛔ $bad"; [ "$bad" = 0 ] || exit 1; exit 0
 fi
 
@@ -100,7 +123,7 @@ echo "═══ ${LABEL:-DFT 단일점} ${_N}점 · $(date '+%m-%d %H:%M') · $W
 [ -f "$MARK" ] && echo "    이번 실행 시작 $(date -r "$MARK" '+%m-%d %H:%M')"
 printf "%-20s %-16s %s\n" "점" "상태" "비고"
 tot=0; don=0; run=0; dead=0; wait_n=0
-declare -A SUM CNT
+declare -A SUM CNT SKIP
 for d in $(find "$W" -mindepth 1 -maxdepth 1 -type d | sort); do
   n=$(basename "$d"); tot=$((tot+1))
   IFS='|' read -r st note <<< "$(fc_state "$d/scf.out")"
@@ -114,9 +137,12 @@ for d in $(find "$W" -mindepth 1 -maxdepth 1 -type d | sort); do
   case "$st" in
     "✓ 완료") don=$((don+1))
       # 계별 평균 소요 — mtime 차이로 잰다 (로그가 없어도 된다)
-      if [ -f "$d/scf.in" ] && [ -f "$d/scf.out" ]; then
-        sec=$(( $(stat -c %Y "$d/scf.out") - $(stat -c %Y "$d/scf.in") ))
-        sys=${n%%_*}; SUM[$sys]=$(( ${SUM[$sys]:-0} + sec )); CNT[$sys]=$(( ${CNT[$sys]:-0} + 1 ))
+      sys=${n%%_*}
+      sec=$(fc_secs "$d/scf.in" "$d/scf.out")
+      if [ -n "$sec" ]; then
+        SUM[$sys]=$(( ${SUM[$sys]:-0} + sec )); CNT[$sys]=$(( ${CNT[$sys]:-0} + 1 ))
+      else
+        SKIP[$sys]=$(( ${SKIP[$sys]:-0} + 1 ))
       fi ;;
     "… 진행") run=$((run+1))
       age=$(( ($(date +%s) - $(stat -c %Y "$d/scf.out")) / 60 ))
@@ -128,8 +154,14 @@ done
 echo "───"
 echo "완료 $don / $tot · 진행 $run · 문제 $dead" \
      "$( [ "$wait_n" -gt 0 ] && echo "· 재시도 대기 $wait_n (이전 배치 출력)" )"
-for sys in "${!CNT[@]}"; do
-  echo "  $sys 점당 평균 $(( SUM[$sys] / CNT[$sys] / 60 ))분 (${CNT[$sys]}점 기준)"
+for sys in $(printf '%s\n' "${!CNT[@]}" "${!SKIP[@]}" | grep -v '^$' | sort -u); do
+  if [ "${CNT[$sys]:-0}" -gt 0 ]; then
+    printf "  %s 점당 평균 %d분 (%d점 기준)" "$sys" "$(( SUM[$sys] / CNT[$sys] / 60 ))" "${CNT[$sys]}"
+    [ "${SKIP[$sys]:-0}" -gt 0 ] && printf " · %d점은 이번 배치에서 안 돌아 제외" "${SKIP[$sys]}"
+    echo
+  else
+    echo "  $sys 소요 시간 **모름** — 완료 ${SKIP[$sys]:-0}점이 전부 이전 배치 것이다 (이번 배치에서 안 돌았다)"
+  fi
 done
 if [ "$dead" -gt 0 ]; then
   echo "⛔ 문제 점이 있다 — 카드 §8: 빠뜨린 채 판정하지 않는다. 고쳐서 같은 명령으로 이어 돌리면"
