@@ -364,9 +364,45 @@ LAM_NE 가 얼마나 잘 정해진 값인지 한눈에 보입니다. 다만 **�
 
 - 위 측정은 **한 셀 · 주로 `300_0009` 한 상태 · 이 설정**에 한정됩니다.
   다른 셀·다른 상태로 일반화한 말이 아닙니다.
-- `w_dqdv = 0` 조건입니다. **dQ/dV 항을 켠 경로는 MATLAB 대조를 못 했습니다**
-  (저희 검증 기계에 Signal Processing Toolbox 가 없어 `findpeaks` 를 못 씁니다).
-  §2-1 의 chain rule 은 그 항에도 똑같이 걸리지만, 수치는 확인 못 했습니다.
+- `w_dqdv = 0` 조건입니다. dQ/dV 항을 켠 경로는 **아직 실측 대조가 없습니다.**
+  저희 검증 기계에 Signal Processing Toolbox 가 안 깔려 있어 `findpeaks` 를
+  못 썼고, 2026-09-10 에 그 자리를 메울 대체 함수를 만들어 **경로만** 열어
+  두었습니다 (scipy `find_peaks` 와 40/40 조합 일치). 실제 수치 대조는 아직
+  안 돌렸습니다. §2-1 의 chain rule 은 그 항에도 똑같이 걸립니다.
+- **부탁 하나** — dQ/dV 항의 두 함수만은 저희가 **옮겨 적었습니다.**
+  `compute_dqdv_rmse_blend` 와 `build_peak_weights_local` 은
+  `electrode_balancing_blend.m` 안의 로컬 함수라 파일 밖에서 부를 수가 없어서,
+  나머지(`electrode_ocv`·`differential`·`build_blend_functions`)처럼 **그대로
+  호출**하지 못하고 저희 쪽에 다시 썼습니다. 그래서 이 두 항목만은 저희 대조가
+  "규진팀 코드 ↔ 저희 포팅" 이 아니라 "저희 전사 ↔ 저희 포팅" 입니다.
+  아래를 원본과 **눈으로 한 번만** 맞춰 봐 주시면 그 구멍이 닫힙니다.
+
+  ```matlab
+  % (1) 피크 가중 — build_peak_weights_local
+  w    = ones(size(dq));
+  prom = 0.1 * (max(dq) - min(dq));
+  [~, locs] = findpeaks(dq, 'MinPeakProminence', prom);
+  sigma = sigma_ratio * (max(vol) - min(vol));          % sigma_ratio = 0.03
+  for k = 1:numel(locs)
+      w = w + (peak_weight - 1) * exp(-((vol - vol(locs(k))).^2) / (2*sigma^2));
+  end                                                    % peak_weight = 7
+
+  % (2) dQ/dV RMSE — compute_dqdv_rmse_blend (+ 가중판)
+  v_model  = E_PE((x_model - p(2))/p(1)) - E_NE_blend((x_model - p(4))/p(3), p(5));
+  v_smooth = sgolayfilt(v_model(:), poly_order, window);   % 3, 11
+  dq_model = gradient(x_model(:)) ./ gradient(v_smooth);
+  [v_u, uid] = unique(v_smooth);  dq_u = dq_model(uid);
+  idx = (vol_dq_fit >= min(v_u)) & (vol_dq_fit <= max(v_u));
+  if sum(idx) < 5, rmse = 1e6; return; end
+  dq_i  = interp1(v_u, dq_u, vol_dq_fit(idx), 'linear');
+  resid = dq_fit_data(idx) - dq_i;
+  rmse  = sqrt(mean(resid.^2));                            % 무가중
+  % 가중판:  rmse = sqrt(sum(w(idx).*resid.^2) / sum(w(idx)));
+  ```
+
+  특히 세 자리를 봐 주십시오. ① `x_model` 격자점 수(저희는 500),
+  ② `unique(v_smooth)` 가 **어느 쪽 인덱스**를 남기는지(저희는 첫 번째),
+  ③ 가중 RMSE 의 분모가 `sum(w)` 인지 `numel` 인지.
 - 목적함수 **값끼리**는 비교하지 않았습니다. §2-2 의 seed 문제 때문에 애초에
   비교가 불가능합니다. 대조는 `rmse_pocv`·`rmse_dvdq` 로만 했습니다.
 - 저희도 이 과정에서 자체 버그를 여럿 고쳤습니다. 위 숫자는 **고친 뒤** 값입니다.

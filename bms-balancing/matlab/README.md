@@ -14,7 +14,7 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
 ├── averageDuplicates.m
 ├── dd_verify.m                  ← 복사
 ├── dd_eval.m                    ← 복사
-├── dd_shims/                    ← 폴더째 복사 (sgolayfilt.m · quantile.m)
+├── dd_shims/                    ← 폴더째 복사 (sgolayfilt.m · quantile.m · findpeaks.m)
 └── data/
     ├── half_cell/{GITT,step_005C}/
     ├── full_cell/large_cell_033C/
@@ -27,24 +27,36 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
 
 ---
 
-## 먼저: 이 기계에 없는 툴박스
+## 먼저: 이 기계의 툴박스 상태 — **라이선스는 있고 설치가 안 돼 있다**
 
-사용자 기계(R2026a, Windows) `dd_verify('check')` 실측 (2026-09-10). 없는 것:
+사용자 기계(R2026a, Windows) 실측 (2026-09-10).
 
-| 없는 것 | 어디서 필요한가 |
-|---|---|
-| `fmincon` · `MultiStart` · `createOptimProblem` | 적합 — 규진팀 `electrode_balancing_blend.m` 본체 |
-| `sgolayfilt` | 평활 — 그들 `differential.m` |
-| `findpeaks` | dQ/dV 피크 가중 (`w_dqdv ≠ 0` 일 때만) |
+| 함수 | 어느 툴박스 | 설치 | 라이선스 |
+|---|---|---|---|
+| `fmincon` | Optimization | ✗ | **있음** |
+| `MultiStart` · `createOptimProblem` | Global Optimization | ✗ | **있음** |
+| `sgolayfilt` · `findpeaks` | Signal Processing | ✗ | **있음** |
+| `quantile` | Statistics and Machine Learning | ✓ | 있음 |
 
-**있는 것**: `quantile` (Statistics and Machine Learning Toolbox). 전 판은
-"툴박스가 하나도 없다" 고 적었는데 **틀렸다** — `dd_verify('check')` 에서
-`sgolayfilt` 는 FAIL 인데 `quantile` 은 통과했고, 그때 `dd_shims` 는 경로에
-없었으므로 저건 진짜 MathWorks 함수다.
+두 가지를 정정한다.
 
-**즉 `main_blend_final.m` 자체가 이 기계에서 안 돈다.** 그래서 길을 둘로 나눴다.
+1. 전 판은 "툴박스가 하나도 없다" 고 적었는데 **틀렸다** — `quantile` 은
+   실제로 있다. `dd_verify('check')` 에서 `sgolayfilt` 는 FAIL 인데
+   `quantile` 은 통과했고, 그때 `dd_shims` 는 경로에 없었다.
+2. 나머지 셋도 **살 필요가 없다.** `license('test', ...)` 가 `Optim_Toolbox`·
+   `GADS_Toolbox`·`Signal_Toolbox`·`Statistics_Toolbox` 넷 다 `1` 을 돌려줬다.
+   즉 자격은 이미 있고 **설치만 안 된 상태**다. MATLAB 홈 탭 → 애드온 →
+   애드온 탐색기에서 설치하면 된다 (제품 페이지의 "무료로 사용해 보기" 는
+   라이선스가 **없는** 사람용 평가판이므로 누르지 말 것 — 별도 평가판
+   라이선스가 붙어 30일 뒤 끊긴다).
 
-- `dd_shims/` — `sgolayfilt` · `quantile` 을 기본 MATLAB 만으로 다시 쓴 것.
+**즉 설치 전까지는 `main_blend_final.m` 자체가 이 기계에서 안 돈다.** 그래서
+길을 둘로 나눠 두었다. 설치가 끝나면 `-end` 규약 덕분에 아래 대체품은
+자동으로 물러나고 진짜 함수가 이긴다 — 그때가 **MathWorks 구현과 우리 정의의
+차이를 처음 재는 순간**이다 (같은 명령을 다시 돌려 CSV 두 개를 비교하면 된다).
+
+- `dd_shims/` — `sgolayfilt` · `quantile` · `findpeaks` 를 기본 MATLAB 만으로
+  다시 쓴 것.
   그들 코드를 **한 줄도 안 고치고** 돌리려는 것이다 (MATLAB 이 경로를 먼저
   보므로 그들 `differential.m` 이 이 파일을 부른다).
   ⚠ MathWorks 구현이 아니다. 그래서 조용히 켜지지 않게 `addpath` 로 **명시적
@@ -57,14 +69,27 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
   `addpath('dd_shims')` 는 경로 **앞**에 붙어서 이 기계에 실제로 있는
   `quantile` 까지 우리 대체품으로 가려 버린다. `'-end'` 면 MATLAB 것이 이기고
   **없는 것만** 메워진다. `dd_eval` 은 어느 쪽이 잡혔는지 화면과 CSV 앞머리
-  (`# impl_sgolayfilt,...` · `# impl_quantile,...`)에 기록한다.
+  (`# impl_sgolayfilt,...` · `# impl_quantile,...` · `# impl_findpeaks,...`)에
+  기록한다.
 - `dd_eval.m` — **적합 없이** 주어진 파라미터에서 목적함수만 찍는다.
   포팅 대조에 정말 필요한 건 최적화기가 아니라 **모델**이기 때문이다:
   같은 p 에서 MATLAB 과 Python 이 같은 RMSE 를 내는지가 핵심이고,
   그건 `fmincon` 없이 잴 수 있다.
 
-`findpeaks` 대체품은 아직 없다. `w_dqdv = 0`(그들 기본 설정)에서는 안 쓰이므로
-대조는 그 조건에서 한다.
+### `findpeaks` 대체품 (2026-09-10 추가)
+
+`w_dqdv = 0`(그들 기본 설정)에서는 dQ/dV 항이 목적함수에 안 들어가지만, 항
+자체는 계산할 수 있어야 대조가 끝난다. 그래서 `dd_shims/findpeaks.m` 을 썼다.
+
+- 지원 범위는 그들이 쓰는 형태 하나뿐: `findpeaks(x,'MinPeakProminence',t)`.
+  다른 옵션은 **조용히 무시하지 않고 에러를 낸다** (무시하면 다른 답이 나온다).
+- 검증: 8 벡터 × prominence 5 종 = **40/40 조합이 scipy `find_peaks` 와 일치**.
+- ⚠ Octave core 에도 `findpeaks` 가 없다. 그래서 이 함수만은 3자 대조가 안 되고
+  **shim ↔ scipy 2자** 대조다 — 제3의 독립 구현으로 확인한 것이 아니다.
+- ⚠ **평탄 꼭대기(plateau)** 규약이 MathWorks 와 다를 수 있다. 우리는 scipy 처럼
+  가운데 인덱스를 봉우리로 잡는다 (우리 포팅이 scipy 를 쓰기 때문). MathWorks
+  구현은 평탄 꼭대기를 봉우리로 안 볼 수 있다. 툴박스를 설치한 뒤 같은
+  `dd_eval` 을 다시 돌려 `n_peaks` 앵커를 비교하면 그 차이가 바로 보인다.
 
 ---
 
@@ -107,15 +132,35 @@ dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li.csv')
 # dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0
 # c_cell,74.670999999999999
 # dv_lo,0.149298597...
-  … 앵커 10개 …
-a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq
-1.077218,-0.022949,1.001342,0.000309,0.295099,…,…
+  … 앵커 16개 …
+a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq,rmse_dqdv,rmse_dqdv_w
+1.077218,-0.022949,1.001342,0.000309,0.295099,…,…,…,…
   … 8행 …
 ```
 
-앞머리 `#` 열 개가 **이분(bisection) 앵커**다. 갈렸을 때 어느 단계가 범인인지
-좁히는 값들이라 화면뿐 아니라 CSV 에도 같이 적는다 — 화면에만 찍으면 CSV 만
-보내 왔을 때 이분할 근거가 사라진다.
+앞머리 `#` 열여섯 개가 **이분(bisection) 앵커**다. 갈렸을 때 어느 단계가
+범인인지 좁히는 값들이라 화면뿐 아니라 CSV 에도 같이 적는다 — 화면에만 찍으면
+CSV 만 보내 왔을 때 이분할 근거가 사라진다.
+
+| 앵커 | 무엇이 갈렸다는 뜻인가 |
+|---|---|
+| `c_cell` | 풀셀 적재 · `averageDuplicates` · 방향 정규화 |
+| `dv_lo`·`dv_hi`·`dv_n` | 풀셀 `differential` + `quantile(0.15/0.85)` |
+| `dq_lo`·`dq_hi`·`dq_n` | 풀셀 `differential` + `quantile(0.05/0.95)` |
+| `n_peaks` | `findpeaks` — 평탄 꼭대기 규약이 갈리면 여기서 보인다 |
+| `w_peak_sum`·`w_peak_max` | 피크 가중 (`peak_weight` 7 · `sigma_ratio` 0.03) |
+| `dq_nuniq_p1` | 첫 행 p 에서 `unique(v_smooth)` 뒤 남은 점 — 모델 전압이 |
+|  | 단조가 아니면 원본이 점을 **조용히 버린다** |
+| `dq_nin_p1` | 첫 행 p 에서 보간 범위에 든 실측 점 — 5 미만이면 원본이 1e6 |
+| `E_PE(0.5)`·`E_NE(0.5,0.25)` | 반쪽전지·문헌 적재와 블렌드 |
+| `dv_PE(0.5)`·`dv_NE(0.5,0.25)` | 각각의 `differential` |
+
+⚠ 뒤 두 열(`rmse_dqdv`·`rmse_dqdv_w`)만은 성격이 다르다. 그들
+`compute_dqdv_rmse_blend`·`build_peak_weights_local` 은
+`electrode_balancing_blend.m` 안의 **로컬 함수**라 밖에서 부를 수 없어서
+**옮겨 적었다**. 앞 두 열은 그들 함수를 그대로 호출하지만 이 두 열은 아니다.
+그래서 이 두 열의 일치는 「그들 코드 ↔ 우리 포팅」이 아니라 「우리 전사 ↔
+우리 포팅」이다 — **규진팀이 그 두 함수를 눈으로 대조해 주면** 그때 메워진다.
 
 **그 CSV 파일 하나만 보내면 된다.** 이쪽에서:
 
@@ -125,7 +170,8 @@ python -m bms_balancing.verify eval --state pristine --si-source Li \
        --compare dd_eval_pristine_Li.csv
 ```
 
-앵커 10개 + rmse 16개를 대조하고, **갈린 첫 앵커의 단계 이름**을 말한다
+앵커 16개 + rmse 32개(8행 × 4열)를 대조하고, **갈린 첫 앵커의 단계 이름**을
+말한다
 (예: "`E_NE_0p5_0p25` 에서 처음 갈린다 → 범인 단계는 「문헌 적재 +
 build_blend_functions」"). 그 앞 앵커가 맞았으면 그 앞 단계는 용의선상에서 빠진다.
 
@@ -142,6 +188,15 @@ dd_eval('HalfCellDir','data/half_cell/step_005C/','State','pristine', ...
 
 ```matlab
 dd_eval('P', [1.10 -0.05 1.10 -0.01 0.15; 1.10 -0.05 1.10 -0.01 0.30])
+```
+
+**툴박스를 설치한 뒤에는 같은 명령을 한 번 더** 돌려서 다른 이름으로 저장해
+달라 — 앞머리의 `# impl_sgolayfilt` 가 `dd_shims` 에서 `matlab` 으로 바뀌고,
+두 CSV 를 비교하면 **MathWorks 구현과 우리 정의의 차이**가 처음으로 측정된다
+(특히 `sgolayfilt` 의 가장자리 처리와 `findpeaks` 의 평탄 꼭대기 규약).
+
+```matlab
+dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li_TB.csv')
 ```
 
 ---

@@ -21,8 +21,9 @@ octave` 로 GNU Octave 8.4 를 넣고, 규진팀 함수 자리에 합성 대역�
 | 2 | `quantile` shim ≡ Python `matlab_quantile` | 88 케이스, 최대 \|Δ\| **0.000e+00** |
 | 2 | `quantile` shim ≡ Octave 내장 `quantile`(method 5) | 최대 \|Δ\| **8.9e-16** |
 | 2 | `sgolayfilt` shim ≡ Python `sgolay`(scipy, `mode='interp'`) | 8 케이스, 최대 \|Δ\| **5.9e-13**, 가장자리 **4.4e-15** |
-| 3 | `dd_eval.m` 배관 ≡ Python 전사본 | 7 조합, 앵커 10 + 파라미터 8행, 최대 상대차 **2.1e-16** |
-| 4 | `--compare` 이분 판정이 갈린 단계를 짚는가 | 앵커 10개를 하나씩 어긋뜨려 전부 올바른 단계 지목 |
+| 2 | `findpeaks` shim ≡ scipy `find_peaks(prominence=…)` | 8 벡터 × 5 문턱 = **40/40 조합 일치** |
+| 3 | `dd_eval.m` 배관 ≡ Python 전사본 | 7 조합, 앵커 16 + 8행 × 4열, 최대 상대차 **7.8e-14** |
+| 4 | `--compare` 이분 판정이 갈린 단계를 짚는가 | 앵커 16개 · rmse 4열을 하나씩 어긋뜨려 전부 올바른 단계 지목 (26/26) |
 | 5 | Python `verify eval` 배관 | 5 상태 × 2 반쪽전지 소스 × 8 Si 소스 전부 적재 |
 
 ②의 Octave 내장 `quantile` 일치가 중요하다. Octave 의 method 5 는 MATLAB 의
@@ -32,6 +33,29 @@ octave` 로 GNU Octave 8.4 를 넣고, 규진팀 함수 자리에 합성 대역�
 ②의 `sgolayfilt` 가장자리 일치는 `model.py` 가 `# ≠MATLAB` 으로 표시해 두고
 "완전히 같은 수는 아닐 수 있다" 고 적어 둔 바로 그 자리를 닫는다 — **shim 과
 scipy 사이에서는** 닫힌다.
+
+②의 `findpeaks` 는 그렇지 않다. Octave core 에 `findpeaks` 가 없어서
+(`exist('findpeaks')` → 0) **제3의 독립 구현이 없고**, shim↔scipy 2자 대조다.
+그래서 이 검사가 허수아비가 아님을 **변이(mutation)로** 따로 확인했다:
+
+| 일부러 넣은 오류 | 결과 |
+|---|---|
+| 평탄 꼭대기를 가운데 대신 **왼쪽 끝**으로 | 40/40 → **35/40**, `plateau` 5 조합이 정확히 지목됨 |
+| prominence base 를 `max(좌,우)` → `min(좌,우)` | 40/40 → **32/40**, `noisy`·`dqdv` 에서 봉우리가 과다 검출 |
+
+③·⑤에는 **degenerate fixture 방지**가 따로 들어 있다. dQ/dV 항은 보간 범위에
+5 점을 못 넣으면 원본 규약대로 `1e6` 을 내는데, 그러면 **양쪽 다 1e6 이라
+상대오차 0 으로 통과한다** — 경로를 아예 안 탔는데 초록불이 뜬다.
+`check_e2e.py` 의 `assert_dqdv_alive` 가 (a) 1e6 이 섞였는지 (b) `n_peaks` 가
+0 인지 (c) 가중과 무가중이 전부 같은지 (d) 모든 p 에서 값이 같은지를 본다.
+변이 3종으로 전부 잡히는 것을 확인했다.
+
+같은 감사를 ⑤(Python 스모크)에 넣었더니 **처음부터 FAIL 이 났다** — 합성 풀셀
+전압이 매끈한 단조 곡선이라 dQ/dV 에 봉우리가 하나도 없었고(`n_peaks=0`),
+피크 가중이 전부 1 이라 가중 경로가 무가중과 구별되지 않았다. 흑연 스테이지를
+닮은 완만한 계단 둘을 넣어 고쳤다(`n_peaks=2`). 이 저장소에서 fixture 가
+진실을 가린 것이 이번이 두 번째다 — 첫 번째는 합성 Si/Gr 이 정규화 뒤 겹쳐
+γ 가 아무 효과도 없던 건.
 
 > **2026-09-10 갱신 — ①은 실물로 닫혔다.** 사용자 기계(MATLAB R2026a,
 > Windows)에서 `dd_eval` 이 **네 조합 전부 정상 실행**됐다.
@@ -54,10 +78,21 @@ scipy 사이에서는** 닫힌다.
 - ~~**MATLAB 이 이 파일들을 돌리는가.**~~ → 위 갱신 참조. `dd_eval` 은 돈다.
   `dd_verify` 의 `dump`/`profile`/`scalenoise` 는 툴박스가 없어 여전히 미실행이고,
   그 경로의 구문은 Octave 8.4 로만 확인됐다.
-- **MathWorks 의 진짜 `sgolayfilt`·`quantile` 과 같은가.** 이 컨테이너에도
-  사용자 기계에도 Signal Processing Toolbox 가 없다. 다만 사용자 기계에서
-  `sgolayfilt` 는 **항상 우리 shim** 이므로, 그쪽 MATLAB↔Python 대조는 이
-  자리에서만큼은 같은 정의끼리 비교하는 것이 맞다.
+- **MathWorks 의 진짜 `sgolayfilt`·`findpeaks` 와 같은가.** 이 컨테이너에
+  Signal Processing Toolbox 가 없다. 사용자 기계에는 **라이선스가 있고 설치가
+  안 돼 있었다**(2026-09-10 `license('test')` 4종 전부 1) — 설치하면
+  `addpath(...,'-end')` 규약대로 진짜 함수가 이기고, 그때 `dd_eval` 앞머리의
+  `# impl_sgolayfilt` 가 `dd_shims` → `matlab` 으로 바뀐다. **설치 전후 CSV
+  두 개를 비교하는 것이 이 차이를 재는 방법**이고, 그전까지는 미측정이다.
+  특히 `findpeaks` 의 평탄 꼭대기 규약은 우리가 scipy 쪽에 맞춰 둔 자리라
+  MathWorks 와 갈릴 수 있다 (`n_peaks` 앵커가 그것을 드러낸다).
+- **dQ/dV 두 열이 그들 식과 같은가.** `compute_dqdv_rmse_blend` 와
+  `build_peak_weights_local` 은 그들 `electrode_balancing_blend.m` 의 로컬
+  함수라 밖에서 못 부른다. 그래서 그 둘만은 **옮겨 적었고**, 여기 일치는
+  「우리 전사 ↔ 우리 포팅」이지 「그들 코드 ↔ 우리 포팅」이 아니다.
+- **`unique(v_smooth)` 가 점을 버리는 분기.** 합성 fixture 에서는
+  `dq_nuniq_p1` 이 500(전부 생존)이라 그 분기가 한 번도 안 탔다. 실제
+  데이터에서만 드러난다.
 - **규진팀 모델이 맞는가.** ③은 그들 함수 자리에 **합성 대역품**을 끼운다
   (`synth/README_SYNTH.md`). 재는 것은 배관(인덱싱·마스크·파라미터 변환·
   RMSE 식)이지 모델이 아니다.
