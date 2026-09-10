@@ -192,8 +192,8 @@ dv_cell_model = @(p, x) dv_PE((x - p(2)) / p(1)) - dv_NE_blend((x - p(4)) / p(3)
 
 ## 5. 서브 브랜치에 남은 일 (본체가 기다릴 필요는 없다)
 
-- 격자 힌트 적용 후 `degeneracy` 재실행 → §2-3 숫자가 더 조여질 수 있다
-- `matrix` 재생성 (기준 적합 provenance 를 남기도록 고쳤으나 미실행)
+- ~~격자 힌트 적용 후 `degeneracy` 재실행~~ → 끝났다
+- ~~`matrix` 재생성~~ → 끝났다 (v2)
 - dQ/dV 경로 MATLAB 대조 — `findpeaks` 대체품을 써서 **경로는 열렸다**
   (shim↔scipy 40/40, e2e 7/7). 남은 것은 원자료 기계에서의 실행
 - 2 차 적대적 리뷰 요청문 (위가 끝난 뒤)
