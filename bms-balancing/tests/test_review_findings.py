@@ -717,3 +717,45 @@ def test_compare_states_reads_the_latest_version():
     mx = m.load_matrix_axis(d)
     assert set(mx) == {"S"}, f"상태가 하나여야 하는데 {sorted(mx)}"
     assert mx["S"]["file"].endswith("_v2.csv"), f"v1 을 읽었다: {mx['S']['file']}"
+
+
+# ── §1-10 의 순위 주장은 산출에서 나와야 한다 (2026-09-10) ────────────────
+
+def test_section_1_10_ranking_comes_from_artifacts():
+    """§1-10 의 핵심은 "LAM_NE 최광 · LLI 최협이 네 상태에서 그대로" 다.
+
+    §2 에서 원표 없이 숫자를 적었다가 닫은 적이 있고, `compare_states.py` 가
+    옛 판을 읽던 것도 잡았다. 같은 규율을 이 절에도 건다 — 순위가 산출에서
+    실제로 나오는지, 그리고 100 사이클의 LLI/LAM_PE 가 사실상 동률이라는
+    단서가 문서에 남아 있는지.
+    """
+    import json
+    want = {"100": "out/degeneracy_100_Li.json",
+            "200": "out/degeneracy_200_Li.json",
+            "300_0009": "out/degeneracy_300_0009_Li_v2.json",
+            "300_0147": "out/degeneracy_300_0147_Li.json"}
+    got = {}
+    for st, rel in want.items():
+        f = ROOT / rel
+        if not f.is_file():
+            return                      # 산출이 없는 체크아웃에서는 건너뛴다
+        d = json.loads(f.read_text(encoding="utf-8"))
+        got[st] = {k: d[f"{k}_percent"]["span"] for k in ("LAM_PE", "LAM_NE", "LLI")}
+
+    for st, sp in got.items():
+        assert max(sp, key=sp.get) == "LAM_NE", (
+            f"{st}: 가장 넓은 것이 LAM_NE 가 아니다 — {sp}")
+        assert min(sp, key=sp.get) == "LLI", (
+            f"{st}: 가장 좁은 것이 LLI 가 아니다 — {sp}")
+
+    # 100 사이클의 LLI 와 LAM_PE 는 0.01 %p 안 — "사실상 동률" 이라는 단서가
+    # 문서에 있어야 한다. 없으면 "LLI 가 가장 좁다" 가 과대 진술이 된다.
+    gap = got["100"]["LAM_PE"] - got["100"]["LLI"]
+    assert 0 < gap < 0.01, f"100 의 LAM_PE−LLI 가 {gap:.4f} %p — 가정이 바뀌었다"
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    assert "동률" in txt, "§1-10 에 100 사이클이 사실상 동률이라는 단서가 없다"
+
+    # 100 사이클의 LAM_NE 구간은 0 을 포함해야 한다 (부호도 못 정한다)
+    d = json.loads((ROOT / want["100"]).read_text(encoding="utf-8"))["LAM_NE_percent"]
+    assert d["min"] < 0 < d["max"], (
+        f"100 의 LAM_NE 구간이 0 을 안 품는다: [{d['min']}, {d['max']}]")
