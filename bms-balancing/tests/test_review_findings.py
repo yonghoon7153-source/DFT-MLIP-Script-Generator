@@ -4,7 +4,7 @@
 각 테스트 이름 뒤 [Rn]/[An]/[Bn] 은 리뷰 문서의 항목 번호다.
 """
 from __future__ import annotations
-import csv, pathlib, sys
+import csv, pathlib, re, sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -759,3 +759,98 @@ def test_section_1_10_ranking_comes_from_artifacts():
     d = json.loads((ROOT / want["100"]).read_text(encoding="utf-8"))["LAM_NE_percent"]
     assert d["min"] < 0 < d["max"], (
         f"100 의 LAM_NE 구간이 0 을 안 품는다: [{d['min']}, {d['max']}]")
+
+
+# ── 문서가 산출물보다 뒤처지는 것을 기계가 잡는다 (2026-09-10) ────────────
+
+#: 이 브랜치가 소유한 사람용 문서 전부. 새 문서를 만들면 여기 추가한다.
+SCOPE_DOCS = ("FINDINGS.md", "README.md", "INTRO.md",
+              "FOR_BMS_TEAM.md", "HANDOFF_TO_GATE.md", "CODEX_REVIEW_REQUEST.md")
+
+#: `~~취소선~~` 은 "철회했다" 는 표시, `"..."` 는 남의(옛) 말을 옮긴 것.
+#: 둘 다 **지금 하는 주장이 아니므로** 검사에서 뺀다.
+NOT_A_CLAIM = re.compile(r"~~.*?~~|\u201c.*?\u201d|\".*?\"", re.S)
+
+#: 상한 주장의 모양은 **범위를 셀과 상태로 같이 못 박는** 것이다.
+#: 상했던 네 줄이 전부 이 모양이었다:
+#:   "서브 결과는 한 셀 · 한 상태(`300_0009`) · 한 설정에 한정된다"
+#:   "위 측정은 한 셀 · 주로 `300_0009` 한 상태 · 이 설정에 한정됩니다"
+#:   "⑥ 한 상태·한 셀이다. `300_0009` 하나."
+#: 반대로 "한 상태(`300_0009`)에서 LAM_NE 폭" 은 **측정의 범위**를 적은
+#: 정당한 문장이라 잡으면 안 된다 — 그래서 `한 셀` 을 같이 요구한다.
+CELL_SCOPE = "한 셀"
+NARROWING = ("한 상태", "한정", "하나")
+
+
+def _load_script(name: str):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        name, ROOT / "scripts" / f"{name}.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_docs_do_not_claim_a_narrower_state_scope_than_out():
+    """`out/` 에 상태가 여럿인데 문서가 "`300_0009` 한 상태" 라고 하면 실패.
+
+    §1-10 이 상태 범위를 넷으로 넓힌 직후, 여섯 문서 중 **넷**이 여전히
+    "한 셀·한 상태(`300_0009`)" 를 들고 있었다. 같은 유형(옛 판을 읽고 쓰기)이
+    2026-09-10 하루에만 세 번 더 났다 (`scripts/compare_states.py` 머리말).
+    사람이 여섯 군데를 손으로 맞추는 방식은 이미 실패했으므로 기계가 잡는다.
+
+    철회(`~~취소선~~`)와 인용(`"..."`)은 지금 하는 주장이 아니라 검사에서
+    빠진다. **셀 축은 못 잡는다** — 다른 셀 산출물은 이 저장소 밖에 있어서
+    `out/` 만 봐서는 셀이 몇 개인지 알 수 없다. 셀 일반화가 닫히면
+    "한 셀" 도 상하므로 그때 이 테스트를 같이 넓혀야 한다.
+    """
+    if not (ROOT / "out").is_dir():
+        pytest.skip("out/ 이 없다 — 산출물 없이는 범위를 알 수 없다")
+    states = _load_script("compare_states").load_degeneracy(ROOT / "out")
+    if len(states) < 2:
+        pytest.skip(f"out/ 의 상태가 {len(states)} 개 — 넓힌 적이 없다")
+
+    bad = []
+    for name in SCOPE_DOCS:
+        p = ROOT / name
+        if not p.is_file():
+            continue
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            clean = NOT_A_CLAIM.sub("", line)
+            if (CELL_SCOPE in clean and "300_0009" in clean
+                    and any(t in clean for t in NARROWING)):
+                bad.append(f"  {name}:{i}: {line.strip()}")
+    assert not bad, (
+        f"out/ 에는 상태가 {len(states)} 개({', '.join(sorted(states))})인데 "
+        f"문서가 아직 한 상태라고 말한다:\n" + "\n".join(bad))
+
+
+def test_review_request_clones_the_branch_that_owns_bms_balancing():
+    """리뷰 요청문의 clone 명령이 **이 디렉터리를 소유한 브랜치**를 가리켜야.
+
+    루트 `CLAUDE.md` 의 브랜치 표가 정본이다 (그 파일이 그렇게 못 박는다).
+    2026-08-20 에 이 저장소에서 여덟 곳이 대체된 브랜치 이름을 붙들고 있었고,
+    `wiki/` 쪽은 `wiki/tools/lint.py` 가 막는다. 여기가 그 짝이다 —
+    리뷰어가 옛 브랜치를 clone 하면 `bms-balancing/` 의 뒤처진 사본을 본다.
+    """
+    claude_md = ROOT.parent / "CLAUDE.md"
+    if not claude_md.is_file():
+        pytest.skip("루트 CLAUDE.md 가 없다 — 정본을 읽을 수 없다")
+
+    owner = None
+    for line in claude_md.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"\s*\|\s*`(claude/[^`]+)`\s*\|([^|]*)\|", line)
+        if m and "bms-balancing/" in m.group(2):
+            owner = m.group(1)
+            break
+    assert owner, "CLAUDE.md 브랜치 표에서 bms-balancing/ 소유 브랜치를 못 찾았다"
+
+    req = (ROOT / "CODEX_REVIEW_REQUEST.md")
+    if not req.is_file():
+        pytest.skip("요청문이 없다")
+    txt = req.read_text(encoding="utf-8")
+    clones = re.findall(r"git clone -b (\S+)", txt)
+    assert clones, "요청문에 clone 명령이 없다"
+    assert all(c == owner for c in clones), (
+        f"요청문이 `{clones}` 를 clone 하라고 한다. "
+        f"`bms-balancing/` 소유는 `{owner}` 다 (CLAUDE.md 브랜치 표)")
