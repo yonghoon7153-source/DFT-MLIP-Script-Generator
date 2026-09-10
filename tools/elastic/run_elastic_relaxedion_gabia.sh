@@ -30,8 +30,14 @@
 # =============================================================================
 set -u; set +H
 SYS=${SYS:-comp2}
-REPO=${REPO:-$HOME/Yonghoon-DEM-DFT}; [ -d "$REPO" ] || REPO=/data/work/repo
-[ -d "$REPO/tools/elastic" ] || { echo "⛔ REPO 를 못 찾았다: $REPO"; exit 1; }
+# ⛔⛔ 2026-09-10 실측 — 종전엔 `$HOME/Yonghoon-DEM-DFT` 를 먼저 봤다. gabia 에는
+#   repo 가 **두 벌**(/root/Yonghoon-DEM-DFT · /data/work/repo) 있어서, /data/work/repo
+#   에서 pull 하고 그 스크립트를 실행해도 REPO 는 /root 쪽으로 잡혔다 ⇒ **스크립트는
+#   새 판인데 빌더·피터는 옛 repo 에서 가져오는** 계보 혼합이 조용히 생긴다.
+#   ⇒ 기본값은 **이 스크립트 자신이 있는 repo** 다. 명시 REPO 는 그대로 존중한다.
+REPO=${REPO:-$(cd "$(dirname "$(realpath "$0")")/../.." 2>/dev/null && pwd)}
+[ -d "${REPO:-}/tools/elastic" ] || { echo "⛔ REPO 를 못 찾았다: ${REPO:-<빈값>}"; exit 1; }
+echo "  repo      $REPO  (git $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?'))"
 
 # ── 계별 설정 (한 곳) ───────────────────────────────────────────────────────
 case "$SYS" in
