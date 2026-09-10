@@ -27,7 +27,7 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
 
 ---
 
-## 먼저: 이 기계에 툴박스가 없다
+## 먼저: 이 기계에 없는 툴박스
 
 사용자 기계(R2026a, Windows) `dd_verify('check')` 실측 (2026-09-10). 없는 것:
 
@@ -35,7 +35,6 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
 |---|---|
 | `fmincon` · `MultiStart` · `createOptimProblem` | 적합 — 규진팀 `electrode_balancing_blend.m` 본체 |
 | `sgolayfilt` | 평활 — 그들 `differential.m` |
-
 | `findpeaks` | dQ/dV 피크 가중 (`w_dqdv ≠ 0` 일 때만) |
 
 **있는 것**: `quantile` (Statistics and Machine Learning Toolbox). 전 판은
