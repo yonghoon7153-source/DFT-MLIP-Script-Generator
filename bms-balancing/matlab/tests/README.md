@@ -33,10 +33,27 @@ octave` 로 GNU Octave 8.4 를 넣고, 규진팀 함수 자리에 합성 대역�
 "완전히 같은 수는 아닐 수 있다" 고 적어 둔 바로 그 자리를 닫는다 — **shim 과
 scipy 사이에서는** 닫힌다.
 
+> **2026-09-10 갱신 — ①은 실물로 닫혔다.** 사용자 기계(MATLAB R2026a,
+> Windows)에서 `dd_eval` 이 **네 조합 전부 정상 실행**됐다.
+>
+> 그때 앵커만으로(적합 없이) 같이 확인된 것:
+>
+> | 검사 | 결과 |
+> |---|---|
+> | `dv_lo`/`dv_hi`/`dv_n` — capacity 가 0~1 정규화라 **데이터 무관 구조상수** | MATLAB `0.14929859719438879` vs Python `…76`, 상대차 **1.9e-16**; `dv_n` 350 일치 |
+> | `E_NE`·`dv_NE` 가 문헌 Si 소스에만 의존하는가 | Li 3조합(반쪽전지·상태가 다름)이 **완전 동일**, Kunz 만 다름 |
+> | 방향 규약 `E_PE(0.5) − E_NE(0.5,0.25)` | 3.7623 / 3.7630 / 3.7517 V — 2.5~4.5 V 안 |
+> | `c_cell` | pristine 74.671 · 300_0009 63.720 — 기준과 **정확히** 일치 |
+> | shim/툴박스 분리 (`-end`) | `sgolayfilt=dd_shims`, `quantile=matlab` — 의도대로 |
+>
+> 아직 안 닫힌 것은 **`rmse_pocv`/`rmse_dvdq` 대조**다. 원자료가 있는 기계에서
+> `verify eval --compare` 를 돌려야 한다.
+
 **증명 못 한다 — 이건 계속 열려 있다**
 
-- **MATLAB 이 이 파일들을 돌리는가.** 잰 것은 Octave 8.4 다. Octave 파서가
-  통과시키고 MATLAB 이 거부하는 구문이 있을 수 있다 (반대도).
+- ~~**MATLAB 이 이 파일들을 돌리는가.**~~ → 위 갱신 참조. `dd_eval` 은 돈다.
+  `dd_verify` 의 `dump`/`profile`/`scalenoise` 는 툴박스가 없어 여전히 미실행이고,
+  그 경로의 구문은 Octave 8.4 로만 확인됐다.
 - **MathWorks 의 진짜 `sgolayfilt`·`quantile` 과 같은가.** 이 컨테이너에도
   사용자 기계에도 Signal Processing Toolbox 가 없다. 다만 사용자 기계에서
   `sgolayfilt` 는 **항상 우리 shim** 이므로, 그쪽 MATLAB↔Python 대조는 이
