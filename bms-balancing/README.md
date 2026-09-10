@@ -22,14 +22,30 @@
 
   ```bash
   export BMS_DATA_ROOT=/…/electrode_balancing_blend
-  python -m bms_balancing.verify port --state pristine --si-source Li
+  python3 -m bms_balancing.verify port --state pristine --si-source Li
   ```
+
+## 준비
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+`openpyxl` 은 코드가 직접 import 하지 않지만 **반드시 필요하다** — pandas 가
+`.xlsx` 를 읽는 엔진이고 없으면 적재에서 죽는다. 2026-09-10 에 사용자 WSL 에서
+`ModuleNotFoundError: numpy` 로 대조가 멈춘 뒤에 `requirements.txt` 를 만들었다.
+그전에는 무엇을 깔아야 하는지가 사람 기억에만 있었다.
 
 ## MATLAB 쪽
 
-`matlab/` 에 사용자 기계에서 돌릴 것이 있다. 그 기계에는 **툴박스가 하나도
-없어서**(기본 MATLAB 뿐) 규진팀 `main_blend_final.m` 이 그대로는 안 돈다 —
-우회로와 절차는 `matlab/README.md`.
+`matlab/` 에 사용자 기계에서 돌릴 것이 있다. 2026-09-10 에 그 기계에
+**Optimization · Global Optimization · Signal Processing** 툴박스가 설치되어
+(Statistics 는 원래 있었다) 규진팀 `main_blend_final.m` 이 그대로 돈다.
+그전까지 쓰던 우회로(`dd_shims/` · 적합 없는 `dd_eval`)는 그대로 남겨 둔다 —
+툴박스 없는 기계에서도 돌아야 하고, **둘을 번갈아 돌려 MathWorks 구현과 우리
+정의의 차이를 재는 데** 쓰이기 때문이다 (`FINDINGS.md` §1-7).
+절차는 `matlab/README.md`.
 
 `matlab/tests/` 는 그 MATLAB 파일들을 GNU Octave 8.4 로 **실제 실행해 본**
 검사다 (`matlab/tests/run_all.sh`). 무엇이 닫혔고 무엇이 아직 열려 있는지는
