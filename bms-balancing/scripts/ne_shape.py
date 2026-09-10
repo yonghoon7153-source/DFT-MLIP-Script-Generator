@@ -107,7 +107,7 @@ def main() -> int:
         print(f"{'pristine':10}{0.0:>9.2f}{pr[1]:>8.4f}"
               f"{'—':>13}{'—':>11}{'—':>9}"
               f"{np.max(np.abs(dc)):>13.1f}{np.sqrt(np.mean(dc**2)):>6.1f}")
-    rows, flips = [], []
+    rows, flips, cwhere = [], [], []
     for s in states:
         if s == "pristine":
             continue
@@ -136,6 +136,13 @@ def main() -> int:
             flipped = rev < fwd
             dc = d_r if flipped else d_f
             cmax, crms = float(np.max(np.abs(dc))), float(np.sqrt(np.mean(dc ** 2)))
+            # **어디가** 어긋나는지. max 만 보면 "모양이 아니다" 로 읽히지만,
+            # rms 가 훨씬 작으면 어긋남이 **좁은 구간에 몰린** 것이고 그건
+            # 전혀 다른 이야기다 (2026-09-10: max 70~147 mV 인데 rms 는
+            # 19~24 mV 로 거의 일정했다 — 그걸 놓칠 뻔했다).
+            xa = float(GRID[int(np.argmax(np.abs(dc)))])
+            over = float(np.mean(np.abs(dc) > 50) * 100)
+            cwhere.append((s, xa, over))
             if flipped:
                 flips.append((s, fwd, rev))
         else:
@@ -174,16 +181,27 @@ def main() -> int:
 
     cs = [r[4] for r in rows if r[4] == r[4]]
     if cs:
-        print(f"\n(c) **절대 일치** — `Blend(x, γ_적합)` 이 측정 음극과 얼마나 맞나:")
-        print(f"    max |Δ| {min(cs):.1f} ~ {max(cs):.1f} mV")
-        if min(cs) > 50:
-            print("    → 어느 상태에서도 50 mV 이상 벌어진다. **블렌드가 이 음극의")
-            print("      모양이 아니다.** γ 를 어떻게 고르든 이 차이는 남고,")
-            print("      a_NE·b_NE 가 그것을 흡수한다 = LAM_NE·LLI 에 계통 편향.")
-        elif max(cs) < 20:
-            print("    → 전 상태에서 20 mV 안이다. 블렌드가 이 음극을 잘 대신한다.")
+        rmss = [r[5] for r in rows if r[5] == r[5]]
+        print(f"\n(c) **절대 일치** — `Blend(x, γ_적합)` 이 측정 음극과 얼마나 맞나")
+        print(f"    max |Δ| {min(cs):.1f} ~ {max(cs):.1f} mV   "
+              f"rms {min(rmss):.1f} ~ {max(rmss):.1f} mV")
+        print(f"    {'state':10}{'max 위치 x':>11}{'|Δ|>50mV 인 격자 비율':>22}")
+        for st, xa, over in cwhere:
+            print(f"    {st:10}{xa:>11.3f}{over:>21.1f} %")
+        spread = max(cs) / max(rmss) if max(rmss) > 0 else float("inf")
+        worst_over = max(o for _, _, o in cwhere) if cwhere else 0.0
+        print()
+        if worst_over > 30:
+            print("    → 격자의 30 % 넘게 50 mV 이상 벌어진다. **블렌드가 이 음극의")
+            print("      모양이 아니다.** γ 를 어떻게 고르든 남고, a_NE·b_NE 가")
+            print("      흡수한다 = LAM_NE·LLI 에 계통 편향.")
+        elif spread > 3:
+            print(f"    → max 가 rms 의 {spread:.1f} 배다. 어긋남이 **좁은 구간에**")
+            print("      몰려 있다는 뜻이고, 곡선 대부분은 rms 수준으로 맞는다.")
+            print("      'max 가 크다' 만으로 모델을 기각하면 안 된다 — 위 'max 위치'")
+            print("      가 어디인지(끝단인지 평탄부인지) 보고 판단할 것.")
         else:
-            print("    → 상태마다 다르다. 큰 쪽이 왜 큰지 따로 봐야 한다.")
+            print("    → 어긋남이 곡선 전체에 고르다. rms 를 대표값으로 쓸 것.")
     print("\n⚠ (a) 는 **정규화 뒤** 변화다. 음극 용량이 줄면(위 '용량 Δ%') 곡선이")
     print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
     print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
