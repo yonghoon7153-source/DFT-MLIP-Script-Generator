@@ -65,8 +65,12 @@ def upf_valence_labels(upf_path):
         txt = open(upf_path, errors="ignore").read(200000)
     except OSError:
         return None
-    m = _re.search(r"valence_configuration(.*?)(?:</PP_INFO|Generation|wavefunctions)",
-                   txt, _re.S | _re.I)
+    # ⛔ pslibrary UPF 는 `Valence configuration:` (공백·대문자) 로 쓴다.
+    #   `valence_configuration` 만 찾다가 **여섯 원소 전부 못 읽었다** (gabia 실측
+    #   2026-09-10). 다행히 못 읽은 걸 화면에 찍게 해둬서 바로 보였다.
+    m = _re.search(r"[Vv]alence[ _]configuration\s*:?(.*?)"
+                   r"(?:</PP_INFO|Generation\s+configuration|Generation|wavefunctions)",
+                   txt, _re.S)
     if not m:
         return None
     labs = []
