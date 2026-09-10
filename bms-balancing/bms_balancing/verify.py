@@ -493,28 +493,46 @@ def read_dd_eval_csv(path):
     return anchors, rows, header
 
 
-def printed_abs_tol(path, default_decimals: int = 10) -> float:
-    """CSV 에 **적힌 자리수**가 허용하는 절대 오차.
+#: 이보다 큰 상대차는 **모델·산술의 차이**로 본다. 앵커에 쓰는 문턱과 같다.
+#: 그 아래는 구현 수준의 부동소수점 차이 — 같은 식을 두 언어로 쓰면 남는 양이다.
+MODEL_REL = 1e-9
 
-    ⚠ 2026-09-10 실측: `dd_eval.m` 은 rmse 를 `%.10f` 로 쓴다. 그러면 절대
+
+def printed_abs_tol(path, default_decimals: int = 10) -> float:
+    """CSV 에 **적힌 자리수**가 허용하는 절대 오차 — 파일이 정한다.
+
+    ⚠ 2026-09-10 실측 ①: `dd_eval.m` 이 rmse 를 `%.10f` 로 쓰던 판에서는 절대
       양자화가 ±0.5e-10 이고, rmse_pocv≈0.0117 에서 그것만으로 **상대 4.3e-9**
-      가 된다. 그 파일을 상대 1e-9 문턱으로 재면 **없는 불일치를 보고**한다
-      (실제로 그랬다). 양쪽 다 반올림하므로 한계는 그 두 배로 잡는다.
+      가 된다. 그 파일을 상대 1e-9 문턱으로 재면 **없는 불일치를 보고**한다.
+
+    ⚠ 2026-09-10 실측 ②(반대쪽 실수): 위를 막으려고 `d = default_decimals` 로
+      시작해 `min()` 으로만 깎았더니, 파일이 `%.17g` 로 **더 정밀해져도** 10
+      자리 위로 못 올라갔다. 192값 대조 판정문이 상대 1e-12 짜리 실제 구현
+      차이를 "출력 반올림(1e-10) 안" 이라고 설명해 버렸다. 기본값은 **아무
+      것도 못 읽었을 때만** 쓴다.
     """
-    d = default_decimals
+    d = None
     try:
         for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or line.startswith("a_PE"):
                 continue
             for field in line.split(",")[5:]:
-                if "e" in field.lower():
-                    d = min(d, 17)          # 전정밀도 — 상대문턱이 지배한다
-                elif "." in field:
-                    d = min(d, len(field.split(".")[1]))
+                f = field.strip()
+                if "e" in f.lower():
+                    mant, _, exp = f.lower().partition("e")
+                    dec = len(mant.split(".")[1]) if "." in mant else 0
+                    dd = dec - int(exp)
+                elif "." in f:
+                    dd = len(f.split(".")[1])
+                else:
+                    continue        # 정수로 적힌 값은 자리수 정보를 안 준다
+                d = dd if d is None else min(d, dd)
             break
-    except OSError:
+    except (OSError, ValueError):
         pass
+    if d is None:
+        d = default_decimals
     return 10.0 ** (-d)
 
 
@@ -626,18 +644,31 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
                 if abs(mv - pv) > atol:
                     eff = max(eff, r)
             worst_row = max(worst_row, eff)
-            tag = "" if eff == 0.0 else "  ←"
-            print(f"  {i:<5}" + "".join(cells)
-                  + f"   {'적힌 자리수 안' if eff == 0.0 else '자리수 밖'}{tag}")
+            if eff == 0.0:
+                verdict = "적힌 자리수 안"
+            elif eff <= MODEL_REL:
+                verdict = "수치 잡음"
+            else:
+                verdict = "모델 차이  ←"
+            print(f"  {i:<5}" + "".join(cells) + f"   {verdict}")
 
     print()
     if first_bad:
         k, stage = first_bad
         print(f"판정: **{k}** 에서 처음 갈린다 → 범인 단계는 「{stage}」")
         print("      그 앞 앵커는 맞았으므로 그 앞 단계는 용의선상에서 빠진다.")
-    elif worst_row > 1e-9:
+    elif worst_row > MODEL_REL:
         print(f"판정: 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
         print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
+    elif worst_row > 0.0:
+        n_rmse = len(m_rows) * len(shared)
+        print(f"판정: 앵커 {len(m_anchors)}개가 전부 맞고, rmse {n_rmse}개는")
+        print(f"      **적힌 자리수보다는 크고 {MODEL_REL:.0e} 보다는 작은**")
+        print(f"      차이만 남는다 (최대 상대차 {worst_row:.2e}).")
+        print(f"      이 파일은 {atol:.0e} 까지 담으므로 이건 출력 반올림이 아니라")
+        print("      **실제 수치 차이**다 — 같은 식을 MATLAB 과 Python 으로 각각")
+        print("      쓰면 남는 양(평활·보간·누산 순서)이고, 모델의 차이가 아니다.")
+        print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
     else:
         n_rmse = len(m_rows) * len(shared)
         print(f"판정: 앵커 {len(m_anchors)}개와 rmse {n_rmse}개가"

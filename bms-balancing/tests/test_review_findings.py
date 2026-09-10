@@ -352,3 +352,67 @@ def test_dump_table_in_matlab_readme_matches_artifact():
                 f"(v1 표가 남아 있으면 MATLAB 대조에서 없는 불일치가 나온다)")
         seen += 1
     assert seen == 8, f"대조표에서 확인한 행이 8개가 아니다: {seen}"
+
+
+# ── 대조기가 **파일이 더 정밀해도** 옛 기본값에 갇히면 안 된다 (2026-09-10) ──
+
+def _write_dd_eval_csv(path, anchors, rows, cols, fmt):
+    lines = ["# dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0"]
+    lines += [f"# {k},{v:.17g}" for k, v in anchors.items()]
+    lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
+    for r in rows:
+        lines.append(",".join([f"{x:.6f}" for x in r[:5]]
+                              + [format(v, fmt) for v in r[5:]]))
+    pathlib.Path(path).write_text("\n".join(lines) + "\n")
+
+
+_BASE16 = {"c_cell": 74.671, "dv_lo": 0.1492985972, "dv_hi": 0.8507014028,
+           "dv_n": 350.0, "dq_lo": 2.7926653307, "dq_hi": 4.1273346693,
+           "dq_n": 450.0, "n_peaks": 4.0, "w_peak_sum": 1220.5209098395,
+           "w_peak_max": 7.0014383087, "dq_nuniq_p1": 500.0, "dq_nin_p1": 450.0,
+           "E_PE_0p5": 3.8756842582, "E_NE_0p5_0p25": 0.1133989996,
+           "dv_PE_0p5": 1.1237428984, "dv_NE_0p5_0p25": -0.0738972448}
+
+
+def test_compare_uses_full_precision_when_file_has_it():
+    """`%.17g` 로 적힌 파일을 `%.10f` 시절 기본값(1e-10)으로 재면 안 된다.
+
+    실측 계기: 2026-09-10 192값 대조에서 판정문이 "남은 차이는 전부 CSV 출력
+    반올림(**1e-10**) 안이다" 라고 찍혔다. 그런데 그 CSV 는 `%.17g` 였다.
+    `printed_abs_tol` 이 `d = default_decimals` 로 시작해 `min()` 으로만
+    깎여서, 파일이 **더 정밀해도** 10 자리 위로 못 올라갔다.
+
+    결과는 **너무 관대한** 판정이다 — 실제로 남아 있던 상대 1e-12 수준의
+    구현 차이를 "출력 반올림" 이라고 설명해 버렸다. 없는 불일치를 만드는
+    반대쪽 실수(`test_compare_does_not_cry_wolf...`)만 막고 이쪽은 안 막혀
+    있었다.
+    """
+    import io, contextlib, tempfile
+    from bms_balancing.verify import _compare_dd_eval, printed_abs_tol, DD_EVAL_P
+
+    cols = ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"]
+    m_vals = [0.0116757840981582, 0.118232147254087, 0.155185004941108, 0.224458095596453]
+    tmp = pathlib.Path(tempfile.mkdtemp()) / "_prec.csv"
+    _write_dd_eval_csv(tmp, _BASE16, [list(DD_EVAL_P[0]) + m_vals], cols, ".17g")
+
+    # ① 파일이 17자리를 담고 있으면 한계도 그만큼 내려가야 한다
+    tol = printed_abs_tol(tmp)
+    assert tol < 1e-14, (
+        f"`%.17g` 파일인데 한계가 {tol:.0e} 다 — 옛 기본값에 갇혀 있다")
+
+    # ② 상대 3e-12 어긋난 Python 값을 "출력 반올림" 으로 설명하면 안 된다
+    py_vals = {c: [v * (1 + 3e-12 if c == "rmse_dqdv" else 1)]
+               for c, v in zip(cols, m_vals)}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        _compare_dd_eval(dict(_BASE16), [list(DD_EVAL_P[0])], py_vals, tmp)
+    txt = buf.getvalue()
+    tmp.unlink(missing_ok=True)
+    assert "남은 차이는 전부 CSV 출력 반올림" not in txt, (
+        "적힌 자리수보다 큰 차이를 출력 반올림이라고 설명했다.\n" + txt)
+    assert "실제 수치 차이" in txt, (
+        "적힌 자리수보다 큰 실제 차이가 남았는데 그렇게 말하지 않았다.\n" + txt)
+
+    # ③ 그런데도 **모델 차이라고 과장하면** 안 된다 — 3e-12 는 1e-9 아래다
+    assert "목적함수 산술" not in txt, (
+        "수치 잡음 수준(3e-12)을 모델 차이로 보고했다.\n" + txt)
