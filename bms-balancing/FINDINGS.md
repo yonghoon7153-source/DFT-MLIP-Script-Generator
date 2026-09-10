@@ -135,6 +135,17 @@ per-gamma` 는 **그들 절차가 아니라** dd_verify 의 그 동작을 재현
   · `peak_weight 7` · `sigma_ratio 0.03` — 전부 우리 설정과 같다.
 - **그들 기본 실행 상태는 4개**(pristine·100·200·300_0009)로, `300_0147` 은
   없다. 우리 하네스는 5개를 지원한다 — 비교할 때 이 차이를 적어야 한다.
+- **정정**: 전 판은 사용자 기계에 "툴박스가 하나도 없다" 고 적었으나 **틀렸다.**
+  `dd_verify('check')` 실측 — `quantile` 은 **있다** (Statistics and Machine
+  Learning Toolbox). 없는 것은 `fmincon`·`MultiStart`·`createOptimProblem`
+  (Optimization / Global Optimization) 과 `sgolayfilt`·`findpeaks`
+  (Signal Processing) 다. 그래서 `dd_shims` 는 **`addpath(...,'-end')`** 로
+  올려야 한다 — 앞에 붙이면 실제로 있는 `quantile` 까지 우리 대체품이 가린다.
+  `dd_verify` 의 check 도 `which()` 가 비었는지만 봐서 shim 을 툴박스로 잘못
+  보고했다 — 잡힌 파일 경로를 찍도록 고쳤다.
+- **반쪽전지 GITT 는 상태 파일이 4/5 다** (`300_0147` 없음). step_005C 는 5/5.
+  `main_blend_final.m` 의 states 가 4개인 것과 맞는다 — GITT 로 `300_0147` 을
+  요청하면 그 자리에서 죽는다.
 - **사소한 차이**: `w_dqdv=0` 일 때 MATLAB 은 `0 * rmse_dqdv(p)` 를 그대로
   **계산**하고 우리는 그 항을 건너뛴다. `rmse_dqdv` 가 NaN 을 내지 않는 한
   수치는 같다 (1e6 을 내도 0×1e6=0).

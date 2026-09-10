@@ -162,9 +162,17 @@ function local_check(o, diff_params)
           'quantile','Statistics and Machine Learning Toolbox'};
     fprintf('\n');
     for k = 1:size(tb,1)
-        if isempty(which(tb{k,1}))
+        w = which(tb{k,1});
+        if isempty(w)
             fprintf('[FAIL] %-18s 없음 → %s 가 필요하다\n', tb{k,1}, tb{k,2});
             fails = fails + 1;
+        elseif ~isempty(strfind(w, 'dd_shims'))
+            % ⚠ 전 판은 which() 가 비었는지만 봤다. 그러면 dd_shims 의 대체
+            %   구현을 **툴박스가 있다**고 잘못 보고한다. 어느 파일이 잡혔는지
+            %   찍어야 그 착각이 안 생긴다.
+            fprintf('[shim] %-18s ← %s\n', tb{k,1}, w);
+            fprintf('       (MathWorks 구현이 아니다 — 우리 대체품이 잡혔다)\n');
+            warns = warns + 1;
         else
             fprintf('[ ok ] %-18s (%s)\n', tb{k,1}, tb{k,2});
         end
@@ -261,7 +269,7 @@ function local_check(o, diff_params)
     else
         fprintf('위 [FAIL] 을 먼저 고칠 것. 지금 dump 를 돌리면 도중에 죽는다.\n');
         fprintf('툴박스가 없다면: 적합은 못 하지만 **목적함수 평가**는 된다 —\n');
-        fprintf("  addpath('dd_shims'); dd_eval()\n");
+        fprintf("  addpath('dd_shims','-end'); dd_eval()\n");
         fprintf('  (dd_shims 는 sgolayfilt·quantile 의 우리 대체 구현이다. MathWorks 것이 아니다.)\n\n');
     end
 end

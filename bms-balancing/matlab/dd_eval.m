@@ -18,7 +18,7 @@ function dd_eval(varargin)
 %     갈리면 그 자리가 발견이다.
 %
 % 사용법
-%   addpath('dd_shims')          % ← 반드시 명시적으로. 조용히 켜지면 안 된다
+%   addpath('dd_shims','-end')   % ← '-end' 로. 아래 이유를 볼 것
 %   dd_eval()                    % 기본: pristine · GITT · Si=Li · w_dqdv=0
 %   dd_eval('State','300_0009','SiSource','Kunz')
 %
@@ -53,8 +53,14 @@ function dd_eval(varargin)
     o = p.Results;
 
     if isempty(which('sgolayfilt'))
-        error('dd_eval: sgolayfilt 가 없다 — `addpath(''dd_shims'')` 를 먼저 하라');
+        error(['dd_eval: sgolayfilt 가 없다 — ' ...
+               '`addpath(''dd_shims'',''-end'')` 를 먼저 하라']);
     end
+    % ── 어느 구현이 잡혔는지 기록한다 (provenance) ──
+    %   `-end` 로 올리면 MATLAB 의 진짜 함수가 이기고, 없는 것만 shim 으로
+    %   메워진다. 그냥 `addpath('dd_shims')` 는 앞에 붙어서 **있는 툴박스
+    %   함수까지 가린다** — 2026-09-10 실측: 이 기계에 진짜 quantile 이 있다.
+    impl = @(f) local_impl_tag(f);
     if o.WDqdv ~= 0 && isempty(which('findpeaks'))
         error(['dd_eval: WDqdv~=0 은 findpeaks 가 필요하다. 지금은 대체품이 ' ...
                '없으므로 WDqdv=0 으로 대조하라 (그것이 그들 기본 설정이다).']);
@@ -107,6 +113,7 @@ function dd_eval(varargin)
 
     fprintf('\n=== dd_eval ===\n');
     fprintf('state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
+    fprintf('sgolayfilt=%s  quantile=%s\n', impl('sgolayfilt'), impl('quantile'));
     for k = 1:size(anchors, 1)
         fprintf('%-16s = %.17g\n', anchors{k, 1}, anchors{k, 2});
     end
@@ -143,6 +150,8 @@ function dd_eval(varargin)
         fid = fopen(o.Out, 'w');
         fprintf(fid, '# dd_eval  state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', ...
                 o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
+        fprintf(fid, '# impl_sgolayfilt,%s\n', impl('sgolayfilt'));
+        fprintf(fid, '# impl_quantile,%s\n', impl('quantile'));
         for k = 1:size(anchors, 1)
             fprintf(fid, '# %s,%.17g\n', anchors{k, 1}, anchors{k, 2});
         end
@@ -154,6 +163,18 @@ function dd_eval(varargin)
 end
 
 % ══════════════════════════════════════════════════════════════════════
+function tag = local_impl_tag(fname)
+%LOCAL_IMPL_TAG  그 함수가 우리 shim 인지 MATLAB 것인지.
+    w = which(fname);
+    if isempty(w)
+        tag = 'missing';
+    elseif ~isempty(strfind(w, 'dd_shims'))
+        tag = 'dd_shims';
+    else
+        tag = 'matlab';
+    end
+end
+
 function name = local_halfcell_name(dirpath, state)
     if contains(dirpath, '005C')
         name = sprintf('%s_005C.xlsx', state);

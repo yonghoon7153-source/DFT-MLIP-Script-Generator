@@ -29,14 +29,19 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
 
 ## 먼저: 이 기계에 툴박스가 없다
 
-사용자 기계(R2026a, Windows) `ver` 실측 — **기본 MATLAB 뿐이다.** 그래서 없는 것:
+사용자 기계(R2026a, Windows) `dd_verify('check')` 실측 (2026-09-10). 없는 것:
 
 | 없는 것 | 어디서 필요한가 |
 |---|---|
 | `fmincon` · `MultiStart` · `createOptimProblem` | 적합 — 규진팀 `electrode_balancing_blend.m` 본체 |
 | `sgolayfilt` | 평활 — 그들 `differential.m` |
-| `quantile` | 창 자르기 — 그들 `electrode_balancing_blend.m` |
+
 | `findpeaks` | dQ/dV 피크 가중 (`w_dqdv ≠ 0` 일 때만) |
+
+**있는 것**: `quantile` (Statistics and Machine Learning Toolbox). 전 판은
+"툴박스가 하나도 없다" 고 적었는데 **틀렸다** — `dd_verify('check')` 에서
+`sgolayfilt` 는 FAIL 인데 `quantile` 은 통과했고, 그때 `dd_shims` 는 경로에
+없었으므로 저건 진짜 MathWorks 함수다.
 
 **즉 `main_blend_final.m` 자체가 이 기계에서 안 돈다.** 그래서 길을 둘로 나눴다.
 
@@ -44,7 +49,16 @@ degradation mode/                ← 여기가 루트 (여기서 실행)
   그들 코드를 **한 줄도 안 고치고** 돌리려는 것이다 (MATLAB 이 경로를 먼저
   보므로 그들 `differential.m` 이 이 파일을 부른다).
   ⚠ MathWorks 구현이 아니다. 그래서 조용히 켜지지 않게 `addpath` 로 **명시적
-  으로** 올려야 한다.
+  으로** 올려야 하고, 반드시 **`'-end'`** 를 붙인다:
+
+  ```matlab
+  addpath('dd_shims','-end')   % ← '-end' 없으면 있는 툴박스 함수까지 가린다
+  ```
+
+  `addpath('dd_shims')` 는 경로 **앞**에 붙어서 이 기계에 실제로 있는
+  `quantile` 까지 우리 대체품으로 가려 버린다. `'-end'` 면 MATLAB 것이 이기고
+  **없는 것만** 메워진다. `dd_eval` 은 어느 쪽이 잡혔는지 화면과 CSV 앞머리
+  (`# impl_sgolayfilt,...` · `# impl_quantile,...`)에 기록한다.
 - `dd_eval.m` — **적합 없이** 주어진 파라미터에서 목적함수만 찍는다.
   포팅 대조에 정말 필요한 건 최적화기가 아니라 **모델**이기 때문이다:
   같은 p 에서 MATLAB 과 Python 이 같은 RMSE 를 내는지가 핵심이고,
@@ -84,7 +98,7 @@ dd_verify('check')
 
 ```matlab
 cd 'D:\가형 관련\degradation mode'
-addpath('dd_shims')          % ← 반드시. 없으면 dd_eval 이 그 자리에서 멈춘다
+addpath('dd_shims','-end')   % ← '-end' 로. 없으면 진짜 quantile 까지 가린다
 dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li.csv')
 ```
 
