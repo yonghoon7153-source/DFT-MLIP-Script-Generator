@@ -95,11 +95,19 @@ def main() -> int:
     print(f"기준은 pristine. 격자 x={GRID[0]:.2f}~{GRID[-1]:.2f} ({GRID.size}점)\n")
 
     base_m, base_cap = meas["pristine"], cap["pristine"]
-    print(f"{'state':10}{'NE 용량':>12}{'용량 Δ%':>9}"
-          f"{'γ':>8}{'γ(기준)':>9}{'(a) 측정':>10}{'(b) 모델':>10}{'(b)/(a)':>9}")
-    print(f"{'':10}{'(원단위)':>12}{'':9}{'':8}{'':9}{'max mV':>10}{'max mV':>10}")
-    print(f"{'pristine':10}{base_cap:>12.6g}{0.0:>9.2f}")
-    rows = []
+    print(f"{'state':10}{'용량 Δ%':>9}{'γ':>8}"
+          f"{'(a) 측정변화':>13}{'(b) γ변화':>11}{'(b)/(a)':>9}"
+          f"{'(c) |블렌드−측정|':>19}")
+    print(f"{'':10}{'':9}{'':8}{'max mV':>13}{'max mV':>11}{'':9}"
+          f"{'max mV':>13}{'rms mV':>6}")
+    pr = fitted_pair(out_dir, states[1] if len(states) > 1 else "100",
+                     a.source, a.si_source)
+    if pr is not None:
+        dc = (blend.E(GRID, pr[1]) - base_m) * 1e3
+        print(f"{'pristine':10}{0.0:>9.2f}{pr[1]:>8.4f}"
+              f"{'—':>13}{'—':>11}{'—':>9}"
+              f"{np.max(np.abs(dc)):>13.1f}{np.sqrt(np.mean(dc**2)):>6.1f}")
+    rows, flips = [], []
     for s in states:
         if s == "pristine":
             continue
@@ -111,11 +119,31 @@ def main() -> int:
             g, gr = pair
             db = float(np.max(np.abs(blend.E(GRID, g) - blend.E(GRID, gr)))) * 1e3
             ratio = db / da if da > 0 else float("inf")
-        rows.append((s, da, db, ratio))
-        print(f"{s:10}{cap[s]:>12.6g}{100*(cap[s]/base_cap-1):>9.2f}"
+        # (c) **절대 일치** — 모델은 음극 OCP 를 Blend(x, γ) 라고 주장한다.
+        #     a_NE·b_NE 는 풀셀 Q 를 전극 x 로 옮길 뿐 **곡선 모양을 못 고친다.**
+        #     그러니 이 둘은 그냥 맞아야 한다. 안 맞으면 γ 로도 못 고치고
+        #     그 차이는 a_NE·b_NE 로 밀려난다 — 그것이 LAM_NE·LLI 다.
+        #   ⚠ **방향 규약**을 먼저 배제한다. `HalfCell` 은 끝점 둘로 방향을
+        #     정하고, `Blend` 는 q 를 정렬한다. 둘의 x=0 이 반대 끝을 뜻하면
+        #     (c) 가 거대하게 나오고 그것을 "블렌드가 틀렸다" 로 읽게 된다.
+        #     그래서 뒤집은 것도 같이 재고 **작은 쪽**을 쓴다.
+        if g is not None:
+            be = blend.E(GRID, g)
+            d_f = (be - meas[s]) * 1e3
+            d_r = (be - meas[s][::-1]) * 1e3
+            fwd = float(np.max(np.abs(d_f)))
+            rev = float(np.max(np.abs(d_r)))
+            flipped = rev < fwd
+            dc = d_r if flipped else d_f
+            cmax, crms = float(np.max(np.abs(dc))), float(np.sqrt(np.mean(dc ** 2)))
+            if flipped:
+                flips.append((s, fwd, rev))
+        else:
+            cmax = crms = float("nan")
+        rows.append((s, da, db, ratio, cmax, crms))
+        print(f"{s:10}{100*(cap[s]/base_cap-1):>9.2f}"
               f"{(f'{g:.4f}' if g is not None else '—'):>8}"
-              f"{(f'{gr:.4f}' if gr is not None else '—'):>9}"
-              f"{da:>10.2f}{db:>10.2f}{ratio:>9.2f}")
+              f"{da:>13.2f}{db:>11.2f}{ratio:>9.2f}{cmax:>13.1f}{crms:>6.1f}")
 
     print()
     ok = [r for r in rows if r[3] == r[3]]
@@ -136,6 +164,26 @@ def main() -> int:
     else:
         print(f"\n→ 두 변화가 같은 규모다 (최대 {worst[3]:.1f} 배). γ 가 측정된 모양")
         print("  변화를 대략 따라간다 — 자유 파라미터로 둘 근거가 있다.")
+    if flips:
+        print(f"\n⚠ **방향 규약이 반대다.** {len(flips)} 개 상태에서 측정 곡선을")
+        print("   뒤집어야 블렌드와 가까워진다:")
+        for s, f, r in flips:
+            print(f"     {s:10} 그대로 {f:7.1f} mV → 뒤집으면 {r:7.1f} mV")
+        print("   아래 (c) 는 뒤집은 값이다. 이건 모델의 잘못이 아니라 x 축")
+        print("   해석의 문제이므로, 그 자체로는 발견이 아니다.")
+
+    cs = [r[4] for r in rows if r[4] == r[4]]
+    if cs:
+        print(f"\n(c) **절대 일치** — `Blend(x, γ_적합)` 이 측정 음극과 얼마나 맞나:")
+        print(f"    max |Δ| {min(cs):.1f} ~ {max(cs):.1f} mV")
+        if min(cs) > 50:
+            print("    → 어느 상태에서도 50 mV 이상 벌어진다. **블렌드가 이 음극의")
+            print("      모양이 아니다.** γ 를 어떻게 고르든 이 차이는 남고,")
+            print("      a_NE·b_NE 가 그것을 흡수한다 = LAM_NE·LLI 에 계통 편향.")
+        elif max(cs) < 20:
+            print("    → 전 상태에서 20 mV 안이다. 블렌드가 이 음극을 잘 대신한다.")
+        else:
+            print("    → 상태마다 다르다. 큰 쪽이 왜 큰지 따로 봐야 한다.")
     print("\n⚠ (a) 는 **정규화 뒤** 변화다. 음극 용량이 줄면(위 '용량 Δ%') 곡선이")
     print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
     print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
