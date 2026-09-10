@@ -192,8 +192,12 @@ dd_eval('P', [1.10 -0.05 1.10 -0.01 0.15; 1.10 -0.05 1.10 -0.01 0.30])
 
 **툴박스를 설치한 뒤에는 같은 명령을 한 번 더** 돌려서 다른 이름으로 저장해
 달라 — 앞머리의 `# impl_sgolayfilt` 가 `dd_shims` 에서 `matlab` 으로 바뀌고,
-두 CSV 를 비교하면 **MathWorks 구현과 우리 정의의 차이**가 처음으로 측정된다
-(특히 `sgolayfilt` 의 가장자리 처리와 `findpeaks` 의 평탄 꼭대기 규약).
+두 CSV 를 비교하면 **MathWorks 구현과 우리 정의의 차이**가 측정된다.
+
+2026-09-10 에 이 대조를 한 번 했다 (`FINDINGS.md` §1-7): `quantile` 은 완전히
+같고, `sgolayfilt` 는 도함수에서 상대 **1.33e-13** 갈리며, 그 차이는 파일
+자리수보다 3200 배 작아 rmse 는 전부 같게 찍혔다. 다만 그때는 옛 `dd_eval.m`
+이라 **`findpeaks` 가 안 불렸다** — 그쪽은 새 판으로 다시 돌려야 한다.
 
 ```matlab
 dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li_TB.csv')

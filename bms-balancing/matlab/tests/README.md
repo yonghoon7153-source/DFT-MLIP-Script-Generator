@@ -78,14 +78,16 @@ scipy 사이에서는** 닫힌다.
 - ~~**MATLAB 이 이 파일들을 돌리는가.**~~ → 위 갱신 참조. `dd_eval` 은 돈다.
   `dd_verify` 의 `dump`/`profile`/`scalenoise` 는 툴박스가 없어 여전히 미실행이고,
   그 경로의 구문은 Octave 8.4 로만 확인됐다.
-- **MathWorks 의 진짜 `sgolayfilt`·`findpeaks` 와 같은가.** 이 컨테이너에
-  Signal Processing Toolbox 가 없다. 사용자 기계에는 **라이선스가 있고 설치가
-  안 돼 있었다**(2026-09-10 `license('test')` 4종 전부 1) — 설치하면
-  `addpath(...,'-end')` 규약대로 진짜 함수가 이기고, 그때 `dd_eval` 앞머리의
-  `# impl_sgolayfilt` 가 `dd_shims` → `matlab` 으로 바뀐다. **설치 전후 CSV
-  두 개를 비교하는 것이 이 차이를 재는 방법**이고, 그전까지는 미측정이다.
-  특히 `findpeaks` 의 평탄 꼭대기 규약은 우리가 scipy 쪽에 맞춰 둔 자리라
-  MathWorks 와 갈릴 수 있다 (`n_peaks` 앵커가 그것을 드러낸다).
+- ~~**MathWorks 의 진짜 `sgolayfilt`·`quantile` 과 같은가.**~~ → **쟀다**
+  (2026-09-10, `FINDINGS.md` §1-7). 사용자 기계에 툴박스가 설치된 뒤 같은
+  데이터를 툴박스판·shim판으로 각각 돌려 앵커 40 + rmse 64 를 댔다.
+  `quantile` 은 **완전히 같고**(16 값), `sgolayfilt` 는 도함수에서
+  **상대 1.33e-13** 갈린다. 그 차이는 파일이 담는 자리수보다 3200 배 작아
+  rmse 64 값은 전부 같게 찍혔다. 이 컨테이너에는 여전히 툴박스가 없다.
+- **MathWorks 의 진짜 `findpeaks` 와 같은가 — 아직 미측정.** 위 실행은
+  **옛 `dd_eval.m`** 으로 돌아서 `findpeaks` 를 한 번도 부르지 않았다.
+  평탄 꼭대기 규약은 우리가 scipy 쪽에 맞춰 둔 자리라 MathWorks 와 갈릴 수
+  있고, 새 `dd_eval` 의 `n_peaks` 앵커가 그것을 드러낸다.
 - **dQ/dV 두 열이 그들 식과 같은가.** `compute_dqdv_rmse_blend` 와
   `build_peak_weights_local` 은 그들 `electrode_balancing_blend.m` 의 로컬
   함수라 밖에서 못 부른다. 그래서 그 둘만은 **옮겨 적었고**, 여기 일치는
