@@ -101,11 +101,14 @@ def check_run_id(path, rid: str):
     try:
         if p.suffix.lower() == ".csv":
             with p.open(encoding="utf-8", newline="") as fh:
+                header = next(csv.reader(fh), [])
+                n_col = header.count("run_id")
+                if n_col != 1:                       # R6 내부 V6-08: DictReader 는 같은 이름의 마지막 열만 본다
+                    return False, ("run_id 열 없음" if n_col == 0 else f"run_id 열이 {n_col} 개")
+                fh.seek(0)
                 rows = list(csv.DictReader(fh))
             if not rows:
                 return False, "행 없음"
-            if "run_id" not in rows[0]:
-                return False, "run_id 열 없음"
             bad = [r.get("run_id") for r in rows if r.get("run_id") != rid]
             return (not bad), ("전 행 일치" if not bad else f"다른 run_id 행 {len(bad)}/{len(rows)}: {bad[:2]}")
         data = json.loads(p.read_text(encoding="utf-8"))
@@ -129,6 +132,8 @@ def verify_unit(path):
     rid, digest = m.get("run_id"), m.get("sha256")
     if not rid or not digest:
         return None, "옛 meta (run_id/sha256 없음)"
+    if m.get("artifact") and m["artifact"] != p.name:  # R6 내부 V6-05: 묶음이 맞는 이름 아래 있는가
+        return False, f"meta 의 artifact({m['artifact']!r}) 가 파일 이름({p.name!r}) 과 다르다"
     ok_id, why = check_run_id(p, rid)
     if not ok_id:
         return False, f"meta 의 run_id 가 산출물과 다르다: {why}"

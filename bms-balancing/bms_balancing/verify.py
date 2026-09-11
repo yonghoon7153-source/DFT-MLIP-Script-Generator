@@ -567,15 +567,20 @@ def read_dd_eval_csv(path):
     return anchors, rows, header
 
 
-def dd_eval_csv_audit(path, spec=None) -> list[str]:
+def dd_eval_csv_audit(path, spec=None, spec_label="선언 형식") -> list[str]:
     """이름의 유일성·역할과 행 모양을 **파싱 단계에서** 검사한다 (Codex R4-04 · R5-01 · R5-02 · R5-03).
 
     전 판은 같은 이름의 열을 `header.index` 로 첫 열만 다시 읽고, 같은 이름의 앵커 줄은 dict 덮어쓰기로
     잃어서 NaN 이 유한성 검사 전에 사라졌다. 중복·열 수 불일치·숫자 아닌 행은 옛 스키마가 아니라
     malformed 다 → 비교하지 않고 `invalid`.
+    ⚠ R6 내부 V6-01·V6-03: 행별 검사(열 수·토큰 재출력)는 헤더를 본 **뒤**에만 돌았다 — 헤더가 데이터 뒤에
+      있거나 아예 없으면 검사가 한 번도 안 돌고 비교기는 그대로 진행했다. `dd_eval.m` 은 첫 판(56a35a8)부터
+      헤더를 먼저 썼으므로 그 두 모양은 옛 스키마가 아니라 malformed 다.
+    `spec` 은 토큰이 재출력되어야 하는 형식 (파일 선언, 또는 선언이 없을 때 `--precision` 옵션 — V6-02),
+    `spec_label` 은 문제 메시지에 적을 그 출처.
     """
     from collections import Counter
-    problems, anchors, header, n_row = [], Counter(), None, 0
+    problems, anchors, header, n_row, n_before_header = [], Counter(), None, 0, 0
     n_decl, known = 0, {k for k, _ in ANCHOR_STAGE}
     tokens = []                                    # (행, 열 이름, 토큰) — 선언 형식과의 일치 검사용
     try:
@@ -614,6 +619,8 @@ def dd_eval_csv_audit(path, spec=None) -> list[str]:
             header = [c.strip() for c in t.split(",")]
             continue
         n_row += 1
+        if header is None:
+            n_before_header += 1
         fields = t.split(",")
         if header is not None and len(fields) != len(header):
             problems.append(f"행 {n_row - 1} 열 수 {len(fields)} ≠ 헤더 {len(header)}")
@@ -625,6 +632,10 @@ def dd_eval_csv_audit(path, spec=None) -> list[str]:
             tokens.extend((n_row - 1, name, tok.strip()) for name, tok in zip(header[5:], fields[5:]))
     if n_decl > 1:
         problems.append(f"{PRINTED_FORMAT_KEY} 선언이 {n_decl} 번 나온다 (유효한 하나만 허용)")
+    if header is None and n_row:
+        problems.append(f"헤더가 없다 (데이터 행 {n_row} 개) — dd_eval.m 은 첫 판부터 헤더를 썼다: 옛 스키마가 아니라 malformed")
+    elif n_before_header:
+        problems.append(f"헤더 앞에 데이터 행 {n_before_header} 개 — 행별 검사가 닿지 않는 순서: malformed")
     for k, n in anchors.items():
         if n > 1:
             problems.append(f"중복 앵커 {k} ({n}회)")
@@ -645,12 +656,14 @@ def dd_eval_csv_audit(path, spec=None) -> list[str]:
             except ValueError:
                 continue
             if np.isfinite(x) and format(x, fmt) != tok:
-                problems.append(f"행 {i} {name} 토큰 {tok!r} 이 선언 형식({fmt})으로 찍은 {format(x, fmt)!r} 와 다르다")
+                problems.append(f"행 {i} {name} 토큰 {tok!r} 이 {spec_label}({fmt})으로 찍은 {format(x, fmt)!r} 와 다르다")
                 break
     return problems
 
 
 PARAM_COLS = ["a_PE", "b_PE", "a_NE", "b_NE", "gamma_Si"]
+#: 첫 판 dd_eval.m (56a35a8:118) 이 쓴 rmse 열 — 부분 대조(옛 스키마)가 성립하려면 최소한 이 둘은 있어야 한다.
+OLD_SCHEMA_MIN_COLS = ("rmse_pocv", "rmse_dvdq")
 
 
 #: 이보다 큰 상대차는 **모델·산술의 차이**로 본다. 앵커에 쓰는 문턱과 같다.
@@ -724,13 +737,20 @@ PRINTED_FORMAT_KEY = "printed_format"
 
 
 def read_dd_eval_meta(path) -> dict:
-    """앞머리 `# 이름,값` 중 **숫자가 아닌** 것 (`impl_*`, `printed_format` …). 앵커와 분리해 읽는다."""
+    """앞머리 `# 이름,값` 중 **숫자가 아닌** 것 (`impl_*`, `printed_format` …). 앵커와 분리해 읽는다.
+
+    ⚠ R6 내부 V6-06: `printed_format` 은 값이 숫자(`17`)여도 선언이다 — 값의 숫자 여부로 역할을 정하면
+      해석 못 하는 선언이 "선언 없음(추정)" 으로 흘러 invalid 가 아니라 partial 이 됐다 (R5-02 의 원칙을
+      meta 리더에도: 역할은 이름으로 먼저)."""
     meta = {}
     try:
         for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line.startswith("#") and "," in line:
                 k, _, v = line.lstrip("# ").partition(",")
+                if k.strip() == PRINTED_FORMAT_KEY:
+                    meta[k.strip()] = v.strip()
+                    continue
                 try:
                     float(v)
                 except ValueError:
@@ -988,9 +1008,22 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
       anchor_mismatch 앵커가 갈린다 (단계 이름을 말한다) / model_mismatch 목적함수가 갈린다
     `precision` 은 `--precision` (R3-06): None/'auto' 면 파일 선언 → 추정 순.
     """
-    m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
-    policy = resolve_precision(matlab_csv, precision)
+    result = {"status": "complete", "expected": 0, "compared": 0, "problems": [],
+              "worst_rel": 0.0, "first_bad": None,
+              "anchors_expected": len(ANCHOR_STAGE), "anchors_compared": 0, "missing_anchors": [],
+              "partial": False, "partial_reasons": [],
+              "precision_source": None, "precision_label": "", "precision_declared": None,
+              "precision_conflict": False, "precision_override_looser": False}
+    try:
+        m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
+        policy = resolve_precision(matlab_csv, precision)
+    except OSError as e:
+        # ⚠ R6 내부 V6-07: 전 판은 여기서 traceback 으로 죽어 종료 1 = "갈림" 이었다. 못 읽은 파일은 미완이다.
+        print(f"\n=== dd_eval.m 대조: {matlab_csv} ===\n  ! 읽을 수 없다: {e}\n판정: **대조 미완 (invalid)**")
+        result["problems"].append(f"읽기 실패: {e}"); result.update(status="invalid"); return result
     prec_source, prec_label = policy["source"], policy["label"]
+    result.update(precision_source=prec_source, precision_label=prec_label,
+                  precision_declared=policy["declared_raw"], precision_conflict=policy["conflict"])
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
     print(f"  (정밀도: {prec_label})")
     if prec_source == "inferred":
@@ -1006,18 +1039,17 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
     # ⚠ 2026-09-11 Codex R3-05: 그 개수·유한성 검사가 metric 에만 있었다 — 누락 앵커는 `continue`,
     #   NaN 앵커는 `r > 1e-9` 가 거짓, NaN 파라미터는 `max(...) > tol` 이 거짓이라 셋 다 complete.
     #   앵커도 기대 16 개를 세고, 비유한 값은 어디서든 성공이 아니다.
-    result = {"status": "complete", "expected": 0, "compared": 0, "problems": [],
-              "worst_rel": 0.0, "first_bad": None,
-              "anchors_expected": len(ANCHOR_STAGE), "anchors_compared": 0, "missing_anchors": [],
-              "partial": False, "partial_reasons": [],
-              "precision_source": prec_source, "precision_label": prec_label,
-              "precision_declared": policy["declared_raw"], "precision_conflict": policy["conflict"],
-              "precision_override_looser": False}
     if not m_anchors and not m_rows:
         print("  ! 읽을 내용이 없다 — 경로가 맞나?")
         result.update(status="empty"); return result
     # ⚠ Codex R4-04: 이름의 유일성·행 모양은 비교 전에 본다. 중복 열/앵커는 옛 스키마가 아니라 malformed.
-    malformed = dd_eval_csv_audit(matlab_csv, spec=policy["declared_spec"])   # 토큰 검사는 파일 자신의 선언으로
+    # 토큰 검사는 파일 자신의 선언으로; 선언이 없으면(또는 해석 불가면) `--precision` 옵션이 "이 파일은 이 형식"
+    # 이라는 주장이므로 그 형식으로 검사한다 (R6 내부 V6-02: 전 판은 옵션을 토큰과 대조하지 않아 선언 없는
+    # 파일이 선언된 파일보다 관대했다). 선언과 옵션이 둘 다 있으면 선언으로 검사하고 충돌은 R4-02 Q3 대로 기록.
+    if policy["declared_spec"] is not None:
+        malformed = dd_eval_csv_audit(matlab_csv, spec=policy["declared_spec"])
+    else:
+        malformed = dd_eval_csv_audit(matlab_csv, spec=policy["spec"], spec_label="옵션 형식")
     if prec_source == "invalid":
         malformed.append(f"{PRINTED_FORMAT_KEY} 선언 해석 불가: {policy['declared_raw']!r}")
     if malformed:
@@ -1065,6 +1097,14 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
         shared = ["rmse_pocv", "rmse_dvdq"]        # 헤더 없는 아주 옛 산출
         print("  (헤더가 없다 — 앞 두 열만 rmse 로 본다)")
     missing = [c for c in py_vals if c not in shared]
+    absent_min = [c for c in OLD_SCHEMA_MIN_COLS if c not in shared]
+    if absent_min:
+        # ⚠ R6 내부 V6-04: "스키마 누락" 에 하한이 없어 rmse 열 0 개(앵커 0 개)여도 partial → `--allow-partial` 로
+        #   "앵커 0개와 rmse 0개가 전부 일치" 가 0 이었다. 가장 오래된 산출(56a35a8)도 이 두 열은 썼다.
+        msg = (f"옛 스키마 최소 열 {list(OLD_SCHEMA_MIN_COLS)} 중 {absent_min} 가 없다 — 옛 dd_eval.m 산출이 아니라 "
+               f"비교할 것이 없는 파일이다 (헤더: {m_header})")
+        print(f"판정: **{msg} (invalid)**")
+        result["problems"].append(msg); result.update(status="invalid"); return result
     if missing:
         print(f"  (MATLAB 산출에 없는 열은 건너뛴다: {', '.join(missing)}"
               f" — 옛 dd_eval.m 산출이다 → **부분 대조**)")
