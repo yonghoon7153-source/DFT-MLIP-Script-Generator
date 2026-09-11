@@ -23,6 +23,10 @@ ap.add_argument("--supersedes", default=None,
                 help="**이미 발송한** 판(예: v35). 주면 메일 맨 앞에 교체 통지가 붙고 "
                      "변경 절 제목이 그 판 기준으로 바뀐다. ⛔ 안 주면 외주처가 두 판을 "
                      "다 돌리거나 옛 판을 돌린다.")
+ap.add_argument("--changes_md", default=None,
+                help="'이 판에서 바뀐 것' 절 본문(markdown 파일). ⛔ 2026-09-11 (v41): 판별 분기가 "
+                     "없는 --supersedes(v37 이후)에 else 절의 v38 시절 문장이 그대로 박히는 것을 "
+                     "막는다 — 분기도 파일도 없으면 **렌더하지 않는다** (거짓 변경 절 방지).")
 a = ap.parse_args()
 
 B = pathlib.Path(a.bundle)
@@ -122,6 +126,15 @@ elif a.supersedes == "v36":
 - 그 밖의 실행 절차·반송 목록·게이트는 **v36 과 동일**합니다.
 - (v37–v40 은 내부 리뷰에서 배치·시간 계약·메모리 판정 결함이 발견돼 **발송 전에 철회**했습니다 —
   받으신 적이 없어야 정상입니다.)"""
+elif a.changes_md:
+    _changes = pathlib.Path(a.changes_md).read_text(encoding="utf-8").strip("\n")
+    assert _changes, "--changes_md 파일이 비어 있다"
+elif a.supersedes:
+    # ⛔ 2026-09-11 — v41 을 v40 교체로 렌더하며 발견: 아래 else 는 v38 시절 변경 목록이라
+    #   v40→v41 에는 거짓이다(attestation·δ_k 는 이번에 안 바뀌었다). P1-3 과 같은 종류의 사고 —
+    #   사유뿐 아니라 **변경 절도** 추측해 박지 않는다. 분기가 없는 판은 파일로 받는다.
+    raise SystemExit("⛔ --supersedes %s 의 변경 절 분기가 없다 — --changes_md <파일> 로 주어라 "
+                     "(else 절의 옛 문장을 재사용하지 않는다)" % a.supersedes)
 else:
     _changes = f"""- **선택 attestation 함정 제거**: `MAKE_POTCAR_ATTESTATION.sh` 가 VASP stdout 전문을 적고 봉인은
   토큰만 담아, 돌리면 1단계를 다 돌린 뒤에야 판정이 막히는 결함(렌즈4 P0-1). 둘 다 토큰으로 통일했다.
