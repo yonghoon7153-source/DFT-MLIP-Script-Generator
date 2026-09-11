@@ -4,7 +4,7 @@
 각 테스트 이름 뒤 [Rn]/[An]/[Bn] 은 리뷰 문서의 항목 번호다.
 """
 from __future__ import annotations
-import csv, pathlib, re, sys
+import csv, json, pathlib, re, sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -1008,15 +1008,25 @@ def _section(txt: str, head: str) -> str:
     return rest
 
 
-def _table_rows(sec: str, states) -> dict:
-    """`| 100 | 0.29 | **0.49** | ... |` 형태의 행을 {상태: [칸,...]} 로."""
-    rows = {}
+def _table_rows(sec: str, states, header_has: str = "") -> dict:
+    """`| 100 | 0.29 | **0.49** | ... |` 형태의 행을 {상태: [칸,...]} 로.
+
+    ⚠ 한 절에 같은 첫 칸을 쓰는 표가 **여럿** 있을 수 있다 (§1-12 는 상태
+    이름으로 시작하는 표가 둘이다). 그래서 `header_has` 로 표를 특정한다 —
+    안 하면 나중 표가 앞 표를 덮어쓰고 엉뚱한 칸을 읽는다 (2026-09-11 실측).
+    """
+    rows, in_table = {}, not header_has
     for ln in sec.splitlines():
-        if not ln.strip().startswith("|"):
+        t = ln.strip()
+        if not t.startswith("|"):
+            in_table = not header_has          # 표 밖 — 다음 헤더를 기다린다
             continue
         cells = [c.strip().replace("**", "").replace("+", "")
-                 for c in ln.strip().strip("|").split("|")]
-        if cells and cells[0] in states:
+                 for c in t.strip("|").split("|")]
+        if header_has and header_has in t:
+            in_table = True
+            continue
+        if in_table and cells and cells[0] in states:
             rows[cells[0]] = cells[1:]
     return rows
 
@@ -1073,7 +1083,7 @@ def test_section_1_12_control_rules_out_the_half_cell_substitution():
     # ⚠ `f"{v:.2f}" in txt` 로 하면 안 된다 — 그 숫자가 문서 어딘가에만 있으면
     #   통과해서, 표를 틀리게 고쳐도 안 잡힌다 (2026-09-11 변이 시험에서 실측).
     sec = _section(txt, "### 1-12")
-    tbl = _table_rows(sec, ("100", "200", "300_0009"))
+    tbl = _table_rows(sec, ("100", "200", "300_0009"), header_has="fixedhc")
     assert len(tbl) == 3, f"§1-12 의 대조 표를 못 찾았다: {sorted(tbl)}"
     for st, cells in tbl.items():
         want = [B["pouch"][st]["LLI"][1], B["fixedhc"][st]["LLI"][1],
@@ -1156,3 +1166,38 @@ def test_fixed_hc_check_catches_a_partially_fixed_root(tmp_path, capsys):
         "GITT 만 고정된 루트를 '전부 고정' 으로 통과시켰다"
     out = capsys.readouterr().out + capsys.readouterr().err
     assert "step_005C" in out, "어느 소스가 안 눌렸는지 안 알려준다"
+
+
+# ── ne_shape 가 산출물을 남긴다 (2026-09-11) ───────────────────────────────
+
+def test_ne_shape_writes_an_artifact_carrying_the_capacity_caveat(tmp_path):
+    """`ne_shape` 의 수치를 원장에 적으려면 **재계산 가능한 산출물**이 있어야 한다.
+
+    이 스크립트는 오래 출력만 했다. 그러면 FINDINGS 에 적힌 mV 값이 사본이
+    되고, 그 사본이 상하는 것을 아무도 못 잡는다 — 이 저장소가 반복해서 당한
+    구조다.
+
+    그리고 `measured_shape_mV` 는 **정규화 뒤** 값이라 용량이 크게 변한
+    상태에서는 순수한 OCP 모양 변화가 아니다. CSV 가 `cap_delta_pct` 를
+    같이 들고 있어야 그 한정어가 숫자에서 안 떨어진다.
+    """
+    m = _load_script("ne_shape")
+    rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935),
+            ("300_0009", 119.34, 18.17, 0.152, 70.5, 21.7, 0.2397)]
+    cap = {"pristine": 1.0, "100": 0.9247, "300_0009": 0.7271}
+    a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
+    art = m._write_csv(tmp_path, a, rows, cap, cap["pristine"],
+                       {"100": ("100", 0.020, 4.0), "300_0009": ("300_0009", 0.063, 4.2)})
+
+    got = list(csv.DictReader(art.open(encoding="utf-8")))
+    assert [r["state"] for r in got] == ["100", "300_0009"]
+    assert "cap_delta_pct" in got[0], "용량 변화 칸이 없다 — 한정어가 떨어진다"
+    assert abs(float(got[1]["cap_delta_pct"]) - (-27.29)) < 0.01
+    assert abs(float(got[1]["measured_shape_mV"]) - 119.34) < 0.01
+    assert abs(float(got[0]["gamma_ref"]) - 0.2935) < 1e-6, \
+        "γ 칸이 비어 있다 — rows 에서 안 넘어온다"
+    assert abs(float(got[0]["max_at_x"]) - 0.020) < 1e-6
+
+    meta = json.loads((art.parent / (art.name + ".meta.json")).read_text(encoding="utf-8"))
+    assert meta["half_cell_source"] == "GITT" and meta["si_source"] == "Li"
+    assert "정규화" in meta["note"], "meta 에 정규화 한정어가 없다"

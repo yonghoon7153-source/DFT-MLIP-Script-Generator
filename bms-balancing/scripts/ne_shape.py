@@ -70,12 +70,60 @@ def raw_ne_capacity(path: pathlib.Path) -> float:
     return float(c.max()) if c.size else float("nan")
 
 
+def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
+    """표를 그대로 CSV 로. 옆에 `.meta.json` 을 같이 둔다 (run_states.sh 와 같은 규약).
+
+    `cap_delta_pct` 를 **반드시 같이** 남긴다 — `(a) 측정변화` 는 정규화 뒤
+    값이라 용량이 크게 변한 상태에서는 순수한 OCP 모양 변화로 읽으면 안 된다.
+    그 한정어가 CSV 에서 떨어지면 숫자만 인용된다.
+    """
+    import datetime, json, subprocess
+    d.mkdir(parents=True, exist_ok=True)
+    art = d / f"ne_shape_{a.source}_{a.si_source}.csv"
+    with art.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["state", "cap_delta_pct", "gamma_ref",
+                    "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
+                    "blend_vs_meas_max_mV", "blend_vs_meas_rms_mV",
+                    "max_at_x", "frac_over_50mV"])
+        for s_, da, db, ratio, cmax, crms, g in rows:
+            c = cwhere.get(s_)
+            w.writerow([s_, f"{100*(cap[s_]/base_cap-1):.4f}",
+                        f"{g:.6f}" if g is not None else "",
+                        f"{da:.6f}", f"{db:.6f}", f"{ratio:.6f}",
+                        f"{cmax:.6f}", f"{crms:.6f}",
+                        f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else ""])
+    try:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"],
+                             capture_output=True, text=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                                    capture_output=True, text=True).stdout.strip())
+    except Exception:
+        sha, dirty = "", None
+    (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
+        "artifact": art.name, "half_cell_source": a.source,
+        "si_source": a.si_source, "grid_n": int(GRID.size),
+        "grid_range": [float(GRID[0]), float(GRID[-1])],
+        "gamma_from": f"{a.out_dir}/matrix_<state>.csv 의 ref_gamma_Si",
+        "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
+        "git_commit": sha, "git_dirty": dirty,
+        "created_utc": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).isoformat(),
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return art
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", default=None)
     ap.add_argument("--source", default="GITT", choices=list(D.HALF_FILE))
     ap.add_argument("--si-source", default="Li", choices=D.SI_SOURCES)
     ap.add_argument("--out-dir", default="out")
+    # ⚠ 이 스크립트는 오래 **출력만** 했다. 그러면 여기서 나온 수치를
+    #   FINDINGS 에 적어도 테스트가 재계산할 수 없고, 그건 이 저장소가
+    #   반복해서 당한 드리프트 구조다 (정본은 artifact). 그래서 남긴다.
+    ap.add_argument("--write", default="out", metavar="DIR",
+                    help="산출 CSV 를 쓸 곳. 빈 문자열이면 안 쓴다")
     a = ap.parse_args()
 
     root = D.data_root(a.data_root)
@@ -147,10 +195,15 @@ def main() -> int:
                 flips.append((s, fwd, rev))
         else:
             cmax = crms = float("nan")
-        rows.append((s, da, db, ratio, cmax, crms))
+        rows.append((s, da, db, ratio, cmax, crms, g))
         print(f"{s:10}{100*(cap[s]/base_cap-1):>9.2f}"
               f"{(f'{g:.4f}' if g is not None else '—'):>8}"
               f"{da:>13.2f}{db:>11.2f}{ratio:>9.2f}{cmax:>13.1f}{crms:>6.1f}")
+
+    if a.write:
+        art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
+                         {c[0]: c for c in cwhere})
+        print(f"\n→ {art}")
 
     print()
     ok = [r for r in rows if r[3] == r[3]]
