@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_macros.html" import tags %}
+{% block title %}논문 digest{% endblock %}
+{% block content %}
+<header class="phead">
+  <p class="eyebrow">wiki/raw/papers/ · 봉인 불변층</p>
+  <h1>논문 digest</h1>
+  <p class="lead">흡수한 논문의 절별 해체분석. <b>sha256 은 digest 본문의 봉인</b>이다 — 나중에 고치면 lint 가
+    깨진다. 새 논문은 PDF 를 <code>wiki/inbox/</code> 에 두고 Claude Code 에서 <code>/paper</code>.
+    비교는 <a href="/compare">비교표</a>에서.</p>
+</header>
+
+<div class="cards">
+  {% for it in items %}
+  <article class="card card-paper">
+    <div class="card-body">
+      <a class="card-t" href="{{ it.url }}">{{ it.title }}</a>
+      {% if it.description %}<p class="card-d">{{ it.description|mdi }}</p>{% endif %}
+      <dl class="kv kv-sm">
+        {% if it.system %}<dt>계</dt><dd>{{ it.system }}</dd>{% endif %}
+        {% if it.loading %}<dt>로딩</dt><dd>{{ it.loading }} mg cm⁻²</dd>{% endif %}
+        {% if it.anode %}<dt>음극</dt><dd>{{ it.anode }}</dd>{% endif %}
+        {% if it.doi %}<dt>DOI</dt><dd class="mono">{{ it.doi }}</dd>{% endif %}
+        {% if it.ingested %}<dt>ingested</dt><dd><time>{{ it.ingested }}</time></dd>{% endif %}
+        {% if it.sha12 %}<dt>sha256</dt><dd class="mono">{{ it.sha12 }}…</dd>{% endif %}
+      </dl>
+      {{ tags(it.meta) }}
+    </div>
+    <footer class="card-foot">
+      <span class="figcount">
+        그림 <b>{{ it.nfig }}</b>장{% if it.nsi %} · SI <b>{{ it.nsi }}</b>장 포함{% endif %}
+      </span>
+      <a class="btn btn-go" href="{{ it.url }}">digest 전문 <span aria-hidden="true">→</span></a>
+    </footer>
+    <code class="card-path">{{ it.relpath }}</code>
+  </article>
+  {% else %}
+  <p class="empty">wiki/raw/papers/ 에 digest 가 없다. <code>/paper</code> 로 첫 논문을 넣는다.</p>
+  {% endfor %}
+</div>
+{% endblock %}

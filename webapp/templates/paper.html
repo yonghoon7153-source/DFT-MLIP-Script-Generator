@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badges, tags, sources, toc_nav, claim_legend %}
+{% block title %}{{ page.title }} · digest{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="위치"><a href="/papers">논문 digest</a><span aria-hidden="true">/</span><b>{{ page.slug }}</b></nav>
+
+<header class="phead doc-head">
+  <span class="kind-eyebrow">논문 digest<span class="sep">·</span><span class="w">1층 · 불변 · sha256 봉인</span></span>
+  <h1>{{ page.title }}</h1>
+  {% if meta.get('description') %}<p class="lead">{{ meta.get('description')|mdi }}</p>{% endif %}
+  {{ badges(meta) }}
+  <dl class="kv kv-inline">
+    {% if meta.get('doi') %}<dt>DOI</dt><dd class="mono">{{ meta.get('doi') }}</dd>{% endif %}
+    {% if meta.get('ingested') %}<dt>ingested</dt><dd><time>{{ meta.get('ingested') }}</time></dd>{% endif %}
+    {% if sha %}<dt>sha256 <span class="dt-note">본문 봉인</span></dt><dd class="mono wrap">{{ sha }}</dd>{% endif %}
+    {% if meta.get('source_url') %}<dt>source</dt><dd class="mono wrap">{{ meta.get('source_url') }}</dd>{% endif %}
+    <dt>파일</dt><dd class="mono wrap">{{ page.relpath }}</dd>
+  </dl>
+  {{ tags(meta) }}
+  {{ sources(meta, wl_index) }}
+</header>
+
+{{ claim_legend(claims) }}
+
+{% if cmp_rows %}
+<details class="fold cmp-fold" open>
+  <summary><span class="fold-mark" aria-hidden="true"></span>비교 축 <code>compare:</code> — 이 논문의 한 줄 요약값 (<a href="/compare">전체 표</a>)</summary>
+  <div class="fold-body">
+    <dl class="kv kv-cmp">
+      {% for h, v in cmp_rows %}<dt>{{ h }}</dt><dd>{{ v|mdi }}</dd>{% endfor %}
+    </dl>
+  </div>
+</details>
+{% endif %}
+
+{% if figs %}
+<p class="note note-fig">
+  본문의 <b>Fig. N</b> · <b>Fig. S<i>n</i></b> · <b>Table N</b> 표기는 자동 링크된다 — 마우스를 올리면 옆에 뜨고, 누르면 고정된다.
+  그림 <b>{{ figs|length }}</b>장은 <code>wiki/raw/figures/{{ page.slug }}/</code> 의 크로핑본이고
+  캡션은 <code>figures.json</code> 에서 온다{% if figmeta.get('generated') %} (추출 {{ figmeta.get('generated') }}{% if figmeta.get('dpi') %} · {{ figmeta.get('dpi') }} dpi{% endif %}){% endif %}.
+  {% if figmeta.get('si_note') %}<br><span class="muted">{{ figmeta.get('si_note') }}</span>{% endif %}
+</p>
+{% endif %}
+
+<div class="reader reader-3" data-annot="{{ page.slug }}">
+  <div class="reader-side">
+    {{ toc_nav(toc, '이 digest') }}
+  </div>
+  <article class="prose doc-body" id="digest-body">{{ body_html|safe }}</article>
+
+  <aside class="rail" id="annot-rail" aria-label="메모와 하이라이트">
+    <div class="rail-h">
+      <span class="rail-t">메모 <b id="note-n">0</b></span>
+      <button class="btn btn-xs" id="annot-export" type="button" title="이 문서의 메모·하이라이트를 마크다운으로 내려받는다">
+        <svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg>내보내기
+      </button>
+    </div>
+    <p class="rail-hint" id="annot-hint">
+      본문에서 <b>글자를 끌어 선택</b>하면 하이라이트·메모를 남길 수 있다.
+      이 앱은 저장소에 쓰지 않는다 — 주석은 <b>이 브라우저에만</b> 남는다.
+    </p>
+    <ul class="rail-list" id="annot-list"></ul>
+  </aside>
+</div>
+
+<div class="sel-bar" id="sel-bar" hidden>
+  <button type="button" data-hl="y" title="노랑">·</button>
+  <button type="button" data-hl="g" title="초록">·</button>
+  <button type="button" data-hl="p" title="보라">·</button>
+  <button type="button" data-hl="r" title="빨강">·</button>
+  <span class="sel-sep"></span>
+  <button type="button" data-act="note">메모</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<div id="figdata" data-slug="{{ page.slug }}" hidden></div>
+<script src="{{ url_for('static', filename='js/figref.js') }}?v={{ asset_version }}"></script>
+{% endblock %}

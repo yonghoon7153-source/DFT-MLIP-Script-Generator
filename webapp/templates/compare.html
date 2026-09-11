@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}논문 비교표{% endblock %}
+{% block content %}
+<header class="phead">
+  <p class="eyebrow">digest frontmatter <code>compare:</code> · 정본은 각 digest 파일</p>
+  <h1>논문 비교표</h1>
+  <p class="lead">각 논문 digest 의 <code>compare:</code> 블록을 그대로 표로 편다. <b>빈 칸은 논문이 그 값을 주지
+    않았다는 뜻</b>이고 물음표를 채우지 않는다. 첫 행은 우리 자신(프로젝트 카드의 사본).
+    비용량은 <b>(S) 와 (Li2S) 두 열</b>로 나란히 — 논문마다 분모가 달라서다
+    (<a href="/concept/capacity-normalization-li2s-vs-sulfur">환산 규율</a>).</p>
+</header>
+
+{% if rows %}
+<div class="cmp-tools">
+  <label class="cmp-search"><svg class="ic" aria-hidden="true"><use href="#i-search"></use></svg>
+    <input type="search" id="cmp-q" placeholder="행·칸 거르기 (예: graphite, 0.5 C, ASSB)…" aria-label="표 거르기"></label>
+  <span class="muted">{{ rows|length }}행 · {{ columns|length }}열 · 가로로 스크롤된다</span>
+</div>
+
+<div class="tablewrap cmp-wrap">
+  <table class="cmp" id="cmp-table">
+    <thead>
+      <tr>
+        <th class="cmp-k">논문</th>
+        {% for key, head, desc in columns %}
+        <th{% if desc %} title="{{ desc }}"{% endif %}>{{ head }}{% if desc %}<span class="cmp-desc">{{ desc }}</span>{% endif %}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.is_ours %}is-ours{% endif %}">
+        <th class="cmp-k">
+          <a href="{{ r.url }}">{{ r.short }}</a>
+          <span class="cmp-kind">{{ '우리 (사본)' if r.is_ours else r.kind_label }}</span>
+          {% if not r.is_ours and r.meta.get('doi') %}<span class="cmp-doi mono">{{ r.meta.get('doi') }}</span>{% endif %}
+        </th>
+        {% for key, head, desc in columns %}
+        {% set v = r.cells.get(key, '') %}
+        <td{% if not v %} class="is-empty"{% endif %}>{% if v %}{{ v|mdi }}{% else %}<span class="muted" title="논문이 주지 않은 값">—</span>{% endif %}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="note">열 정의는 <code>wiki/SCHEMA.md</code> "이 저장소 특칙" 의 <code>compare:</code> 절이다. 새 논문을
+  <code>/paper</code> 로 넣으면 그 digest 의 블록이 여기 행으로 붙는다. 값이 <code>[도표]</code> 판독이면 digest
+  본문에서 그렇게 표시돼 있다 — 이 표는 그 구분을 보존하지 않으므로 인용 전에 digest 로 내려간다.</p>
+{% else %}
+<p class="empty"><code>compare:</code> 블록을 가진 페이지가 없다.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/compare.js') }}?v={{ asset_version }}" defer></script>
+{% endblock %}

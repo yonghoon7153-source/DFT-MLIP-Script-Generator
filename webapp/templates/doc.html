@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badges, tags, sources, toc_nav, claim_legend %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="위치">
+  {% if page.kind=='concept' %}<a href="/concepts">개념</a>
+  {% elif page.kind=='entity' %}<a href="/entities">프로젝트</a>
+  {% elif page.kind=='comparison' %}<a href="/compare">비교</a>
+  {% elif page.kind in ('transcript','article','repository') %}<a href="/papers">raw</a>
+  {% else %}<a href="/">홈</a>{% endif %}
+  <span aria-hidden="true">/</span><b>{{ page.slug }}</b><span class="chip kind">{{ page.kind }}</span>
+</nav>
+
+<header class="phead doc-head">
+  <span class="kind-eyebrow">{{ page.kind_label }}<span class="sep">·</span><span class="w">{% if page.kind in ('transcript','article','repository') %}1층 · 불변 · sha256 봉인{% elif page.kind=='question' %}2층 · 미결{% else %}2층 · 우리가 원전에서 내린 판단{% endif %}</span></span>
+  <h1>{{ page.title }}</h1>
+  {% if meta.get('description') %}<p class="lead">{{ meta.get('description')|mdi }}</p>{% endif %}
+  {{ badges(meta) }}
+  <dl class="kv kv-inline">
+    {% if meta.get('created') %}<dt>created</dt><dd><time>{{ meta.get('created') }}</time></dd>{% endif %}
+    {% if meta.get('updated') %}<dt>updated</dt><dd><time>{{ meta.get('updated') }}</time></dd>{% endif %}
+    {% if meta.get('sha256') %}<dt>sha256 <span class="dt-note">원문 봉인</span></dt><dd class="mono wrap">{{ meta.get('sha256') }}</dd>{% endif %}
+    <dt>파일</dt><dd class="mono wrap">{{ page.relpath }}</dd>
+  </dl>
+  {{ tags(meta) }}
+  {{ sources(meta, wl_index) }}
+</header>
+
+{{ claim_legend(claims) }}
+
+<div class="reader">
+  <div class="reader-side">{{ toc_nav(toc) }}</div>
+  <article class="prose doc-body">{{ body_html|safe }}</article>
+</div>
+{% endblock %}

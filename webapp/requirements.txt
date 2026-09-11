@@ -1,0 +1,8 @@
+# webapp 전용 의존성. 메이저 상한을 건다 — 재배포마다 조용히 올라가 "어제 되던 화면이 오늘 다르다"
+# 를 막기 위해 (선행 브랜치의 교훈). 보안 패치는 받고 파괴적 변경은 막는다.
+Flask>=3.0,<4.0
+markdown>=3.5,<4.0
+PyYAML>=6.0,<7.0
+# /chat — 없으면 앱은 뜨고 chat 만 비활성
+anthropic>=1.0,<2.0
+# 논문 그림 크로핑(wiki/tools/extract_figures.py)·SI 처리는 setup-wsl.sh 가 따로 넣는다: pymupdf pillow python-docx
