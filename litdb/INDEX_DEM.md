@@ -2,7 +2,7 @@
 
 > **이 파일은 `tools/litdb/build_index.py` 가 생성한다 — 손으로 고치지 말 것.**
 > 논평·우선순위가 붙는 SE 축 인덱스는 `INDEX.md` (사람이 큐레이션).
-> digest 117편 · 생성 2026-09-09
+> digest 118편 · 생성 2026-09-11
 
 왜 따로 두나 — `INDEX.md` 는 argyrodite 전해질 축이라 접촉역학·MPM·건식전극
 digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱스에도 없었다**
@@ -52,7 +52,7 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `zunker2024_mdr_contact_model_partI` | 층(2.75) 발견 — 점착 탄소성 입자의 역학적으로 유도된 접촉모델, Part I: 차원축소법(MDR) — Zunker & Kamrin (J. Mech. Phys. Solids 2024) | contact-mechanics theory (MDR) + FEM(Abaqus) 검증 | 2026-08-25 | — |
 | `zunker2025_dem_large_deformation_compaction` | 실험검증된 대변형 압밀 DEM (Experimentally validated DEM for large deformation powder compaction: mechanically-derived contact model and screening of non-physical contacts) — Zunker, Dunatun | DEM (LAMMPS, MDR 접촉모델 다체 확장) + MPFEM(Abaqus) 검증 + 제약 tableti | 2026-08-25 | — |
 
-## 복합양극 미세구조 · percolation (20편)
+## 복합양극 미세구조 · percolation (21편)
 
 | slug | 논문 | 유형 | digest | 그림 |
 |---|---|---|---|---|
@@ -74,6 +74,7 @@ digest 가 들어갈 자리가 없다. 그래서 한때 64편이 **어느 인덱
 | `so2022_dem_compaction_coated_particles_assb` | SE-코팅(core-shell) vs 입자-혼합 ASSB 양극의 DEM 냉간압밀 — tortuosity·AM damage·percolation + 코팅의 σ_e 차폐 — So (J. Power Sources 2022) | DEM | 2026-06-26 | 🖼 8 |
 | `tailored_cathode_microstructure_low_pressure_assb` | Tailored Cathode Composite Microstructure Enables Long Cycle Life at Low Pressure for ASSBs — Zhou et al. (ACS Energy Lett. 2025) |  | 2026-06-26 | 🖼 5 |
 | `taufactor_tortuosity_factor_tomography_tool` | TauFactor — voxel 미세구조에서 정상상태 확산(Laplace)을 풀어 tortuosity FACTOR τ 를 직접 계산하는 오픈소스 MATLAB 툴 — Cooper (SoftwareX 2016) | tool (voxel Laplace-solve, post-processing) | 2026-06-26 | 🖼 8 |
+| `vijay2025_hybrid_cgmd_dl_slurry_microstructure` | CGMD 슬러리 궤적의 앞 절반을 보고 평형 미세구조를 예측하는 딥러닝 surrogate(Slurry-NN)를 ARTISTIC CGMD/DEM 제조 사슬에 끼워 넣다 — NMC-111 / LFP / ASSB(NMC-622+argyrodite) 3계 — Vijay / Galvez-Aranda / Zanotto / Le-Di | CGMD(LAMMPS, LJ + granular-Hertz) + DEM 압연 + 지도학습 DL 시간-surr | 2026-09-11 | 🖼 12 |
 | `yoo2026_porosity_gradient_dry_electrode` | Yoo 2026 (Energy Storage Materials, ENSM 105331) — Porosity-구배 건식 흑연 전극 + 변형성 Primer Layer | MPM | 2026-07-28 | 🖼 7 |
 | `zhang2026_dryprocess_electrode_architecture_cell_level` | 건식(dry-process) 후막 NMC811 전극 — VGCF–PTFE 전단 커플링이 CBD 도전망 percolation 연결성을 17.1 → 61.2 % 로 올려 99 wt% 활물질 · >5 mAh cm⁻² · 4.70 V 를 연다 — CGMD(LAMMPS) + PFIB-SEM 3D + COMSOL 전자전류 + Tau | exp 주도 + CGMD (LAMMPS, Martini-3 유래 LJ 12-6; VGCF+PTFE 2성분 전 | 2026-08-19 | 🖼 42 |
 
