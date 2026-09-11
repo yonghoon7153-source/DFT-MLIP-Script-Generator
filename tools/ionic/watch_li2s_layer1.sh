@@ -10,7 +10,7 @@ P=$(pgrep -af "melt_quench_uma.py" | grep -v "pgrep\|watch_" | head -1)
 if [ -n "$P" ]; then echo "■ 실행: $(echo "$P" | grep -o -- '--system [^ ]* --seed [^ ]*')"; else echo "■ 실행 중인 melt_quench 없음"; fi
 python3 - "$R" <<'PY'
 import sys, os, json, time, glob
-R = sys.argv[1]; now = time.time(); rows = []
+R = sys.argv[1]; now = time.time(); rows = []; modes = set()
 def g(I, k):
     v = I.get(k); return "  —  " if v is None else f"{v:5.2f}"
 for plan in sorted(glob.glob(os.path.join(R, "*", "seed*", "plan.json"))):
@@ -20,6 +20,8 @@ for plan in sorted(glob.glob(os.path.join(R, "*", "seed*", "plan.json"))):
     except Exception as e:
         rows.append(f"  {sysn:16s} {seed:6s} ⚠ plan.json 못 읽음 ({e})"); continue
     total = Pj["melt_ps"] + Pj["quench_ps"] + Pj["hold_ps"]
+    mode = Pj.get("uma_inference_mode") or "?"          # turbo / default — 시드마다 같아야 한다
+    modes.add(mode)
     res, th = os.path.join(d, "result.json"), os.path.join(d, "thermo.csv")
     if os.path.isfile(res):
         try:
@@ -46,5 +48,9 @@ for plan in sorted(glob.glob(os.path.join(R, "*", "seed*", "plan.json"))):
     flag = f"  ⚠ 갱신 {stale:.0f}분 전" if stale > 10 else ""
     rows.append(f"  {sysn:16s} {seed:6s} {phase:6s} t {t:7.1f}/{total:.0f} ps  T {T:6.0f}(set {Tset:5.0f}) K  ρ {rho:.3f}  {rate*60:5.1f} ps/h  ETA {eta:4.1f} h{flag}")
 print("\n".join(rows) if rows else "  (plan.json 없음 — 아직 시작 안 함)")
+if len(modes) > 1:
+    print(f"  ⛔ UMA 실행모드가 시드마다 다르다 {sorted(modes)} — 한 묶음으로 못 쓴다")
+elif modes:
+    print(f"  UMA 실행모드 {modes.pop()} (전 시드 동일) · 담금질 {Pj['quench_rate_K_s']:.0e} K/s")
 PY
 echo "  ⛔ 지표(PS4·Cl6·S-Li8)는 카드 §2 문턱과 사람이 대조한다 — 이 표는 판정하지 않는다"
