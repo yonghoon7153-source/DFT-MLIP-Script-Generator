@@ -81,14 +81,38 @@ def fitted_pair(out_dir: pathlib.Path, state: str, src: str,
       (그리고 `matrix_pristine.csv` 는 애초에 없다 — pristine 은 상태가 아니라
       매 실행의 기준이다. 첫 판이 그걸 찾다가 전부 nan 을 냈다.)
     """
+    info = fitted_pair_info(out_dir, state, src, si)
+    return None if info is None else (info["gamma_target"], info["gamma_ref"])
+
+
+def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
+    """`fitted_pair` 와 같은 선택 + **실제로 소비한 파일의 identity** (Codex R5-05): 경로·sha256·선택한 행.
+
+    `matrix_<state>*.csv` 를 역순으로 고르므로 untracked `_v2` 도 실제 입력이 된다 — git 출처(추적 파일)만으로는
+    그 사실이 남지 않아 두 실행의 meta 가 같았다. 소비한 파일은 tracked 여부와 무관하게 여기서 적는다.
+    """
+    import hashlib
     for f in sorted(out_dir.glob(f"matrix_{state}*.csv"), reverse=True):
-        for r in csv.DictReader(f.open(encoding="utf-8")):
+        for idx, r in enumerate(csv.DictReader(f.open(encoding="utf-8"))):
             if (r.get("half_cell") == src and r.get("si") == si
                     and float(r.get("w_dqdv", 1)) == 0):
                 if not r.get("ref_gamma_Si"):
                     return None          # 옛 판 산출 — ref_* 열이 없다
-                return float(r["gamma_Si"]), float(r["ref_gamma_Si"])
+                return {"gamma_target": float(r["gamma_Si"]), "gamma_ref": float(r["ref_gamma_Si"]),
+                        "file": str(f), "sha256": hashlib.sha256(f.read_bytes()).hexdigest(),
+                        "row": {"index": idx, "half_cell": r.get("half_cell"), "si": r.get("si"),
+                                "w_dqdv": r.get("w_dqdv"), "run_id": r.get("run_id")}}
     return None
+
+
+def _input_identity(path) -> dict:
+    """입력 파일의 경로와 sha256 — 읽을 수 없으면(합성 fixture 등) sha256 은 None."""
+    import hashlib
+    p = pathlib.Path(str(path))
+    try:
+        return {"path": str(p), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+    except (OSError, TypeError):
+        return {"path": str(path), "sha256": None}
 
 
 def raw_ne_capacity(path: pathlib.Path) -> float:
@@ -99,7 +123,7 @@ def raw_ne_capacity(path: pathlib.Path) -> float:
     return float(c.max()) if c.size else float("nan")
 
 
-def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -> pathlib.Path:
+def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, consumed=None) -> pathlib.Path:
     """표를 그대로 CSV 로. 옆에 `.meta.json` 을 같이 둔다 (run_states.sh 와 같은 규약).
 
     `cap_delta_pct` 를 **반드시 같이** 남긴다 — `(a) 측정변화` 는 정규화 뒤
@@ -148,6 +172,9 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -
                          "모양 일치가 아니다; 빈 칸 = 격자에서 없음 (R3-03)",
         "git_commit": sha, "git_dirty": dirty,
         "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
+        # ⚠ Codex R5-05: "코드가 commit 과 같다" 와 "이 입력에서 이 결과가 나왔다" 는 다른 물음이다 —
+        #   실제 소비한 matrix 파일(경로·sha256·행)·반쪽전지·문헌 입력의 identity 를 tracked 여부와 무관하게 남긴다.
+        "consumed_inputs": consumed or {},
         "created_utc": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc).isoformat(),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -192,8 +219,16 @@ def main() -> int:
           f"{'(c) |블렌드−측정|':>19}")
     print(f"{'':10}{'':9}{'':8}{'max mV':>13}{'max mV':>11}{'':9}"
           f"{'max mV':>13}{'rms mV':>6}")
-    pr = fitted_pair(out_dir, states[1] if len(states) > 1 else "100",
-                     a.source, a.si_source)
+    infos = {s: fitted_pair_info(out_dir, s, a.source, a.si_source) for s in states if s != "pristine"}
+    consumed = {s: {"matrix": ({k: v for k, v in i.items() if k not in ("gamma_target", "gamma_ref")} if i else None),
+                    "half_cell": _input_identity(D.half_cell_path(root, a.source, s))}
+                for s, i in infos.items()}
+    consumed["pristine"] = {"half_cell": _input_identity(D.half_cell_path(root, a.source, "pristine"))}
+    lit = root / "data" / "literature"
+    consumed["literature"] = {"gr": _input_identity(lit / "Si_Gr_literature_OCP.xlsx"),
+                              "si": _input_identity(lit / "Si_OCP_sources" / f"{a.si_source}.csv")}
+    first = states[1] if len(states) > 1 else "100"
+    pr = (lambda i: None if i is None else (i["gamma_target"], i["gamma_ref"]))(infos.get(first))
     if pr is not None:
         dc = (blend.E(GRID, pr[1]) - base_m) * 1e3
         print(f"{'pristine':10}{0.0:>9.2f}{pr[1]:>8.4f}"
@@ -204,7 +239,7 @@ def main() -> int:
         if s == "pristine":
             continue
         da = float(np.max(np.abs(meas[s] - base_m))) * 1e3
-        pair = fitted_pair(out_dir, s, a.source, a.si_source)
+        pair = (lambda i: None if i is None else (i["gamma_target"], i["gamma_ref"]))(infos.get(s))
         if pair is None:
             db, ratio, g, gr = float("nan"), float("nan"), None, None
         else:
@@ -269,7 +304,7 @@ def main() -> int:
         print("    ⚠ 증인은 진폭 크기의 존재이지 모양 일치가 아니다. secant 외삽으로 '필요 Δγ' 를 구하지 않는다.")
     if a.write:
         art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
-                         {c[0]: c for c in cwhere}, headroom)
+                         {c[0]: c for c in cwhere}, headroom, consumed)
         print(f"\n→ {art}")
 
     print()

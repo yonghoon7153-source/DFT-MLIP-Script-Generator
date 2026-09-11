@@ -1345,11 +1345,13 @@ def test_degeneracy_json_records_its_settings():
 _DECLARED_G17 = ("# printed_format,%.17g",)
 
 
-def _r2_csv(tmp, anchors, cols, rows, fmt=".17g", name="r2.csv", head=_DECLARED_G17):
+def _r2_csv(tmp, anchors, cols, rows, fmt=".17g", name="r2.csv", head=_DECLARED_G17,
+            params_header="a_PE,b_PE,a_NE,b_NE,gamma_Si"):
     """dd_eval.m 모양의 CSV. `head` 는 앵커 앞에 넣을 `# 이름,값` 줄 — 기본은 `%.17g` 형식 선언
-    (R4-02 뒤 선언 없는 파일은 '추정' 이라 complete 가 될 수 없다; 추정을 시험할 때는 `head=()`)."""
+    (R4-02 뒤 선언 없는 파일은 '추정' 이라 complete 가 될 수 없다; 추정을 시험할 때는 `head=()`).
+    `params_header` 는 파라미터 다섯 열의 이름 (R5-03 의 이름 바꾸기 시험용)."""
     lines = list(head) + [f"# {k},{v:.17g}" for k, v in anchors.items()]
-    lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
+    lines.append(params_header + "," + ",".join(cols))
     # 파라미터 다섯은 dd_eval.m 처럼 항상 %.6f — `fmt` 는 rmse 열에만 (R4-03 의 %.1f 시험이 격자를 깨지 않게)
     lines.extend(",".join([format(x, ".6f") for x in r[:5]] + [format(x, fmt) for x in r[5:]]) for r in rows)
     p = pathlib.Path(tmp) / name; p.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1696,7 +1698,8 @@ def test_ne_shape_measures_the_consumed_pe_axis_too(tmp_path, monkeypatch):
     monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
     monkeypatch.setattr(m, "HalfCell", HC)
     monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
-    monkeypatch.setattr(m, "fitted_pair", lambda *a, **k: (0.26, 0.25))
+    monkeypatch.setattr(m, "fitted_pair_info", lambda *a, **k: {"gamma_target": 0.26, "gamma_ref": 0.25,
+                                                                   "file": None, "sha256": None, "row": {}})
     monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--write", str(tmp_path)])
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -1932,7 +1935,8 @@ def _r3_shape_run(tmp_path, monkeypatch, reference, fitted, measured):
     monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
     monkeypatch.setattr(m, "HalfCell", HC)
     monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
-    monkeypatch.setattr(m, "fitted_pair", lambda *a, **k: (fitted, reference))
+    monkeypatch.setattr(m, "fitted_pair_info", lambda *a, **k: {"gamma_target": fitted, "gamma_ref": reference,
+                                                                   "file": None, "sha256": None, "row": {}})
     monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--write", str(tmp_path)])
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -2305,19 +2309,24 @@ def wait(p):
         assert time.monotonic() < t, p
         time.sleep(0.01)
 orig = os.replace
+# R5-04 뒤 게시는 <산출>.lock 안에서 일어난다 — 그래서 barrier 는 잠금 **앞**에 둔다 (잠금 안에서 기다리면
+# 상대가 잠금을 못 잡아 교착). A: B 가 준비될 때까지 기다린 뒤 잠금·게시; B: A 가 게시를 끝낼 때까지 기다린 뒤 잠금·게시.
+class Barrier(v.publish_lock):
+    def __enter__(self):
+        (root / f"{role}.ready").write_text("ready")
+        wait(root / ("B.ready" if role == "A" else "A.published"))
+        return super().__enter__()
 def scheduled(src, dst):
-    (root / f"{role}.ready").write_text("ready")
     if role == "A":
-        wait(root / "B.ready"); orig(src, dst); (root / "A.published").write_text("ok")
+        orig(src, dst); (root / "A.published").write_text("ok")
     else:
-        wait(root / "A.published")
         rows = list(csv.DictReader(open(dst, encoding="utf-8")))
         (root / "B.seen.json").write_text(json.dumps({"a_NE": [r["a_NE"] for r in rows],
                                                       "run_id": [r.get("run_id") for r in rows]}))
         orig(src, dst)
 os.environ["BMS_RUN_ID"] = f"run-{role}"
 with patch.object(v.D, "data_root", return_value=root), patch.object(v, "build", return_value=Obj()), \\
-     patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), \\
+     patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), patch.object(v, "publish_lock", Barrier), \\
      patch.object(v, "minimize", side_effect=ok), patch.object(v.os, "replace", side_effect=scheduled):
     rc = v.main(["profile", "--data-root", str(root), "--starts", "1", "--grid", "2", "--out", str(out)])
 print(json.dumps({"role": role, "a_NE": float(selected[2]), "rc": rc}))
@@ -2471,5 +2480,387 @@ def test_u12_scale_audit_transcript_has_no_nonfinite_samples_and_section_1_13_sc
     live = NOT_A_CLAIM.sub("", sec)
     assert "U12" in sec and "scale_audit_eval.txt" in sec, "§1-13 이 U12 실측 산출물을 가리키지 않는다"
     assert "16" in live and "GITT" in live and "Li" in live and "seed 0" in live, "§1-13 에 실측 범위가 없다"
-    assert "미확인" not in live.split("U12")[-1][:400] or "닫힘" in live, "§1-13 이 U12 를 아직 미확인이라 한다"
     assert "step_005C" in live, "§1-13 이 실측 밖 범위(다른 Si 소스·step_005C)를 말하지 않는다"
+    # Codex R5-09: 이 사본의 16 줄에는 루트·상태 식별자가 없다 — "사용자 보고 순서의 16 줄" 까지만 인정한다.
+    #   (한 줄을 16 번 복제한 사본도 이 검사를 통과한다; 식별자가 붙은 다음 감사부터 tuple 집합을 검사한다.)
+    assert "식별자" in live, "§1-13 이 이 사본의 증거 수준(식별자 없음)을 말하지 않는다"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Codex R5 (2026-09-11, 대상 0cb7b7a, NO-GO · P1 7 · P2 4) — 반례를 회귀로 (reviews/R5_CODEX.md)
+# 재현 원본: reviews/r5_repros/harness_r5_*_repros.py. 우리 트리 재생 기록:
+# reviews/r5_repros/replay_ours_0cb7b7a.json.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_r5_01_sig_precision_uses_the_real_rounding_cell_of_the_token(tmp_path):
+    """[Codex R5-01] `%g` 의 반올림 구간은 대칭 반 단위가 아니다 — 10 의 거듭제곱 경계 아래쪽은 다른 자릿수에서
+    반올림되고, 0 은 정확히 0 만 "0" 으로 찍히며, `%.0g` 는 `%.1g` 다. 0cb7b7a: `%.2g` 0 vs 0.049 (상대 100 %),
+    10 vs 9.6 (4.2 %), 0.0001 vs 9.6e-05, `%.0g` 1 vs 4 가 전부 complete·rc 0.
+
+    이제 토큰이 가리키는 값 구간을 **같은 형식으로 실제로 찍어서** 정한다 (`token_excess`): Python 값이 같은
+    토큰으로 찍히면 자리수 안, 아니면 구간 경계까지의 거리가 초과분이다.
+    """
+    cases = [  # (형식, CSV 값, Python 값, 기대 status)
+        ("%.2g", 1.2, 1.24, "complete"), ("%.2g", 1.2, 1.26, "model_mismatch"),
+        ("%.2g", 0.0, 0.049, "model_mismatch"), ("%.2g", 10.0, 9.6, "model_mismatch"),
+        ("%.2g", 0.0001, 0.000096, "model_mismatch"), ("%.2g", 10.0, 9.96, "complete"),
+        ("%.0g", 1.0, 4.0, "model_mismatch"), ("%.0g", 1.0, 1.4, "complete"),
+    ]
+    for k, (decl, mv, pv, want) in enumerate(cases):
+        anchors, cols, P, py, rows = _r2_base()
+        fmt = "." + decl[2:]                        # "%.2g" → ".2g"
+        for c in cols:
+            py[c] = [mv] * len(P)
+        for r in rows:
+            r[5:] = [mv] * 4
+        py["rmse_pocv"][3] = pv
+        path = _r2_csv(tmp_path, anchors, cols, rows, fmt=fmt, name=f"sig{k}.csv", head=(f"# printed_format,{decl}",))
+        res, txt = _r2_run(anchors, P, py, path)
+        assert res["status"] == want, (decl, mv, pv, res["status"], res.get("worst_rel"), txt[-500:])
+        assert (format(pv, fmt) == format(mv, fmt)) == (want == "complete"), (decl, mv, pv)   # 판정 = 같은 토큰인가
+
+
+def test_r5_02_declarations_and_known_anchors_are_validated_by_role_before_parsing(tmp_path):
+    """[Codex R5-02] 숫자로 안 읽히는 `# 이름,값` 은 전부 meta 로 넘어가 마지막 값이 이겼다 — 형식 선언을 두 번
+    쓰면(`%.17g` 뒤 `%.1f`) 느슨한 쪽이 적용돼 complete, 알려진 앵커 `# E_PE_0p5,broken` 은 조용히 사라져
+    complete, 정상 앵커를 지우고 broken 만 두면 `--allow-partial` 로 partial·0.
+
+    역할은 값 변환 **전에** 이름으로 정한다: 형식 선언은 유효한 하나만, 알려진 앵커는 유한 숫자 하나만.
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    for c in cols:
+        py[c] = [0.1] * len(P)
+    for r in rows:
+        r[5:] = [0.1] * 4
+    py["rmse_pocv"][3] = 0.149
+    dup = _r2_csv(tmp_path, anchors, cols, rows, name="dupdecl.csv",
+                  head=("# printed_format,%.17g", "# printed_format,%.1f"))
+    res, txt = _r2_run(anchors, P, py, dup)
+    assert res["status"] == "invalid" and any("printed_format" in p for p in res["problems"]), (res, txt[-400:])
+    both = _r2_csv(tmp_path, anchors, cols, rows, name="dupinvalid.csv",
+                   head=("# printed_format,unsupported-format", "# printed_format,%.17g"))
+    res, txt = _r2_run(anchors, P, py, both)
+    assert res["status"] == "invalid", (res, txt[-400:])
+    anchors2, cols2, P2, py2, rows2 = _r2_base()
+    broken = _r2_csv(tmp_path, anchors2, cols2, rows2, name="brokenanchor.csv",
+                     head=("# printed_format,%.17g", "# E_PE_0p5,broken"))
+    res, txt = _r2_run(anchors2, P2, py2, broken)
+    assert res["status"] == "invalid" and any("E_PE_0p5" in p for p in res["problems"]), (res, txt[-400:])
+    only_broken = dict(anchors2); del only_broken["E_PE_0p5"]
+    path = _r2_csv(tmp_path, only_broken, cols2, rows2, name="onlybroken.csv",
+                   head=("# printed_format,%.17g", "# E_PE_0p5,broken"))
+    res, txt = _r2_run(anchors2, P2, py2, path)
+    assert res["status"] == "invalid", (res, txt[-400:])          # 누락(partial)이 아니라 malformed
+    ok, _ = _r2_run(anchors2, P2, py2, _r2_csv(tmp_path, anchors2, cols2, rows2, name="ok.csv",
+                                                head=("# printed_format,%.17g", "# impl_sgolayfilt,toolbox")))
+    assert ok["status"] == "complete", ok                          # 알려지지 않은 meta 줄은 그대로 허용
+
+
+def test_r5_03_parameter_columns_must_be_named_and_ordered(tmp_path):
+    """[Codex R5-03] 헤더의 `b_PE` 와 `b_NE` 이름만 바꾸고 숫자는 그대로 두면 앵커 16·rmse 32 가 전부 맞아
+    complete·0 이었다 — p 대조가 첫 다섯 칸의 **위치**만 봤다. 이름/순서가 정확해야 같은 p 다."""
+    anchors, cols, P, py, rows = _r2_base()
+    swapped = _r2_csv(tmp_path, anchors, cols, rows, name="swap.csv",
+                      params_header="a_PE,b_NE,a_NE,b_PE,gamma_Si")
+    res, txt = _r2_run(anchors, P, py, swapped)
+    assert res["status"] == "invalid" and res["compared"] == 0, (res, txt[-400:])
+    assert any("파라미터" in p or "b_PE" in p for p in res["problems"]), res
+    ok, _ = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, rows, name="ok.csv"))
+    assert ok["status"] == "complete", ok
+
+
+def _r5_meta_race_scripts(tmp_path):
+    worker = tmp_path / "worker.py"
+    worker.write_text('''
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import numpy as np
+role, out, root = sys.argv[1], Path(sys.argv[2]), sys.argv[3]
+sys.path.insert(0, root)
+from bms_balancing import verify as v
+center = (v.LB5 + v.UB5) / 2
+selected = v.LB5[:4] + (0.25 if role == "A" else 0.75) * (v.UB5[:4] - v.LB5[:4])
+class Obj:
+    c_cell = 1.0; scales = {"pocv": 1.0, "dvdq": 1.0, "dqdv": 1.0}
+    def __call__(self, p): return float(1 + 1e-4 * np.square(np.asarray(p) - center).sum())
+    def rmse_pocv(self, p): return self(p)
+def ok(fun, start, **kw): return SimpleNamespace(x=selected.copy(), fun=fun(selected), success=True)
+with patch.object(v.D, "data_root", return_value=out.parent), patch.object(v, "build", return_value=Obj()), \\
+     patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), patch.object(v, "minimize", side_effect=ok):
+    sys.exit(v.main(["profile", "--data-root", str(out.parent), "--starts", "1", "--grid", "2", "--out", str(out)]))
+''', encoding="utf-8")
+    pauser = tmp_path / "pauser.py"
+    pauser.write_text('''
+import sys, time
+from pathlib import Path
+Path(sys.argv[1]).write_text("ready")
+t = time.monotonic() + 30
+while not Path(sys.argv[2]).exists():
+    assert time.monotonic() < t, "pause timeout"
+    time.sleep(0.01)
+''', encoding="utf-8")
+    return worker, pauser
+
+
+def test_r5_04_result_and_metadata_are_published_as_one_attempt(tmp_path):
+    """[Codex R5-04] A 가 CSV 를 게시하고 run id 검사를 통과한 뒤 meta 를 쓰기 직전에 멈추면, 그 사이 B 가 CSV+meta
+    를 게시하고, A 가 재개해 A 의 meta 로 덮는다 — 최종 CSV run_id = B, meta run_id = A, 두 wrapper 다 OK.
+    (Codex 재현과 같은 방식: shell 의 `python3` 를 함수로 덮어 A 의 meta heredoc 만 잠시 멈춘다.)
+
+    이제 산출·meta 게시는 같은 잠금(`<산출>.lock`) 안에서 id 를 **다시** 확인하고 bytes 해시를 meta 에 적는다.
+    마지막 실행의 온전한 한 묶음(B/B)만 남고, A 의 meta 쓰기는 거부돼 A 의 wrapper 가 실패한다.
+    """
+    import hashlib, json as _json, os, subprocess, sys as _s, time
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=())
+    worker, pauser = _r5_meta_race_scripts(tmp_path)
+    out = root / "out" / "profile.csv"
+    override = '''
+python3 () {
+  if [ "$1" = "-" ] && [ "$ROLE" = "A" ]; then
+    "$REAL_PY" "$PAUSER" "$FIXTURE/A.meta.ready" "$FIXTURE/B.done"
+  fi
+  "$REAL_PY" "$@"
+}
+'''
+    body = '\nrun "profile $ROLE" "$1" - "$2" "$REAL_PY" "$WORKER" "$ROLE" "$1" "$ROOTDIR" && write_meta "$1" 100 GITT && echo "WRITER_OK $ROLE"\n'
+    def env(role):
+        return dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic", OUT=str(root / "out"), ROLE=role,
+                    REAL_PY=_s.executable, PAUSER=str(pauser), WORKER=str(worker), FIXTURE=str(tmp_path), ROOTDIR=str(ROOT))
+    cmd = ["bash", "-c", override + _shell_helpers() + body, "r5", str(out)]
+    a = subprocess.Popen(cmd + [str(tmp_path / "A.log")], cwd=root, env=env("A"), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    t = time.monotonic() + 30
+    while not (tmp_path / "A.meta.ready").exists():
+        assert time.monotonic() < t and a.poll() is None, a.communicate()
+        time.sleep(0.02)
+    a_rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    b = subprocess.run(cmd + [str(tmp_path / "B.log")], cwd=root, env=env("B"), capture_output=True, text=True, timeout=60)
+    (tmp_path / "B.done").write_text("done")
+    ao, ae = a.communicate(timeout=60)
+    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    meta = _json.loads((root / "out" / "profile.csv.meta.json").read_text(encoding="utf-8"))
+    aid, bid = a_rows[0]["run_id"], rows[0]["run_id"]
+    assert aid != bid and b.returncode == 0 and "WRITER_OK B" in b.stdout, (b.stdout, b.stderr[-600:])
+    assert meta["run_id"] == bid, (meta["run_id"], aid, bid)                   # 묶음이 섞이지 않았다
+    assert meta["sha256"] == hashlib.sha256(out.read_bytes()).hexdigest(), meta
+    assert a.returncode != 0 and "WRITER_OK A" not in ao, (ao, ae[-600:])     # A 의 meta 쓰기는 거부됐다
+
+
+def _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd, truth=0.45, reference=0.15):
+    """합성 전극 입력으로 `ne_shape.main` 을 돈다 — `fitted_pair` 는 **실제** 함수(cwd 의 out/ 을 읽는다)."""
+    import io, contextlib, json as _json, sys as _s
+    from bms_balancing.model import Blend
+    m = _load_script("ne_shape")
+    u = np.linspace(0, 1, 301); arrays = ((1 - u) ** 2, 0.1 + 0.7 * u, 1 - u, 0.1 + 0.7 * u)
+    blend = Blend(*arrays, window=11, poly_order=3)
+    class P:
+        def __init__(self, st): self.state = st
+        def is_file(self): return True
+    class HC:
+        def __init__(self, path, **kw): self.st = path.state
+        def E_PE(self, x): return 4.2 - 0.7 * np.asarray(x)
+        def E_NE(self, x): return blend.E(x, reference if self.st == "pristine" else truth)
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(m.D, "STATES", ["pristine", "100"])
+    monkeypatch.setattr(m.D, "data_root", lambda *a, **k: cwd)
+    monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
+    monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    monkeypatch.setattr(m, "HalfCell", HC)
+    monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
+    monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--out-dir", "out", "--write", "out"])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = m.main()
+    assert rc == 0, buf.getvalue()
+    art = cwd / "out" / "ne_shape_GITT_Li.csv"
+    row = next(csv.DictReader(art.open(encoding="utf-8")))
+    meta = _json.loads((cwd / "out" / "ne_shape_GITT_Li.csv.meta.json").read_text(encoding="utf-8"))
+    return row, meta
+
+
+def _r5_matrix(path, gamma, reference=0.15):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["half_cell", "si", "w_dqdv", "gamma_Si", "ref_gamma_Si"])
+        w.writeheader(); w.writerow(dict(half_cell="GITT", si="Li", w_dqdv=0, gamma_Si=gamma, ref_gamma_Si=reference))
+
+
+def test_r5_05_ne_shape_records_the_matrix_file_it_consumed(tmp_path, monkeypatch):
+    """[Codex R5-05] `fitted_pair` 는 `matrix_<state>*.csv` 를 역순으로 골라 untracked `matrix_100_v2.csv` 도 실제
+    입력이 되는데, meta 의 git 출처는 untracked 를 빼고 `gamma_from` 은 포괄 설명만 남겨 두 실행의 meta 가
+    **동일**했다 (γ_target 0.16 → 0.45, 비 0.033 → 1.0 인데도).
+
+    실제 소비한 파일의 경로·sha256·선택한 행을 tracked 여부와 무관하게 meta(`consumed_inputs`)에 남긴다.
+    """
+    import hashlib
+    cwd = tmp_path / "repo"; _fixture_repo(cwd, outputs=())
+    _r5_matrix(cwd / "out" / "matrix_100.csv", 0.16)
+    row1, meta1 = _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd)
+    _r5_matrix(cwd / "out" / "matrix_100_v2.csv", 0.45)
+    row2, meta2 = _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd)
+    assert float(row1["gamma_target"]) == 0.16 and float(row2["gamma_target"]) == 0.45, (row1, row2)
+    c1, c2 = meta1["consumed_inputs"]["100"]["matrix"], meta2["consumed_inputs"]["100"]["matrix"]
+    assert c1["file"].endswith("matrix_100.csv") and c2["file"].endswith("matrix_100_v2.csv"), (c1, c2)
+    assert c2["sha256"] == hashlib.sha256((cwd / "out" / "matrix_100_v2.csv").read_bytes()).hexdigest()
+    assert c1["sha256"] != c2["sha256"] and c2["row"]["half_cell"] == "GITT" and c2["row"]["si"] == "Li"
+    assert meta2["consumed_inputs"]["100"]["half_cell"]["path"], meta2       # 반쪽전지 입력의 identity 도 남긴다
+
+
+def test_r5_06_scale_audit_records_eps_relative_effect_and_an_equivalence_flag():
+    """[Codex R5-06] "50 개 모두 유한이면 원본 설명식과 같다" 는 충분조건이 아니다 — `+eps` 가드의 상대 영향은
+    eps/하위절반평균 이고 유한성은 양의 하한을 주지 않는다. raw RMSE 가 전부 1e-20 이면 포팅 scale 은 2.2e-16
+    (비 22205), 같은 점의 목적함수가 3.0 vs 1.35e-4.
+
+    감사가 raw 평균·최종 scale·eps 상대 영향을 남기고, 동치 flag 는 (전부 유한 · 예외 없음 · eps_rel ≤ 1e-9)
+    일 때만 참이다 — 정확 동치가 아니라 상대 1e-9 안의 근사라고 이름 붙인다.
+    """
+    from bms_balancing.model import Objective, SCALE_EQUIV_REL
+    class Tiny(Objective):
+        def __init__(self): self.use_peak_weight = False; self.w_pocv = self.w_dvdq = self.w_dqdv = 1.0
+        def rmse_pocv(self, p): return 1e-20
+        def rmse_dvdq(self, p): return 1e-20
+        def rmse_dqdv(self, p, weighted=False): return 1e-20
+    t = Tiny(); t._auto_scales(0, 50)
+    a = t.scale_audit["pocv"]
+    assert a["n_finite"] == 50 and a["raw_lower_half_mean"] == 1e-20 and a["eps_rel"] > 1e3, a
+    assert a["equivalent_within_rel"] is False and a["scale"] > 1e-17, a
+    class Unit(Tiny):
+        def rmse_pocv(self, p): return 1.0
+        def rmse_dvdq(self, p): return 1.0
+        def rmse_dqdv(self, p, weighted=False): return 1.0
+    u = Unit(); u._auto_scales(0, 50)
+    b = u.scale_audit["dqdv"]
+    assert b["equivalent_within_rel"] is True and b["eps_rel"] <= SCALE_EQUIV_REL and abs(b["raw_lower_half_mean"] - 1.0) < 1e-12, b
+    class Plateau(_FinitePlateau, Objective):
+        def __init__(self): _FinitePlateau.__init__(self)
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        p = Plateau(); p._auto_scales(0, 50)
+    assert p.scale_audit["dqdv"]["n_inf"] >= 1 and p.scale_audit["dqdv"]["equivalent_within_rel"] is False
+
+
+def test_r5_07_matrix_rows_carry_scales_and_audits_for_target_and_reference(tmp_path, monkeypatch):
+    """[Codex R5-07] 정본은 미실측 조합의 Inf 여부를 새 `matrix` 실행의 감사로 보라고 했지만 matrix 행과 stdout 에는
+    scale/감사가 없었다 (평탄부 forward: 기준·대상 dqdv Inf 36/50 인데 행 1 개, 감사 없음).
+
+    행마다 target/reference 의 scale·감사(n·유한·Inf·NaN·eps_rel·동치)·seed·표본 수를 싣는다.
+    """
+    import io, contextlib, json as _json, warnings
+    from bms_balancing.model import Objective
+    class Plateau(_FinitePlateau, Objective):
+        def __init__(self):
+            _FinitePlateau.__init__(self); self.c_cell = 1.0; self.scale_seed, self.n_scale_samples = 0, 50
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore"); self.scales = self._auto_scales(0, 50)
+    from bms_balancing.model import LB5 as _LB, UB5 as _UB
+    cand = _LB + np.random.default_rng(0).random((50, 5)) * (_UB - _LB)
+    def build(*a, **k): return Plateau()
+    def fit(obj, **k):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore"); good = next(p for p in cand if np.isfinite(obj.rmse_dqdv(p)))
+        return good, obj(good), []
+    stub = tmp_path / "present.xlsx"; stub.write_text("x")
+    monkeypatch.setattr(verify.D, "data_root", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(verify.D, "HALF_FILE", {"GITT": {"pristine": "u", "100": "u"}})
+    monkeypatch.setattr(verify.D, "SI_SOURCES", ("Li",))
+    monkeypatch.setattr(verify.D, "half_cell_path", lambda *a, **k: stub)
+    monkeypatch.setattr(verify, "build", build)
+    monkeypatch.setattr(verify, "multistart", fit)
+    out = tmp_path / "matrix.csv"
+    args = SimpleNamespace(data_root=str(tmp_path), source="GITT", state="100", seed=0, starts=1, w_dqdv=1.0,
+                           only_source=True, only_wdqdv=True, out=str(out), run_id="r5-07")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), warnings.catch_warnings():
+        warnings.simplefilter("ignore"); verify.cmd_matrix(args)
+    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+    assert len(rows) == 1, rows
+    r = rows[0]
+    for side in ("target", "ref"):
+        aud = _json.loads(r[f"scale_audit_{side}"])
+        assert aud["dqdv"]["n_inf"] == 36 and aud["dqdv"]["n"] == 50 and aud["dqdv"]["equivalent_within_rel"] is False, (side, aud)
+        assert float(r[f"scale_dqdv_{side}"]) > 0 and r["scale_seed"] == "0" and r["n_scale_samples"] == "50", r
+    assert "scale_audit" in buf.getvalue()
+
+
+def test_r5_08_one_run_id_per_command_and_helpers_check_the_field_not_a_substring(tmp_path):
+    """[Codex R5-08] `--run-id`/환경이 없으면 `run_id_of` 가 호출마다 새 uuid 를 만들어 2 행 profile 의 행 id 둘과
+    완료 로그 id 가 모두 달랐다. 그리고 `run`/`write_meta` 는 grep 으로 파일 **어디든** id 가 있으면 통과했다 —
+    `run_id=previous-attempt, note=<이번 id>` 인 CSV 에 rc 0 으로 meta 가 붙었다.
+
+    id 는 명령 시작 때 하나로 고정하고, 검사는 CSV 의 `run_id` 열(전 행) / JSON 의 `run_id` 필드로 한다.
+    """
+    import io, contextlib, os, subprocess, sys as _s
+    _r3_profile_mocks(tmp_path, __import__("pytest").MonkeyPatch())      # 실패 optimizer 는 여기서 성공으로 바꾼다
+    center = np.array([1.2, -0.25, 1.2, -0.15, 0.25])
+    def ok(fun, start, **kw):
+        x = np.array([1.2, -0.25, 1.2, -0.15]); return SimpleNamespace(x=x, fun=float(fun(x)), success=True)
+    mp = __import__("pytest").MonkeyPatch(); mp.setattr(verify, "minimize", ok); mp.delenv("BMS_RUN_ID", raising=False)
+    try:
+        out = tmp_path / "p.csv"; buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", "2", "--out", str(out)])
+        rows = list(csv.DictReader(out.open(encoding="utf-8")))
+        ids = {r["run_id"] for r in rows}
+        printed = buf.getvalue().strip().splitlines()[-1].split("run_id ")[1].rstrip(")")
+        assert rc == 0 and len(rows) == 2 and ids == {printed}, (ids, printed)
+    finally:
+        mp.undo()
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=("out/old.csv",))
+    art, log = root / "out" / "old.csv", tmp_path / "run.log"
+    env = dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic", OUT=str(root / "out"))
+    producer = ("import csv,os,sys; f=open(sys.argv[1],'w',newline=''); w=csv.writer(f); "
+                "w.writerow(['gamma_Si','obj','run_id','note']); w.writerow([0,1,'previous-attempt',os.environ['BMS_RUN_ID']]); f.close()")
+    r = subprocess.run(["bash", "-c", _shell_helpers() + '\nrun "probe" "$1" - "$2" "$3" -c "$4" "$1" && write_meta "$1" 100 GITT\n',
+                        "r5", str(art), str(log), _s.executable, producer], cwd=root, env=env, capture_output=True, text=True)
+    assert r.returncode != 0 and not (root / "out" / "old.csv.meta.json").exists(), (r.stdout, r.stderr[-500:])
+
+
+def test_r5_10_auto_scale_counts_each_sample_once_even_when_a_metric_raises():
+    """[Codex R5-10] 둘째 metric 이 예외를 내면 catch 가 세 배열 모두에 NaN 을 **다시** 넣어 첫째 항의 표본 수가
+    100 이 됐다 (실제 호출 50). metric 마다 표본당 정확히 한 기록, 예외는 따로 센다."""
+    from bms_balancing.model import Objective
+    class SecondRaises(Objective):
+        def __init__(self): self.use_peak_weight = False; self.pocv_calls = 0
+        def rmse_pocv(self, p): self.pocv_calls += 1; return 1.0
+        def rmse_dvdq(self, p): raise ValueError("controlled")
+        def rmse_dqdv(self, p, weighted=False): return 2.0
+    o = SecondRaises(); o._auto_scales(0, 50)
+    assert o.pocv_calls == 50
+    a = o.scale_audit
+    assert a["pocv"]["n"] == 50 and a["pocv"]["n_finite"] == 50 and a["pocv"]["n_exception"] == 0, a["pocv"]
+    assert a["dvdq"]["n"] == 50 and a["dvdq"]["n_exception"] == 50 and a["dvdq"]["n_finite"] == 0, a["dvdq"]
+    assert a["dqdv"]["n"] == 50 and a["dqdv"]["n_finite"] == 50, a["dqdv"]     # 뒤 항은 앞 항의 예외에 안 죽는다
+
+
+def test_r5_11_git_provenance_classifies_quoted_non_ascii_paths(tmp_path):
+    """[Codex R5-11] `git status --porcelain` 은 기본 설정(core.quotePath)에서 한글 경로를 따옴표·8진수로 찍는다 —
+    tracked `out/측정.csv` 의 값만 바꿔도 git_dirty=True, 그 quoted 문자열이 `git_modified_code` 에 들어갔다.
+    `-z` 레코드로 읽는다 (rename 은 두 경로)."""
+    import subprocess
+    m = _load_script("provenance")
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=())
+    name = "out/측정.csv"
+    (root / name).write_text("value\n1\n", encoding="utf-8")
+    subprocess.run(["git", "-c", "core.quotePath=true", "add", name], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "named"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "config", "core.quotePath", "true"], cwd=root, check=True)
+    (root / name).write_text("value\n2\n", encoding="utf-8")
+    pv = m.git_provenance(cwd=str(root))
+    assert pv["git_dirty"] is False and pv["git_modified_outputs"] == [name] and pv["git_modified_code"] == [], pv
+
+
+def test_r5_docs_u12_scope_and_summary_qualifiers():
+    """[Codex R5-09 · Q5] U12 의 16 줄은 사용자 보고 순서의 감사 줄이지 4×4 식별자가 아니고, §1-8 의 192 값 중
+    GITT·Li 조합은 96 값뿐이다 (Kunz·step_005C 96 값은 그 범위 밖). §0-1 의 "포팅은 원본과 같다" 요약에도
+    뒤 절의 한정(경험적 일치·비유한/eps 영역 제외)이 붙는다."""
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    sec = NOT_A_CLAIM.sub("", _section(txt, "### 1-13"))
+    assert "96" in sec and "Kunz" in sec and "step_005C" in sec, "§1-13 이 192 값의 U12 범위(96/192)를 말하지 않는다"
+    assert "식별자" in sec and "eps" in sec, "§1-13 에 감사 줄의 식별자 부재·eps 조건이 없다"
+    assert "§1-8 의 192 값과 A축 산출" not in sec, "§1-13 이 아직 192 값 전체를 U12 범위 안이라 한다"
+    top = NOT_A_CLAIM.sub("", _section(txt, "## 0-1"))
+    assert "경험적" in top and ("eps" in top or "비유한" in top), "§0-1 요약에 포팅 일치의 한정이 없다"
+    retr = _section(txt, "## 0-2")
+    assert "R5-06" in retr and "R5-09" in retr, "§0-2 에 R5 정정 행이 없다"

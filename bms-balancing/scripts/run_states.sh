@@ -36,28 +36,46 @@ OUT="${OUT:-out}"  # 산출 디렉터리. 시험 실행은 여기를 바꿔서 o
 #   안에 있어야 하고, 없으면 meta 를 쓰지 않는다 — 시각이 아니라 id 가 계산과 게시 bytes 를 잇는다.
 # ⚠ Codex R4-07: git_dirty 는 **코드**(산출 디렉터리 밖 추적 파일)만 본다. 산출 디렉터리 안에서 수정된
 #   다른 추적 파일은 `git_modified_outputs` 로 따로 적는다 (입력으로 쓰는 artifact 의 변경을 숨기지 않게).
+# ⚠ Codex R5-04: 산출 게시와 meta 게시가 한 시도의 **한 묶음**이어야 한다. run id 검사 뒤 meta 를 쓰기 전에 다른
+#   시도가 산출을 바꾸면 "CSV 는 B, meta 는 A" 가 남았다. 이제 meta 작성자는 `<산출>.lock`(verify.py 의
+#   게시가 잡는 것과 같은 flock) 안에서 id 를 **필드로 다시** 확인하고, 그 순간의 bytes 해시를 meta 에 적는다.
+#   실패하면 meta 를 쓰지 않는다 — 마지막 실행의 온전한 묶음만 남는다.
+# ⚠ Codex R5-08: id 검사는 grep(파일 어디든 문자열)이 아니라 CSV 의 `run_id` 열 전 행 / JSON 의 `run_id` 필드다.
 LAST_RUN_ID=""
 write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 직전 run 이 준다)
   local art="$1" st="$2" src="$3" rid="${LAST_RUN_ID:-}"
-  if [ -z "$rid" ] || ! grep -qF -- "$rid" "$art"; then
-    say '   %s: run id (%s) 가 파일 안에 없다 — 이번 시도의 산출이 아니므로 meta 를 쓰지 않는다\n' "$art" "${rid:-없음}"
+  if [ -z "$rid" ] || ! check_run_id "$art" "$rid"; then
+    say '   %s: run id (%s) 가 산출물의 필드에 없다 — 이번 시도의 산출이 아니므로 meta 를 쓰지 않는다\n' "$art" "${rid:-없음}"
     return 1
   fi
-  python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" <<'PYMETA'
-import json, sys, datetime, pathlib
+  if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" <<'PYMETA'
+import fcntl, json, os, sys, datetime, pathlib, tempfile
 art, st, src, starts, si, root, rid, out_dir = sys.argv[1:9]
 sys.path.insert(0, "scripts")
-from provenance import git_provenance     # 코드 dirty 와 수정된 산출물을 분리 (R4-07); 산출물 자신은 제외
-pv = git_provenance(artifact=art, output_roots=(out_dir, "out"))
-pathlib.Path(art + ".meta.json").write_text(json.dumps({
-    "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
-    "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
-    "data_root": root, "run_id": rid,
-    "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
-    "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
-    "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+from provenance import git_provenance, check_run_id, sha256_file   # R4-07 · R5-08 · R5-04
+with open(art + ".lock", "a+") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)                                  # verify.py 의 게시와 같은 잠금
+    ok, why = check_run_id(art, rid)
+    if not ok:
+        print(f"run id 재확인 실패: {why}", file=sys.stderr); sys.exit(1)
+    pv = git_provenance(artifact=art, output_roots=(out_dir, "out"))
+    meta = {
+        "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
+        "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
+        "data_root": root, "run_id": rid, "sha256": sha256_file(art),
+        "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
+        "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
+        "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(art)), prefix=os.path.basename(art) + ".meta.", suffix=".part")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
+    os.replace(tmp, art + ".meta.json")
 PYMETA
+  then
+    say '   %s: 잠금 안 재확인에서 이번 시도의 산출이 아니었다 (다른 시도가 게시함) — meta 를 쓰지 않는다\n' "$art"
+    return 1
+  fi
 }
 mkdir -p "$OUT"
 
@@ -65,6 +83,11 @@ mkdir -p "$OUT"
 #   stdout 에 한 줄이라도 찍으면 그 줄이 **JSON 안에 섞인다** (2026-09-10 실측:
 #   첫 판이 그랬고, exit code 가 0 이라 스크립트는 "전부 통과" 라고 말했다).
 say () { printf "$@" >&2; }
+
+# R5-08: run id 는 산출물의 **필드**로 확인한다 (CSV 의 run_id 열 전 행 / JSON 의 run_id) — grep 은 다른 칸의 문자열도 통과시켰다
+check_run_id () {  # check_run_id <산출파일> <run id>
+  python3 scripts/provenance.py --check-run-id "$1" "$2" >/dev/null 2>&1
+}
 
 # 종료 코드는 산출이 쓸 만한지 말해 주지 않는다. 실제로 열어서 읽는다.
 check_artifact () {
@@ -108,13 +131,13 @@ run () {
     BMS_RUN_ID="$rid" "$@" > "$redir" 2> "$log" || rc=1
   fi
   local bound=0
-  [ -e "$art" ] && grep -qF -- "$rid" "$art" && bound=1
+  [ -e "$art" ] && check_run_id "$art" "$rid" && bound=1     # R5-08: 필드로 확인 (grep 아님)
   if [ "$rc" -eq 0 ] && [ "$bound" -eq 1 ] && check_artifact "$art"; then
     say '   OK   (%d 초)  → %s  [run_id %s]\n' "$((SECONDS - t0))" "$art" "$rid"
     return 0
   fi
   if [ "$rc" -eq 0 ] && [ "$bound" -eq 0 ]; then
-    say '   %s: 이번 시도의 run id 가 파일 안에 없다 (이전 산출이 남아 있거나 touch 만 됐다) — 새 결과로 세지 않는다\n' "$art"
+    say '   %s: 이번 시도의 run id 가 산출물의 run_id 필드에 없다 (이전 산출이 남아 있거나 touch 만 됐다) — 새 결과로 세지 않는다\n' "$art"
   fi
   say '   \033[31mFAIL\033[0m (%d 초) — 로그: %s\n' "$((SECONDS - t0))" "$log"
   return 1
@@ -155,8 +178,10 @@ for st in $STATES; do
       env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify degeneracy \
         --state "$st" --si-source "$SI" --source "$SRC" --w-dqdv 0 \
         --tol 0.01 --starts "$STARTS" --seed 0 --grid 21 --samples 400; then
-    mv "$tmp" "$OUT/degeneracy_${st}_${SI}.json"
-    write_meta "$OUT/degeneracy_${st}_${SI}.json" "$st" "$SRC"
+    flock "$OUT/degeneracy_${st}_${SI}.json.lock" mv "$tmp" "$OUT/degeneracy_${st}_${SI}.json"   # R5-04
+    write_meta "$OUT/degeneracy_${st}_${SI}.json" "$st" "$SRC" \
+      && python3 scripts/provenance.py --verify-unit "$OUT/degeneracy_${st}_${SI}.json" >/dev/null \
+      || fail=$((fail+1))
   else
     fail=$((fail+1)); rm -f "$tmp"
   fi
@@ -165,6 +190,7 @@ for st in $STATES; do
     env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify matrix \
       --state "$st" --starts "$STARTS" --seed 0 \
       --out "$OUT/matrix_${st}.csv" && write_meta "$OUT/matrix_${st}.csv" "$st" "$SRC" \
+      && python3 scripts/provenance.py --verify-unit "$OUT/matrix_${st}.csv" >/dev/null \
       || fail=$((fail+1))
 
   run "profile $st" "$OUT/profile_gamma_${st}_${SI}.csv" - \
@@ -174,6 +200,7 @@ for st in $STATES; do
       --starts "$STARTS" --seed 0 --grid 21 \
       --out "$OUT/profile_gamma_${st}_${SI}.csv" \
       && write_meta "$OUT/profile_gamma_${st}_${SI}.csv" "$st" "$SRC" \
+      && python3 scripts/provenance.py --verify-unit "$OUT/profile_gamma_${st}_${SI}.csv" >/dev/null \
       || fail=$((fail+1))
 done
 

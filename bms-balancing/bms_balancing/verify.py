@@ -44,8 +44,25 @@ def run_id_of(args) -> str:
     return rid or uuid.uuid4().hex
 
 
+class publish_lock:
+    """`<산출>.lock` 의 flock (R5-04). 산출 게시와 meta 게시가 **같은 잠금** 안에서 일어나야 두 시도가 섞인
+    묶음(CSV 는 B, meta 는 A)이 남지 않는다. run_states.sh 의 `flock`·write_meta 도 같은 파일을 잡는다."""
+    def __init__(self, path):
+        self.lock_path = str(path) + ".lock"
+        self.fh = None
+    def __enter__(self):
+        import fcntl
+        self.fh = open(self.lock_path, "a+")
+        fcntl.flock(self.fh, fcntl.LOCK_EX)
+        return self
+    def __exit__(self, *exc):
+        import fcntl
+        fcntl.flock(self.fh, fcntl.LOCK_UN); self.fh.close()
+
+
 def atomic_write_csv(path, rows, fieldnames):
-    """시도별 **고유** 임시 파일에 쓰고 한 번에 옮긴다 (R4-06: 공유 `.part` 는 두 시도가 서로의 행을 게시했다)."""
+    """시도별 **고유** 임시 파일에 쓰고 잠금 안에서 한 번에 옮긴다 (R4-06: 공유 `.part` 는 두 시도가 서로의
+    행을 게시했다; R5-04: 게시는 `<산출>.lock` 안에서 — meta 작성자가 같은 잠금 안에서 id 를 다시 확인한다)."""
     import csv
     out = Path(path)
     fh = tempfile.NamedTemporaryFile("w", dir=out.parent, prefix=out.name + ".", suffix=".part",
@@ -54,7 +71,8 @@ def atomic_write_csv(path, rows, fieldnames):
         with fh:
             w_ = csv.DictWriter(fh, fieldnames=fieldnames)
             w_.writeheader(); w_.writerows(rows)
-        os.replace(fh.name, out)
+        with publish_lock(out):
+            os.replace(fh.name, out)
     except BaseException:
         Path(fh.name).unlink(missing_ok=True)
         raise
@@ -549,8 +567,8 @@ def read_dd_eval_csv(path):
     return anchors, rows, header
 
 
-def dd_eval_csv_audit(path) -> list[str]:
-    """이름의 유일성과 행 모양을 **파싱 단계에서** 검사한다 (Codex R4-04).
+def dd_eval_csv_audit(path, spec=None) -> list[str]:
+    """이름의 유일성·역할과 행 모양을 **파싱 단계에서** 검사한다 (Codex R4-04 · R5-01 · R5-02 · R5-03).
 
     전 판은 같은 이름의 열을 `header.index` 로 첫 열만 다시 읽고, 같은 이름의 앵커 줄은 dict 덮어쓰기로
     잃어서 NaN 이 유한성 검사 전에 사라졌다. 중복·열 수 불일치·숫자 아닌 행은 옛 스키마가 아니라
@@ -558,6 +576,8 @@ def dd_eval_csv_audit(path) -> list[str]:
     """
     from collections import Counter
     problems, anchors, header, n_row = [], Counter(), None, 0
+    n_decl, known = 0, {k for k, _ in ANCHOR_STAGE}
+    tokens = []                                    # (행, 열 이름, 토큰) — 선언 형식과의 일치 검사용
     try:
         lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
     except OSError as e:
@@ -569,11 +589,24 @@ def dd_eval_csv_audit(path) -> list[str]:
         if t.startswith("#"):
             if "," in t:
                 k, _, v = t.lstrip("# ").partition(",")
+                k = k.strip()
+                # ⚠ Codex R5-02: 역할은 값 변환 **전에** 이름으로 정한다. 형식 선언은 유효한 하나만,
+                #   알려진 앵커는 유한 숫자 하나만 — 숫자가 아니면 meta 로 넘기지 않고 malformed 다.
+                if k == PRINTED_FORMAT_KEY:
+                    n_decl += 1
+                    continue
+                if k in known:
+                    anchors[k] += 1
+                    try:
+                        float(v)                  # 비유한(nan/inf)은 숫자다 — 비교기가 incomplete 로 처리한다
+                    except ValueError:
+                        problems.append(f"앵커 {k} 의 값이 숫자가 아니다: {v.strip()!r}")
+                    continue
                 try:
                     float(v)
                 except ValueError:
-                    continue                      # 형식 선언·impl 표시 — 앵커가 아니다
-                anchors[k.strip()] += 1
+                    continue                      # 알려지지 않은 이름의 텍스트 값 — impl 표시 등 meta
+                anchors[k] += 1                   # 알려지지 않은 숫자 앵커 — 비교엔 안 쓰지만 중복은 본다
             continue
         if t.startswith("a_PE"):
             if header is not None:
@@ -588,6 +621,10 @@ def dd_eval_csv_audit(path) -> list[str]:
             [float(x) for x in fields]
         except ValueError:
             problems.append(f"행 {n_row - 1} 숫자가 아닌 칸")
+        if header is not None and len(fields) == len(header):
+            tokens.extend((n_row - 1, name, tok.strip()) for name, tok in zip(header[5:], fields[5:]))
+    if n_decl > 1:
+        problems.append(f"{PRINTED_FORMAT_KEY} 선언이 {n_decl} 번 나온다 (유효한 하나만 허용)")
     for k, n in anchors.items():
         if n > 1:
             problems.append(f"중복 앵커 {k} ({n}회)")
@@ -595,7 +632,25 @@ def dd_eval_csv_audit(path) -> list[str]:
         for k, n in Counter(header).items():
             if n > 1:
                 problems.append(f"중복 열 {k} ({n}회)")
+        # ⚠ Codex R5-03: 파라미터 다섯 열은 이름·순서가 정확해야 같은 p 다 — 위치만 보면 b_PE/b_NE 를
+        #   바꿔 적어도 complete 였다.
+        if header[:5] != PARAM_COLS:
+            problems.append(f"파라미터 열 이름/순서가 다르다: {header[:5]} ≠ {PARAM_COLS}")
+    # ⚠ Codex R5-01: 선언된 형식으로 토큰을 다시 찍었을 때 같은 문자열이어야 그 선언이 그 토큰의 형식이다.
+    if spec is not None and token_format(spec) is not None:
+        fmt = token_format(spec)
+        for i, name, tok in tokens:
+            try:
+                x = float(tok)
+            except ValueError:
+                continue
+            if np.isfinite(x) and format(x, fmt) != tok:
+                problems.append(f"행 {i} {name} 토큰 {tok!r} 이 선언 형식({fmt})으로 찍은 {format(x, fmt)!r} 와 다르다")
+                break
     return problems
+
+
+PARAM_COLS = ["a_PE", "b_PE", "a_NE", "b_NE", "gamma_Si"]
 
 
 #: 이보다 큰 상대차는 **모델·산술의 차이**로 본다. 앵커에 쓰는 문턱과 같다.
@@ -685,26 +740,6 @@ def read_dd_eval_meta(path) -> dict:
     return meta
 
 
-def _precision_spec_to_tols(path, spec: str) -> dict:
-    """`g17`/`full` → 모든 열 전정밀도(0), `fixed:N` → 모든 열 10^-N. 열 이름은 파일 헤더에서."""
-    cols = []
-    try:
-        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
-            if line.strip().startswith("a_PE"):
-                cols = [c.strip() for c in line.strip().split(",")][5:]
-                break
-    except OSError:
-        pass
-    cols = cols or ["rmse_pocv", "rmse_dvdq"]
-    spec = spec.strip().lower()
-    if spec in ("g17", "full"):
-        return {c: 0.0 for c in cols}
-    m = re.fullmatch(r"fixed:(\d+)", spec)
-    if not m:
-        raise ValueError(f"--precision 은 auto | g17 | full | fixed:N 중 하나다: {spec!r}")
-    return {c: 10.0 ** (-int(m.group(1))) for c in cols}
-
-
 def parse_precision_spec(text):
     """형식 문자열 → (kind, N). kind: exact(전정밀도 — 파싱값이 원래 double) · fixed(소수 N자리) · sig(유효 N자리).
 
@@ -729,12 +764,43 @@ def parse_precision_spec(text):
     return None
 
 
-def cell_tol(spec, value) -> float:
-    """토큰 하나의 **반올림 구간 반 단위** (Codex R4-03: 전 판은 한 단위 10^-N 전체를 줬다).
+def token_format(spec):
+    """(kind, N) → Python format 문자열. exact 는 None (파싱값이 원래 double)."""
+    kind, n = spec
+    if kind == "exact":
+        return None
+    return f".{n}f" if kind == "fixed" else f".{max(n, 1)}g"      # C 의 %.0g 는 %.1g 다
 
-    fixed N → 0.5·10^-N. sig N → 그 값의 첫 유효자리에서 N 자리 아래 반 단위 (`%g` 는 뒤 0 을
-    지우므로 토큰 길이가 아니라 선언 N 과 크기로 정한다). exact → 0.
+
+def token_excess(spec, mv: float, pv: float) -> float:
+    """MATLAB 토큰(파싱값 `mv`, 선언 형식 `spec`)이 가리키는 값 구간에서 Python 값 `pv` 가 얼마나 벗어나는가.
+
+    ⚠ Codex R4-03 은 반 단위를, R5-01 은 그 반 단위가 `%g` 에서 틀리다는 것을 보였다 — 10 의 거듭제곱 경계
+      아래쪽은 다른 자릿수에서 반올림되고(`%.2g` 의 "10" 은 [9.95, 10.5)), 0 은 정확히 0 만 "0" 이며,
+      `%.0g` 는 `%.1g` 다. 공식을 세우는 대신 **같은 형식으로 실제로 찍어서** 정한다: `pv` 가 같은 토큰으로
+      찍히면 자리수 안(0), 아니면 구간 경계(형식이 바뀌는 지점, 이분법)까지의 거리가 초과분이다.
+      전제: Python 의 format 이 C/MATLAB 의 printf 와 같은 규칙(유효자리 반올림·뒤 0 제거·지수 전환)이다.
     """
+    fmt = token_format(spec)
+    if fmt is None:
+        return abs(mv - pv)
+    tok = format(mv, fmt)
+    if format(pv, fmt) == tok:
+        return 0.0
+    lo, hi = mv, pv                                  # lo: 구간 안, hi: 밖 — 단조 형식이라 경계는 하나다
+    for _ in range(400):
+        mid = (lo + hi) / 2.0
+        if mid == lo or mid == hi:
+            break
+        if format(mid, fmt) == tok:
+            lo = mid
+        else:
+            hi = mid
+    return abs(pv - hi)
+
+
+def cell_tol(spec, value) -> float:
+    """구간 반 단위 — **참고용**. 판정은 `token_excess` 가 한다 (R5-01: `%g` 에서 이 값은 대칭이 아니다)."""
     kind, n = spec
     if kind == "exact":
         return 0.0
@@ -842,9 +908,16 @@ def cmd_eval(args):
           f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}")
     print(f"# {PRINTED_FORMAT_KEY},%.17g")          # R3-06: 형식은 선언한다, 추정시키지 않는다
     audit = getattr(obj, "scale_audit", None)
+    audit_line = None
     if audit:                                        # R4-05: 이 자료에서 scale 표본에 비유한 값이 있었나
-        print("# scale_audit," + "; ".join(
-            f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}" for k, v in audit.items()))
+        # R5-09: 줄 자체에 식별자(상태·소스·Si·seed·표본 수)를 붙인다 — 붙여 넣은 사본만으로 구성 집합을 셀 수 있게.
+        # R5-06: eps 상대 영향과 동치 flag 도 같이.
+        audit_line = ("# scale_audit," + f"state={args.state} source={args.source} si={args.si_source} "
+                      f"seed={args.seed} n={next(iter(audit.values()))['n']}; " + "; ".join(
+                          f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}"
+                          f"/exc={v.get('n_exception', 0)}/eps_rel={v.get('eps_rel', float('nan')):.3g}"
+                          f"/equiv={int(bool(v.get('equivalent_within_rel')))}" for k, v in audit.items()))
+        print(audit_line)
     for k, v in anchors:
         print(f"# {k},{v:.17g}")
 
@@ -865,9 +938,8 @@ def cmd_eval(args):
         head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
                 f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}",
                 f"# {PRINTED_FORMAT_KEY},%.17g"]
-        if audit:                                    # U12: 파일에도 남긴다 (stdout 사본에 기대지 않게)
-            head.append("# scale_audit," + "; ".join(
-                f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}" for k, v in audit.items()))
+        if audit_line:                               # U12: 파일에도 남긴다 (stdout 사본에 기대지 않게)
+            head.append(audit_line)
         head += [f"# {k},{v:.17g}" for k, v in anchors]
         Path(args.out).write_text("\n".join(head + lines) + "\n", encoding="utf-8")
         print(f"\nwrote {args.out}")
@@ -924,8 +996,8 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
               " 추정으로는 complete 가 되지 않는다: dd_eval.m 의 `# printed_format` 선언이 있는 파일을"
               " 쓰거나 `--precision g17|fixed:N` 으로 명시할 것.")
         print("  (추정한 열별 형식: " + ", ".join(f"{k} {a}:{b}" for k, (a, b) in policy["inferred_cols"].items()) + ")")
-    print("  (판정: |MATLAB − Python| 이 토큰의 반올림 반 단위 안이면 '자리수 안', 초과분이 상대 "
-          f"{MODEL_REL:.0e} 이하면 '수치 잡음', 그 이상이면 '모델 차이' — Codex R4-03)")
+    print("  (판정: Python 값이 MATLAB 토큰과 같은 형식으로 같은 문자열로 찍히면 '자리수 안', 토큰 구간 경계 밖의 "
+          f"초과분이 상대 {MODEL_REL:.0e} 이하면 '수치 잡음', 그 이상이면 '모델 차이' — Codex R4-03 · R5-01)")
     # ⚠ 2026-09-11 Codex R2-01: 전 판은 비교하지 **않은** 셀(행 누락·격자 불일치·
     #   NaN)도 "전부 일치" 로 인증했다. 이제 기대 셀 수와 실제 비교한 셀 수를 세고,
     #   하나라도 못 비교했으면 성공 문장을 내지 않는다.
@@ -943,7 +1015,7 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
         print("  ! 읽을 내용이 없다 — 경로가 맞나?")
         result.update(status="empty"); return result
     # ⚠ Codex R4-04: 이름의 유일성·행 모양은 비교 전에 본다. 중복 열/앵커는 옛 스키마가 아니라 malformed.
-    malformed = dd_eval_csv_audit(matlab_csv)
+    malformed = dd_eval_csv_audit(matlab_csv, spec=policy["declared_spec"])   # 토큰 검사는 파일 자신의 선언으로
     if prec_source == "invalid":
         malformed.append(f"{PRINTED_FORMAT_KEY} 선언 해석 불가: {policy['declared_raw']!r}")
     if malformed:
@@ -1036,12 +1108,13 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
                 r = rel(mv, pv)
                 cells.append(f"{r:>22.2e}")
                 result["compared"] += 1
-                # 토큰의 반올림 반 단위 안이면 "차이" 가 아니다; 초과분만 수치 차이로 센다 (R4-03)
-                tol_c = cell_tol(spec_for(c), mv)
+                # 토큰이 가리키는 값 구간 안이면 "차이" 가 아니다; 구간 경계 밖의 초과분만 수치 차이로
+                # 센다 (R4-03 반 단위 → R5-01 실제 형식으로 정한 구간)
+                sp = spec_for(c)
                 if policy["conflict"] and policy["declared_spec"] is not None \
-                        and tol_c > cell_tol(policy["declared_spec"], mv):
+                        and token_excess(policy["declared_spec"], mv, pv) > token_excess(sp, mv, pv):
                     result["precision_override_looser"] = True
-                excess = max(0.0, abs(mv - pv) - tol_c)
+                excess = token_excess(sp, mv, pv)
                 if excess > 0.0:
                     eff = max(eff, excess / max(abs(pv), 1e-30))
             worst_row = max(worst_row, eff)
@@ -1167,8 +1240,17 @@ def cmd_matrix(args):
                 #   LAM = 1 − state/ref 의 변화가 **기준이 움직인 것인지 대상이
                 #   움직인 것인지 분리할 수 없다** (둘 다 같은 LAM 을 낸다).
                 #   기준 적합의 전체 파라미터·목적함수·c_cell 을 같이 남긴다.
+                aud_t, aud_r = getattr(o, "scale_audit", None), getattr(ro, "scale_audit", None)
                 rows.append({
                     "half_cell": hc, "si": si, "w_dqdv": w, "run_id": run_id_of(args),
+                    # ⚠ Codex R5-07: 이 조합이 scale 동치 영역 안인지는 행이 스스로 말해야 한다
+                    "scale_seed": args.seed, "n_scale_samples": getattr(o, "n_scale_samples", None),
+                    "scale_pocv_target": o.scales.get("pocv"), "scale_dvdq_target": o.scales.get("dvdq"),
+                    "scale_dqdv_target": o.scales.get("dqdv"),
+                    "scale_pocv_ref": ro.scales.get("pocv"), "scale_dvdq_ref": ro.scales.get("dvdq"),
+                    "scale_dqdv_ref": ro.scales.get("dqdv"),
+                    "scale_audit_target": json.dumps(aud_t, ensure_ascii=False) if aud_t else "",
+                    "scale_audit_ref": json.dumps(aud_r, ensure_ascii=False) if aud_r else "",
                     "obj": val, "rmse_pocv": o.rmse_pocv(p),
                     "a_PE": p[0], "b_PE": p[1], "a_NE": p[2], "b_NE": p[3],
                     "gamma_Si": p[4], "c_cell": o.c_cell,
@@ -1574,6 +1656,7 @@ def main(argv=None):
                             "허용한다 — 판정문에는 그대로 '부분' 이 남는다")
         p.set_defaults(func=fn)
     args = ap.parse_args(argv)
+    args.run_id = run_id_of(args)                    # R5-08: 이 명령의 시도 식별자는 하나다 (행·JSON·로그 공통)
     return args.func(args)
 
 

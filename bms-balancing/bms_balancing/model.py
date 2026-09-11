@@ -279,6 +279,10 @@ class Blend:
 
 # ── electrode_balancing_blend.m — 목적함수 ──────────────────────────────
 
+#: scale 의 "원본 설명식과 같다" 는 이 상대 허용오차 안의 **근사**다 (Codex R5-06). eps/하위절반평균 이 이보다 크면
+#: +eps 가드가 결과를 바꾼다. 비교기의 MODEL_REL(1e-9)과 같은 크기.
+SCALE_EQUIV_REL = 1e-9
+
 LB5 = np.array([1.0, -0.5, 1.0, -0.5, 0.00])
 UB5 = np.array([1.4, 0.0, 1.4, 0.1, 0.50])
 
@@ -391,7 +395,9 @@ class Objective:
     #:   `rmse_dqdv` 에 Inf 를 만들 수 있고, `__call__` 의 1e6 가드는 여기 raw 호출을 감싸지 않는다.
     #:   그래서 표본의 개수(n·유한·Inf·NaN)를 `scale_audit` 에 남긴다 — Inf 표본이 0 이면 그 실행에서 동치.
     NONFINITE_SCALE_POLICY = ("Python: NaN 과 ±Inf 표본을 모두 제거한 뒤 정렬·하위 절반 평균 (+eps). "
-                              "원본 설명식: NaN 만 제거 — Inf 표본이 있으면 두 scale 이 다르다 (R4-05).")
+                              "원본 설명식: NaN 만 제거 — Inf 표본이 있으면 두 scale 이 다르다 (R4-05). "
+                              "그리고 +eps 는 하위 절반 평균이 eps 에 비해 클 때만 무시된다 (R5-06): "
+                              "동치 flag = 전부 유한 · 예외 없음 · eps/평균 ≤ SCALE_EQUIV_REL (상대 근사, 정확 동치 아님).")
 
     def _auto_scales(self, seed, n_samples, lb=None, ub=None):
         """목적함수 항의 scale. 원본은 `samples = lb + rand(n,5).*(ub-lb)`.
@@ -409,27 +415,41 @@ class Objective:
         rng = np.random.default_rng(seed)
         s = lb + rng.random((n_samples, 5)) * (ub - lb)
         vals = {"pocv": [], "dvdq": [], "dqdv": []}
+        n_exc = {k: 0 for k in vals}
+        metrics = {"pocv": lambda row: self.rmse_pocv(row),
+                   "dvdq": lambda row: self.rmse_dvdq(row),
+                   "dqdv": lambda row: self.rmse_dqdv(row, self.use_peak_weight)}
         for row in s:
-            try:
-                vals["pocv"].append(self.rmse_pocv(row))
-                vals["dvdq"].append(self.rmse_dvdq(row))
-                vals["dqdv"].append(self.rmse_dqdv(row, self.use_peak_weight))
-            except Exception:                          # noqa: BLE001 — 원본도 삼킨다
-                for k in vals:
-                    vals[k].append(np.nan)
+            # ⚠ Codex R5-10: 항마다 표본당 정확히 한 기록. 전 판은 둘째 항의 예외가 세 배열 모두에 NaN 을
+            #   **다시** 넣어 첫째 항이 n=100 이 됐다. 예외는 따로 센다 (원본은 삼킨다 — 값은 NaN 으로).
+            for k, fn in metrics.items():
+                try:
+                    vals[k].append(float(fn(row)))
+                except Exception:                      # noqa: BLE001
+                    vals[k].append(np.nan); n_exc[k] += 1
+        eps = float(np.finfo(float).eps)
         out, audit = {}, {}
         for k, v in vals.items():
             a = np.array(v, dtype=float)
-            audit[k] = {"n": int(a.size), "n_finite": int(np.isfinite(a).sum()),
-                        "n_inf": int(np.isinf(a).sum()), "n_nan": int(np.isnan(a).sum())}
+            rec = {"n": int(a.size), "n_finite": int(np.isfinite(a).sum()),
+                   "n_inf": int(np.isinf(a).sum()), "n_nan": int(np.isnan(a).sum()), "n_exception": n_exc[k]}
             a = a[np.isfinite(a)]
             if a.size == 0:
-                out[k] = np.finfo(float).eps
-                continue
-            a.sort()
-            half = max(1, a.size // 2)
-            out[k] = float(a[:half].mean()) + np.finfo(float).eps
-        self.scale_audit = audit                      # R4-05: 비유한 표본 개수 — 산출물이 들고 나간다
+                out[k] = eps
+                rec.update(raw_lower_half_mean=None, scale=eps, eps_rel=float("inf"), equivalent_within_rel=False)
+            else:
+                a.sort()
+                half = max(1, a.size // 2)
+                raw = float(a[:half].mean())
+                out[k] = raw + eps
+                # ⚠ Codex R5-06: "전부 유한" 은 충분조건이 아니다 — +eps 의 상대 영향 eps/raw 가 커지면
+                #   (raw ~ 1e-20 이면 22205 배) 원본 설명식과 갈린다. 동치는 상대 SCALE_EQUIV_REL 안의 근사로만.
+                eps_rel = float("inf") if raw <= 0 else eps / raw
+                rec.update(raw_lower_half_mean=raw, scale=out[k], eps_rel=eps_rel,
+                           equivalent_within_rel=bool(rec["n_inf"] == 0 and rec["n_nan"] == 0
+                                                      and n_exc[k] == 0 and eps_rel <= SCALE_EQUIV_REL))
+            audit[k] = rec
+        self.scale_audit = audit                      # R4-05/R5-06: 표본 개수·raw 평균·eps 영향·동치 flag
         return out
 
     # -- 합 -------------------------------------------------------------

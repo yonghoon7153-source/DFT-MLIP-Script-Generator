@@ -24,34 +24,34 @@
 
 ---
 
-## 지금 상태 — **Codex R4 = NO-GO (P1 6 · P2 1). `reviews/R4_LEDGER.md` 가 작업 원장이다**
+## 지금 상태 — **Codex R5 = NO-GO (P1 7 · P2 4). `reviews/R5_LEDGER.md` 가 작업 원장이다**
 
-2026-09-11 Codex 4차 리뷰(대상 `39a5fe0`, `reviews/R4_CODEX.md`) 일곱 건을 우리 트리에서 **전부
-재현**했다 (`reviews/r4_repros/replay_ours_39a5fe0.json` — 12 단계 rc 가 Codex 와 같다). 반박 성립
-없음. 코드 여섯(R4-02~04 정밀도·중복, R4-06 시도 식별자, R4-07 provenance 분리, R4-05 감사)·문서 셋
-(R4-01 (c) 판정문 철회, R4-05 U1 한정, S-02 방향 문장)을 RED → 수정 → GREEN 으로 닫았다. **74 passed.**
-R3 에서 Codex 가 종결로 인정한 것: R3-01·03(계산)·04·09, R3-05/07 원래 사례, R3-08 순차 사례.
+2026-09-11 Codex 5차 리뷰(대상 `0cb7b7a`, `reviews/R5_CODEX.md`) 열한 건을 우리 트리에서 **전부 재현**했다
+(`reviews/r5_repros/replay_ours_0cb7b7a.json` — 11 단계 rc 가 Codex 와 같다). 반박 성립 없음. 코드 아홉
+(R5-01~05 · 07 · 08 · 10 · 11)·문서 둘(R5-06 동치 조건, R5-09 U12 범위)을 RED → 수정 → GREEN 으로 닫았다.
+R4 에서 Codex 가 종결로 인정한 것: R4-01·03·S-02, R4-02/04/05/06/07 의 원래 반례.
 
-보류 셋의 처분: **S-02 닫힘**(정정) · **S-03 기록 유지**(Codex Q2 가 한정어를 적절하다고 봄; 용량 축을 뺀
-(a) 는 요구서의 구분 시험 항목) · **S-04 열림**(개선 후보, 리뷰어 요구 아님).
-
-**U12 실측 완료** (사용자 기계, 274f1f8): 4 루트 × 4 상태 16 build 전부 Inf 0 · NaN 0
-(`out/scale_audit_eval.txt`). §1-13 은 GITT · Li · seed 0 범위에서 U1 동치가 영역 안이라고 적었다.
-남은 것: `reviews/R5_REQUEST.md` 를 Codex 에 보낸다 (대상 = 그 파일이 든 커밋). 아래 명령은 실행 기록으로
-남긴다.
+남은 것: **U13 — 사용자 기계** 실측 하나와 R6 요청문.
 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 74 passed 기대
-# U12: scale 표본에 비유한(Inf) 값이 있었나 — 네 루트 × 상태 (각 수 초). `# scale_audit` 줄만 붙여 주면 된다
+python3 -m pytest tests/ -q                       # 86 passed 기대
+# U13: 새 감사 줄(식별자·eps_rel·동치 flag 포함) — GITT·Li 16 build + Kunz·step_005C 조합. `# scale_audit` 줄만 붙여 주면 된다
 for st in pristine 100 200 300_0009; do python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done
 for c in c168 c171 pouch_fixedhc; do for st in pristine 100 200 300_0009; do BMS_DATA_ROOT=~/dd/cells/$c python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done; done
+python3 -m bms_balancing.verify eval --state pristine --si-source Kunz | grep scale_audit
+python3 -m bms_balancing.verify eval --state pristine --source step_005C --si-source Li | grep scale_audit
 ```
-Inf 표본이 전부 0 이면 §1-13 의 "유한 RMSE 영역" 한정이 실제 자료에서 성립한다고 적을 수 있다. 하나라도
-있으면 그 실행의 scale 은 원본 설명식과 다른 값이다 — 그때는 그 사실을 §1-13 에 그대로 적는다.
-`degeneracy`/`profile`/`matrix` 를 다시 돌릴 때는 `run_states.sh` 가 이제 **시도 식별자(run_id)가 파일 안에
-있어야** OK 로 센다 (R4-06) — 시각이 아니라 id 로 계산과 게시를 묶는다.
+줄마다 `equiv=1` 이면 그 build 에서 scale 이 원본 설명식과 상대 1e-9 안에서 같다 (유한 · 예외 없음 · eps_rel ≤ 1e-9).
+`degeneracy`/`profile`/`matrix` 를 다시 돌릴 때는 `run_states.sh` 가 이제 id 를 **필드로** 확인하고 meta 를 잠금
+안에서 재확인해 bytes 해시와 함께 쓴다 (R5-04 · R5-08). matrix 행에 target/ref scale·감사가 실린다 (R5-07).
+
+## 직전 상태 — Codex R4 (닫힘, `reviews/R4_LEDGER.md`)
+
+2026-09-11 Codex 4차 리뷰(대상 `39a5fe0`) 일곱 건을 전부 재현·닫았다. U12 실측(사용자 기계, 274f1f8):
+4 루트 × 4 상태 16 build 전부 Inf 0 · NaN 0 (`out/scale_audit_eval.txt`) — 그 증거 수준은 R5-09 로 "보고 순서의
+16 줄(식별자 없음)" 로 한정했고, 동치 조건에 eps_rel 이 빠져 있던 것은 R5-06 으로 정정했다.
 
 ## 직전 상태 — Codex R3 (닫힘, `reviews/R3_LEDGER.md`)
 
