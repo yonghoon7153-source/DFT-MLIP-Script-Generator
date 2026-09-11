@@ -130,3 +130,4 @@ Fig. 12 `[도표]` 가 이 회계의 그림이다: S1(리튬 제한) 에서 `Cap
 - [[fitting-degeneracy]] · [[22p-physics-or-degeneracy]]
 - [[dubarry-mechanistic-mode-synthesis]] — 이 특수 경우의 이론 원전
 - [[pvs-sev-lli-lampe-separability]] — 순서 기반 feature 의 취약성, 2 mV 동역학 하강
+- [[ic-peak-area-direct-mode-readout-lfp]] — 같은 화학(LFP/graphite)의 무릎 **앞** (Cui 2026)

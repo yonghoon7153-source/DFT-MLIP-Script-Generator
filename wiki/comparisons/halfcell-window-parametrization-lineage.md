@@ -5,7 +5,7 @@ created: 2026-09-03
 updated: 2026-09-11
 type: comparison
 tags: [battery, degradation, research]
-sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md, raw/papers/wang2025_aging-induced-rate-independent-li-plating.md]
+sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md, raw/papers/wang2025_aging-induced-rate-independent-li-plating.md, raw/papers/cui2026_direct-diagnosis-lfp-degradation-modes.md]
 confidence: high
 explored: false
 verificationStatus: unverified
@@ -43,6 +43,7 @@ their estimation" 의 구체적 목록이다.
 | Navidi 2024 (부록 A1) | `m_p, δ_p, m_n, δ_n` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 |
 | **Schmitt 2022 (2026-09-10 추가)** | `α_cat, β_cat, α_an, β_an` **+ `γ_Si`** | **5** | **0** (단 `β<0` 부호 제약) | **여분을 죽이지 않고 늘린다** — 다섯째는 창이 아니라 **반쪽전지 곡선의 모양**을 매개화 | full-cell C/30 충전 곡선의 **DV** |
 | **Wang (Xiong) 2025 (2026-09-11 추가)** | `K_NE, K_PE, S_NE, S_PE` **+ 음극 구간별 `K_NE1..K_NE5`** | **8** | **0** | **여분을 늘린다 (+4)** — 음극 곡선을 DV 극값 4개로 5 구간으로 잘라 구간마다 가로 스케일 (구간 ⑤ = 0 V 이하 도금 구간). GA 적합, 검증은 RMSE < 10 mV 뿐 | full-cell 0.05 C 의사-OCV 충전 곡선 (LFP/graphite) |
+| **Cui 2026 (2026-09-11 추가)** | `X1 = C_APE, X2 = C_ANE, X3 = LAM_liNE − LAM_dePE + LLI, X4`(방전 종료 음극 리튬화도) | **4** | **0** — 단 **재조합**: 7 물리량 → 4 (`[인쇄]` "To obtain unique parameter results, the variables in Eq. (1) need to be recombined") | **줄였다가 다시 늘린다** — 사전믿음 등식(입자 파괴 확률 균일 → 격리분 리튬화도 = 순환 구간 중점, 식 9)으로 4 → 7 (li/de 분할) | full-cell C/25 **방전** 의사-OCV (LFP/graphite 20 Ah) + 재료 라벨(코인셀·XRD) |
 | [[fused-lasso-feature-design-framework]] SI S11 | `β_c, β_a, Q_rem, V_shift` | **4** | 0 | 여분 없음 | C/20 RPT 곡선 |
 | **우리 (`degradation-degeneracy`)** | `α_PE, β_PE, α_NE, β_NE` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 (+옵션 dQ/dV) |
 
@@ -155,6 +156,25 @@ RMSE 2.7–9.1 mV (Table 3) 뿐이며 `uniqu*`·`uncertaint*`·`identifiab*` 전
 0 V 교차점이 노화로 full-cell SOC `[도표]` 1.08 → 0.88 로 **창 밖에서 안으로**
 들어오고, 그 경계에서 추정 `Q_NE` 가 계단처럼 떨어진다 (Fig. 11·12). Lee 2020 은
 창을 **움직여** 전극 가시성을 바꿨고, 여기서는 **전극 창이 움직여** 들어온다.
+
+## ★ 등식의 새 변종 — **사전믿음 등식으로 다시 가른다** (2026-09-11, Cui 2026)
+
+"여분을 죽이는 세 가지" 의 첫째(등식)는 지금까지 **컷오프 전압 등식**(Birkl) 하나였다.
+Cui 2026 은 등식을 **물리 사전믿음**에서 가져온다: `[인쇄]` "Assuming that the
+probability of active particle fracture is equal under different lithiation conditions
+… the lithiation ratio of the isolated portion after fracture is expected to be
+approximately consistent with the average lithiation ratio of the active material during
+cycling" → `x_crk = [min(x) + max(x)]/2` (식 9). 이 등식 하나로 OCV 가 못 가르는 li/de
+분할을 닫고, `X3` 에서 LLI 를 떼어 낸다.
+
+`[해석]` 순서가 특이하다: **먼저 줄이고**(7 물리량 → `X1–X4`, "unique parameter
+results") **다시 늘린다**(사전믿음으로 → 7). 늘린 쪽의 결과는 구성이다 —
+`LAM_liNE/LAM_NE ≈ 0.36` 은 순환 구간 `[0, 0.78]` 의 중점 0.39 다. 원문의 XRD 검증은
+LAM_NE **총량**으로만 보정되므로 이 분할을 검증하지 못한다. 그리고 이 표의 **LFP 행
+셋**(Marongiu · Wang (Xiong) · Cui)이 공유하는 구조가 하나 더 드러난다: 평탄 양극 때문에
+양극 창 하단이 관측 창 밖이고, 그래서 `(X1, X3)` 곧 **LAM_PE ↔ LLI 가 `X1 − X3 = Q_EOC`
+로만 구속**된다. Cui 에서는 재료 측정(코인셀·XRD)이 LAM_PE ≈ 0 을 확인해 줬기 때문에
+해가 없었다 — [[ic-peak-area-direct-mode-readout-lfp]].
 
 ## ★ Marongiu 식 (2)–(5) 의 null 을 닫힌 형태로 풀었다
 
@@ -302,3 +322,4 @@ n₂ = ( +1 , −1 , +1 ,  0 ,  0 )   ⟺  LAM_Pe 를 li→de 로 ε 옮기고 L
 - [[nullspace-coefficient-interpretation]]
 - [[22p-physics-or-degeneracy]]
 - [[rate-independent-li-plating-signature]] — 여섯째 축의 원전 서명과 모드 회계
+- [[ic-peak-area-direct-mode-readout-lfp]] — 사전믿음 등식과 LFP 의 `(X1, X3)` 축퇴

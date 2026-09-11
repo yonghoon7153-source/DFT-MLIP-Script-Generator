@@ -1,0 +1,471 @@
+{
+ "slug": "cui2026_direct-diagnosis-lfp-degradation-modes",
+ "dpi": 300,
+ "maxpx": 3000,
+ "generated": "2026-09-11",
+ "sources": [
+  "20_direct_diagnosis_degradation_modes_lfp.pdf"
+ ],
+ "figures": [
+  {
+   "key": "f1",
+   "kind": "figure",
+   "label": "1",
+   "page": 3,
+   "file": "fig_1.png",
+   "caption": "Fig. 1. LiFePO4 battery testing platform.",
+   "rotated_deg": 0,
+   "bbox": [
+    109.2,
+    49.9,
+    485.6,
+    301.0
+   ],
+   "w": 1570,
+   "h": 1047,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.673
+  },
+  {
+   "key": "f2",
+   "kind": "figure",
+   "label": "2",
+   "page": 4,
+   "file": "fig_2.png",
+   "caption": "Fig. 2. Schematic illustration of the transformation among different coordinate systems. to construct the diagnostic model with OCV, which can be expressed as: of great significance for ensuring the practical identifiability of model parameters and improving the accuracy of parameter estimation. The relationship between POCV and OCV is expressed as follows: OCV(xANE) = Up(xAPE) −Un(xANE) ⎛ ⎞ xANE(CNE −LAMliNE −LAMdeNE)+ POCV = OCV + IR0 (6) (1) ⎜ ⎜ ⎜ ⎝1 − ⎟ ⎟ ⎟ ⎠−Un(xANE) LAMliNE −LAMdeNE + LLI CPE −LAMliPE −LAMdePE = Up where I is the current (charge: +, discharge: -), R0 is the ohmic resis­ tance. The lithiation ratio (xANE) of the model cannot be directly measured by experimental methods. However, during battery charge and discharge, variations in battery capacity correspond directly to changes in the electrode lithiation ratio [41]. When the charged or discharged capacity of the batt",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    50.3,
+    566.0,
+    306.0
+   ],
+   "w": 2228,
+   "h": 1066,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.944
+  },
+  {
+   "key": "f3",
+   "kind": "figure",
+   "label": "3",
+   "page": 5,
+   "file": "fig_3.png",
+   "caption": "Fig. 3. (a) Diagnostic parameter and (b) DMs results of OCV-based method. 5",
+   "rotated_deg": 0,
+   "bbox": [
+    92.7,
+    558.9,
+    502.4,
+    730.8
+   ],
+   "w": 1708,
+   "h": 717,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.922
+  },
+  {
+   "key": "f4",
+   "kind": "figure",
+   "label": "4",
+   "page": 6,
+   "file": "fig_4.png",
+   "caption": "Fig. 4. Coin half-cell capacity: (a) PE; (b) NE.",
+   "rotated_deg": 0,
+   "bbox": [
+    92.1,
+    49.6,
+    502.6,
+    234.0
+   ],
+   "w": 1712,
+   "h": 769,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.708
+  },
+  {
+   "key": "f5",
+   "kind": "figure",
+   "label": "5",
+   "page": 6,
+   "file": "fig_5.png",
+   "caption": "Fig. 5. XRD results. (a) Recovered PE from the fully charged battery; (b) Recovered PE from the fully discharged battery; (c) Recovered from the fully charged battery; (d) Recovered NE from the fully discharged battery. 6",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    387.4,
+    565.7,
+    721.3
+   ],
+   "w": 2227,
+   "h": 1392,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.923
+  },
+  {
+   "key": "f6",
+   "kind": "figure",
+   "label": "6",
+   "page": 7,
+   "file": "fig_6.png",
+   "caption": "Fig. 6. Change rate of maximum lithium content based on XRD. Fig. 7. Capacity comparison of coin half-cell and the ANE. 7",
+   "rotated_deg": 0,
+   "bbox": [
+    34.7,
+    517.9,
+    560.4,
+    730.8
+   ],
+   "w": 2191,
+   "h": 888,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.904
+  },
+  {
+   "key": "f8",
+   "kind": "figure",
+   "label": "8",
+   "page": 8,
+   "file": "fig_8.png",
+   "caption": "Fig. 8. Comparison of diagnosed LLI by material- and cell-level methods.",
+   "rotated_deg": 0,
+   "bbox": [
+    34.7,
+    518.5,
+    291.6,
+    730.8
+   ],
+   "w": 1071,
+   "h": 885,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.952
+  },
+  {
+   "key": "f9",
+   "kind": "figure",
+   "label": "9",
+   "page": 8,
+   "file": "fig_9.png",
+   "caption": "Fig. 9. Correspondence between POCV and IC curves.",
+   "rotated_deg": 0,
+   "bbox": [
+    303.1,
+    50.4,
+    560.2,
+    257.0
+   ],
+   "w": 1071,
+   "h": 862,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.942
+  },
+  {
+   "key": "f10",
+   "kind": "figure",
+   "label": "10",
+   "page": 9,
+   "file": "fig_10.png",
+   "caption": "Fig. 10. Effect of different DMs on POCV curve. (a) LLI; (b) LAMdeNE; (c) LAMliNE; (d) Multiple DMs. curve, it adversely affects the quantitative diagnosis of DMs. The Savitzky-Golay (SG) filter is straightforward and computationally effi­ cient, making it particularly suitable for data denoising in practical applications [46]. According to Ref. [47], a first-order polynomial with a window size of 21 is adopted to obtain the IC curves. Fig. 11 illustrates the change trends of the IC curves with the individual and multiple DMs. As shown in Fig. 11(a), with the increase of LLI, the intensity of Peak C gradually decreases, while Peak B remains basically stable. Comparing Fig. 11(b) and Fig. 11(c), it can be seen that as LAMdeNE and LAMliNE increase, the intensity of Peak B decreases, whereas the intensity of Peak C shows increasing and decreasing trends, respectively. The above re­ sults ar",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    50.0,
+    566.0,
+    415.0
+   ],
+   "w": 2228,
+   "h": 1522,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.939
+  },
+  {
+   "key": "f11",
+   "kind": "figure",
+   "label": "11",
+   "page": 10,
+   "file": "fig_11.png",
+   "caption": "Fig. 11. Effect of different DMs on the IC curve. (a) LLI; (b) LAMdeNE; (c) LAMliNE; (d) multiple DMs.",
+   "rotated_deg": 0,
+   "bbox": [
+    64.2,
+    50.0,
+    530.5,
+    401.0
+   ],
+   "w": 1944,
+   "h": 1463,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.909
+  },
+  {
+   "key": "f12",
+   "kind": "figure",
+   "label": "12",
+   "page": 10,
+   "file": "fig_12.png",
+   "caption": "Fig. 12. Comparison of the characteristic peak area in different DMs. (a) Peak B; (b) Peak C. the aged batteries at the C/25 rate, respectively. PeakC,fresh and PeakC,aging are the Peak C intensity of the fresh and the aged batteries at the C/25 rate, respectively. stability. In the subsequent analysis, peak area is adopted as the primary metric for DMs diagnosis. Moreover, the LLI calculated from either peak intensity or peak area exhibits a significant deviation with the OCV- based results. As shown in Fig. 10(a), the effect of LLI on the POCV curve mainly manifests as an overall offset, determined by the entire lithiation ratio rather than changes in local peak intensity or peak area. However, Eq. (21) and Eq. (22) calculate LLI by normalizing according to the characteristic peaks of the fresh battery, which does not reflect the effect of LLI causing the offset in the POCV curve. Fig.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    429.4,
+    566.0,
+    606.6
+   ],
+   "w": 2228,
+   "h": 739,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.953
+  },
+  {
+   "key": "f13",
+   "kind": "figure",
+   "label": "13",
+   "page": 11,
+   "file": "fig_13.png",
+   "caption": "Fig. 13. Peak intensity and area of IC curves. (a) LLI; (b) LAMdeNE; (c) LAMliNE; (d) Multiple DMs.",
+   "rotated_deg": 0,
+   "bbox": [
+    92.7,
+    49.7,
+    502.4,
+    343.0
+   ],
+   "w": 1708,
+   "h": 1223,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.907
+  },
+  {
+   "key": "f14",
+   "kind": "figure",
+   "label": "14",
+   "page": 11,
+   "file": "fig_14.png",
+   "caption": "Fig. 14. Comparison of diagnostic results based on IC and POCV curves. (a) Area; (b) Intensity; (c) Corrected. denominator of Eq. (21) is replaced with the battery capacity with mechanism analysis, as follows: diagnostic results, low rate (C/25) discharge data are selected in the above study to diagnose the battery DMs. Liu et al. [50] and Wang et al. [51] show that the C-rate can significantly affect the IC curve, such as causing the disappearance or shift of characteristic peaks. Therefore, the effect of C-Rate needs to be further investigated. LLI' = AreaC,fresh −AreaC,aging × 100% (23) Qfresh The results calculated using Eq. (23) are shown in Fig. 14(c). It can be observed that the LLI obtained by the two methods exhibit not only a highly consistent trend but also excellent numerical agreement, where the maximum deviations between the IC-based and OCV-based diag­ nostic methods are 1",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    371.5,
+    566.0,
+    533.8
+   ],
+   "w": 2228,
+   "h": 677,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.909
+  },
+  {
+   "key": "f15",
+   "kind": "figure",
+   "label": "15",
+   "page": 12,
+   "file": "fig_15.png",
+   "caption": "Fig. 15. Comparison of diagnostic results with different C-rates. (a) LAMNE; (b) LLI. The primary reason is that characteristic peaks tend to merge or disap­ pear at higher C-rates. As shown in Fig. 15(a), the LAMNE diagnosed results at three C-rates (C/10, C/5, and C/3) exhibit a consistent trend with those obtained at C/25, which demonstrate that the diagnosed LAMNE is not affected by the C-rate. However, some fluctuations are observed with different C-rates, which is attributed to the relatively small changes of Peak B. Additionally, Peak B, located between Peaks A and C, is asymmetric peak. The application of polynomial central smoothing of IC curve may affect the diagnostic results. As shown in Fig. 15(b), the diagnosed LLI with different C-rates ex­ hibits negligible fluctuations but shows a decreasing trend with increasing C-rate. Taking the results at C/25 as the baseline, the ma",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    50.3,
+    502.4,
+    222.0
+   ],
+   "w": 1963,
+   "h": 717,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.94
+  },
+  {
+   "key": "f16",
+   "kind": "figure",
+   "label": "16",
+   "page": 12,
+   "file": "fig_16.png",
+   "caption": "Fig. 16. Flowchart of IC curve-based DMs diagnosis. intensity, and even disappearance of IC curve characteristic peaks [53]. The adaptability of the proposed method with varying temperatures should be further investigated. Four additional batteries (SOH: 100.13%, 97.66%, 87.07%, and 83.84%) are selected to investigate the adaptability of the proposed method with different temperatures. C/25 tests are conducted over a temperature range of 0–55 ◦C with a 5 ◦C interval. The detailed mechanistic modeling of IC curves under tem­ perature variations can be found in our previous study [47]. Using the temperature compensation method proposed in Ref. [47], the DM diagnostic results are shown in Fig. 17. It can be observed that the",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    250.4,
+    566.0,
+    611.3
+   ],
+   "w": 1107,
+   "h": 1505,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.609
+  },
+  {
+   "key": "f17",
+   "kind": "figure",
+   "label": "17",
+   "page": 13,
+   "file": "fig_17.png",
+   "caption": "Fig. 17. Diagnostic results of DMs under different temperatures. (a) LAMNE; (b) LLI. diagnostic results are highly consistent across different temperatures, with maximum deviations of LAMNE and LLI being 1.59% and 0.60%, respectively. It should be noted that the battery with an SOH of 97.66% is in the early stage of degradation. Negative diagnostic values appear at certain temperatures and are thus set to 0%. These results demonstrate that the proposed IC-based method has excellent temperature adaptability. The maximum deviations of LLI and LAMNE between the two battery types with different SOH are 1.51% and 1.53%, respectively. These re­ sults demonstrate that the proposed method possesses strong adapt­ ability and generalization capability for LiFePO4 battery DM diagnosis. 5. Conclusion To enable real-time diagnosis of DMs for LiFePO4 batteries, a novel direct online diagnostic method ",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    144.9,
+    566.0,
+    318.6
+   ],
+   "w": 2228,
+   "h": 725,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.768
+  },
+  {
+   "key": "f18",
+   "kind": "figure",
+   "label": "18",
+   "page": 13,
+   "file": "fig_18.png",
+   "caption": "Fig. 18. DMs diagnostic results of 18,650 batteries under different temperatures. (a) LAMNE; (b) LLI. 13",
+   "rotated_deg": 0,
+   "bbox": [
+    92.7,
+    557.7,
+    502.4,
+    730.8
+   ],
+   "w": 1708,
+   "h": 722,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.686
+  },
+  {
+   "key": "t1",
+   "kind": "table",
+   "label": "1",
+   "page": 3,
+   "file": "tab_1.png",
+   "caption": "Table 1 Detailed parameters of the testing equipment. Equipment Type Parameter",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    768.8
+   ],
+   "w": 2161,
+   "h": 3001,
+   "dpi": 293,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.862
+  },
+  {
+   "key": "t2",
+   "kind": "table",
+   "label": "2",
+   "page": 3,
+   "file": "tab_2.png",
+   "caption": "Table 2 Parameters of prismatic LiFePO4 battery.",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    768.8
+   ],
+   "w": 2161,
+   "h": 3001,
+   "dpi": 293,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.862
+  },
+  {
+   "key": "t3",
+   "kind": "table",
+   "label": "3",
+   "page": 3,
+   "file": "tab_3.png",
+   "caption": "Table 3 State of health of each aging state battery. No. 1 2 3 4 5 6 7 8 9 10 SOH (%) 93.47 89.12 86.77 79.41 96.54 90.61 83.63 79.76 102.3 99.1",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    768.8
+   ],
+   "w": 2161,
+   "h": 3001,
+   "dpi": 293,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.862
+  },
+  {
+   "key": "t4",
+   "kind": "table",
+   "label": "4",
+   "page": 8,
+   "file": "tab_4.png",
+   "caption": "Table 4 Comparison of diagnosed LAMNE by material- and cell-level methods. Parameter No. 5 No. 6 No. 7 No. 8 LAMNE,Cap (%) 0 4.55 8.91 11.54 LAMNE,OCV (%) 0 3.20 7.93 10.40",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    748.3
+   ],
+   "w": 2212,
+   "h": 2987,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.903
+  },
+  {
+   "key": "t5",
+   "kind": "table",
+   "label": "5",
+   "page": 8,
+   "file": "tab_5.png",
+   "caption": "Table 5 Specific DMs values of the constructed battery. No. LLI (Ah) LAMdeNE (Ah) LAMliNE (Ah) S-1 0 0 0 S-2 0.5 0.25 0.25 S-3 1 0.5 0.5 S-4 1.5 0.75 0.75 S-5 2 1 1 S-6 2.5 1.25 1.25 S-7 3 1.5 1.5 S-8 3.5 1.75 1.75",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    748.3
+   ],
+   "w": 2212,
+   "h": 2987,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.903
+  },
+  {
+   "key": "t6",
+   "kind": "table",
+   "label": "6",
+   "page": 13,
+   "file": "tab_6.png",
+   "caption": "Table 6 Corrected LLI with different C-rates. SOH (%) 96.54 93.47 90.61 89.12 86.77 83.63 79.76 79.41 1/25C 1.08 4.10 5.05 7.83 10.99 13.46 16.43 16.89 1/10C 1.21 3.93 6.33 7.32 10.57 12.20 14.91 16.60 1/5C 1.28 4.47 5.77 7.54 10.84 11.87 14.75 16.29 1/3C 1.49 2.77 5.39 6.84 10.96 13.11 15.26 15.95",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    748.8
+   ],
+   "w": 2212,
+   "h": 2989,
+   "dpi": 300,
+   "src": "20_direct_diagnosis_degradation_modes_lfp.pdf",
+   "blank": 0.835
+  }
+ ]
+}

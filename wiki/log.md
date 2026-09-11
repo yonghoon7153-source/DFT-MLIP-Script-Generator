@@ -1324,3 +1324,72 @@ max(SOC′(SOC′ ≥ 0))` 는 인쇄된 대로는 뜻이 안 통한다 (G3).
 구간 스케일링의 `JᵀJ` 조건수·null 방향.
 
 `python3 wiki/tools/lint.py` → **0 errors, 0 warnings** 확인 (pages 30, raw files 25).
+
+## [2026-09-11] ingest | Cui et al. 2026 — A direct diagnosis method for degradation modes of LiFePO4 batteries based on mechanism analysis (Applied Energy 426, 128689)
+
+사용자가 올린 세 편 중 **20번**. 같은 제1저자의 `cui2024_electrode-utilization-…` 과는
+다른 논문 (Jiangsu Univ., L. Wang 그룹). digest 의 무게중심은 두 가지 — **(a) "direct"
+가 적합 없이 무엇을 재는가와 그것이 LFP 에서만 되는 이유, (b) 정답 라벨이 measured
+인가 fitted 인가.**
+
+**raw**: `raw/papers/cui2026_direct-diagnosis-lfp-degradation-modes.md` (sha256 봉인,
+절별 STANDALONE 해체분석 15절 + 공백 G1–G16). 크로핑
+`raw/figures/cui2026_direct-diagnosis-lfp-degradation-modes/` (fig 17 + tab 6; **도구가
+Fig. 6 과 Fig. 7 을 한 장으로 잘랐다** — `figures.json` 에 `f7` 없음, 불변층이라
+덧쓰지 않음). **Fig. 3, 4, 6(+7), 8, 9, 10, 11, 12, 14, 15, 17, 18 의 12장을 Read 로 직접
+보고** 썼다 (Fig. 1·2·5·13·16 은 사진·도식·XRD 패턴·중복 통계·순서도라 안 봤다).
+
+**논문이 한 것**: 20 Ah 각형 LFP/graphite 10 셀(8 노화 + 2 기준). (i) C/25 방전
+의사-OCV 를 `X1–X4`(양극 가용 용량 · 음극 가용 용량 · 오프셋 `LAM_liNE − LAM_dePE +
+LLI` · 방전 종료 음극 리튬화도) 로 PSO 적합 → 파괴 확률 균일 가정(식 9)으로 다섯 모드로
+되풀기 (LAM_PE ≈ 0, LAM_NE 최대 2.83 Ah, LLI 3.40 Ah). (ii) **재료 라벨**: 코인 반쪽전지
+용량(LAM_NE, 4 셀, 최대 편차 1.35 %) · XRD LiC₆/LiC₁₂ 세기비(LLI, 4 셀, 1.68 %). (iii) OCV
+적합값을 참조로 만든 가상 배터리 스윕에서 **Peak B 면적은 LLI 불변·LAM_NE 감소, Peak C
+면적은 LLI 지배** → 적합 없는 직접 진단식 `LAM_NE = ΔArea_B/Area_B`, `LLI′ = ΔArea_C/
+Q_fresh` (OCV 적합 대비 1.79 / 1.62 %). (iv) C-rate(계수 1/1.19/1.26/1.47)·온도(0–55 °C)·
+18650 적응성.
+
+**우리 축에 걸린 것 넷**:
+1. **왜 LFP 에서만 되는가** `[해석]`: 평탄 양극 → full-cell dQ/dV 봉우리 = 음극 stage
+   용량 그대로 → **Peak C 절대 면적 감소(Ah) = LLI(Ah)** 항등식 (원문의 식 21 → 23
+   "보정" 이 바로 이것). NMC 에서는 봉우리가 양극·음극 합성이라 깨지고, Si/Gr 은 위치
+   불변이 깨지며, 무릎 이후는 새 봉우리(19번 논문)가 생긴다.
+2. **평탄 양극이 만드는 `(X1, X3)` = LAM_PE ↔ LLI 축퇴** `[해석]` (원문 식 1·5·20 에서
+   유도): 관측이 구속하는 것은 `X1 − X3 = Q_EOC` 뿐. Fig. 3(a) 의 `X1` 이 8개 SOH 에서
+   `[도표]` 정확히 같은 높이 = PSO tie-break 의 징후. 그런데도 LLI 가 XRD 와 맞은 이유는
+   **코인셀·XRD 가 LAM_PE ≈ 0 을 독립으로 확인**했기 때문 — 이 논지의 처방("관측을
+   늘려라")이 작동한 형태이며 저자는 그 구조를 모른다.
+3. **줄였다가 늘린다**: 비유일성을 인쇄하고(`[인쇄]` "To obtain unique parameter
+   results … recombined") 7 → 4 로 줄인 뒤 **사전믿음 등식**으로 li/de 를 다시 가른다 —
+   `LAM_liNE/LAM_NE ≈ 0.36` 은 `[재현]` 순환 구간 중점 0.39 의 구성. XRD 검증은 총량뿐이라
+   분할은 검증되지 않았다. 창 매개화 계보에 "등식의 새 변종".
+4. **정답 축의 층위**: OCV 법 ← 재료 라벨(4+4 셀, XRD 보정용 LAM_NE 는 **다른 셀**
+   코인셀의 선형 보간, 오차 막대 0, 기준 셀 둘) · IC 법 ← **OCV 적합값** · 18650 ← 각형
+   OCV 적합값의 SOH 보간. "1.79 %" 를 인용할 때 축을 반드시 붙인다.
+
+**본문 서술과 그림이 어긋난 것 3건** (digest §11.4): (a) 결론 "LAM_NE is insensitive
+to the C-rate" 인데 Fig. 15(a) `[도표]` SOH 79.4 % 에서 C/3 ≈18 % vs C/25 ≈11.7 %
+(≈6 pp, LLI 의 율 편차 6.07 % 와 같은 크기); (b) Fig. 9 와 Fig. 11 의 봉우리 전압이
+≈40 mV 다르고 충/방전 미표기; (c) 18650 SOH 본문 79.72 vs 범례 79.76. 그리고 "Peak C
+에서 de·li 가 상쇄" 는 가상 배터리를 **de:li = 1:1** 로 만든 산물인데 같은 논문의 진단은
+≈1.75:1 이다 (G10).
+
+**컴파일**:
+- 신규 concept [[ic-peak-area-direct-mode-readout-lfp]] (index 등록, 31 페이지).
+- [[halfcell-window-parametrization-lineage]] — Cui 2026 행(4, 재조합 7 → 4, 사전믿음
+  등식으로 다시 7) + 새 절 "**등식의 새 변종 — 사전믿음 등식으로 다시 가른다**".
+- [[mode-identifiability-unmeasured-lineage]] — 표에 행 추가 + §9 신설("다섯 번째 인쇄 —
+  줄였다가 사전믿음으로 늘리고, 축퇴는 재료 측정이 대신 풀었다"), 계보 16 → **17편**.
+- [[22p-physics-or-degeneracy]] — Evidence For 1건(적합의 "깨끗한 상수" 가 tie-break
+  였고 데이터 밖 측정이 판정) + Status Log.
+- [[pvs-sev-lli-lampe-separability]] — Evidence Against 1건(LFP·양극 제한 regime 에서
+  LLI ↔ LAM_liPE 가 OCV·IC 어느 관측에서도 같은 자리) + Gap 1건(부호표에 LAM_PE 열
+  부재, 정답 축 적합값) + Status Log.
+- [[rate-independent-li-plating-signature]] — 관련 항목에 상호 링크 (같은 화학의 무릎
+  앞/뒤).
+
+**미실행 후속 (값싸다)**: LFP 합성 truth 에서 `(X1, X3)` 방향 `JᵀJ` 조건수; LAM_PE
+0 → 10 % 에서 OCV 적합과 Peak C 면적법의 LLI 오귀속량 동시 계산; de:li 비(1:1 / 1.75:1 /
+3:1)에 따른 Peak C 편향.
+
+`python3 wiki/tools/lint.py` → **0 errors, 0 warnings** 확인 (pages 31, raw files 26).

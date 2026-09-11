@@ -1,7 +1,7 @@
 # 위키 색인
 
 > 내용 목록. 모든 위키 페이지를 종류별로 한 줄 요약과 함께 싣는다.
-> 마지막 갱신: 2026-09-11 | 전체 페이지: 30
+> 마지막 갱신: 2026-09-11 | 전체 페이지: 31
 
 ## Entities (satellite 프로젝트)
 
@@ -29,6 +29,7 @@
 - [[halfcell-ocp-shape-invariance]] — 모든 electrode balancing 진단이 깔고 있는 **아핀 재조정 전제**(열화 전극 OCP = pristine 곡선의 α·β 변환)와 그 파괴: Si/graphite blend 에서 `γ_Si` 가 9.52 → 5.55 % 로 움직이면 **곡선 모양 자체가 바뀌고**, `γ_Si ↓` 는 `α_an ↓` 와 full-cell 에 **같은 서명**을 남긴다. 강제 시 편향은 방향이 정해져 있다 (LAM_an +2.4 pp 과대 · LAM_cat −3 pp · LLI −1.1 pp) — 그런데 OCV RMSE 는 9.9 → 8.2 mV 로 거의 안 변한다.
 - [[reference-electrode-halfcell-dma]] — 기준전극을 셀에 심어 **최적화 없이** 전극별 열화를 재는 DMA (Natterer 2026): LAM 은 한 전극 **안** 두 DVA feature 사이 거리로, LLI 는 스케일한 pristine OCP 대비 **가로 이동량**으로. 축퇴가 풀리는 것이 아니라 **불확실성이 최적화 지형에서 특징점 판독으로 이동**하며, 그 대가 6개(feature 불변·0.2 C≈OCP·pristine OCP 재사용·판독 절차 미인쇄·RE 위치 20 mV·셀 1개)가 여기 정리돼 있다.
 - [[rate-independent-li-plating-signature]] — 무율(rate-independent) 리튬 도금 (Wang (Xiong) 2025, LFP/graphite 17 셀 중 10 셀): 원인은 `Q_NE < Q_Li` (LAM_NE), 0.05 C 에서도 생기며 충전 말단 평탄역(≈3.46 V)·방전 시작 짝 평탄역·dV/dQ **새** 봉우리·≈2 mV 동역학 하강을 남긴다. 가역분은 **LLI/LAM 어느 칸에도 안 들어가고**, 아핀 창 매개화가 깨지자 원전은 자유도를 4 → 8 로 늘리고 유일성을 안 쟀다. 음극 0 V 교차점이 창 밖(1.08)에서 안(0.88)으로 들어올 때 `Q_NE` 가 계단으로 떨어지는 국면 전환, `bms-balancing/` 요구서용 구분 시험 T1–T5.
+- [[ic-peak-area-direct-mode-readout-lfp]] — Cui 2026 의 적합 없는 직접 진단 (LFP/graphite 20 Ah): **Peak C 절대 면적 감소(Ah) = LLI**, Peak B 상대 감소 = LAM_NE — LFP 평탄 양극 덕에 full-cell dQ/dV 봉우리가 음극 stage 용량 그대로라서 성립하는 항등식. 이 계보 첫 **재료 라벨**(코인셀·XRD, OCV 적합 대비 1.35 / 1.68 %)과 그 대가(오차 막대 0·교차 셀 보간), IC 법의 정답 축은 적합값(1.79 / 1.62 %), 평탄 양극이 만드는 `(X1, X3)` = LAM_PE ↔ LLI 축퇴를 재료 측정이 대신 푼 구조, 사전믿음 등식으로 닫은 li/de 분할(0.36 = 순환 구간 중점), NMC·Si/Gr·무릎 이후로의 이식 조건.
 - [[dv-peak-heterogeneity-descriptor]] — Kim 2023 의 DV `Peak_S2`: 진폭이 아니라 **ridge 절대 높이**이며(진폭은 valley 노이즈로 폐기), LFP‖Gr 에서의 음극 단일 귀속은 PVS 해석과 충돌하지 않는다 — 좌표를 맞추면 오히려 일치.
 
 ## Comparisons (비교)
@@ -48,7 +49,7 @@
 
 ## Syntheses (종합)
 
-- [[mode-identifiability-unmeasured-lineage]] — 흡수한 16편(2026-09-11 현재)은 LLI/LAM 분해를 **보고**하지만 그 분해가 **유일한지**를 잰 편이 하나도 없고, **그것을 잴 도구는 이미 그 15편 안에 흩어져 있다**: 축퇴가 세 번 인쇄됐으나(Dubarry 식 · Birkl 산문 · Marongiu 식 (2)–(5)) 아무도 null 을 풀지 않았고, Lin 은 `C_θ` 를 쥐고 대각선만 그렸으며, 그리는 기계는 Schaeffer 에 있는데 **두 논문이 서로를 인용하지 않는다**(어휘 분단: `identifiab*` 26/0 vs `nullspace` 0/69). 우리 Phase 1c·1d 가 겨눈 결과와 "재지 않은 대가" 의 야생 실측(Marongiu: 초기값만 바꿔 오차 6.38 → 14.46 %; **Schmitt 2022: 음극 half-cell 곡선만 바꿔 LAM_an 15.5 → 13.1 % 인데 OCV RMSE 는 9.9 → 8.2 mV**)까지.
+- [[mode-identifiability-unmeasured-lineage]] — 흡수한 17편(2026-09-11 현재)은 LLI/LAM 분해를 **보고**하지만 그 분해가 **유일한지**를 잰 편이 하나도 없고, **그것을 잴 도구는 이미 그 15편 안에 흩어져 있다**: 축퇴가 세 번 인쇄됐으나(Dubarry 식 · Birkl 산문 · Marongiu 식 (2)–(5)) 아무도 null 을 풀지 않았고, Lin 은 `C_θ` 를 쥐고 대각선만 그렸으며, 그리는 기계는 Schaeffer 에 있는데 **두 논문이 서로를 인용하지 않는다**(어휘 분단: `identifiab*` 26/0 vs `nullspace` 0/69). 우리 Phase 1c·1d 가 겨눈 결과와 "재지 않은 대가" 의 야생 실측(Marongiu: 초기값만 바꿔 오차 6.38 → 14.46 %; **Schmitt 2022: 음극 half-cell 곡선만 바꿔 LAM_an 15.5 → 13.1 % 인데 OCV RMSE 는 9.9 → 8.2 mV**)까지.
 
 ## Queries (질의 기록)
 
