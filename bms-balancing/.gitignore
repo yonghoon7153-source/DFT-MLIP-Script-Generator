@@ -2,3 +2,10 @@
 out/*.log
 out/*.err
 out/.*.part
+
+# 셀 자료 루트 — `prepare_cell.py` · `fixed_hc.py` 가 만드는 트리에는
+# **규진팀 원자료 xlsx 사본**이 들어간다. 저장소는 public 이다.
+# ⚠ 저장소 루트 바로 아래 `cells/` 는 여기서 못 막는다 (상위 디렉터리).
+#   그쪽은 루트 `.gitignore` 가 막아야 하고, 본체 소유다 —
+#   `HANDOFF_TO_GATE.md` §2b 에 신고해 뒀다.
+cells/
