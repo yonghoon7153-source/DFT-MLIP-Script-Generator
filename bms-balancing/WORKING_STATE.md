@@ -35,7 +35,10 @@ R3 에서 Codex 가 종결로 인정한 것: R3-01·03(계산)·04·09, R3-05/07
 보류 셋의 처분: **S-02 닫힘**(정정) · **S-03 기록 유지**(Codex Q2 가 한정어를 적절하다고 봄; 용량 축을 뺀
 (a) 는 요구서의 구분 시험 항목) · **S-04 열림**(개선 후보, 리뷰어 요구 아님).
 
-남은 것: **U12 — 사용자 기계** 실측 하나와 R5 요청문.
+**U12 실측 완료** (사용자 기계, 274f1f8): 4 루트 × 4 상태 16 build 전부 Inf 0 · NaN 0
+(`out/scale_audit_eval.txt`). §1-13 은 GITT · Li · seed 0 범위에서 U1 동치가 영역 안이라고 적었다.
+남은 것: `reviews/R5_REQUEST.md` 를 Codex 에 보낸다 (대상 = 그 파일이 든 커밋). 아래 명령은 실행 기록으로
+남긴다.
 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify

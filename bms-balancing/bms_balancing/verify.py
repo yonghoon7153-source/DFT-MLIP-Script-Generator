@@ -865,6 +865,9 @@ def cmd_eval(args):
         head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
                 f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}",
                 f"# {PRINTED_FORMAT_KEY},%.17g"]
+        if audit:                                    # U12: 파일에도 남긴다 (stdout 사본에 기대지 않게)
+            head.append("# scale_audit," + "; ".join(
+                f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}" for k, v in audit.items()))
         head += [f"# {k},{v:.17g}" for k, v in anchors]
         Path(args.out).write_text("\n".join(head + lines) + "\n", encoding="utf-8")
         print(f"\nwrote {args.out}")

@@ -14,7 +14,7 @@ S-02 의 대응이다 (`reviews/R4_LEDGER.md`). GO 기준은 R3 §5 의 다섯 �
 | 범위 | `bms-balancing/` 만 |
 | 정본 | `FINDINGS.md` + `out/` (+ `.meta.json`). 이 요청문의 숫자는 사본 |
 | 저장소에 없는 것 | 원본 MATLAB · 원자료 xlsx · 문헌 OCP → `BMS_DATA_ROOT` (R3·R4 와 같음) |
-| 우리 환경에서만 되는 것 | **U12** — 네 루트 `eval` 의 `# scale_audit` 줄 (실제 자료의 Inf 표본 개수). 아직 미실행 |
+| 우리 환경에서만 되는 것 | U12 — 네 루트 × 네 상태 `eval` 의 `# scale_audit` 줄: **실행 완료**, 16 build 전부 Inf 0 · NaN 0 (`out/scale_audit_eval.txt`, GITT · Li · seed 0) |
 
 ```bash
 git clone -b claude/bms-alpha-beta-verify https://github.com/yonghoon7153-source/Yonghoon-DEM-DFT
@@ -49,7 +49,7 @@ python3 reviews/r4_repros/harness_r4_inference_repros.py --target "$PWD" --case 
 | 02 추정·`%.14g`·미지원 선언이 complete | 닫힘 (코드) | `resolve_precision`/`parse_precision_spec`/`cell_tol`: 옵션 → 선언 → 추정. 추정 = `partial`(사유 "정밀도 추정", 종료 3), `--allow-partial` 은 스키마 누락만 0; `%.Ng` 는 첫 유효자리에서 N 자리 아래 반 단위; 해석 불가 선언 = `invalid`(2); 옵션이 선언보다 느슨하면 `partial` + `precision_conflict` 기록 (Q3) | `test_r4_02_*` (helper 4 + 공개 경로 2: 추정은 `--allow-partial` 로도 3) |
 | 03 fixed 허용량 두 배 | 닫힘 (코드) | 반 단위 0.5·10⁻ᴺ; 판정 = 초과분/\|p\| (자리수 안 / ≤1e-9 수치 잡음 / 모델 차이) | `test_r4_03_*` (`%.10f` 0.0123456789 vs …894 complete / …899 갈림; `%.1f` 0.149 / 0.199) |
 | 04 중복 열·앵커 | 닫힘 (코드) | `dd_eval_csv_audit`: 중복 앵커·중복 열·열 수 불일치·숫자 아닌 칸 → `invalid`, 비교 0 | `test_r4_04_*` |
-| 05 U1 "Inf 안 나옴·가드 둘뿐" | 닫힘 (한정+감사) · **U12 실측 대기** | §1-13: 동치를 scale 표본 전부 유한한 영역으로 한정, 비유한 정책 차이(원본 NaN 만 / 포팅 Inf 도) 명시, "Inf 안 나옴" 철회; `Objective.scale_audit`(n·유한·Inf·NaN) + `NONFINITE_SCALE_POLICY`; `eval` `# scale_audit` 줄, degeneracy JSON `scale_audit`/`ref_scale_audit`. 정책을 원본에 맞추는 대신 영역 한정을 택했다 — 원본에 Inf 방어가 따로 있는지는 U12 때 본다 | `test_r4_05_*` (평탄부 forward 50 표본 중 Inf ≥ 1, 감사 개수 일치, §1-13 문구) |
+| 05 U1 "Inf 안 나옴·가드 둘뿐" | 닫힘 (한정+감사+**실측**) | §1-13: 동치를 scale 표본 전부 유한한 영역으로 한정, 비유한 정책 차이(원본 NaN 만 / 포팅 Inf 도) 명시, "Inf 안 나옴" 철회; `Objective.scale_audit`(n·유한·Inf·NaN) + `NONFINITE_SCALE_POLICY`; `eval` `# scale_audit` 줄, degeneracy JSON `scale_audit`/`ref_scale_audit`. 정책을 원본에 맞추는 대신 영역 한정을 택했다. 실측(U12): 4 루트 × 4 상태 16 build 전부 Inf 0 · NaN 0 → GITT · Li · seed 0 범위에서 영역 안; 다른 Si 소스·step_005C 는 실측 밖으로 명시 | `test_r4_05_*` (평탄부 forward 50 표본 중 Inf ≥ 1, 감사 개수 일치, §1-13 문구), `test_u12_*` (사본 16 줄 전부 0 + §1-13 범위 문구) |
 | 06 공유 `.part` · Q4 touch | 닫힘 (코드) | `atomic_write_csv`(시도별 `NamedTemporaryFile` → `os.replace`); `run_id_of`(`--run-id`/`BMS_RUN_ID`/uuid) 가 degeneracy JSON·matrix 행·profile 행에; `run_states.sh run`: 시도마다 id 를 만들어 명령에 주고 **파일 안에 그 id** 가 있어야 OK (시각 도장 제거); `write_meta`: id 확인·기록, 없으면 거부 | `test_r4_06_concurrent_*` (실제 두 process, `os.replace` 경계 barrier: A 게시 순간 B 가 읽은 내용 = A 의 값·`run-A`; 둘 다 rc 0; 최종 = B), `test_r4_06_run_helper_*` (touch → FAIL, id → OK, meta run_id, 없으면 거부) |
 | 07 (P2) 두 번째 meta dirty | 닫힘 (코드) | `provenance.git_provenance`: `git_dirty`(산출 디렉터리 밖) + `git_modified_outputs`(안, 자신 제외) + `git_modified_code` — `out/` 을 숨기지 않는다; `ne_shape`·`write_meta` 가 쓴다 | `test_r4_07_*` (100→200 차례 재생성: 둘 다 dirty False, 200 의 modified_outputs=["out/100.csv"]; 코드 수정 → True) |
 | S-02 (보류) | 닫힘 (정정) | §5-2: 100 은 방향 같음·크기 40 배, 200 반대; 300_0009 = "γ_ref 고정 · γ 501 × x 400 격자에서 증인 없음 (표집 기준)" (Q2) | `test_r4_docs_*` |
@@ -64,7 +64,7 @@ S-03(용량 축이 섞인 (a) vs 순수 γ 축의 가족 최대)은 Q2 의 한�
 
 | 관측 | 붙인 범위 |
 |---|---|
-| 포팅 일치 | 보존된 네 조합 192 출력값의 경험적 일치 (4.04e-12, TXT 원시값 재계산, 반 단위 0 규칙으로도 complete). 네 로컬 함수의 식은 사용자 대조 기록. **비유한 영역은 제외** — scale 정책이 다르다 (R4-05); 실제 자료의 Inf 표본 수는 U12 |
+| 포팅 일치 | 보존된 네 조합 192 출력값의 경험적 일치 (4.04e-12, TXT 원시값 재계산, 반 단위 0 규칙으로도 complete). 네 로컬 함수의 식은 사용자 대조 기록. **비유한 영역은 제외** — scale 정책이 다르다 (R4-05); 실측 16 build(GITT · Li · seed 0)는 전부 유한 표본이라 영역 안, 다른 Si 소스·step_005C 는 미실측 |
 | 음수 LAM_NE | 공개 5 행 · 고정 기준의 부호 산술, 행별 임계 1.177~1.196. 경계 변경 재적합의 인과 미확립 |
 | 파우치 폭 순위 | 네 상태 · 소스 · 설정에서 찾은 탐색 하한의 순위 4/4. 식별성·정확도 보장 아님 |
 | 원통형/PE 대조 · 재척도화 | 소스 집합·분모·통계량을 명시한 기술 결과 (raw 5~10x, 대상 rmse 2.85x, pristine rmse 4.99x). 원인 배제·공유 가능값 증명 아님 |
@@ -79,7 +79,7 @@ S-03(용량 축이 섞인 (a) vs 순수 γ 축의 가족 최대)은 Q2 의 한�
 | U4~U8 | R3 와 같음 | 그대로 |
 | U9 | γ 직접 제약 적합 · 참 가족원/비가족원 대조 · 공유 가능값 증인 | 미구현 |
 | U10 | INTRO·HANDOFF 숫자 무검사, `tol_percent_of_best` ×100, 한정어 삭제 | 열림 |
-| **U12** | 실제 자료의 scale 표본 Inf 개수 (`# scale_audit`) — 기존 산출물엔 기록 없음 | **사용자 기계 `eval` 네 루트 대기** (명령은 `WORKING_STATE.md`) |
+| ~~U12~~ | 실제 자료의 scale 표본 Inf 개수 | **닫힘** — 16 build 전부 0 (`out/scale_audit_eval.txt`); 실측 밖(다른 Si 소스 7 종 · step_005C)은 새 실행의 감사 줄로 |
 | S-04 | 증인 반대쪽 도달 여부 · 가족 최대의 상태 독립성 표기 | 개선 후보 |
 
 ## 6. 리뷰어에게 — 질문
@@ -93,8 +93,8 @@ S-03(용량 축이 섞인 (a) vs 순수 γ 축의 가족 최대)은 Q2 의 한�
 ## 7. 실측 첨부
 
 - `reviews/r4_repros/replay_ours_39a5fe0.json` — R4 반례 우리 재생 (39a5fe0 worktree, 12 단계).
-- `out/` 변경 없음 (이 판은 코드·문서만). `out/ne_shape_GITT_Li.csv` 는 fb62342 그대로.
+- `out/scale_audit_eval.txt` — U12 실측 사본 (16 줄, 사용자 기계 274f1f8). 그 외 `out/` 변경 없음.
 
 ## 8. 이후
 
-GO 면 새 모델 설계 요구서(`docs/`) 초안 — §4 의 다섯 행을 관측 열로, 후보 원인 · 구분 시험 · 채택 기준 · 남는 한계 순. U12 는 요구서와 무관하게 사용자 기계에서 닫는다.
+GO 면 새 모델 설계 요구서(`docs/`) 초안 — §4 의 다섯 행을 관측 열로, 후보 원인 · 구분 시험 · 채택 기준 · 남는 한계 순.

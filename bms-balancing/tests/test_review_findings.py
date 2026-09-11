@@ -2445,3 +2445,31 @@ def test_r4_docs_direction_sentence_precision_order_and_line_endings():
         assert "옵션 → 선언 → 추정" in body and "complete" in body, f"{f}: 실제 순서와 '추정 ≠ complete' 가 없다"
     ga = (ROOT / ".gitattributes").read_text(encoding="utf-8")
     assert "*.sh text eol=lf" in ga
+
+
+# ── U12: 실제 자료의 scale 표본에 비유한 값이 있었나 (2026-09-11, 사용자 기계 실측) ────────
+
+def test_u12_scale_audit_transcript_has_no_nonfinite_samples_and_section_1_13_scopes_u1():
+    """R4-05 는 U1 동치를 'scale 표본이 전부 유한한 영역' 으로 한정했다. 그 영역에 실제 자료가 드는지는
+    새 실행이 남기는 `# scale_audit` 줄로만 알 수 있다 — 사용자 기계에서 네 루트 × 네 상태의 `eval` 을 돌린
+    출력을 `out/scale_audit_eval.txt` 에 그대로 보존했다 (recompare TXT 와 같은 규약: 터미널 출력 사본).
+    16 줄 전부 세 항의 Inf·NaN 이 0 이어야 하고, §1-13 은 그 **범위**(GITT · Li · seed 0 · 50 표본 · 4 루트 ×
+    4 상태)를 붙여 U12 를 닫아야 한다 — 다른 Si 소스·step_005C 는 이 실측에 없다.
+    """
+    import re
+    f = ROOT / "out" / "scale_audit_eval.txt"
+    assert f.is_file(), "out/scale_audit_eval.txt 가 없다 (U12 실측 사본)"
+    lines = [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.startswith("# scale_audit,")]
+    assert len(lines) == 16, len(lines)
+    pat = re.compile(r"(pocv|dvdq|dqdv):n=(\d+)/finite=(\d+)/inf=(\d+)/nan=(\d+)")
+    for ln in lines:
+        terms = {m.group(1): tuple(int(m.group(i)) for i in (2, 3, 4, 5)) for m in pat.finditer(ln)}
+        assert set(terms) == {"pocv", "dvdq", "dqdv"}, ln
+        for k, (n, fin, inf, nan) in terms.items():
+            assert n == 50 and fin == 50 and inf == 0 and nan == 0, (k, ln)
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-13")
+    live = NOT_A_CLAIM.sub("", sec)
+    assert "U12" in sec and "scale_audit_eval.txt" in sec, "§1-13 이 U12 실측 산출물을 가리키지 않는다"
+    assert "16" in live and "GITT" in live and "Li" in live and "seed 0" in live, "§1-13 에 실측 범위가 없다"
+    assert "미확인" not in live.split("U12")[-1][:400] or "닫힘" in live, "§1-13 이 U12 를 아직 미확인이라 한다"
+    assert "step_005C" in live, "§1-13 이 실측 밖 범위(다른 Si 소스·step_005C)를 말하지 않는다"
