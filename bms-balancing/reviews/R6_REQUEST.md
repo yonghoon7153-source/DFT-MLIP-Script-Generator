@@ -14,7 +14,7 @@
 | 범위 | `bms-balancing/` 만 |
 | 정본 | `FINDINGS.md` + `out/` (+ `.meta.json`). 이 요청문의 숫자는 사본 |
 | 저장소에 없는 것 | 원본 MATLAB · 원자료 xlsx · 문헌 OCP → `BMS_DATA_ROOT` (전과 같음) |
-| 우리 환경에서만 되는 것 | **U13** — 새 감사 줄(식별자·eps_rel·equiv 포함)의 `eval` 실측: 아직 미실행 (§5) |
+| 우리 환경에서만 되는 것 | U13 — 새 감사 줄(식별자·eps_rel·equiv)의 `eval` 실측: **완료** (`out/scale_audit_eval_u13.txt`, 18 build 전부 `equiv=1`, eps_rel ≤ 1.7e-15; 루트 이름은 보고 순서 — 다음 판부터 `root=`) |
 
 ```bash
 git clone -b claude/bms-alpha-beta-verify https://github.com/yonghoon7153-source/Yonghoon-DEM-DFT
@@ -51,7 +51,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 | 03 파라미터 열 이름 | 닫힘 (코드) | `header[:5] == PARAM_COLS` 아니면 `invalid` | `test_r5_03_*` |
 | 04 결과+meta 묶음 | 닫힘 (코드) | `publish_lock`(`<산출>.lock` flock) — verify.py 게시·shell degeneracy `mv`·`write_meta` 가 같은 잠금; meta 작성자는 잠금 안에서 id 를 필드로 재확인, bytes sha256 을 meta 에; 실패면 meta 안 씀; 게시 뒤 `provenance --verify-unit`. 정책: 동시 실행 허용, "마지막 온전한 묶음" 만 남음 | `test_r5_04_*` (Codex 와 같은 schedule → B/B, A 거부), `test_r4_06_concurrent_*` 갱신 |
 | 05 소비 입력 | 닫힘 (코드) | `fitted_pair_info` → meta `consumed_inputs`: matrix 경로·sha256·행, 반쪽전지·문헌 경로·sha256 (tracked 무관) | `test_r5_05_*` |
-| 06 동치 조건 | 닫힘 (코드+정정) · **U13 실측 대기** | 감사에 `raw_lower_half_mean`·`scale`·`eps_rel`·`equivalent_within_rel`(유한·예외 없음·eps_rel ≤ 1e-9 — 상대 근사); §1-13·§0-1·§0-2: "16 build 전부 유한 → 영역 안" 을 철회, 동치는 새 감사 줄로만 | `test_r5_06_*` |
+| 06 동치 조건 | 닫힘 (코드+정정+**실측**) | 감사에 `raw_lower_half_mean`·`scale`·`eps_rel`·`equivalent_within_rel`(유한·예외 없음·eps_rel ≤ 1e-9 — 상대 근사); §1-13·§0-1·§0-2: "16 build 전부 유한 → 영역 안" 을 철회, 동치는 새 감사 줄로만 | `test_r5_06_*` |
 | 07 matrix 감사 | 닫힘 (코드) | 행에 `scale_*_target/ref`·`scale_audit_target/ref`·`scale_seed`·`n_scale_samples`; stdout 행 JSON | `test_r5_07_*` |
 | 08 run id 계약 | 닫힘 (코드) | `main()` 이 파싱 직후 id 고정; `check_run_id`(CSV 열 전 행 / JSON 필드) | `test_r5_08_*` |
 | 09 U12 범위 | 닫힘 (정정) | §1-13: "보고 순서의 16 줄(식별자 없음)", 192 값 중 GITT·Li 96 값만, Kunz·step_005C 96 값 실측 밖; 감사 줄에 식별자 추가 | `test_r5_docs_*`, `test_u12_*` |
@@ -66,7 +66,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 
 | 관측 | 붙인 범위 |
 |---|---|
-| 포팅 일치 | 보존된 네 조합 192 출력값의 경험적 일치(TXT 원시값 재계산, `%g` 실제 구간 규칙으로도 complete). 네 로컬 함수의 식 대조는 사용자 기록. scale 동치는 유한·예외 없음·eps_rel ≤ 1e-9 의 상대 근사이며 **아직 어느 실행에서도 그 조건이 기록되지 않았다** (U13) — 모든 입력의 동치 아님 |
+| 포팅 일치 | 보존된 네 조합 192 출력값의 경험적 일치(TXT 원시값 재계산, `%g` 실제 구간 규칙으로도 complete). 네 로컬 함수의 식 대조는 사용자 기록. scale 동치는 유한·예외 없음·eps_rel ≤ 1e-9 의 상대 근사이고, U13 실측 18 build(recompare 4 조합 포함)에서 그 조건이 성립 — 모든 입력의 동치는 아님(B축 나머지 조합 미실측) |
 | 음수 LAM_NE | 공개 5 행 · 고정 기준의 부호 산술, 행별 임계. 경계 변경 재적합의 인과 미확립 |
 | 파우치 폭 순위 | 네 상태 · 소스 · 설정의 탐색 하한 순위 4/4. 식별성·정확도 보장 아님 |
 | 원통형/PE 대조 · 재척도화 | 명시한 소스 집합·분모·통계량의 기술값. 원인 배제·공유 가능값 증명 아님 |
@@ -79,7 +79,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 | U2 | pOCV 원자료/재표본 | 원시 timestamp·export 설정 필요 (R4 Q1) |
 | U3 | 원통형 차이의 원인 | 미확정 — 구분 시험은 요구서 항목 |
 | U4~U10 | 전과 같음 | 그대로 |
-| **U13** | 새 감사 줄(식별자·eps_rel·equiv) 실측 — GITT·Li 16 build + Kunz · step_005C 조합 | **사용자 기계 대기** (명령은 `WORKING_STATE.md`); 그때까지 scale 동치는 어느 실행에서도 미확인 |
+| ~~U13~~ | 새 감사 줄 실측 | **닫힘** — 18 build 전부 `equiv=1` (`out/scale_audit_eval_u13.txt`); 실측 밖: 나머지 Si 소스 6 종 · step_005C 의 다른 상태 · `w_dqdv=1` 조합 (B축 `matrix` 재실행의 행별 감사로) |
 | S-04 | 증인 반대쪽 도달 여부 · 가족 최대의 상태 독립성 표기 | 개선 후보 |
 
 ## 6. 리뷰어에게 — 질문
@@ -93,7 +93,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 ## 7. 실측 첨부
 
 - `reviews/r5_repros/replay_ours_0cb7b7a.json` — R5 반례 우리 재생 (11 단계).
-- `out/` 변경 없음 (이 판은 코드·문서만).
+- `out/scale_audit_eval_u13.txt` — U13 실측 사본 (18 줄, 사용자 기계 a78f0a5). 그 외 `out/` 변경 없음.
 
 ## 8. 이후
 

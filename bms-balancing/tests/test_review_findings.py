@@ -2864,3 +2864,44 @@ def test_r5_docs_u12_scope_and_summary_qualifiers():
     assert "경험적" in top and ("eps" in top or "비유한" in top), "§0-1 요약에 포팅 일치의 한정이 없다"
     retr = _section(txt, "## 0-2")
     assert "R5-06" in retr and "R5-09" in retr, "§0-2 에 R5 정정 행이 없다"
+
+
+# ── U13: scale 동치 조건의 실측 (2026-09-11, 사용자 기계, R5-06 · R5-09 의 후속) ────────────────
+
+def test_u13_scale_audit_transcript_meets_the_equivalence_condition_and_covers_the_recompare_configs():
+    """R5-06 은 동치를 "유한 · 예외 없음 · eps_rel ≤ 1e-9" 의 상대 근사로 정의했고, R5-09 는 감사 줄에 식별자를
+    요구했다. `out/scale_audit_eval_u13.txt` 는 그 새 감사 줄 18 개의 사본이다 (GITT·Li 4 루트 × 4 상태 + Kunz
+    pristine + step_005C pristine). 줄마다 state·source·si·seed·n 이 있고 세 항이 전부 조건을 만족해야 하며,
+    (state, source, si) tuple 집합이 §1-8 recompare 4 조합을 덮어야 한다. 루트 차원은 아직 줄에 없다 —
+    보고 순서로만 안다 (§1-13 이 그렇게 적어야 한다).
+    """
+    import re
+    from collections import Counter
+    from bms_balancing.model import SCALE_EQUIV_REL
+    f = ROOT / "out" / "scale_audit_eval_u13.txt"
+    assert f.is_file(), "out/scale_audit_eval_u13.txt 가 없다"
+    lines = [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.startswith("# scale_audit,")]
+    assert len(lines) == 18, len(lines)
+    head = re.compile(r"state=(\S+) source=(\S+) si=(\S+) seed=(\d+) n=(\d+)")
+    term = re.compile(r"(pocv|dvdq|dqdv):n=(\d+)/finite=(\d+)/inf=(\d+)/nan=(\d+)/exc=(\d+)/eps_rel=([0-9.e+-]+)/equiv=([01])")
+    keys = Counter()
+    for ln in lines:
+        h = head.search(ln); assert h, ln
+        keys[(h.group(1), h.group(2), h.group(3))] += 1
+        assert h.group(4) == "0" and h.group(5) == "50", ln
+        terms = {m.group(1): m for m in term.finditer(ln)}
+        assert set(terms) == {"pocv", "dvdq", "dqdv"}, ln
+        for k, m in terms.items():
+            n, fin, inf, nan, exc, eps_rel, eq = (int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)),
+                                                  int(m.group(6)), float(m.group(7)), m.group(8))
+            assert n == fin == 50 and inf == nan == exc == 0 and eps_rel <= SCALE_EQUIV_REL and eq == "1", (k, ln)
+    # GITT·Li 는 상태마다 4 줄(= 네 루트, 보고 순서), Kunz·step_005C 는 pristine 하나씩
+    for st in ("pristine", "100", "200", "300_0009"):
+        assert keys[(st, "GITT", "Li")] == 4, keys
+    assert keys[("pristine", "GITT", "Kunz")] == 1 and keys[("pristine", "step_005C", "Li")] == 1, keys
+    # §1-8 recompare 4 조합(pristine Li GITT · pristine Kunz GITT · pristine Li step_005C · 300_0009 Li GITT)이 덮인다
+    for cfg in (("pristine", "GITT", "Li"), ("pristine", "GITT", "Kunz"), ("pristine", "step_005C", "Li"), ("300_0009", "GITT", "Li")):
+        assert keys[cfg] >= 1, cfg
+    sec = " ".join(NOT_A_CLAIM.sub("", _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-13")).split())
+    assert "U13" in sec and "scale_audit_eval_u13.txt" in sec and "18" in sec, "§1-13 에 U13 실측이 없다"
+    assert "192" in sec and "equiv" in sec and "루트" in sec and "보고 순서" in sec, "§1-13 에 U13 의 범위(192 값 덮음 · 루트는 보고 순서)가 없다"

@@ -912,7 +912,9 @@ def cmd_eval(args):
     if audit:                                        # R4-05: 이 자료에서 scale 표본에 비유한 값이 있었나
         # R5-09: 줄 자체에 식별자(상태·소스·Si·seed·표본 수)를 붙인다 — 붙여 넣은 사본만으로 구성 집합을 셀 수 있게.
         # R5-06: eps 상대 영향과 동치 flag 도 같이.
-        audit_line = ("# scale_audit," + f"state={args.state} source={args.source} si={args.si_source} "
+        # U13 사본에는 data root 식별자가 없어 루트 차원을 보고 순서로만 알았다 — 이제 root 이름도 붙인다.
+        root_label = Path(str(root)).name or str(root)
+        audit_line = ("# scale_audit," + f"root={root_label} state={args.state} source={args.source} si={args.si_source} "
                       f"seed={args.seed} n={next(iter(audit.values()))['n']}; " + "; ".join(
                           f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}"
                           f"/exc={v.get('n_exception', 0)}/eps_rel={v.get('eps_rel', float('nan')):.3g}"

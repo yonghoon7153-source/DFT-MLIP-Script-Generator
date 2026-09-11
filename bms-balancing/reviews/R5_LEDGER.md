@@ -47,7 +47,7 @@ Q1: 해석 못 하는 선언은 명시 옵션이 대체한다는 예외를 READM
 3. ~~코드~~ — `verify.py`(01·02·03·04·07·08) · `model.py`(06·10) · `provenance.py`(04·08·11) · `ne_shape.py`(05) · `run_states.sh`(04·08)
 4. ~~문서~~ — FINDINGS §0-1·§0-2·§1-8·§1-13 · README ×2 · WORKING_STATE
 5. ~~GREEN + 반례 재실행~~ — 위 표
-6. **사용자 기계 (U13)**: 새 감사 줄(식별자·eps_rel·equiv) — GITT·Li 16 + Kunz · step_005C. 명령은 WORKING_STATE 에
+6. ~~사용자 기계 (U13)~~ — 실측 완료 (`out/scale_audit_eval_u13.txt`, 18 줄): 전부 유한 · 예외 0 · eps_rel 4.7e-16~1.7e-15 · `equiv=1`; recompare 4 조합 포함. 루트 이름은 그 판 줄에 없어 보고 순서 — 다음 판부터 `root=` 를 붙이게 고침. `test_u13_*`.
 7. R6 요청문 (`R6_REQUEST.md`)
 
 ## 유지되는 것 (Codex 가 종결로 인정한 것)

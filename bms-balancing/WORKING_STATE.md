@@ -31,7 +31,10 @@
 (R5-01~05 · 07 · 08 · 10 · 11)·문서 둘(R5-06 동치 조건, R5-09 U12 범위)을 RED → 수정 → GREEN 으로 닫았다.
 R4 에서 Codex 가 종결로 인정한 것: R4-01·03·S-02, R4-02/04/05/06/07 의 원래 반례.
 
-남은 것: **U13 — 사용자 기계** 실측 하나와 R6 요청문.
+**U13 실측 완료** (사용자 기계, a78f0a5): 18 build 전부 유한 · 예외 0 · eps_rel ≤ 1.7e-15 · `equiv=1`
+(`out/scale_audit_eval_u13.txt`). §1-13 은 recompare 4 조합이 그 조건 안이라고 적었다. 루트 이름은 그 판
+줄에 없어 보고 순서 — 다음 판부터 `root=` 가 붙는다.
+남은 것: `reviews/R6_REQUEST.md` 를 Codex 에 보낸다 (대상 = 그 파일이 든 커밋). 아래 명령은 실행 기록.
 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
