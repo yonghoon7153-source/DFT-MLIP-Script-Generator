@@ -24,17 +24,24 @@
 
 ---
 
-## 지금 상태 — **Codex R5 = NO-GO (P1 7 · P2 4). `reviews/R5_LEDGER.md` 가 작업 원장이다**
+## 지금 상태 — **R6 = 내부 자체 리뷰 (Codex 토큰 소진) · 네 렌즈 37 건 → CONFIRMED 30 전부 닫음. `reviews/R6_LEDGER.md` 가 작업 원장이다**
 
-2026-09-11 Codex 5차 리뷰(대상 `0cb7b7a`, `reviews/R5_CODEX.md`) 열한 건을 우리 트리에서 **전부 재현**했다
-(`reviews/r5_repros/replay_ours_0cb7b7a.json` — 11 단계 rc 가 Codex 와 같다). 반박 성립 없음. 코드 아홉
-(R5-01~05 · 07 · 08 · 10 · 11)·문서 둘(R5-06 동치 조건, R5-09 U12 범위)을 RED → 수정 → GREEN 으로 닫았다.
-R4 에서 Codex 가 종결로 인정한 것: R4-01·03·S-02, R4-02/04/05/06/07 의 원래 반례.
+2026-09-11 Codex 5차(NO-GO) 대응(`a78f0a5`)·U13(`1049894`) 뒤 Codex 토큰이 소진돼 6차는 `/self-review` 로 돌렸다:
+네 렌즈(validator 우회 · 순서/TOCTOU · 파생 보고서·공정성 · sig-완전성·이식성)가 1049894 에서 37 건을 냈고, 발견마다
+격리 worktree 의 적대적 검증 → CONFIRMED 30 · 부분 5 · 제외 2 (V6-09 도달 불가 · F2 문서는 이미 한정). 전부 RED →
+수정 → GREEN 으로 닫았다 (`tests/test_r6_internal.py` 35 개; 커밋 `509a0cc` V · `eb95ac1` D · `601f8a9` T · `a121e2d` P).
+결론급 셋: F01 (degeneracy 게시가 producer 의 stdout fd 로 잠금 **밖**에서 덮였다 — R5-04 의 "마지막 온전한 묶음" 이
+그 경로에서 거짓 → `--out` 잠금 게시), DF-01 (§3-4 "두 독립 방법이 수렴" 은 같은 격자점 반환 → 정정), V6-01~04 (헤더
+위치·옵션 형식·헤더 없음·부분 대조 하한으로 1 % 급 차이가 complete → 전부 invalid). 신뢰 경계로 남긴 것: F08 (run_id 는
+공개 열 — 복사한 producer 는 못 가린다), F2 (루트 차원은 사본으로 검증 불가), F6 (autocrlf 사본은 fresh clone 으로),
+V6-09 (음수 rmse 도달 불가), R5-01 의 MATLAB sprintf 전제 (사용자 기계 한 줄 실측 필요).
 
-**U13 실측 완료** (사용자 기계, a78f0a5): 18 build 전부 유한 · 예외 0 · eps_rel ≤ 1.7e-15 · `equiv=1`
-(`out/scale_audit_eval_u13.txt`). §1-13 은 recompare 4 조합이 그 조건 안이라고 적었다. 루트 이름은 그 판
-줄에 없어 보고 순서 — 다음 판부터 `root=` 가 붙는다.
-남은 것: `reviews/R6_REQUEST.md` 를 Codex 에 보낸다 (대상 = 그 파일이 든 커밋). 아래 명령은 실행 기록.
+**산출물 스키마가 바뀌었다** — 기존 `out/` 은 전부 pre-R5 meta 라 새 검사(run_id·sha256·env·inputs_sha·시작 시점 git)
+의 대상이 아니다. 다음 실측(U14): 사용자 기계에서 `scripts/run_states.sh` 재실행 → degeneracy 가 `--out` 으로
+게시되고 meta 에 `env`·`git_*_at_start`·`inputs_sha` 가 붙는다. 숫자 자체는 같은 코드 경로라 바뀌지 않아야 한다
+(바뀌면 F3 의 라이브러리 축을 먼저 본다 — meta 의 `env` 가 그때 처음 말해 준다).
+남은 것: Codex 토큰이 돌아오면 `reviews/R6_REQUEST.md`(내부 결과 포함) 를 보낸다 (대상 = 그 파일이 든 커밋); 새 모델
+요구서 초안 — 문헌 쪽 입력은 `docs/LIT_19_20_FOR_NEW_MODEL.md` (논문 19·20 의 관측·구분 시험 후보). 아래 명령은 실행 기록.
 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify

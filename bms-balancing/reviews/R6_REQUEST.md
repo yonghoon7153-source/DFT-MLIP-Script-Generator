@@ -5,6 +5,9 @@
 (`reviews/R5_LEDGER.md`). GO 기준은 R3 §5 의 다섯 조건에 대한 R5 §4 의 재판정("부분" 이던 1·3·4)이다.
 목표는 같다: **"정본이 우리 새 모델의 설계 근거로 쓸 만한가"**.
 
+**6차는 외부 리뷰 전에 내부 자체 리뷰를 먼저 돌렸다** (Codex 토큰 소진, 2026-09-11): 네 렌즈 37 건 → 적대적 검증 CONFIRMED 30
+전부 닫음 (`reviews/R6_LEDGER.md`, §2b). 이 요청문은 그 위에서 시작한다 — 우리가 이미 찾은 것과 신뢰 경계로 남긴 것을 §2b 에 밝혔다.
+
 ## 0. 대상
 
 | 항목 | 값 |
@@ -20,7 +23,9 @@
 git clone -b claude/bms-alpha-beta-verify https://github.com/yonghoon7153-source/Yonghoon-DEM-DFT
 cd Yonghoon-DEM-DFT/bms-balancing && git checkout <이 파일이 든 커밋>
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
-python3 -m pytest tests/ -q                       # 원자료 불필요. 86 passed 기대 (동시 실행 시험 셋은 subprocess·flock 사용, Linux/WSL)
+python3 -m pytest tests/ -q                       # 원자료 불필요. 122 passed 기대 (동시 실행 시험은 subprocess·fcntl.flock 사용, Linux/WSL; 합성 xlsx 로 실제 build·degeneracy 도 돈다)
+# ⚠ fresh clone 으로 (위 명령). autocrlf 가 켜진 옛 사본을 pull 로 올리면 안 바뀐 `.sh` 가 CRLF 로 남아 run_all.sh 가 죽는다 — `git add --renormalize` 로는 안 고쳐진다 (R6 내부 F6)
+# R6 내부 반례 재생: reviews/r6_repros/<렌즈>/repro_*.py 는 대상 1049894 (worktree) 에서 전부 '재현' 이고 이 트리에서는 그 assertion 이 실패해야 한다
 bash matlab/tests/run_all.sh                      # Octave 없으면 4·5 단계
 # R5 반례 재생 — 대상 SHA 가 0cb7b7a 이어야 돌므로 worktree 로:
 git worktree add /tmp/r5 0cb7b7a && python3 reviews/r5_repros/harness_r5_replay.py --target /tmp/r5/bms-balancing --output /tmp/r5.json
@@ -37,7 +42,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 
 | 검사 | 결과 |
 |---|---|
-| `pytest tests/ -q` | 86 passed (R5 신규 11) |
+| `pytest tests/ -q` | 122 passed (R5 신규 11 · R6 내부 신규 35) |
 | `matlab/tests/run_all.sh` | 4·5 단계 통과 (Octave 없음) |
 | R5 반례 | port 8 건 → model_mismatch/invalid, inference exception·matrix, claims quoted_path, execution metadata_race — 전부 수정 뒤 assertion 실패. 통과로 남는 것과 이유: `epsilon`(감사 dict 새 키에서 멈춤 — 22205 배 차이 자체는 사실, flag 로 표시), `population`(증거 수준을 사본으로 한정한 결과), `scope`(§0-2 의 철회 인용문이 옛 문장을 담음 — 살아 있는 §1-13 은 `test_r5_docs_*` 가 확인), `consumed_untracked_input`(옛 다섯 필드는 의도적으로 같음 — 닫힘은 새 `consumed_inputs`) |
 | RED 확인 | 신규 11 이 옛 코드·문서에서 11 실패 — 이유 확인(`%.2g` complete, 중복 선언 complete, 이름 바꾼 p complete, meta A≠CSV B, consumed_inputs 없음, eps flag 없음, matrix 감사 없음, 행마다 다른 id, n=100, 한글 경로 code, 문서) |
@@ -58,7 +63,16 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 | 10 감사 개수 | 닫힘 (코드) | 항별 try, 표본당 한 기록, `n_exception` | `test_r5_10_*` |
 | 11 quoted 경로 | 닫힘 (코드) | `git status --porcelain -z` 레코드 (rename 두 경로) | `test_r5_11_*` |
 
-## 3. 철회·정정 목록 (§0-2 에 추가된 R5 행)
+## 2b. R6 내부 자체 리뷰 — 무엇을 찾았고 무엇을 신뢰 경계로 남겼나 (`reviews/R6_LEDGER.md`)
+
+| 렌즈 | 발견 → CONFIRMED | 결론급 | 신뢰 경계로 남긴 것 |
+|---|---|---|---|
+| validator 우회 | 9 → 8 | 헤더 위치·`--precision` 옵션·헤더 없음·부분 대조 하한으로 1 % 급 차이가 complete/`--allow-partial` 0 (V6-01~04) → 전부 invalid | V6-09 `%f` ±0 경계: rmse 가 sqrt(mean(r²)) 라 도달 불가. R5-01 의 "format = sprintf" 전제는 MATLAB 판 의존 — 미실측 |
+| 순서/TOCTOU | 9 → 8 | F01 degeneracy 게시가 producer 의 stdout fd 로 잠금 밖에서 덮임 (R5-04 의 "마지막 온전한 묶음" 이 그 경로에서 거짓) → `--out` 잠금 게시; F07 reader 절 구현 | F08 run_id 는 공개 열 — 복사한 producer 는 못 가린다 (위협 모델 밖; 소유 증명은 주장한 적 없음) |
+| 파생 보고서·공정성 | 10 → 8 (+부분 2) | DF-01 §3-4 "두 독립 방법이 수렴" 은 힌트 격자가 제약 최적화의 끝점을 격자점으로 포함한 결과 → 정정; DF-02 HANDOFF·INTRO 의 철회 문장 잔존 | 공정성: seed 0 하나·1e-9 문턱은 verdict 에 무관(여유 5.8e5 배), 예산 차이(30 sqp vs 24 L-BFGS-B)는 밝혀져 있고 like-for-like 를 주장하지 않음 |
+| sig-완전성·이식성 | 11 → 8 (+부분 3) | F4 풀셀 워크북 identity 미기록 → `consumed_inputs`·`inputs_sha`; F3 라이브러리 버전 미기록 (scipy 1.11↔1.17 에서 최적점 끝자리) → `env` | F2 루트 차원은 사본으로 검증 불가 (U14 부터 identity 로); F6 autocrlf 사본은 fresh clone |
+
+## 3. 철회·정정 목록 (§0-2 에 추가된 R5 행 + R6 내부 행)
 
 "16 build 전부 유한이므로 그 범위에서는 원본 설명식과 포팅의 scale 이 같고, §1-8 의 192 값과 A축 산출은 그 영역 안" (R5-06 · R5-09: eps 조건 미기록, 96/192, 식별자 없음). §0-1 의 "포팅이 원본과 같다" 에 경험적 일치·비유한/eps 영역 제외 한정어.
 
@@ -89,11 +103,13 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 3. R5-06: 동치 flag 의 정의(유한 · 예외 없음 · eps_rel ≤ 1e-9) 와 "상대 근사" 표현이 적절한가. 요구서의 scale 항목에 더 넣을 것.
 4. R5-05: `consumed_inputs` 의 범위(matrix 행 · 반쪽전지 · 문헌) — 빠진 입력이 있는가 (예: `D.data_root` 의 풀셀 워크북).
 5. §4 의 다섯 관측을 요구서 관측 열로 옮기는 데 남은 문제.
+6. R6 내부 (§2b): (a) F08 의 위협 모델 — 게시 파일에서 읽은 id 로 만든 묶음을 가려야 하는가, 그렇다면 producer 의 bytes 해시를 stdout 으로 넘기는 설계면 되는가; (b) DF-01 정정문 — "끝점 재확인" 이 §3-3 의 폭을 믿을 근거로 충분한가, 힌트 없는 격자 재실행이 필요한가; (c) V6-02 의 규칙(선언 없으면 옵션 형식으로 토큰 재출력 검사, 선언 있으면 선언) 에 남는 역전이 있는가.
 
 ## 7. 실측 첨부
 
 - `reviews/r5_repros/replay_ours_0cb7b7a.json` — R5 반례 우리 재생 (11 단계).
-- `out/scale_audit_eval_u13.txt` — U13 실측 사본 (18 줄, 사용자 기계 a78f0a5). 그 외 `out/` 변경 없음.
+- `out/scale_audit_eval_u13.txt` — U13 실측 사본 (18 줄, 사용자 기계 a78f0a5). 그 외 `out/` 변경 없음 — 새 스키마(`env`·`inputs_sha`·`--out` 게시) 는 U14 재실행에서 처음 채워진다.
+- `reviews/r6_repros/<렌즈>/{REPORT.md,repro_*.py,VERDICT.md,verify_*.py}` — R6 내부 리뷰의 발견·재현·검증 판정 사본.
 
 ## 8. 이후
 

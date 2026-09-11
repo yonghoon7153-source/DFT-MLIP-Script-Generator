@@ -91,7 +91,13 @@ SI=Kunz SRC=step_005C ./scripts/run_states.sh         # 소스 고정
 시험을 돌렸더니 `out/matrix_300_0147.csv` 가 생겼고, **파일 이름만으로는 진짜
 산출과 구별이 안 됐다.** 정본이 artifact 인 저장소에서 그건 치명적이다.
 그래서 산출마다 `.meta.json` 을 옆에 쓴다 (상태 · 소스 · `starts` · `data_root`
-· git 커밋 · dirty 여부 · 시각). 무엇으로 만든 값인지가 파일에 붙어 있어야 한다.
+· git 커밋 · dirty 여부 · 시각 · `run_id` · `sha256` · 계산 **전/후** git 상태(`git_commit_at_start`,
+`git_state_changed_during_run`) · `env`(python·numpy·scipy·pandas·platform) — R5-04 · R6 내부 F03·F04).
+산출 자체에도 소비한 입력 파일들의 digest 가 붙는다 (`inputs_sha` 열 · degeneracy JSON `consumed_inputs` ·
+eval 헤더 `# inputs,…`·`# env,…`, R6 내부 F4·F3). 게시 뒤 묶음 검사는 `python3 scripts/provenance.py
+--verify-unit <산출> <run id>` (meta 의 run_id·sha256·artifact 이름이 이 시도의 bytes 와 맞는가; reader 인
+`compare_states.py`·`ne_shape.py` 도 섞인 묶음을 소비하지 않는다). degeneracy 는 `--out` 으로 잠금 안에서
+원자적으로 게시된다 — stdout 은 로그다 (R6 내부 F01). 무엇으로 만든 값인지가 파일에 붙어 있어야 한다.
 
 **왜 스크립트인가**: 아홉 번이 같은 설정이어야 비교가 성립한다. 손으로 아홉 줄을
 치면 한 줄에서 `--starts` 를 흘리는 순간 그 행만 다른 조건이 되고, 나중에 그것을
