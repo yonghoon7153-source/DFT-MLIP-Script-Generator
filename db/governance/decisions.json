@@ -1676,6 +1676,40 @@
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    },
    "slot": "modelc_box331_matched_estimand"
+  },
+  {
+   "id": "D-2026-09-12-cascade-representative-selection",
+   "kind": "estimand",
+   "decision_state": "active",
+   "slot": "cascade_representative_arrangement",
+   "statement": "cascade 의 대표 배열은 **같은 조성의 검색된 배열 중 ΔE(형성에너지) 중앙값을 낸 실제 행 하나**이고, **host 에도 같은 규칙**을 적용한다. 짝수면 좌표 sha256 사전순 앞. 기각: ① 예측 점수로 고르는 것(점수↔D 상관을 선택으로 부풀리는 순환) ② 최저를 쓰는 것(탐색을 늘리면 반드시 내려가므로 예산을 박지 않으면 보고량이 정의되지 않는다). 이 결정은 대표 선택만 정하며 캠페인 실행을 승인하지 않는다.",
+   "record": "db/properties/cascade_d_rel_amendment_2026_09_12.json",
+   "card": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
+   "supersedes": [],
+   "enforcement": "대표 선택 코드는 개정안의 `기계_판독` 블록(rank_by=delta_E_formation · statistic=median · tie_break=coord_sha256_lexicographic_first · applies_to=[design, host])을 읽고, 없거나 다르면 시작하지 않는다(fail-closed). 대표는 **실재하는 행**이어야 하고 MD 는 그 좌표해시로 돈다 — 카드 §7 무효조건 1·4항 그대로.",
+   "status_history": [
+    {
+     "at": "2026-09-12",
+     "state": "proposed",
+     "by": "agent",
+     "note": "BJ2 재심 조건 #2. 1저자 'ΔE 중앙값'. D_rel 측정 0건 시점."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    }
+   ],
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-11T21:50:22Z",
+    "commit": "54dcc1b2fd430299a0e6cd4b369dff6dd9bfb88a",
+    "decision_digest": "sha256:87167b2aae5ad54c2605ac757d0a25ba421138dc4b39f2fa31a22fc98f56c857",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
