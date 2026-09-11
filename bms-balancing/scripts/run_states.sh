@@ -39,7 +39,7 @@ import json, sys, datetime, pathlib
 art, st, src, starts, si, root = sys.argv[1:7]
 sys.path.insert(0, "scripts")
 from provenance import git_state          # 추적 파일 수정만 본다 (untracked 산출물 무시)
-sha, dirty = git_state()
+sha, dirty = git_state(exclude=[art, art + ".meta.json"])   # 지금 쓰는 산출물 자신은 뺀다
 pathlib.Path(art + ".meta.json").write_text(json.dumps({
     "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
     "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",

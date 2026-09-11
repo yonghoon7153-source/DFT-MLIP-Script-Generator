@@ -1993,6 +1993,27 @@ def test_r3_03_committed_ne_shape_csv_and_section_5_2_carry_the_headroom_not_the
             pytest.skip("구판 CSV — 여유 열 없음 (사용자 기계에서 `scripts/ne_shape.py` 재실행 대기)")
         assert abs(r["legal_dgamma_neg"] - (LB5[4] - r["gamma_ref"])) < 1e-5, (st, r)
         assert abs(r["legal_dgamma_pos"] - (UB5[4] - r["gamma_ref"])) < 1e-5, (st, r)
+    # §5-2 의 (d) 표는 CSV 와 칸별로 같아야 한다 (fb62342 재실행분). 증인이 없는 상태는 '없음'.
+    t = _table_rows(sec, tuple(R), header_has="합법 γ 최대")
+    assert set(t) == set(R), (sorted(t), sorted(R))
+    for st, c in t.items():
+        r = R[st]
+        assert abs(_num(c[0]) - r["gamma_ref"]) < 5e-5, (st, c)
+        lo, hi = (float(x) for x in c[1].strip("[]").replace("−", "-").split(","))
+        assert abs(lo - r["legal_dgamma_neg"]) < 5e-4 and abs(hi - r["legal_dgamma_pos"]) < 5e-4, (st, c)
+        assert abs(_num(c[2]) - r["measured_shape_mV"]) < 0.005, (st, c)
+        fam, g_at = c[3].split("(")
+        assert abs(_num(fam) - r["gamma_family_max_mV"]) < 0.005 and abs(_num(g_at.rstrip(")")) - r["gamma_at_family_max"]) < 5e-4, (st, c)
+        if r["gamma_witness"] == "":
+            assert c[4].startswith("없음"), (st, c)
+        else:
+            w, d = c[4].split("(")
+            assert abs(_num(w) - float(r["gamma_witness"])) < 5e-4, (st, c)
+            assert abs(_num(d.rstrip(")")) - r["gamma_witness_delta"]) < 5e-4, (st, c)
+    # 300_0009 는 합법 γ 전체의 최대 변화가 (a) 에 못 미친다 — 문장의 근거 (정규화 한정어와 함께)
+    assert R["300_0009"]["gamma_family_max_mV"] < R["300_0009"]["measured_shape_mV"]
+    assert R["300_0009"]["gamma_witness"] == "" and R["100"]["gamma_witness"] != ""
+    assert "정규화" in sec and "모양 일치가 아니" in sec
 
 
 def test_r3_01_findings_keeps_the_residual_growth_as_observation_not_as_cause():
@@ -2022,3 +2043,46 @@ def test_r3_01_findings_keeps_the_residual_growth_as_observation_not_as_cause():
     retr = _section(findings, "## 0-2")
     for tag in ("R3-01", "R3-02", "R3-03", "R3-04"):
         assert tag in retr, f"§0-2 에 {tag} 철회 행이 없다"
+
+
+
+# ── provenance: 산출물 자신의 재작성이 git_dirty 를 켜면 안 된다 (2026-09-11, fb62342 관찰) ──
+
+def _git_repo_with_tracked(tmp_path):
+    import subprocess
+    def git(*a):
+        return subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout
+    git("init", "-q"); git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (tmp_path / "out").mkdir(); (tmp_path / "out" / "ne_shape_GITT_Li.csv").write_text("old\n")
+    (tmp_path / "code.py").write_text("x = 1\n")
+    git("add", "."); git("commit", "-q", "-m", "base")
+    return git
+
+
+def test_git_state_can_exclude_the_artifact_being_rewritten(tmp_path):
+    """fb62342: 사용자 기계의 `ne_shape.py` 재실행이 낸 meta 가 `git_dirty: true` 였다. 커밋에는 CSV 와
+    meta 만 있었다 — 추적된 산출물을 **다시 쓰는 것 자체**가 '추적 파일 수정' 으로 잡혀 플래그가 늘
+    켜진다. 플래그의 물음은 "돌린 **코드**가 git_commit 과 같았나" 이므로 산출물 자신은 빼야 한다."""
+    m = _load_script("provenance")
+    _git_repo_with_tracked(tmp_path)
+    art = tmp_path / "out" / "ne_shape_GITT_Li.csv"
+    art.write_text("regenerated\n")
+    sha, dirty = m.git_state(cwd=str(tmp_path), exclude=[str(art), str(art) + ".meta.json"])
+    assert sha and dirty is False, "산출물 자신의 재작성이 dirty 로 잡혔다"
+    assert m.git_state(cwd=str(tmp_path))[1] is True          # 제외 없이면 여전히 잡힌다 (과교정 아님)
+    (tmp_path / "code.py").write_text("x = 2\n")
+    assert m.git_state(cwd=str(tmp_path), exclude=[str(art)])[1] is True, "코드 수정은 제외해도 잡혀야 한다"
+
+
+def test_ne_shape_meta_is_clean_when_only_the_artifact_changed(tmp_path, monkeypatch):
+    """`_write_csv` 가 적는 meta 의 git_dirty 는 산출물 자신을 제외한 추적 파일 상태여야 한다."""
+    import json
+    m = _load_script("ne_shape")
+    _git_repo_with_tracked(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935, 0.2953)]
+    cap = {"pristine": 1.0, "100": 0.9247}
+    a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
+    art = m._write_csv(tmp_path / "out", a, rows, cap, cap["pristine"], {})
+    meta = json.loads((art.parent / (art.name + ".meta.json")).read_text(encoding="utf-8"))
+    assert meta["git_commit"] and meta["git_dirty"] is False, meta

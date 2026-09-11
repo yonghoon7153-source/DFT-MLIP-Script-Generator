@@ -16,19 +16,30 @@
 
     from provenance import git_state
     sha, dirty = git_state()          # dirty: 추적 파일이 수정됐는가
+    sha, dirty = git_state(exclude=[art, art + ".meta.json"])   # 산출물 자신은 뺀다
+
+## 산출물 자신은 뺀다 (2026-09-11, fb62342)
+
+추적된 산출물(`out/*.csv`, `out/*.json`)을 **다시 쓰는 것 자체**가 "추적 파일 수정" 으로
+잡혀서, 재생성 meta 는 늘 `git_dirty: true` 였다 — fb62342 의 커밋에는 CSV 와 meta 만
+있었는데도. 플래그의 물음은 코드에 대한 것이므로 지금 쓰는 산출물(과 그 meta)은
+`exclude` 로 뺀다. 코드 파일이 고쳐져 있으면 여전히 true 다.
 """
 from __future__ import annotations
 import subprocess
 
 
-def git_state(cwd: str | None = None) -> tuple[str, bool | None]:
-    """(HEAD sha, 추적 파일이 수정됐는가). git 이 없으면 ("", None)."""
+def git_state(cwd: str | None = None, exclude=()) -> tuple[str, bool | None]:
+    """(HEAD sha, 추적 파일이 수정됐는가). git 이 없으면 ("", None).
+
+    `exclude`: 수정 여부에서 뺄 경로들 — 지금 쓰고 있는 산출물과 그 meta."""
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=cwd,
                              capture_output=True, text=True, check=True
                              ).stdout.strip()
+        spec = ["--", "."] + [f":(exclude){p}" for p in exclude] if exclude else []
         mod = subprocess.run(["git", "status", "--porcelain",
-                              "--untracked-files=no"], cwd=cwd,
+                              "--untracked-files=no", *spec], cwd=cwd,
                              capture_output=True, text=True, check=True
                              ).stdout.strip()
     except Exception:

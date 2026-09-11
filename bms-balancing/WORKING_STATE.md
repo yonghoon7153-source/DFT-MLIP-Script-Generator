@@ -29,17 +29,13 @@
 2026-09-11 Codex 3차 리뷰(대상 `a432d23`, `reviews/R3_CODEX.md`) 아홉 건을 우리 트리에서
 **전부 재현**했다 (`reviews/r3_repros/replay_ours_a432d23.json` — 8 단계 rc 가 Codex 와 같다).
 반박 성립 없음. 코드 다섯(R3-05~09)·문서 넷(R3-01~04)은 RED 테스트 → 수정 → GREEN 으로
-닫았다 (`tests/test_review_findings.py` 끝의 R3 블록). 남은 것은 **사용자 기계** 실측 하나와
-R4 요청문이다:
+닫았다 (`tests/test_review_findings.py` 끝의 R3 블록). 사용자 기계 실측(`ne_shape.py` 재실행,
+fb62342)도 들어와 §5-2 (d) 표를 채웠다 — 100·200 은 (a) 진폭을 내는 합법 γ 가 있고(줄이는 쪽),
+300_0009 는 합법 최대 86.01 mV < 119.34 mV 로 없다 (정규화·모양 한정어). 그 meta 의
+`git_dirty: true` 로 자체 발견 S-01(산출물 재작성이 플래그를 켬)을 잡아 닫았다. **65 passed.**
 
-```bash
-cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
-source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 62 passed · 1 skipped(아래 CSV 가 생기면 실행됨)
-python3 scripts/ne_shape.py                       # (d) γ 여유 열 6 개가 CSV 에 추가된다 (R3-03)
-git add out/ne_shape_GITT_Li.csv* && git commit -m "ne_shape 재실행 — γ 여유(합법 Δγ·최대 변화·증인) 열 추가" && git push
-```
-그 결과로 §5-2 의 "재실행 대기" 를 채운다 (증인이 있으면 γ 값과 Δ, 없으면 '격자에서 없음').
+남은 것: `reviews/R4_REQUEST.md` 를 Codex 에 보낸다 (대상 = 그 파일이 든 커밋). GO 면 새 모델
+설계 요구서(`docs/`) 초안 — R3 Q5 표의 골격 `관측 → 후보 원인 → 구분 시험 → 채택 기준 → 남는 한계`.
 `degeneracy`/`profile` 를 다시 돌릴 때는 `run_states.sh` 가 이제 **이번 실행이 새로 쓴 파일**만
 OK 로 센다 (R3-08) — 옛 파일이 남아 있어도 새 provenance 가 붙지 않는다.
 

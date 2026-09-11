@@ -135,7 +135,8 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -
                         f"{h['witness']:.4f}" if h and h["witness"] is not None else "",
                         f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else ""])
     from provenance import git_state          # scripts/ 가 sys.path 에 있다
-    sha, dirty = git_state()
+    meta_path = art.parent / (art.name + ".meta.json")
+    sha, dirty = git_state(exclude=[str(art), str(meta_path)])   # 산출물 자신의 재작성은 dirty 가 아니다
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
         "artifact": art.name, "half_cell_source": a.source,
         "si_source": a.si_source, "grid_n": int(GRID.size),
