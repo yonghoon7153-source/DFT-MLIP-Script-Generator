@@ -174,7 +174,7 @@ CD_peak 이 목표 CD 보다 2–3 %p 낮게 나오는 것이 디지타이즈 �
 | 완화 | 목표 CD 도달 시 **press 해제** → spring-back 구간 |
 | 입자 형상 | **CT(Computer Tomography)에서 얻은 실제 AM 입자 크기·형상** (구가 아님) — ref [36] 상속 |
 | 초기 구조 | **CGPD(coarse-grained particle dynamics)로 슬러리+건조를 돌린 결과** — ref [36] 상속 |
-| 검증 | ⛔ **이 논문에서 신규 실험 0건.**  *"already validated by experiments … in electrode functional metrics such as tortuosity factor and porosity"* = **ref [36] 상속** |
+| 검증 | ⛔ **이 논문에서 신규 실험 0건.**  *"already validated by experiments … in electrode functional metrics such as tortuosity factor and porosity"* = **ref [36] 상속**.  ⚠⚠ **2026-09-11 갱신** — 그 ref [36] 이 정본에 들어왔다(`papers/xu2023_realistic_am_shape_cgmd_calendering.md`) 그리고 **상속의 절반이 깨진다**: **porosity 는 독립 검증(exp 8 점)** 이지만 **τ 는 아니다** — Xu 2023 SI 가 dilation–erosion 인자를 **τ 의 µ-XCT 값에 맞춰** 골라 **모든 결과에 적용**했다.  ⇒ *"τ 가 실험 검증됐다"* 를 재인용할 때 이 문장을 병기 |
 | 비용 | **≈47 min / 75 µs step** (하드웨어 미기재) |
 
 **⚠ 우리가 쓸 수 있는 DEM 물성은 이 논문에서 얻을 수 없다.**  계보의 정본 카드
@@ -695,8 +695,21 @@ micro IV 확산도: **Table S2** = CD20 (test 15.26, DL 14.41) · CD25 (11.00, 1
    🧮 **손익분기 13.9 런**(학습셋 11 런의 1.27배) · ⚠⚠ **"exceptional generalization" 근거 그림(Fig 8)이
    학습 조성 그림(Fig 6)의 행 치환 복사본**(32 칸 중 23 칸) · ⚠ **MAE 단위 미기재(1,000 배 갈림)** ·
    ★ **길이-1 conv · 항등 max-pool 3 개** 라는 **이 카드가 잡은 것과 똑같은 구조 병리의 재발**.
-2. ⬜ **ref [36] Xu, Ngandjong, Liu, Zanotto, Arcelus, Demortière, Franco, *J. Power Sources* 554 (2023)
-   232294** — ✅ **서지 교차확인 완료 2026-09-11**: 자매편(건조)에서는 **ref [33]** 번호로 같은 논문을 인용하고,
+2. ✅✅ **확보·digest 완료 2026-09-11 → 정본 카드 `papers/xu2023_realistic_am_shape_cgmd_calendering.md`**
+   (ref [36] Xu, Ngandjong, Liu, Zanotto, Arcelus, Demortière, Franco, *J. Power Sources* 554 (2023) 232294)
+   — ⚠ **그 카드가 이 카드의 상속 서술 두 곳을 바꾼다**:
+   ① **압력축은 거기에도 없다** — 본문·SI 전수 `MPa` **0 회**, 유일한 `Pa` 는 슬러리 배로스탯 10⁵ Pa,
+      공정 축은 **CD 0–42.2 %** 뿐이고 **포화하지 않은 채 끝난다**(dε/dCD ≈ −0.9 %p/%) ⇒ **floor 판정도 불가**.
+      ⇒ 아래 ③ 의 *"이 사슬 3편 어느 것도 MPa 를 들지 않는다"* 는 **물리 엔진 원점까지 포함해 확정**됐고,
+      계보에서 MPa 축을 가진 것은 **`ngandjong2021_dem_calendering_digital_twin` (0–156 MPa) 하나뿐**이다.
+   ② ⛔ **상속받은 "τ 실험 검증" 은 독립 검증이 아니다** — Xu 2023 SI 가 **dilation–erosion 인자를 {1,2,3} 복셀 중
+      τ 의 µ-XCT 값(2.65)에 가장 가까운 **2**(τ = 2.47)로 고르고 *"to process **all** the results"* 라고 적는다.
+      ⇒ 이 카드 §4-1·§10 의 *"already validated … tortuosity factor and porosity"* 인용에 **이 문장을 병기**할 것.
+      (**porosity 상속은 유효**하다 — dilation–erosion 은 부피보존이라 porosity 에 거의 무관하고, exp 8 점 대조가 독립이다.)
+   ③ ★ **거기서 얻는 것은 형상 축**: Krumbein 구형도 모드가 CD 36–42 % 에 **−0.04 ~ −0.06** 만 이동 ·
+      같은 porosity 에서 실형상 τ 가 구 근사의 **1.55–2.40배** · 전체볼륨 대비 서브볼륨 **RVE 편향 +5.1 → +12.0 %**.
+   (아래는 확보 전 기록 — 지우지 않는다.)
+   ✅ **서지 교차확인 완료 2026-09-11**: 자매편(건조)에서는 **ref [33]** 번호로 같은 논문을 인용하고,
    제목은 *"Lithium ion battery electrode manufacturing model accounting for 3D realistic shapes of active
    material particles"* 다.  그 논문 감사문에 *"Jiahui Xu … the **DEM code used in her PhD thesis work**"* 로
    적혀 있어 **이 사슬 3편의 DEM 물리가 전부 그 한 편 소유**임이 확정됐다.

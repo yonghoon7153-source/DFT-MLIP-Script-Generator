@@ -220,6 +220,9 @@ Test I **59.7→3.9 (−93.5 %)** · II **56.6→3.4 (−94.0 %)** · III **41.7
 | seed / 앙상블 / 오차막대 | **0** | — |
 
 ⇒ ★ **이 논문은 DEM 을 *블랙박스 적분기* 로만 쓴다.**  우리가 DEM 물성을 원하면 진입점은 **ref [33] Xu 2023** 뿐이다.
+★ **2026-09-11 — 그 진입점이 정본에 들어왔다**: `papers/xu2023_realistic_am_shape_cgmd_calendering.md`
+(위 "미기재" 5 행 중 **접촉법칙 · E/ν/µ · 응집모델 · PSD/형상 4 행이 채워지고**, **COR 는 거기에도 없으며**
+**timestep · 플래튼 속도 · 압력축은 거기에도 없다**).
 
 ### 4-2. ★ 입자 처리 (= DEM 판 "무질서 처리")
 
@@ -734,13 +737,24 @@ nDEM hyperparameter increases"* 라고 쓴다 — **Fig 8a 네 줄 전부와 어
 ## 12. 미해결 / 다음에 할 것
 
 1. ✅ **자매편 §12-1 의 세 질문 전부 답했다** (§0 표).  앞 카드 §10-⑤ / §12-1 을 갱신했다.
-2. ⬜ ★★ **ref [33] Xu, Ngandjong, Liu, Zanotto, Arcelus, Demortière, Franco,
-   *J. Power Sources* **554** (2023) 232294** — *"Lithium ion battery electrode manufacturing model
-   accounting for 3D realistic shapes of active material particles"*.
-   ★ **앞 카드가 ref [36] 으로 부르며 지목한 바로 그 논문이고, 여기서 서지가 확정됐다.**
-   **이 사슬 3편(슬러리·건조·압연)의 DEM 물리 전체 + 유일한 실험 검증(density·porosity·τ)** 이 거기 있다.
-   ⇒ **다음 digest 후보 1순위.**  확인할 것: ① **접촉법칙·E·ν·µ·COR** ② **건조를 무엇으로 표현하나**
-   (bead 수축? 용매 입자? 응집력 램프?) ③ **압력 축이 있는가** ④ 실험 τ·porosity 의 절대값과 오차.
+2. ✅✅ **확보·digest 완료 2026-09-11 → 정본 카드 `papers/xu2023_realistic_am_shape_cgmd_calendering.md`**
+   (ref [33] Xu, Ngandjong, Liu, Zanotto, Arcelus, Demortière, Franco, *J. Power Sources* **554** (2023) 232294 —
+   *"Lithium ion battery electrode manufacturing model accounting for 3D realistic shapes of active material particles"*).
+   ★ 앞 카드가 ref [36] 으로 부르던 바로 그 논문.  **위 §12-2 의 네 질문에 대한 답**:
+   ① **접촉법칙 = Lennard-Jones(모든 쌍) + JKR(겹친 쌍), LAMMPS** (⚠ LIGGGHTS 아님).
+      **E** CBD_liquid 0.0005 / CBD_solid 2 / **AM 135** / Al 69 / Steel 200 GPa · **ν = 0.3 다섯 상 전부**
+      (★ `ngandjong2021` 의 **ν_CBD = 0.5 비압축이 사라졌고 설명이 없다**) · **μ_t = 0.5**(Ngandjong X_u 0.001 의 500배) ·
+      **COR 없음** — `η_n = η_n0·a·m_eff` 점성 감쇠(CBD 10 / AM 500)로 대체 · γ(JKR): AM-intra 10⁶ / **AM-inter 0** /
+      CBD 80→400 pg µs⁻² (= **1000 / 0 / 0.08→0.4 J/m²**, `derived(ours)`).
+      ⛔ **timestep 미기재 · 플래튼 속도 미기재 · 시드 미기재** ⇒ 준정적성 검산 불가.
+   ② **건조 = CBD bead Ø6.2 → 1.3 µm 순간 수축**(= `ngandjong2021` 과 **완전히 같은 값**) **+ force field 전면 교체**
+      (LJ 우물 CBD **×10⁶**, AM–AM 인력 **0 → 켜짐**).  최종 두께는 **실험 밀도·porosity 로 미리 계산해 지정** =
+      ★ **건조 두께는 예측이 아니라 입력**이다.
+   ③ ⛔ **압력 축 없다** — 본문·SI 전수 `MPa` **0 회**; 공정 축은 **CD 0–42.2 %** 뿐.
+   ④ **검증 실체**: 슬러리 밀도 **2 점**(exp 2.03/2.14 vs sim 2.04/2.18) · porosity-vs-CD **exp 8 점** ·
+      **µ-XCT 볼륨 2 개**(96:2:2 uncal + "30 % 압축")에서 서브볼륨 20 개 평균 **τ 1.599 ± 0.086 / 2.664 ± 0.31**.
+      ⛔ **그 중 τ 는 독립 검증이 아니다** — SI 가 **dilation–erosion 인자를 τ 의 XCT 값에 맞춰** 골라
+      *"to process **all** the results"* 라고 적는다.  **porosity 상속만 유효.**
 3. ⬜ ★ **ref [36] Weitze, Zanotto, Zapata Dominguez, Franco, *Energy Storage Mater.* **73** (2024) 103747**
    — *"Simulating solid-state battery cathode manufacturing via wet-processing with resolved active
    material geometries"*.  ★★ **이 사슬의 유일한 ASSB 편**이고 정본 카드가 이미 있다
