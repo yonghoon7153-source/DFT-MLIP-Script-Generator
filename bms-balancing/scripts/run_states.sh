@@ -35,15 +35,11 @@ OUT="${OUT:-out}"  # 산출 디렉터리. 시험 실행은 여기를 바꿔서 o
 write_meta () {  # write_meta <산출파일> <state> <src>
   local art="$1" st="$2" src="$3"
   python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" <<'PYMETA'
-import json, subprocess, sys, datetime, pathlib
+import json, sys, datetime, pathlib
 art, st, src, starts, si, root = sys.argv[1:7]
-try:
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
-                         text=True).stdout.strip()
-    dirty = bool(subprocess.run(["git", "status", "--porcelain"],
-                                capture_output=True, text=True).stdout.strip())
-except Exception:
-    sha, dirty = "", None
+sys.path.insert(0, "scripts")
+from provenance import git_state          # 추적 파일 수정만 본다 (untracked 산출물 무시)
+sha, dirty = git_state()
 pathlib.Path(art + ".meta.json").write_text(json.dumps({
     "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
     "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",

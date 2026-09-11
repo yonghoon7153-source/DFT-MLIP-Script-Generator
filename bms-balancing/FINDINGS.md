@@ -715,10 +715,16 @@ LAM_PE 6). §1-10 의 결론에 셀 조건을 붙여야 한다.
 4. **폭은 전부 하한이다** (`is_lower_bound: true`). 국소 해법 둘의 합집합이라
    실제 근최적 집합은 이보다 넓을 수 있다. 배율 10.5x 도 하한끼리의 비다.
 5. **원통형은 세 상태뿐이다** (`300_0147` 이 없다). 대조도 세 상태다.
-6. **대조 실행의 provenance 에 `git_dirty: true` 가 찍혀 있다**
-   (`out/cells_pouch_fixedhc/*.meta.json`). 커밋되지 않은 변경이 있는 트리에서
-   돌았다는 뜻이다. `git_commit` 은 `1d671ce` 인데 그 커밋은 나중에
-   `1629b82` 로 옮겨졌다 (rebase 사고, 내용은 같다).
+6. **대조 실행의 provenance 로는 코드가 커밋과 같았는지 알 수 없다.**
+   `out/cells_pouch_fixedhc/*.meta.json` 에 `git_dirty: true` 가 찍혀 있는데,
+   전 판은 이것을 "커밋되지 않은 변경이 있는 트리에서 돌았다" 로 읽었다 —
+   **과장이었다.** 그 플래그는 `git status --porcelain` 이라 untracked 파일만
+   으로도 켜지고, 산출물 자신과 (그때 아직 exclude 하지 않은) `cells/` 가
+   untracked 였으므로 이 저장소의 meta 는 **하나도 빠짐없이** true 다. 정보가
+   없는 플래그였다. 고쳤다 (`scripts/provenance.py`, 추적 파일의 수정만 본다).
+   그러나 이미 돈 실행에 대해서는 **소급해서 판정할 수 없다.** `git_commit` 은
+   `1d671ce` 이고 그 커밋은 나중에 `1629b82` 로 옮겨졌다 (rebase 사고, 내용은
+   같다).
 
 ---
 

@@ -1201,3 +1201,87 @@ def test_ne_shape_writes_an_artifact_carrying_the_capacity_caveat(tmp_path):
     meta = json.loads((art.parent / (art.name + ".meta.json")).read_text(encoding="utf-8"))
     assert meta["half_cell_source"] == "GITT" and meta["si_source"] == "Li"
     assert "정규화" in meta["note"], "meta 에 정규화 한정어가 없다"
+
+
+# ── provenance: git_dirty 는 추적 파일의 수정만 봐야 한다 (2026-09-11) ─────
+
+def test_git_state_ignores_untracked_artifacts(tmp_path):
+    """산출물이 untracked 라는 이유로 `git_dirty` 가 켜지면 안 된다.
+
+    2026-09-11 확인: 이 저장소의 meta 는 전부 `git_dirty: true` 였다 —
+    산출물 자신이 untracked 여서. 플래그에 정보가 없었고, 그 위에 §1-12
+    조건 6 이 "커밋 안 된 변경이 있는 트리" 라고 적었다.
+    """
+    import subprocess
+    m = _load_script("provenance")
+    def git(*a):
+        return subprocess.run(["git", *a], cwd=tmp_path, check=True,
+                              capture_output=True, text=True)
+    git("init", "-q"); git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (tmp_path / "code.py").write_text("x = 1\n"); git("add", "code.py"); git("commit", "-qm", "c0")
+    sha0 = git("rev-parse", "HEAD").stdout.strip()
+
+    (tmp_path / "artifact.csv").write_text("a,b\n")            # 방금 쓴 산출물 (untracked)
+    sha, dirty = m.git_state(cwd=str(tmp_path))
+    assert sha == sha0 and dirty is False, \
+        f"untracked 산출물만 있는데 dirty={dirty} — 플래그에 정보가 없다"
+
+    (tmp_path / "code.py").write_text("x = 2\n")                # 추적 코드를 고침
+    assert m.git_state(cwd=str(tmp_path))[1] is True, "추적 파일 수정을 못 봤다"
+
+
+def test_ne_shape_artifact_uses_lf_and_provenance_helper(tmp_path):
+    m = _load_script("ne_shape")
+    rows = [("100", 1.0, 0.5, 0.5, 10.0, 2.0, 0.3)]
+    a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
+    art = m._write_csv(tmp_path, a, rows, {"pristine": 1.0, "100": 0.9}, 1.0, {})
+    assert b"\r" not in art.read_bytes(), "CSV 가 CRLF 다 — 저장소 산출은 LF"
+
+
+# ── §1-12 · §5-2 의 ne_shape 표는 CSV 와 칸별로 같아야 한다 (2026-09-11) ──
+
+def _ne_shape_csv():
+    f = ROOT / "out" / "ne_shape_GITT_Li.csv"
+    if not f.is_file():
+        pytest.skip("out/ne_shape_GITT_Li.csv 가 없다")
+    return {r["state"]: {k: float(v) for k, v in r.items() if k != "state"}
+            for r in csv.DictReader(f.open(encoding="utf-8"))}
+
+
+def _num(cell: str) -> float:
+    return float(cell.replace("−", "-").replace(" mV", "").replace("%", "").strip())
+
+
+def test_section_1_12_and_5_2_ne_shape_tables_match_the_csv():
+    R = _ne_shape_csv()
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    states = ("100", "200", "300_0009")
+
+    # §1-12: | 상태 | 용량 Δ% | 측정된 음극 모양 변화 (max) |
+    t = _table_rows(_section(txt, "### 1-12"), states, header_has="측정된 음극 모양 변화")
+    assert len(t) == 3, f"§1-12 의 모양 변화 표를 못 찾았다: {sorted(t)}"
+    for st, c in t.items():
+        assert abs(_num(c[0]) - R[st]["cap_delta_pct"]) < 0.005, (st, "용량 Δ%", c[0])
+        assert abs(_num(c[1]) - R[st]["measured_shape_mV"]) < 0.005, (st, "모양 변화", c[1])
+
+    # §5-2: | 상태 | 용량 Δ% | γ | (a) | (b) | (b)/(a) |
+    sec = _section(txt, "### 5-2")
+    t = _table_rows(sec, states, header_has="γ 가 만든 변화")
+    assert len(t) == 3, f"§5-2 의 표를 못 찾았다: {sorted(t)}"
+    for st, c in t.items():
+        want = [R[st]["cap_delta_pct"], R[st]["gamma_ref"], R[st]["measured_shape_mV"],
+                R[st]["gamma_shape_mV"], R[st]["ratio_b_over_a"]]
+        tol = [0.005, 0.00005, 0.005, 0.005, 0.005]
+        for i, (cell, w, e) in enumerate(zip(c, want, tol)):
+            assert abs(_num(cell) - w) < e, f"§5-2 표 {st} 행 {i+1}번째 칸: 문서 {cell} vs CSV {w}"
+
+    # §5-2 (c) — 범위 문자열. 도구가 찍는 서식 그대로 만들어 절 안에서 찾는다.
+    mx = [R[s]["blend_vs_meas_max_mV"] for s in states]
+    rm = [R[s]["blend_vs_meas_rms_mV"] for s in states]
+    fr = [R[s]["frac_over_50mV"] for s in states]
+    xs = [R[s]["max_at_x"] for s in states]
+    spread = max(mx) / max(rm)                      # ne_shape.py 의 정의 그대로
+    for want in (f"{min(mx):.1f} ~ {max(mx):.1f} mV", f"{min(rm):.1f} ~ {max(rm):.1f} mV",
+                 f"{min(fr):.1f} ~ {max(fr):.1f} %", " · ".join(f"{x:.3f}" for x in xs),
+                 f"**{spread:.1f}**"):
+        assert want in sec, f"§5-2 (c) 에 '{want}' 가 없다 — CSV 와 다르다"

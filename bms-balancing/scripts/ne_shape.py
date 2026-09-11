@@ -32,6 +32,7 @@ pristine 대비 각 상태에서
 """
 from __future__ import annotations
 import argparse, csv, pathlib, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))  # provenance
 
 import numpy as np
 
@@ -77,11 +78,11 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
     값이라 용량이 크게 변한 상태에서는 순수한 OCP 모양 변화로 읽으면 안 된다.
     그 한정어가 CSV 에서 떨어지면 숫자만 인용된다.
     """
-    import datetime, json, subprocess
+    import datetime, json
     d.mkdir(parents=True, exist_ok=True)
     art = d / f"ne_shape_{a.source}_{a.si_source}.csv"
     with art.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
+        w = csv.writer(f, lineterminator="\n")
         w.writerow(["state", "cap_delta_pct", "gamma_ref",
                     "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
                     "blend_vs_meas_max_mV", "blend_vs_meas_rms_mV",
@@ -93,13 +94,8 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
                         f"{da:.6f}", f"{db:.6f}", f"{ratio:.6f}",
                         f"{cmax:.6f}", f"{crms:.6f}",
                         f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else ""])
-    try:
-        sha = subprocess.run(["git", "rev-parse", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"],
-                                    capture_output=True, text=True).stdout.strip())
-    except Exception:
-        sha, dirty = "", None
+    from provenance import git_state          # scripts/ 가 sys.path 에 있다
+    sha, dirty = git_state()
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
         "artifact": art.name, "half_cell_source": a.source,
         "si_source": a.si_source, "grid_n": int(GRID.size),
