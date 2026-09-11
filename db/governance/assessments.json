@@ -194,7 +194,7 @@
    "binding": "diagnostic_unbound",
    "result": "pass",
    "reason": "R_below_lower_threshold",
-   "why": "카드 봉인 문턱으로 R = dF_frame(b2o3)/dF_frame(modelc) = **0.951 ≤ 1.25** → 봉인문구 'R_작음': 두 계에서 UMA 골격 힘 정확도가 비슷하다. ⛔ **binding = diagnostic_unbound** — 이 결과는 어떤 값의 인용 자격도 바꾸지 않는다. b2o3 MD 전도도 축의 인용 불가(D-2026-09-07)와 골격 β 게이트 not_assessed(A-2026-08-20-b2o3-framework-current)는 **그대로**다. 카드 §7: 힘 → 동역학을 잇지 못한다.",
+   "why": "카드 봉인 문턱으로 R = dF_frame(b2o3)/dF_frame(modelc) = **0.951 ≤ 1.25** → 봉인문구 'R_작음': 두 계에서 UMA 골격 힘 정확도가 비슷하다. ⛔ **binding = diagnostic_unbound** — 이 결과는 어떤 값의 인용 자격도 바꾸지 않는다. b2o3 MD 전도도 축의 인용 불가(D-2026-09-07)와 골격 β 게이트 not_assessed(A-2026-08-20-b2o3-framework-current)는 **그대로**다. 카드 §7: 힘 → 동역학을 잇지 못한다. + 원소별 상대오차(2026-09-11 보조): B 0.103 · O 0.130 이 골격 최저이고 |F_DFT| 는 오히려 S 보다 크다 — 'B₂O₃ 도입 종이 원인' 가설의 직접 반증. S 는 두 계 모두 0.43 으로 같다.",
    "content": {
     "R": 0.951,
     "R_relative": 0.943,
@@ -215,7 +215,21 @@
      "physics": "<=1.25"
     },
     "n_points": 20,
-    "record": "db/properties/b2o3_uma_vs_dft_force_result_2026_09_11.json"
+    "record": "db/properties/b2o3_uma_vs_dft_force_result_2026_09_11.json",
+    "dF_over_Fref_by_element": {
+     "b2o3": {
+      "B": 0.103,
+      "O": 0.13,
+      "Cl": 0.148,
+      "P": 0.179,
+      "S": 0.433
+     },
+     "modelc": {
+      "Cl": 0.126,
+      "P": 0.189,
+      "S": 0.43
+     }
+    }
    },
    "measured_on": "kgy 2026-09-11 · QE 7.4.1 GPU 20/20 수렴 · UMA-s-1p1(omat) 재계산 · mlip_committee.py force_contrast",
    "method_id": "uma-vs-dft-force-contrast-v1",
