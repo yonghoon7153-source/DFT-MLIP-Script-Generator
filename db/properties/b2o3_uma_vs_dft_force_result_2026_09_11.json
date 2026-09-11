@@ -1,0 +1,54 @@
+{
+ "schema": "campaign_result/v1",
+ "date": "2026-09-11",
+ "citable": false,
+ "제목": "b2o3 골격 creep — UMA 결함인가 실물리인가: **판정 = R 작음 (R = 0.951)**. 조성 특이 포텐셜 결함 가설이 약해진다",
+ "카드": "db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json (ratified 3판 · content_digest 87091598… · 결과 보기 전 봉인)",
+ "결정": "D-2026-09-08-b2o3-uma-vs-dft-force",
+ "★_판정_봉인문구_그대로": "**두 계에서 UMA 의 골격 힘 정확도가 비슷하다** — 단순한 '조성 특이 포텐셜 결함' 가설이 약해진다. ⛔ 실물리 확정이 아니다: 힘이 맞아도 장시간 통계·앙상블·열역학이 틀릴 수 있고, 우리 DFT 참조(PBE·USPP)도 이 계에서 검증된 바 없다.",
+ "측정": {
+  "표본": "카드 §4 결정적 규칙 그대로 — 계 2(b2o3·modelc) × 시드 2(s2·s3) × t = 10·20·30·40·50 ps = **20점**, 사람이 고르지 않았다. 700 K 궤적 `~/work/runs/arrhenius_6pt_traj/…` (MD 재계산 0).",
+  "DFT": "QE 7.4.1 GPU 빌드 **전 점 동일** · PBE · 52/520 Ry · Γ-only · occupations='smearing' smearing='gaussian' degauss=0.01 · mixing plain β0.2 ndim8 · conv_thr 1e-8 · scf only · 20/20 수렴 (b2o3 45–76 it · modelc 17–22 it)",
+  "UMA": "uma-s-1p1(omat) 단일점을 **두 계 모두 새로 계산** (한쪽만 저장된 힘을 쓰지 않는다)",
+  "회수": "`generate_dft_inputs.py --collect` 20/20 통과 — 좌표해시·scf.in↔frame.xyz 대조·수렴 플래그 전건. 실패 0 (카드 §8: 19점으로 판정하지 않는다)"
+ },
+ "결과": {
+  "test_b2o3": {
+   "n_frames": 10,
+   "dF_frame_eVA": 0.4198,
+   "dF_over_Fref": 0.529,
+   "cos_theta_frame": 0.8804
+  },
+  "control_modelc": {
+   "n_frames": 10,
+   "dF_frame_eVA": 0.4417,
+   "dF_over_Fref": 0.561,
+   "cos_theta_frame": 0.8927
+  },
+  "R": 0.951,
+  "R_relative": 0.943,
+  "문턱": {
+   "UMA_결함_지지": "≥ 2.0",
+   "실물리_쪽_지지": "≤ 1.25",
+   "회색": "1.25 < R < 2.0"
+  },
+  "⇒": "R = 0.951 ≤ 1.25 → **R_작음**. 상대 지표도 같은 방향(0.943). b2o3 가 오히려 근소하게 **작다**.",
+  "원문": "kgy `~/work/runs/force_check_700K_v2/force_contrast_verdict.json` (⏳ 레포 미회수 — 원소별 dF 포함)"
+ },
+ "이_판정이_바꾸지_않는_것": [
+  "⛔ **b2o3 UMA-MD 전도도 축의 인용 불가는 그대로다** (D-2026-09-07-b2o3-md-closure-retrospective). 카드가 미리 적었다 — 이것은 '왜 죽었나' 진단이지 되살리기가 아니다.",
+  "⛔ b2o3 골격 β 게이트 판정(not_assessed)도 그대로다. 힘 대조는 β 를 다시 재지 않는다.",
+  "⛔ '실물리다' 를 증명하지 않는다 — 순간 힘이 맞아도 200 ps 뒤 동역학이 갈릴 수 있다 (카드 §7)."
+ ],
+ "⚠_봉인_밖_관측_따로_판단할_것": {
+  "무엇": "두 계 **모두** 상대 힘 오차가 **0.53–0.56** 이다 (dF ≈ 0.42–0.44 eV/Å · F_DFT rms ≈ 0.79 eV/Å). 비는 상쇄되지만 절대 수준은 낮지 않다.",
+  "왜_봉인_밖인가": "카드 §2 가 **의도적으로 비만** 보고량으로 삼았다 — 절대값은 QE USPP vs VASP PAW 계통오차를 그대로 싣기 때문이다. 그래서 이 관측은 **판정이 아니고**, 이 수를 'UMA 가 부정확하다' 의 증거로 쓰려면 같은 참조로 잰 in-distribution 대조(예: MP 완화 구조)가 따로 있어야 한다.",
+  "그래도_적는_이유": "modelc(=LPSCl1.6)의 상대 오차가 b2o3 와 같다는 사실은 'modelc 계열 MD 는 믿고 b2o3 만 의심한다' 는 구도의 한 다리를 뺀다. lpsocl/modelc MD 값의 **인용 문구**를 정할 때 참고할 관측이다 — 다만 힘→동역학 비약은 카드가 금지한 것이라 이 파일에서 결론내지 않는다.",
+  "다음에_물을_것": "① 같은 프로토콜로 **MP 완화 구조**(in-distribution) 몇 점의 dF 를 재서 0.42 가 '이 온도 스냅샷이라 큰 것' 인지 'UMA 가 이 화학에서 원래 그런 것' 인지 가른다 ② 원소별 dF 에서 B·O 가 특히 나쁜지 (이 파일 회수 후)"
+ },
+ "출처": [
+  "db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json",
+  "db/properties/b2o3_force_control_modelc_2026_09_11.json (대조 잡: fixed vs gaussian Total force Δ5e-6 — 설정 변경이 대조군을 안 흔들었다)",
+  "db/properties/md_run_ledger.json ★_VERDICT_2026_08_25 (이 카드가 닫으러 온 갈래)"
+ ]
+}

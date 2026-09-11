@@ -14,7 +14,8 @@
   "2026-08-20a": "신설. b2o3 골격 게이트를 vertical slice 로 이관 — 옛 beta 판정(retracted·diagnostic_unbound)과 현재 판정(not_assessed)을 **병존**시키고, canonical_registry 에는 참조만 남겼다. 나머지 게이트(lpsocl·comp1 MD_Ea)는 레거시 경로 유지 — 확대는 slice 통과 뒤 별건이다.",
   "2026-09-09": "⚠ 레코드는 한 글자도 고치지 않았다 (_rules 의 append-only). 대신 이 원장을 읽는 사람이 알아야 할 두 가지를 여기 적는다. ① A-2026-08-20-b2o3-framework-current 의 raw_trajectory_set.rerun_status 는 '2026-08-20 진행 중' 으로 19일째 낡았다 — 그 재실행이 채우려던 축은 D-2026-09-07-b2o3-md-closure-retrospective 로 인용 불가 마감됐고, 그 결정의 재개 조건이 '진단 목적의 재실행은 결과와 무관하게 이 마감을 바꾸지 않는다' 다. 판정 자체는 여전히 result=not_assessed · state=active 다 — 마감은 **인용 자격**의 판정이지 게이트 통과가 아니다. ② **확대 미완**: 이 원장에 배선된 claim 은 아직 2건(MD_Ea_eV/b2o3 · MD_Ea_eV_singleseed/b2o3)뿐이다. 나머지 provisional 항목(MD_Ea_eV/lpsocl · MD_Ea_eV_singleseed/comp1 · MD_Ea_eV_disorder/comp2 · SDCP_Eads_eV__* 7건)은 판정을 canonical_registry 의 note 산문에 품고 있다 ⇒ **이 파일을 '전부' 로 읽으면 안 된다.** 그 산문 판정을 레코드로 뽑는 것은 별건이고, 뽑을 때 없는 판정을 만들어 내면 D-2026-08-20-no-retro-gate-without-artifact 위반이다.",
   "2026-09-11": "A-2026-09-11-lpsocl-box331-C6-framework 추가 — lpsocl 축이 이 원장에 처음 들어왔다(레거시 경로 → 원장). result=not_assessed · binding=diagnostic_unbound (등록된 claim 이 아직 없다). 기존 레코드는 고치지 않았다.",
-  "2026-09-11b": "C6 census 결과 레코드 추가(pass) · 앞선 not_assessed 레코드는 state 만 superseded 로 (내용 불변, superseded_by 연결)."
+  "2026-09-11b": "C6 census 결과 레코드 추가(pass) · 앞선 not_assessed 레코드는 state 만 superseded 로 (내용 불변, superseded_by 연결).",
+  "2026-09-11c": "b2o3 UMA-vs-DFT 힘 대조 판정(R=0.951, R_작음) 레코드 추가. binding=diagnostic_unbound — 인용 자격을 바꾸지 않는다(카드가 미리 그렇게 적었다)."
  },
  "assessments": [
   {
@@ -183,6 +184,46 @@
    ],
    "created": "2026-09-11",
    "source": "db/properties/lpsocl_box331_c6_census_2026_09_11.json"
+  },
+  {
+   "assessment_id": "A-2026-09-11-b2o3-uma-force-contrast",
+   "kind": "gate",
+   "claim_ref": "value:MD_Ea_eV/b2o3",
+   "gate": "uma_force_accuracy_vs_dft_700K",
+   "state": "active",
+   "binding": "diagnostic_unbound",
+   "result": "pass",
+   "reason": "R_below_lower_threshold",
+   "why": "카드 봉인 문턱으로 R = dF_frame(b2o3)/dF_frame(modelc) = **0.951 ≤ 1.25** → 봉인문구 'R_작음': 두 계에서 UMA 골격 힘 정확도가 비슷하다. ⛔ **binding = diagnostic_unbound** — 이 결과는 어떤 값의 인용 자격도 바꾸지 않는다. b2o3 MD 전도도 축의 인용 불가(D-2026-09-07)와 골격 β 게이트 not_assessed(A-2026-08-20-b2o3-framework-current)는 **그대로**다. 카드 §7: 힘 → 동역학을 잇지 못한다.",
+   "content": {
+    "R": 0.951,
+    "R_relative": 0.943,
+    "dF_frame_eVA": {
+     "b2o3": 0.4198,
+     "modelc": 0.4417
+    },
+    "dF_over_Fref": {
+     "b2o3": 0.529,
+     "modelc": 0.561
+    },
+    "cos_theta": {
+     "b2o3": 0.8804,
+     "modelc": 0.8927
+    },
+    "thresholds": {
+     "defect": ">=2.0",
+     "physics": "<=1.25"
+    },
+    "n_points": 20,
+    "record": "db/properties/b2o3_uma_vs_dft_force_result_2026_09_11.json"
+   },
+   "measured_on": "kgy 2026-09-11 · QE 7.4.1 GPU 20/20 수렴 · UMA-s-1p1(omat) 재계산 · mlip_committee.py force_contrast",
+   "method_id": "uma-vs-dft-force-contrast-v1",
+   "decision_ids": [
+    "D-2026-09-08-b2o3-uma-vs-dft-force"
+   ],
+   "created": "2026-09-11",
+   "source": "db/properties/b2o3_uma_vs_dft_force_result_2026_09_11.json"
   }
  ]
 }

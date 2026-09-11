@@ -31,9 +31,13 @@
   C2 8/9 (600 K = s2·s3, R1) · C2b inter-cage 20/55/94 홉/이온 · C6 census 9/9 rigid(β 경보 3칸은 '이탈 없는 저β') ·
   C3 compatible (ΔEa −0.024, CI [−0.039, −0.008] ⊂ ±0.050 — 구간이 0 을 벗어나 다르니 '완전 직선' 은 금지) · C4·C5 충족.
   ⚠ 관측 후 개정(BL) 뒤의 마감 · ③ STO Ea 는 1저자가 봤을 가능성(tail -40 기록) — 결과 파일에 명시. 외부 리뷰 아직 없음.
-- **kgy 힘 대조 20점 v2** — tmux `fc20`(14:43 기동) `force_check_700K_v2`, 통일키 `762e7661`, hpcx MPI, ~9–15 h.
-  대조 잡은 통과(modelc_s2_t10ps fixed vs gaussian Total force 0.353129/0.353134, −TS 0.000 —
-  `b2o3_force_control_modelc_2026_09_11.json`). 아침에 `--collect` + `mlip_committee.py force_contrast --card …`.
+- **kgy 힘 대조 — ✅ 판정 완료 (20/20).** `R = dF(b2o3)/dF(modelc) = **0.951**` (상대 0.943) ≤ 문턱 1.25
+  → 봉인문구 **"두 계에서 UMA 의 골격 힘 정확도가 비슷하다"** — 조성 특이 포텐셜 결함 가설이 약해진다.
+  b2o3 0.4198 / modelc 0.4417 eV/Å · cos 0.880/0.893. 기록 `b2o3_uma_vs_dft_force_result_2026_09_11.json` ·
+  판정원장 `A-2026-09-11-b2o3-uma-force-contrast` (**diagnostic_unbound** — 인용 자격 안 바꾼다).
+  ⛔ b2o3 전도도 축 인용 불가·β 게이트 not_assessed 는 **그대로**. ⚠ 봉인 밖 관측: 두 계 **모두** 상대 오차 0.53–0.56 —
+  'modelc 는 믿고 b2o3 만 의심' 구도의 한 다리가 빠진다. 다음: ① 원소별 dF 회수(B·O 가 특히 나쁜가) ② MP 완화
+  구조(in-distribution) 몇 점으로 0.42 가 온도 탓인지 화학 탓인지 가르기.
 - **kgy Nd DOS** — PID 2400966 `run_gap_nscf_gabia.sh DOS=1 ndo_lpscl16_n5fu_O-distributed`.
 
 **⏸ 되살릴 것**
