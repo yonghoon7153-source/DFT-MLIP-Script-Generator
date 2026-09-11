@@ -111,6 +111,14 @@
    "text": "Li–S 거리가 멀수록(부피가 클수록) 정전 인력이 약해 이동 유리(Fig. S11a). 그리고 다면체 왜곡이 크면 Li–음이온 상호작용 지형이 평탄해져 활성화에너지가 낮아진다(Fig. S11b, refs 88·89) → 그 왜곡을 CSM 으로 정량한다."
   }
  ],
+ "litdb/papers/sundar2025_oxide_coating_screening_lpscl.md": [
+  {
+   "at": "2026-09-09 19:08",
+   "color": "yellow",
+   "id": "h1788948536524",
+   "text": "\"코팅║전해질, 코팅║양극, 코팅║음극 세 계면의 분해반응 ΔE를 0 K DFT로 전부 계산 → 가장 음의 driving force를 heatmap화 → 후보 선별\""
+  }
+ ],
  "litdb/papers/tu2026_diffusion_descriptor_ml_li_sse_interface.md": [
   {
    "at": "2026-08-28 14:06",

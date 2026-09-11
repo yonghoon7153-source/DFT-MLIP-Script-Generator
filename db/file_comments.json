@@ -688,6 +688,26 @@
    "who": ""
   }
  ],
+ "litdb/papers/sundar2025_oxide_coating_screening_lpscl.md": [
+  {
+   "anchor": "코팅의 (전기)화학 성능을 결정하는 가장 예측력 있는 지표는 코팅 산화물 자체의 열역학 안정성이 아니라, LPSCl·Li 금속과 만나 형성되는 계면 분해산물의 이온/전자 전도도 — 특히 Li-conductive 산화물 + Li-alloy 형성이 음극서 좋고, MgO가 다면적(σ_ion↑",
+   "at": "2026-09-09 19:12",
+   "edited_at": "2026-09-09 19:17",
+   "history": [
+    {
+     "at": "2026-09-09 19:12",
+     "text": "코팅의 (전기)화학 성능을 결정하는 가장 예측력 있는 지표는 코팅 산화물 자체의 열역학 안정성이 아니라, LPSCl·Li 금속과 만나 형성되는 계면 분해산물의 이온/전자 전도도 — 특히 Li-conductive 산화물 + Li-alloy 형성이 음극서 좋고, MgO가 다면적(σ_ion↑·σ_e↓·Li-metal 안정·R_int↓·CCD↑)으로 최고. (Al₂O₃ 재확인, ZnO는 σ_e가 예상과 반대로 증가.)"
+    },
+    {
+     "at": "2026-09-09 19:12",
+     "text": "**코팅의 (전기)화학 성능을 결정하는 가장 예측력 있는 지표는 코팅 산화물 자체의 열역학 안정성이 아니라, LPSCl·Li 금속과 만나 형성되는 계면 분해산물의 이온/전자 전도도** — 특히 Li-conductive 산화물 + Li-alloy 형성이 음극서 좋고, MgO가 다면적(σ_ion↑·σ_e↓·Li-metal 안정·R_int↓·CCD↑)으로 최고. (Al₂O₃ 재확인, ZnO는 σ_e가 예상과 반대로 증가.)"
+    }
+   ],
+   "id": "c1788948747155",
+   "text": "**코팅의 (전기)화학 성능을 결정하는 가장 예측력 있는 지표는 코팅 산화물 자체의 열역학 안정성이 아니라, LPSCl·Li 금속과 만나 형성되는 계면 분해산물의 이온/전자 전도도** — 특히 Li-conductive 산화물 + Li-alloy 형성이 음극서 좋고, **MgO**가 다면적(σ_ion↑·σ_e↓·Li-metal 안정·R_int↓·CCD↑)으로 최고. (Al₂O₃ 재확인, ZnO는 σ_e가 예상과 반대로 증가.)",
+   "who": ""
+  }
+ ],
  "litdb/papers/tu2026_diffusion_descriptor_ml_li_sse_interface.md": [
   {
    "anchor": "🎤 발표용 안내 — 이 digest 를 논문세미나에 쓰는 법",
