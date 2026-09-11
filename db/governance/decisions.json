@@ -1486,7 +1486,7 @@
     ]
    },
    "title": "볼밀 LPSCl@Li₂S 계면상 — Li-S 전지용 (보고량 카드 · 결과 보기 전 봉인)",
-   "statement": "3층 설계. **0층**: host = **comp1**(Li₆PS₅Cl, `db/structures/comp1_V0_k444.cif`, Li24P4S20Cl4 cubic a=10.0551) + Li₂S(`sei_li2s_mp-1153.cif`). 1저자 지정 조성 **Li₂S:LPSCl = 3:5 무게비** → x_Li2S = **0.778**(Li₂S 가 가벼워 몰로는 약 4:1). ΔE_rxn(x) = E_hull(c(x)) − [(1−x)e_A + x·e_B] 를 `convex_hull_ehull.py --mode uma --tieline` 로 x ∈ {0.10, 0.25, 0.50, 0.778, 0.90} 에서 낸다. 판정: **ΔE ≤ −25 meV/atom → 새 상 생성** · **|ΔE| < 25 → tie-line = 이상 공존, 새 결정상 없음** · **ΔE > +25 → 끝점이 hull 위에 없다(판정 아님, 게이트 위반 신호)**. 1층: melt-quench 비정질(NPT, 담금질 시드 N≥5, 중앙값+산포). 2층: Ea(계면상) vs Ea(bulk LPSCl) vs Ea(bulk Li₂S), UMA-s-1p1 · Langevin NVT · MSD 창 2–50 ps · 600/800/1000 K. ⛔ 절대 σ 인용 금지.",
+   "statement": "3층 설계. **0층**: host = **comp1**(Li₆PS₅Cl, `db/structures/comp1_V0_k444.cif`, Li24P4S20Cl4 cubic a=10.0551) + Li₂S(`sei_li2s_mp-1153.cif`). 1저자 지정 조성 **Li₂S:LPSCl = 3:5 무게비** → x_Li2S = **0.778**(Li₂S 가 가벼워 몰로는 약 4:1). ΔE_rxn(x) = E_hull(c(x)) − [(1−x)e_A + x·e_B] 를 `convex_hull_ehull.py --mode uma --tieline` 로 x ∈ {0.10, 0.25, 0.50, 0.778, 0.90} 에서 낸다. 판정: **ΔE ≤ −25 meV/atom → 새 상 생성** · **|ΔE| < 25 → tie-line = 이상 공존, 새 결정상 없음** · **ΔE > +25 → 끝점이 hull 위에 없다(판정 아님, 게이트 위반 신호)**. 1층(2026-09-11b 개정): melt-quench 비정질, 타깃 = LPSCl 유래 실제 산물 — 후보 A a-Li₃PS₄·LiCl(Li₄PS₄Cl, 400원자) / 후보 B a-Li₃PS₄ + LiCl 분리; a-Li₇PS₆ 는 대조 계산. 계면상 조성은 x 에 무관(LPSCl 1 f.u. → Li₃PS₄ + LiCl, Li₂S 미소모). 판정 지표: PS₄ 보존 ≥ 0.90 · Cl 6-배위 ≥ 0.5 + Cl–Cl 3.4–3.9 Å 봉우리(상분리) · 대조잡 Li₂S 국소질서 ≥ 0.2. 게이트 G1 MLIP 오차(힘 RMSE ≤ 0.15 eV/Å · 에너지 MAE ≤ 15 meV/atom, QE 단일점 ≥ 10) · G2 담금질 속도 선언 · G3 시드 ≥ 5 · G4 NPT 밀도 ±15 %. 시드 N≥5, 중앙값+산포. 2층: Ea(계면상) vs Ea(bulk LPSCl) vs Ea(bulk Li₂S), UMA-s-1p1 · Langevin NVT · MSD 창 2–50 ps · 600/800/1000 K. ⛔ 절대 σ 인용 금지.",
    "rationale": "Li₆PS₅Cl 은 원래 Li₂S + P₂S₅ + LiCl 볼밀 산물이라 Li₂S 와 같은 삼원계 안에 있다 — 새 상이 있다면 이 계 안이다. Li-S 전지에서 Li₂S 활물질은 그 자체로 이온전도가 거의 없어, 계면 전도상 여부가 복합체 수송을 가른다.",
    "decision_state": "proposed",
    "record_kind": "prospective",
@@ -1512,6 +1512,11 @@
      "at": "2026-09-11",
      "state": "proposed",
      "note": "1저자 지정 반영(host=comp1 · 3:5 wt → x=0.778). ⛔ 초판 statement 의 판정 갈래 'ΔE ≥ +25 → 반응 안 함' 은 **볼록 hull 에서 일어날 수 없는 경우**였다 — 끝점이 둘 다 hull 위면 ΔE ≤ 0 이 구조적으로 보장된다. '반응 안 함' 은 ΔE ≈ 0(tie-line)이고 양수는 끝점 이상 신호다. **결과를 보기 전에** 고쳤다."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "proposed",
+     "note": "1층 개정(b) 반영 — 0층 결과·Cronk 2026 을 본 뒤의 개정(관측 후). 1저자 'ㄱㄱ'. 비준은 카드 전체 단위."
     }
    ]
   },
@@ -1538,7 +1543,7 @@
    "title": "LPSOCl 3×3×1 400 ps 마감 계약 개정 — 회신 BL 반영 (⚠ 관측 후 개정 · 추가 MD 0)",
    "statement": "마감 카드 lpsocl_box331_closure_conditions_2026_09_07.json 위에 덧씌워 읽는 개정: (A1) §3 판정 규칙에 C2b·C5·C6 명시 + `not_assessed` 표지(게이트 판정 불성립은 값도 HOLD 도 no_value 도 아니다); (A2) HOLD 원고 문구 분기 — C3 incompatible 일 때만 '양립하지 않는다', 그 외 HOLD 는 '양립 여부를 판정하지 못했다'; (A3) C2 온도 자격 = 09-01 개정 R1(온도별 3시드 중 ≥2 plateau), no_value 시드 D 는 어디에도 안 넣음, R4 의 시드 추가는 §6 추가 계산 0 이 이김; (A4) C3·C4·C5 표본 단위 = 온도별 자격 시드 D 평균의 온도 간 독립 재표본, 800 K 평균 하나를 두 구간에 공유, 온도별 시드 수 상이 허용(≥2), δEa·해상도 0.050 불변; (A5) C2b 측정 = aimd_jump_stats inter-cage hops/n_Li ≥ 3.0, MSD 상한만 넘으면 미입증=HOLD; (A6) C6 판정 단위 = 런, 온도 집계 = 전건(자격 시드 전부 rigid), 판정 근거 = §2 원자별 자리 이탈 census(β 는 경보로 보존), 현재 C6 = not_assessed; (A8) 'Ea 계산 0회' → 'MTO/C3 미계산·미열람' 으로 범위 축소; (A9) s5·연장 없음.",
    "rationale": "회신 BL: C2 는 선행 규칙(R1)이 있고, C6 집계는 미정이며, framework_com 은 C6 통과표가 아니고, C3 도구가 공유 800 K 와 paired seed 를 혼동했고, §7 이 HOLD 를 비양립 증거로 바꿨다. 드라이버는 온도마다 다른 RNG(seed+1000ci+T)를 쓰므로 시드 번호 pairing 근거가 없다. 관측된 β 경보 3칸(s2/800·s4/800·s4/1000)을 알고 쓰는 개정이라 post-hoc 로 표시한다 — 완화는 없다.",
-   "decision_state": "proposed",
+   "decision_state": "active",
    "record_kind": "retrospective",
    "results_seen": true,
    "record": "db/properties/lpsocl_box331_closure_amendment_2026_09_11.json",
@@ -1562,14 +1567,28 @@
    "reopen_criteria": "마감 카드 §6 R1–R4 그대로. 이 개정은 재개 조건을 추가하지도 빼지도 않는다.",
    "enforcement": "비준 전에는 C3 를 실데이터에 돌리지 않는다. 비준 후 순서: C2b 궤적 홉 계수 → C6 census(§2 문턱 고정) → 자격표 작성 → arrhenius_compat 2판. C6 판정은 assessments.json 에 새 레코드로 남기고(append-only) A-2026-09-11-lpsocl-box331-C6-framework 를 supersedes 로 잇는다. §2 문턱은 결과가 나온 뒤 옮기면 이 개정이 무효다.",
    "proposed_by": "agent",
-   "status": "proposed",
+   "status": "active",
    "status_history": [
     {
      "at": "2026-09-11",
      "state": "proposed",
      "note": "회신 BL 직후. C2·C6·D_inc·framework_com 열람 후라 post-hoc. 1저자 결정 4건(집계 전건/다수결 · census 문턱 · STO Ea 열람 선언 · R1 적용 확인) 대기."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
     }
-   ]
+   ],
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-11T08:13:16Z",
+    "commit": "be5663154b7157b3dcae6e315b4e896cc25a56c5",
+    "decision_digest": "sha256:499ab6949dbd738c6d7ddbd8d11be81084c8d6d3f947c2dc9350b2c17c4a37fc",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
