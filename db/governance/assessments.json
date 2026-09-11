@@ -12,7 +12,8 @@
  ],
  "_history": {
   "2026-08-20a": "신설. b2o3 골격 게이트를 vertical slice 로 이관 — 옛 beta 판정(retracted·diagnostic_unbound)과 현재 판정(not_assessed)을 **병존**시키고, canonical_registry 에는 참조만 남겼다. 나머지 게이트(lpsocl·comp1 MD_Ea)는 레거시 경로 유지 — 확대는 slice 통과 뒤 별건이다.",
-  "2026-09-09": "⚠ 레코드는 한 글자도 고치지 않았다 (_rules 의 append-only). 대신 이 원장을 읽는 사람이 알아야 할 두 가지를 여기 적는다. ① A-2026-08-20-b2o3-framework-current 의 raw_trajectory_set.rerun_status 는 '2026-08-20 진행 중' 으로 19일째 낡았다 — 그 재실행이 채우려던 축은 D-2026-09-07-b2o3-md-closure-retrospective 로 인용 불가 마감됐고, 그 결정의 재개 조건이 '진단 목적의 재실행은 결과와 무관하게 이 마감을 바꾸지 않는다' 다. 판정 자체는 여전히 result=not_assessed · state=active 다 — 마감은 **인용 자격**의 판정이지 게이트 통과가 아니다. ② **확대 미완**: 이 원장에 배선된 claim 은 아직 2건(MD_Ea_eV/b2o3 · MD_Ea_eV_singleseed/b2o3)뿐이다. 나머지 provisional 항목(MD_Ea_eV/lpsocl · MD_Ea_eV_singleseed/comp1 · MD_Ea_eV_disorder/comp2 · SDCP_Eads_eV__* 7건)은 판정을 canonical_registry 의 note 산문에 품고 있다 ⇒ **이 파일을 '전부' 로 읽으면 안 된다.** 그 산문 판정을 레코드로 뽑는 것은 별건이고, 뽑을 때 없는 판정을 만들어 내면 D-2026-08-20-no-retro-gate-without-artifact 위반이다."
+  "2026-09-09": "⚠ 레코드는 한 글자도 고치지 않았다 (_rules 의 append-only). 대신 이 원장을 읽는 사람이 알아야 할 두 가지를 여기 적는다. ① A-2026-08-20-b2o3-framework-current 의 raw_trajectory_set.rerun_status 는 '2026-08-20 진행 중' 으로 19일째 낡았다 — 그 재실행이 채우려던 축은 D-2026-09-07-b2o3-md-closure-retrospective 로 인용 불가 마감됐고, 그 결정의 재개 조건이 '진단 목적의 재실행은 결과와 무관하게 이 마감을 바꾸지 않는다' 다. 판정 자체는 여전히 result=not_assessed · state=active 다 — 마감은 **인용 자격**의 판정이지 게이트 통과가 아니다. ② **확대 미완**: 이 원장에 배선된 claim 은 아직 2건(MD_Ea_eV/b2o3 · MD_Ea_eV_singleseed/b2o3)뿐이다. 나머지 provisional 항목(MD_Ea_eV/lpsocl · MD_Ea_eV_singleseed/comp1 · MD_Ea_eV_disorder/comp2 · SDCP_Eads_eV__* 7건)은 판정을 canonical_registry 의 note 산문에 품고 있다 ⇒ **이 파일을 '전부' 로 읽으면 안 된다.** 그 산문 판정을 레코드로 뽑는 것은 별건이고, 뽑을 때 없는 판정을 만들어 내면 D-2026-08-20-no-retro-gate-without-artifact 위반이다.",
+  "2026-09-11": "A-2026-09-11-lpsocl-box331-C6-framework 추가 — lpsocl 축이 이 원장에 처음 들어왔다(레거시 경로 → 원장). result=not_assessed · binding=diagnostic_unbound (등록된 claim 이 아직 없다). 기존 레코드는 고치지 않았다."
  },
  "assessments": [
   {
@@ -63,19 +64,36 @@
    "raw_trajectory_set": {
     "ea_ensemble": {
      "_note": "Ea claim 의 분모는 3-seed 다 (s2/s3/s4). PMF 의 4궤적과 **다른 분모**이므로 섞지 않는다.",
-     "T600": {"expected": 3, "retained": "unverified", "where": "gabia /data/work/b2o3md/runs/b2o3_600_reseed (200 ps)"},
-     "T800": {"expected": 3, "retained": 0, "where": "kgy ~/work/runs/highT_reseed/b2o3 (100 ps)"},
-     "T1000": {"expected": 3, "retained": 0, "where": "kgy ~/work/runs/highT_reseed/b2o3 (100 ps)"}
+     "T600": {
+      "expected": 3,
+      "retained": "unverified",
+      "where": "gabia /data/work/b2o3md/runs/b2o3_600_reseed (200 ps)"
+     },
+     "T800": {
+      "expected": 3,
+      "retained": 0,
+      "where": "kgy ~/work/runs/highT_reseed/b2o3 (100 ps)"
+     },
+     "T1000": {
+      "expected": 3,
+      "retained": 0,
+      "where": "kgy ~/work/runs/highT_reseed/b2o3 (100 ps)"
+     }
     },
     "pmf_ensemble": {
      "_note": "PMF(dF_perc)는 legacy 1런 + s2/s3/s4 = 4궤적을 합산했다. use_case 가 달라 별도 분모다.",
-     "T600": {"used": 4, "evidence": "db/properties/b2o3_pmf_*_T600_origin.csv ('1900 frames each ... 4 trajectory/ies summed')"}
+     "T600": {
+      "used": 4,
+      "evidence": "db/properties/b2o3_pmf_*_T600_origin.csv ('1900 frames each ... 4 trajectory/ies summed')"
+     }
     },
     "rerun_scope": "6런 (800/1000 K x s2/s3/s4). 600 K 3런은 현존 확인되면 재실행 불필요.",
     "rerun_status": "2026-08-20 진행 중 — kgy(b2o3 6런) + gabia(modelc 6런), --save_traj 로."
    },
    "why": "골격(비-Li) 게이트의 입력 집합이 불완전하다 → 평가 자체가 성립하지 않는다. **미평가는 통과도 실패도 아니다.** 그러므로 ranking·absolute_claim·mechanism 은 계속 금지, 공개감사·비교는 허용.",
-   "decision_ids": ["D-2026-08-20-no-retro-gate-without-artifact"],
+   "decision_ids": [
+    "D-2026-08-20-no-retro-gate-without-artifact"
+   ],
    "created": "2026-08-20",
    "method_id": "framework-gate-v2"
   },
@@ -91,6 +109,45 @@
    "why": "⚠ beta 를 잰 b2o3_full 과 **같은 계열일 가능성이 높다** (600/800/1000 K D 가 b2o3_msd.csv 재계산과 일치). 다만 run 해시가 확인되지 않았다 → 확인 전까지 게이트를 이 값에 묶지 않는다. ⛔ high-T reseed 궤적 미보존은 **이 항목의 사유가 아니다** (그것은 multiseed 항목의 사유이며, 여기 복사한 것은 1차 정정의 과교정이었다).",
    "created": "2026-08-20",
    "method_id": "framework-gate-v2"
+  },
+  {
+   "assessment_id": "A-2026-09-11-lpsocl-box331-C6-framework",
+   "kind": "gate",
+   "claim_ref": "value:MD_Ea_eV/lpsocl_box331_cell_conditioned",
+   "gate": "C6_framework_rigid_per_temperature",
+   "state": "active",
+   "binding": "diagnostic_unbound",
+   "result": "not_assessed",
+   "reason": "aggregation_rule_unspecified_and_classifier_validity_unaudited",
+   "why": "마감 카드 C6 은 '각 온도에서 골격 rigid' 라고만 적어 시드→온도 집계가 없고, `--framework` β 경보(O 9개 β 0.40–0.53, 3칸 mobile 표시)와 `--framework_com`(9/9 static, MSD 0.4–2.0 Å² 라 판정 거부)이 같은 것을 판정하지 않는다 (회신 BL Q1·Q3). β 는 시간창 안의 곡선 모양이라 유계 운동도 β≈0.45 를 낼 수 있고, 골격 MSD 평균은 소수 원자의 이동을 감춘다. ⇒ 통과도 실패도 아니다. pass/fail 은 원자별 자리 이탈 census(개정안 §2, 문턱 결과 보기 전 고정) 뒤에 새 레코드로 낸다. ⛔ 기존 β 경보 3칸은 보존한다 — 지우거나 rigid 로 바꾸지 않는다.",
+   "content": {
+    "beta_alarm_cells": {
+     "s2/800": {
+      "O": 0.4,
+      "S": 0.23
+     },
+     "s4/800": {
+      "O": 0.53,
+      "S": 0.24
+     },
+     "s4/1000": {
+      "O": 0.4,
+      "S": 0.2
+     }
+    },
+    "beta_rigid_cells": "나머지 6칸 — O ≤ 0.3대, S ≤ 0.06, Cl·P ≤ 0.04 (BL 프롬프트 §2 표)",
+    "framework_com": "9/9 framework_static (골격 MSD 0.4–2.0 Å² < 2 Å² → 도구가 판정 거부, β 검사로 위임)",
+    "물리_해석": "미결 — α(진짜 이동)도 β(진동·회전)도 확정 아님",
+    "다음_판정_경로": "db/properties/lpsocl_box331_closure_amendment_2026_09_11.json §2 (원자별 자리 이탈 census · O>2.5 Å / S>3.0 Å 최근접 P 거리 · 자유 음이온·P 변위 >2.0 Å · 10 ps 연속)"
+   },
+   "measured_on": "kgy ~/work/runs/lpsocl_box331_400ps/s{2,3,4}/d0.00_cfg0/T{600,800,1000} (400 ps 생산 · UMA-s-1p1 omat) · 판정 2026-09-10~11 msd_diffusive_check.py --framework / --framework_com",
+   "method_id": "framework-gate-v2 (beta) + framework_com — 둘 다 C6 의 pass 근거로 쓰지 않음",
+   "decision_ids": [
+    "D-2026-09-08-lpsocl-box331-closure-conditions",
+    "D-2026-09-04-lpsocl-box331-400ps-uniform"
+   ],
+   "created": "2026-09-11",
+   "source": "kb/reviews/codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md · kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md"
   }
  ]
 }

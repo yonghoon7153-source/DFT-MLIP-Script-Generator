@@ -73,13 +73,13 @@ evidenceScope: multi-source-primary
 | W | 2026-09-02 | `codex_W_prompt_polaron_S0_2026_09_02.md` | — | 발송 대기 | ⚠ 인용 10회 — 라벨 재사용이라 **증거 아님** |
 | X | 2026-09-02 | `codex_X_prompt_polaron_S0_2026_09_02.md` | — | 발송 대기 | ⚠ 인용 13회 — 라벨 재사용이라 **증거 아님** |
 | BF | 2026-09-03 | `codex_BF_prompt_c12_v29_2026_09_03.md` | `codex_BF_reply_c12_v29_2026_09_03.md` | 발송 대기 | 같은 라벨 · 주제 토큰 일치 ['c12', 'v29'] |
-| BG | 2026-09-07 | `codex_BG_prompt_webapp_aw_release_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 2회 |
+| BG | 2026-09-07 | `codex_BG_prompt_webapp_aw_release_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 3회 |
 | BH | 2026-09-07 | `codex_BH_prompt_md_axis_audit_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 1회 |
 | BI | 2026-09-08 | `codex_BI_prompt_webapp_claim_binding_2026_09_08.md` | — | 발송 | — |
 | BJ2 | 2026-09-09 | `codex_BJ2_prompt_cascade_redesign_2026_09_09.md` | `codex_BJ2_reply_2026_09_09.md` | 초안 | 회신 본문의 `요청:` 역링크 |
 | BJ | 2026-09-09 | `codex_BJ_prompt_cascade_redesign_2026_09_09.md` | — | 회신됨-NO-GO | — |
 | BK | 2026-09-09 | `codex_BK_prompt_doping_question_2026_09_09.md` | — | 초안 | — |
-| BL | 2026-09-11 | `codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` | `codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` | 진행 | 같은 라벨 · 주제 토큰 일치 ['ambiguity', 'gate', 'lpsocl'] |
+| BL | 2026-09-11 | `codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` | `codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` | 진행 | 같은 라벨 · 주제 토큰 일치 ['ambiguity', 'gate', 'lpsocl']; 판정 인용 1회 |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 
