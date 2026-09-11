@@ -649,8 +649,11 @@ def contrast_from_forces(ref, pred, symbols, exclude=("Li",)):
     good = (nr > 1e-8) & (npd > 1e-8)
     cos = float(((R[good] * P[good]).sum(1) / (nr[good] * npd[good])).mean()) if good.any() else None
     per_el = {}
+    # ⛔ 2026-09-11 — dv 는 **프레임을 이어붙인** 배열이고 m2 는 한 프레임짜리 마스크다.
+    #   프레임이 2개 이상이면 길이가 안 맞아 IndexError 로 죽었다 (실측: 20점 판정 직전).
+    #   selftest 가 전부 1프레임이라 한 번도 안 걸렸다 — 아래 다중프레임 시험을 같이 넣는다.
     for el in sorted(set(np.asarray(symbols)[mask])):
-        m2 = np.array([sy == el for sy in symbols])[mask]
+        m2 = np.tile(np.array([sy == el for sy in symbols])[mask], len(ref))
         per_el[el] = float(np.linalg.norm(dv[m2], axis=1).mean())
     return {"dF_frame_eVA": dF, "n_atoms_frame": int(mask.sum()),
             "F_ref_rms_eVA": st["rms_ref_eVA"],
@@ -795,6 +798,20 @@ def cmd_selftest(a=None):
     g3 = contrast_from_forces([r1], [p2], sym)
     chk(g3["dF_frame_eVA"] == 0.0,
         "⛔음성: 제외 원소(Li)의 오차는 골격 지표에 들어가면 안 된다")
+    # ⛔음성: 다중 프레임 — dv 는 이어붙고 마스크는 한 프레임이다 (2026-09-11 실측 버그)
+    r2 = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0], [1.0, 1.0, 1.0]])
+    p2f = r2 + np.array([[0, 0, 0], [0.2, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
+    gm = contrast_from_forces([r1, r2], [p1, p2f], sym)
+    chk(set(gm["dF_by_element"]) == set(g2["dF_by_element"]),
+        "다중 프레임: 원소별 dF 가 계산된다 (마스크를 프레임 수만큼 펼친다)")
+    _n_fw = sum(1 for x in sym if x != "Li")
+    chk(abs(gm["dF_frame_eVA"] - float(np.linalg.norm(
+        np.concatenate([(np.asarray(pp) - np.asarray(rr))[np.array([x != "Li" for x in sym])]
+                        for rr, pp in ((r1, p1), (r2, p2f))]), axis=1).mean())) < 1e-12,
+        "다중 프레임: dF_frame 이 두 프레임 골격 원자 전체의 평균")
+    chk(abs(sum(gm["dF_by_element"][e] * sum(1 for x in sym if x == e) for e in gm["dF_by_element"])
+            / _n_fw - gm["dF_frame_eVA"]) < 1e-12,
+        "다중 프레임: 원소별 dF 의 원자수 가중평균 = dF_frame (마스크가 원소를 섞지 않았다)")
     try:
         contrast_from_forces([r1], [r1], ["Li"] * 5)
         chk(False, "⛔음성: 골격 원자가 하나도 없으면 0 을 내면 안 된다")
