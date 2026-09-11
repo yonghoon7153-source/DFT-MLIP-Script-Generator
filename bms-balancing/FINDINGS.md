@@ -840,6 +840,42 @@ fixedhc 의 B축은 대조가 아니다 (조건 2).
 
 ---
 
+### 1-13. 전사 함수 둘을 원본과 댔다 — **일치** (2026-09-11, U1)
+
+dQ/dV 항의 `compute_dqdv_rmse_blend`·`build_peak_weights_local` 은
+`electrode_balancing_blend.m` 안의 로컬 함수라 파일 밖에서 못 불러, §1-7·§1-8 의 대조는
+그 항만 「우리 전사(`matlab/dd_eval.m`) ↔ 우리 포팅(`model.py`)」 이었다 (신뢰 경계 U1).
+사용자가 전권을 받아 원본 파일을 직접 열었다 (`/mnt/d/…/electrode_balancing_blend.m`,
+17460 B, 2026-09-01 19:19; 로컬 함수 4 개: 305 · 328 · 352 · 374 행).
+
+| 원본 `compute_dqdv_rmse_blend` (305~323) | 전사 `local_rmse_dqdv` (dd_eval.m 250~) | 포팅 `Objective.rmse_dqdv` (model.py 353~) |
+|---|---|---|
+| `v_model = E_PE((x−p2)/p1) − E_NE_blend((x−p4)/p3, p5)` | `Ecell` 로 받음 (같은 식) | `E_cell` |
+| `sgolayfilt(v_model(:), poly_order, window)` | 258 동일 | `savgol_filter` (§1-7 1.33e-13) |
+| `gradient(x_model(:)) ./ gradient(v_smooth)` | 259 동일 | `np.gradient / np.gradient` |
+| `[v_u, uid] = unique(v_smooth); dq_u = dq_model(uid)` | 260 동일 | `np.unique(return_index=True)` |
+| 범위 `idx = vol ∈ [min(v_u), max(v_u)]`, `sum(idx) < 5 → 1e6` | 266 동일 | `m.sum() < 5 → 1e6` |
+| `interp1(v_u, dq_u, vol(idx), 'linear')` (외삽 없음 — idx 가 범위 안) | 269 동일 | `np.interp` (범위 안) |
+| `sqrt(mean((dq_fit − dq_interp).^2))` | 동일 | `sqrt(mean(resid²))` |
+
+| 원본 `build_peak_weights_local` (352~369) | 전사 `local_peak_weights` (224~246) | 포팅 `_peak_weights` (372~385) |
+|---|---|---|
+| `w = ones; prom = 0.1·(max(dq) − min(dq))` | 동일 | 동일 |
+| `try findpeaks(dq,'MinPeakProminence',prom) catch locs=[]` | try 없음 — 툴박스 있으면 동일, 없으면 shim (§1-6 40/40, §1-7 0 차이) | `find_peaks(prominence=prom)` |
+| `isempty(locs) → return` | 241 동일 | 동일 |
+| `sigma = sigma_ratio·(max(vol) − min(vol))` | 244 동일 | 383 동일 |
+| `w += (peak_weight−1)·exp(−(vol−v_peak)²/(2σ²))` | 246 동일 | 385 동일 |
+
+**두 함수 모두 줄 단위로 같다.** §1-7·§1-8 의 dQ/dV 항 대조(`rmse_dqdv` 1.78e-12 /
+2.90e-12)는 이제 「원본 ↔ 우리 포팅」 대조다.
+
+**아직 열린 것 하나**: 원본에는 가중 버전 `compute_dqdv_rmse_weighted_blend` (328~347) 가
+따로 있다. 우리 포팅의 `rmse_dqdv_w` 는 `sqrt(Σ w·r² / Σ w)` 인데 원본 분모가 `sum(w)` 인지
+`numel` 인지(전 FOR_BMS §8 ③)는 그 함수를 봐야 닫힌다. `lower_half_mean_local` (374~383,
+우리 `_auto_scales` 의 "하위 절반 평균" 대응)도 같이 볼 것.
+
+---
+
 ## 2. 받은 결과 97행을 그대로 셈 — **원표가 저장소에 들어왔다 (2026-09-10)**
 
 전 판은 이 절의 숫자를 원표 없이 적었다. 이제 표가 `out/bms97/` 에 있고
