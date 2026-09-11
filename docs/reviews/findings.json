@@ -1814,6 +1814,19 @@
    "evidence_tests": [
     "scripts/check_cohort_packages.py"
    ]
+  },
+  {
+   "id": "SELF-18",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/session_20260911_progress.md",
+   "title": "`quotation_ban` 스윕이 **정본 litdb 브랜치를 원리적으로 못 본다** — 철회값 6파일이 표지 없이 살아 있다",
+   "note": "2026-09-12 실측.  `check_review_findings.py --ban-sweep` 은 **체크아웃된 워킹트리**를 훑는다.  그런데 litdb 정본은 `origin/claude/friendly-meitner-lldvar` **다른 브랜치**에 있고 이 브랜치의 `litdb/` 는 2026-07-16 동결 스냅샷이다 ⇒ 정본 카드는 스윕 대상에 **한 번도 들어간 적이 없다**.  FA-05(UI·덱)·CDXIJ-4(덱 JSON·러너 셸)·SELF-08(생성기)과 **같은 부류이고 매체만 다르다** — 이번 매체는 **git 브랜치**다.\n실측: `claims.json` 의 `quotation_ban` 22 패턴으로 `git ls-tree FETCH_HEAD litdb/` 의 텍스트 536 파일을 훑어 **23 히트**.  분류하면 — ⓐ 철회 서사 자체(`+42.15 → +8.49 %` 형태, CLAUDE.md 가 쓰는 형태라 허용 가능) 6건, ⓑ 무관한 우연 일치(jun2022 의 R² `+52 %`, kahle2020 의 `+5.6%`) 3건, ⓒ **표지 없는 실사용 = 실누수**:\n  1. `litdb/comparison_vs_ours_DEM.md:1156` — \"우리 SDCP σ_e **+52 %** 인데 하중분담 10→7 % 역행\" (CL-24 철회 헤드라인을 현행 사실로)\n  2. `litdb/comparison_vs_ours_DEM.md:1424` — \"우리 σ_e 이득(구 스탬프 규약 **+12.3 %**)\" (CL-33 `hold` = R5-CX-06 이 인용 자체를 금지한 계열)\n  3. `litdb/papers/nam2026_primer_layer_dry_electrode_collector.md:587, 837` — 같은 `+52 %` 2곳\n  4. `litdb/papers/zhang2026_dryprocess_electrode_architecture_cell_level.md:1174` — 같은 `+12.3 %`\n  5. `litdb/papers/duquesnoy2020_calendering_ml_mesostructure_generator.md:400, 444` — CL-41 세 값 `+12.32 / +14.38 / +15.54 %`\n  6. `litdb/papers/cronk2026_lis_positive_electrode_geometry_fem.md:575` — 같은 CL-41 의 R 값 `1.123191 / 1.143817 / 1.155448`\n⚠ 5·6 은 **\"우리도 격자 수렴을 못 닫았다\" 는 정직한 맥락**에서 쓰였다 — 그래도 R5-CX-06 은 **값 자체의 인용**을 금지한다(p1 plate rule 산물).  ⇒ 맥락이 정직해도 표기가 규약 위반인 부류라, 고칠 때 **문장은 살리고 값만 원장 포인터로** 바꿔야 한다.\n처방 후보 (규율 ① — 새로 짜지 말 것): `ban_sweep` 에 **브랜치 인자**를 주어 `git ls-tree <ref> -- litdb/` 를 읽게 한다.  이미 zip 리더(`_ban_read_lines`)가 있으므로 소스가 파일이냐 git blob 이냐만 갈라주면 된다.  ⚠ 정본 브랜치는 이 리포에 항상 fetch 돼 있지 않으므로 **ref 부재 시 조용히 초록이 되면 안 된다** (그게 이 결함의 재발이다) — fail-closed 로 \"ref 없음\"을 오류로 낼 것.\n발견 경위: xu2023 digest 중 카드 에이전트가 자기 추가분이 아닌 3건을 보고했고, 내가 22 패턴 전수로 재확인해 6 파일로 넓혔다 (규율: 대상의 자기 신고를 읽지 않고 원자료에서 재계산).",
+   "evidence_tests": [
+    "scripts/check_review_findings.py"
+   ]
   }
  ]
 }
