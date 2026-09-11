@@ -20,12 +20,12 @@
 > 전수는 30초다.
 
 **▶ 지금 돌고 있는 것 (셋)**
-- **gabia 탄성** — `/data/work/runs/elastic_modelc_2x` V0_relax · BFGS 12스텝 · **663 SCF**
-  · |F| 0.004845→**0.002603** (하강 중) · E −2525.78575693 Ry · cpu 40,386 s · **strain 0/12**.
-  어제 봉인한 재점검 규칙에서 **2번 갈래(2.5~3.3e-3 → 6시간 더)**. 16:30 경 재점검.
-  ⚠ 화면의 `Total force` 는 **노름**이고 QE 의 수렴 판정은 **성분 최댓값**이다 — 실제 남은
-  거리는 26배가 아니라 4~7배쯤이다. ⚠ V0 하나에 11.2 h 를 썼는데 strain 이 12점 남았다.
-  V0 끝나면 **첫 strain 점의 스텝당 시간을 재서 12점을 외삽**한다.
+- **gabia 탄성 — ⏸ 정지 (2026-09-11 18:50).** V0_relax 가 `forc_conv_thr 1e-4` 에 21 BFGS·809 SCF·12 h 동안
+  |F| 2.5–3.2e-3 으로 진동만 했다(재점검 2번 갈래 만료). 박제 `/data/work/runs/elastic_modelc_2x/PAUSED_0911_1850/`
+  (SHA256 기록). 개정안 `shear_b2o3_vs_lpscl16_2x_amendment_2026_09_11.json`(proposed · 관측 후): forc 1e-3 · etot 1e-5
+  **두 계 동일**, PAUSED 기하 승계, strain 점당 60 BFGS 게이트. **1저자 비준 뒤, Li₂S 1층이 끝난 뒤** 재시작 (pw.x·UMA 동시 금지).
+- **gabia Li₂S 1층 — ▶ 시작 (18:55 경)** `tmux l1` · `/data/work/runs/li2s_layer1/{A,control_li7ps6}/seed1..5` ·
+  `melt_quench_uma.py` NPT 1200 K 100 ps → 10¹² K/s 900 ps → 300 K 50 ps · 시드당 ~6 h → 약 2.5 일. 판정 지표는 카드 §2 (결과 보기 전 고정).
 - **kgy lpsocl MD — ✅ 마감 (값).** 9/9 완주 → 게이트 전부 충족 → `lpsocl_box331_closed_2026_09_11.json`.
   **Ea(3×3×1 cell-conditioned) = 0.180 ± 0.002 eV** (gen2 첫 등록, `MD_Ea_eV/lpsocl_box331_cell_conditioned`).
   C2 8/9 (600 K = s2·s3, R1) · C2b inter-cage 20/55/94 홉/이온 · C6 census 9/9 rigid(β 경보 3칸은 '이탈 없는 저β') ·

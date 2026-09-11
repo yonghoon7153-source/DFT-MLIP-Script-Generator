@@ -1,0 +1,43 @@
+{
+ "schema": "campaign_prereg_amendment/v1",
+ "date": "2026-09-11",
+ "status": "proposed",
+ "⚠_관측_후_개정": true,
+ "개정_대상": "db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json (relaxed-ion Cij 쌍 · 판정 네 갈래 봉인)",
+ "제목": "V0_relax 가 forc_conv_thr 1e-4 에 닿지 못한다 — 두 계 모두 1e-3 으로 올려 재시작",
+ "0_관측_2026_09_11": {
+  "modelc_2x_V0_relax": "BFGS 21 스텝 · SCF 809회 · 12 h (GPU 41 GB) · |F| 노름 마지막 4 스텝 0.002730 → 0.002533 → 0.002847 → 0.003235 Ry/Bohr — **진동, 하강 아님**. 재점검 규칙 2번 갈래(2.5–3.3e-3 → 6 h 더)가 16:30 만료. strain 0/12.",
+  "설정": "forc_conv_thr 1e-4 · etot_conv_thr 1e-6 · conv_thr 1e-10 (V0_relax.in)",
+  "정지": "2026-09-11 18:50 박제 /data/work/runs/elastic_modelc_2x/PAUSED_0911_1850/ (V0_relax.in/out · mc2xv0.bfgs · LAST_FORCE · SHA256: out 76939485b3fe… · in ee52a5bba78f… · bfgs 9571becdf54e…). 이후 GPU 는 Li₂S 1층(UMA)에 쓴다 — 사전등록 무효조건 'pw.x·UMA 동시' 를 지키기 위한 정지다.",
+  "b2o3": "아직 시작 안 함 (같은 설정 예정이었다)."
+ },
+ "1_바꾸는_것": {
+  "forc_conv_thr": "1e-4 → **1e-3 Ry/Bohr** (QE 기본값) — **두 계 모두**. 한쪽만 바꾸면 사전등록 무효조건 1('두 계의 설정이 다르다')에 걸린다.",
+  "etot_conv_thr": "1e-6 → **1e-5 Ry** — |F| ~1e-3 에서 BFGS 한 스텝의 에너지 변화가 ~1e-5 Ry 급이라 1e-6 은 힘 조건을 만족해도 에너지 조건이 안 닫혀 같은 정체를 만든다.",
+  "재시작_기하": "PAUSED 의 V0_relax.out 마지막 ATOMIC_POSITIONS 를 승계(verified-carry: 스플라이스 + 원자수·종·셀 검증). 809회 SCF 의 진행을 버리지 않는다.",
+  "바꾸지_않는_것": "ecut · k · smearing · conv_thr 1e-10 · mixing · nosym · strain 0.005 · 12 strain 점 · BM-EOS V0 출발 · 두 계 동일 설정."
+ },
+ "2_대가와_게이트": {
+  "대가": "relaxed-ion 응력의 잔류힘 오염이 커진다 — strain 0.005 의 응력 신호 ~C·ε ≈ 0.15 GPa 급인데 잔류힘 1e-3 Ry/Bohr 는 그보다 작은 응력 잡음을 남긴다고 **본다**(정량은 안 했다). 이 한계를 결과 파일에 적는다.",
+  "게이트_결과_보기_전": "각 strain 점 relax 가 **60 BFGS 스텝 안에** 수렴해야 한다. 하나라도 넘기면 그 계는 '이 설정에서 측정 불가' 로 닫고 12점 fit 을 하지 않는다 (사전등록 무효조건 3 '11점 fit 금지' 유지).",
+  "판정_문구": "사전등록의 네 갈래 그대로. 이 개정은 문턱을 바꾸지 판정 문구를 바꾸지 않는다."
+ },
+ "3_1저자_결정_요청": [
+  "① forc 1e-3 · etot 1e-5 두 계 동일 — 비준?",
+  "② 재시작 시점: Li₂S 1층 뒤(GPU 순차) — 확인?",
+  "③ 60 BFGS 게이트 — 비준?"
+ ],
+ "출처": [
+  "db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json",
+  "tools/elastic/run_elastic_relaxedion_gabia.sh:146 (forc_conv_thr 1e-4 설정 위치)",
+  "kb/open_items.md ⏭-NOW 2026-09-11"
+ ],
+ "status_history": [
+  {
+   "at": "2026-09-11",
+   "state": "proposed",
+   "by": "agent",
+   "note": "관측 후 개정 — V0 정체 12 h 관측 뒤 작성. 1저자 비준 전 재시작하지 않는다."
+  }
+ ]
+}
