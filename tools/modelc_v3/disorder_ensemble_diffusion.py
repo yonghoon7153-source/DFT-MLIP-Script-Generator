@@ -332,6 +332,10 @@ def main():
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--uma_model", default="uma-s-1p1")
     ap.add_argument("--uma_task", default="omat")
+    ap.add_argument("--turbo", action="store_true",
+                    help="fairchem inference_settings='turbo' (MD 전용 · 실측 ≈1.9배). 없으면 기본 모드로 "
+                         "내려가고 실제 모드를 결과 json 에 적는다. ⛔ 한 캠페인 안에서 섞지 말 것 — "
+                         "등가성 근거는 db/properties/uma_turbo_equivalence_2026_09_11.json")
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
 
@@ -376,6 +380,7 @@ def main():
             "prod_ps": args.prod_ps, "equilib_ps": args.equilib_ps,
             "seed": args.seed, "fit_window_ps": list(args.fit_window_ps),
             "save_traj": bool(args.save_traj), "uma_model": args.uma_model,
+            "uma_inference_mode_requested": ("turbo" if getattr(args, "turbo", False) else "default"),
             "note": "MD 시작 직후 기록 — 감시용. 결과는 ensemble_results.json 을 볼 것",
         }, ensure_ascii=False, indent=2))
     except Exception as e:                       # 감시용 파일 때문에 계산이 죽으면 안 된다
@@ -384,7 +389,32 @@ def main():
     # one UMA load for the whole ensemble
     from fairchem.core import pretrained_mlip
     from fairchem.core.calculate.ase_calculator import FAIRChemCalculator
-    predictor = pretrained_mlip.get_predict_unit(args.uma_model, device=args.device)
+    # ⚠ 2026-09-11 — `--turbo` 는 fairchem 의 MD 전용 실행모드다(미리 컴파일 · 실측 ≈1.9배).
+    #   **같은 가중치·같은 task** 이고 바뀌는 것은 실행경로뿐이지만, 컴파일러가 연산 순서를
+    #   바꿔 힘이 끝자리에서 달라진다. 등가성 실측은 db/properties/uma_turbo_equivalence_2026_09_11.json:
+    #   700 K 스냅샷에서 max|ΔF| 1.99e-3 eV/Å (0.194 %) = 모델 자신의 오차(0.4417)의 0.45 %.
+    #   ⛔ **한 캠페인의 모든 런이 같은 모드여야 한다** — 섞으면 그 묶음을 한 표에 못 쓴다.
+    #     그래서 실제 모드를 ensemble_results.json 의 uma_inference_mode 에 기록한다.
+    _mode = "default"
+    if getattr(args, "turbo", False):
+        try:
+            predictor = pretrained_mlip.get_predict_unit(args.uma_model, device=args.device,
+                                                         inference_settings="turbo")
+            _mode = "turbo"
+        except Exception as e:
+            print(f"⚠ turbo 불가 ({type(e).__name__}: {e}) — 기본 모드로 돈다", flush=True)
+            predictor = pretrained_mlip.get_predict_unit(args.uma_model, device=args.device)
+    else:
+        predictor = pretrained_mlip.get_predict_unit(args.uma_model, device=args.device)
+    print(f"UMA inference mode: {_mode}", flush=True)
+    # ⛔ run_meta.json 은 UMA 로드 **전**에 쓰이므로 요청값만 담긴다 — turbo 가 못 걸렸을 때
+    #   감시 파일이 거짓말한다. 실제 모드를 확정한 지금 같은 파일을 갱신한다.
+    try:
+        _rm = Path(args.out_root) / "run_meta.json"
+        _d = json.loads(_rm.read_text(encoding="utf-8")); _d["uma_inference_mode"] = _mode
+        _rm.write_text(json.dumps(_d, ensure_ascii=False, indent=2))
+    except Exception as e:
+        print(f"  ⚠ run_meta.json 갱신 실패 ({type(e).__name__}: {e}) — 계산은 계속한다", flush=True)
     calc = FAIRChemCalculator(predictor, task_name=args.uma_task)
 
     rng = np.random.default_rng(args.seed)
@@ -467,7 +497,7 @@ def main():
         "free_anion_sites": n_sites, "temperatures": args.temperatures,
         "equilib_ps": args.equilib_ps, "prod_ps": args.prod_ps,
         "fit_window_ps": args.fit_window_ps,
-        "uma_model": args.uma_model, "uma_task": args.uma_task,
+        "uma_model": args.uma_model, "uma_task": args.uma_task, "uma_inference_mode": _mode,
         "runtime_min": (time.time() - t_start) / 60,
         "levels": levels_out,
         "headline": [{"d": L["disorder_actual"], "Ea_eV": L["Ea_mean_eV"],
