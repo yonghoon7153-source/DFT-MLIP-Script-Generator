@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badges %}
+{% block title %}홈 · midni 위키{% endblock %}
+{% block content %}
+<header class="phead">
+  <p class="eyebrow">mothership LLM Wiki · sulfide ASSB · mid-Ni NCA721 formation</p>
+  <h1>위키 카탈로그</h1>
+  <p class="lead">논문 노트·열화 메커니즘·프로토콜·DOE·열린 질문을 브라우저에서 읽고, 그 근거 위에서
+    <a href="/chat">대화</a>한다. 이 앱은 <b>아무것도 쓰지 않는다</b> — 화면의 모든 문장·숫자의 정본은 저장소의
+    파일이고, 실험 수치의 정본은 <code>data/</code> (registry·원 데이터)다.</p>
+</header>
+
+<div class="hero-two">
+  <a class="hero-pipe" href="/roadmap">
+    <span class="hp-tag">처음이면 여기부터 · 1/2</span>
+    <b>무엇을 연구하나 — formation 충전 cut-off 가 4.4 V vs. Li/Li⁺ 장기 사이클의 열화를 어떻게 가르는가</b>
+    <span class="hp-d">NCA721 건식 복합양극 | LPSCl | Li-In · cut-off 6 수준 · 메커니즘 7 축 · 보조 측정 · 열린 질문 — 한 장에.</span>
+    <span class="hp-go" aria-hidden="true">→</span>
+  </a>
+  <a class="hero-pipe hero-trust" href="/compare">
+    <span class="hp-tag">2/2</span>
+    <b>논문끼리 나란히 — 양극(원문 표기) · 전압창(원문 기준 + vs. Li/Li⁺) · formation · 압력 · 성능 · 메커니즘</b>
+    <span class="hp-d">논문 노트의 <code>paper:</code> 블록이 그대로 표가 되고 <b>내 DOE 창과의 겹침</b>이 붙는다. 빈 칸은 논문이
+      안 준 값이다 — 물음표를 채우지 않는다.</span>
+    <span class="hp-go" aria-hidden="true">→</span>
+  </a>
+</div>
+
+<div class="stats">
+  <a class="stat" href="/papers"><b>{{ n_papers }}</b><span>논문</span></a>
+  <a class="stat" href="/mechanisms"><b>{{ counts.get('mechanism', 0) }}</b><span>열화 메커니즘</span></a>
+  <a class="stat" href="/protocols"><b>{{ counts.get('protocol', 0) }}</b><span>프로토콜</span></a>
+  <a class="stat" href="/questions"><b>{{ counts.get('question', 0) }}</b><span>열린 질문</span></a>
+  <a class="stat" href="/entities"><b>{{ counts.get('entity', 0) }}</b><span>프로젝트</span></a>
+  <div class="stat is-static"><b>{{ total }}</b><span>전체 페이지</span></div>
+</div>
+
+<section class="panel primer">
+  <div class="panel-h">이 위키를 읽는 법 — 색이 뜻하는 것</div>
+  <div class="primer-body">
+    <p class="lead primer-lead">이 위키는 <b>근거의 등급</b>으로 층을 나눈다. 아래 색은 장식이 아니라 그 층의 표시이고,
+      <b>어떤 문장을 인용해도 되는가</b>는 그 문장이 어느 층에 있는지로 정해진다.</p>
+    <div class="layers">
+      <div class="layer l-raw">
+        <span class="layer-n">1층 · 불변</span>
+        <h3>논문 digest <code>raw/</code></h3>
+        <p>원문을 절별로 해체한 기록. <b>sha256 으로 봉인</b>되어 나중에 고칠 수 없다.
+          <code class="ctag ct-printed">[인쇄]</code> 원문 글자 · <code class="ctag ct-figure">[도표]</code> 그림 판독 ·
+          <code class="ctag ct-ours">[해석]</code> 우리 판단 · <code class="ctag ct-repro">[재현]</code> 산술 환산.</p>
+        <p class="rule"><b>규칙</b> 고치지 않는다. 정정은 2층(논문 노트)에 적는다.</p>
+      </div>
+      <div class="layer l-wiki-c">
+        <span class="layer-n">2층 · 판단</span>
+        <h3>논문 노트 · 메커니즘 · 개념 · 비교</h3>
+        <p>1층에서 <b>우리가 읽어 내린 결론</b>. 논문 노트의 <code>paper:</code> 블록은 값이 없으면 null 이다. 근거 논문이 없는
+          배경 지식은 <span class="chip chip-bg">미검증 배경</span> 으로 표시되고 인용 근거가 아니다.</p>
+        <p class="rule"><b>규칙</b> 전압에는 기준전극(vs. Li/Li⁺ = vs. In/Li-In + {{ cfg.voltage.in_to_li_offset_v }} V), 용량은 mAh g⁻¹ 과 mAh cm⁻² 를 구분.</p>
+      </div>
+      <div class="layer l-wiki-q">
+        <span class="layer-n">2층 · 미결</span>
+        <h3>열린 질문</h3>
+        <p>아직 <b>답이 없는 것</b>을 닫지 않고 두는 자리. 가설(H1…) 마다 찬성 근거와 반대 근거를 나란히 쌓고,
+          논문이 들어올 때마다 어느 가설에 붙는지 적는다.</p>
+        <p class="rule"><b>규칙</b> 지우지 않는다 — 생각이 바뀐 이유가 기록이다.</p>
+      </div>
+      <div class="layer l-out">
+        <span class="layer-n">3층 · 실험</span>
+        <h3>셀 데이터 (위키 밖 <code>data/</code>)</h3>
+        <p>우리 셀의 수치는 <b>registry·원 데이터가 정본</b>이다. <a href="/cells">셀 데이터</a> 화면과 대화에 나오는 우리 수치는
+          pandas 요약의 사본이고, raw CSV 는 어디에도 통째로 넘어가지 않는다.</p>
+        <p class="rule"><b>규칙</b> 우리 양극재는 NCA721. 충전 = delithiation, 방전 = lithiation.</p>
+      </div>
+    </div>
+    <div class="axes">
+      <div class="axis"><b>confidence</b><span>증거가 얼마나 강한가</span></div>
+      <div class="axis"><b>verificationStatus</b><span>원문과 대조했는가</span></div>
+      <div class="axis"><b>explored</b><span>사람이 읽었는가 — 기계는 못 바꾼다</span></div>
+      <div class="axis"><b>세 축은 직교한다</b><span>하나가 높다고 나머지가 따라오지 않는다</span></div>
+    </div>
+  </div>
+</section>
+
+{% if questions %}
+<section class="panel">
+  <h2 class="panel-h">지금 열려 있는 질문</h2>
+  <div class="cards cards-wide">
+    {% for it in questions %}
+    <article class="card card-q">
+      <div class="card-body">
+        <a class="card-t" href="{{ it.url }}">{{ it.title }}</a>
+        {% if it.description %}<p class="card-d">{{ it.description|mdi }}</p>{% endif %}
+        {{ badges(it.meta, ['status','confidence','evidenceScope']) }}
+      </div>
+      <footer class="card-foot">
+        <span class="muted">updated <time>{{ it.updated or '—' }}</time></span>
+        <a class="btn btn-go" href="{{ it.url }}">카드 열기 <span aria-hidden="true">→</span></a>
+      </footer>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<div class="split">
+  <section class="panel">
+    <h2 class="panel-h">위키 카탈로그 <code class="src-of">wiki/index.md</code></h2>
+    <div class="prose prose-tight">{{ index_html|safe }}</div>
+  </section>
+  <section class="panel">
+    <h2 class="panel-h">최근 활동 <code class="src-of">wiki/log.md</code></h2>
+    <ol class="tl tl-log">
+      {% for e in log %}
+      <li class="tl-i">
+        <div class="tl-dot" aria-hidden="true"></div>
+        <div class="tl-body">
+          <div class="tl-top">
+            <time class="tl-date">{{ e.date }}</time>
+            <span class="chip act act-{{ e.action }}">{{ e.action }}</span>
+          </div>
+          <p class="tl-sub">{{ e.subject|mdi }}</p>
+          {% if e.body %}<details class="disc"><summary>기록 펼치기</summary><pre class="raw">{{ e.body }}</pre></details>{% endif %}
+        </div>
+      </li>
+      {% else %}
+      <li class="empty">log.md 를 읽지 못했다.</li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>
+{% endblock %}

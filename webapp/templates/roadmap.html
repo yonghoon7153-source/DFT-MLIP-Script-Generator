@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}연구 로드맵{% endblock %}
+{% block content %}
+{# 대표 화면 — 처음 온 사람(또는 미래의 나)이 이 하나만 읽어도 "무엇을 왜 어떻게" 가 서는 곳.
+   ⚠ 숫자를 새로 만들지 않는다. 셀 조건·DOE 창은 config/cells.yaml (사용자 진술 사본) 에서 읽고 페이지 수만 센다.
+   실험 수치는 이 화면에 없다 (정본은 data/). 그림은 인라인 SVG (CSP). #}
+{% set cell = cfg.cell %}{% set doe = cfg.doe %}{% set off = cfg.voltage.in_to_li_offset_v %}
+<header class="phead phead-pipe">
+  <p class="eyebrow">처음 온 사람을 위한 한 장 · 값은 <code>config/cells.yaml</code> 의 사본</p>
+  <h1>formation 충전 cut-off 로 4.4 V vs. Li/Li⁺ 장기 사이클의 열화를 미리 설계할 수 있는가</h1>
+  <p class="lead">논문 main concept: <b>4.4 V 고전압 구동을 위한 Mid-/High-Ni 양극재 열화 메커니즘 규명과, 그 메커니즘에
+    기반한 pre-conditioning 사이클 설계</b>. 조작 변수는 하나 — formation 충전 cut-off — 이고, 결과는 200 사이클의
+    성능과 <a href="/mechanisms">열화 메커니즘</a>(CEI · LPSCl 산화 분해 · lattice oxygen · 계면 contact loss)이다.</p>
+</header>
+
+<!-- ══ 1 ══ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">1</span> 지금 만드는 셀</h2>
+  <div class="pipe-two">
+    <div class="pipe-card pc-a">
+      <span class="pc-tag">셀 구성 (사용자 진술 사본)</span>
+      <h3>{{ cell.cathode }} · {{ cell.areal_capacity_mah_cm2 }} mAh cm⁻²</h3>
+      <p>{{ cell.electrolyte }} · 음극 {{ cell.anode }}. 몰드 {{ cell.mold_diameter_mm }}Φ: 양극+SE
+        <b>{{ cell.cathode_se_press_mpa }} MPa · {{ cell.cathode_se_press_min }} min</b>, 음극
+        <b>{{ cell.anode_press_mpa }} MPa · {{ cell.anode_press_min }} min</b>, 구동압 <b>{{ cell.op_pressure_mpa }} MPa</b>.
+        조성비·mg cm⁻² 로딩·Li-In 몰비는 아직 위키에 없다 (<a href="/entity/nca721-formation-project">미결 Q2·Q3</a>).</p>
+    </div>
+    <div class="pipe-card pc-b">
+      <span class="pc-tag">프로토콜</span>
+      <h3>formation {{ doe.formation_c_rate }} × {{ doe.formation_cycles }} · main {{ doe.main_window_v_li[0] }}–{{ doe.main_window_v_li[1] }} V vs. Li/Li⁺</h3>
+      <p>main cycle {{ doe.main_c_rate }} · {{ doe.main_temperature_c }} °C · {{ doe.main_cycles }} cycles. 장비의 전압은 <b>vs. In/Li-In</b> 으로 기록되며
+        <b>+{{ off }} V</b> 를 더해야 vs. Li/Li⁺ 다 (방향 혼동 금지). 용량은 항상 비용량 mAh g⁻¹.
+        <a href="/protocols">프로토콜 4장</a>.</p>
+    </div>
+  </div>
+
+  <figure class="pipe-fig">
+    <svg class="dg" viewBox="0 0 760 236" role="img" aria-label="formation cut-off 6 수준이 main cycle 창과 어떻게 놓이는가">
+      {% set lo = 3.4 %}{% set hi = 4.8 %}
+      {% macro xpos(v) %}{{ (60 + (v - lo) / (hi - lo) * 640)|round(1) }}{% endmacro %}
+      <line x1="60" y1="150" x2="700" y2="150" class="dg-line"/>
+      {% for t in [3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8] %}
+      <line x1="{{ xpos(t) }}" y1="145" x2="{{ xpos(t) }}" y2="155" class="dg-line"/>
+      <text x="{{ xpos(t) }}" y="172" class="dg-t dg-small">{{ t }}</text>
+      {% endfor %}
+      <text x="380" y="196" class="dg-t dg-small">V vs. Li/Li⁺ (formation 충전 cut-off)</text>
+      <g class="dg-box dg-curve"><rect x="{{ xpos(lo + 0.05) }}" y="40" width="{{ ((doe.main_window_v_li[1] - lo - 0.05) / (hi - lo) * 640)|round(1) }}" height="34" rx="8"/>
+        <text x="{{ xpos((lo + doe.main_window_v_li[1]) / 2) }}" y="62" class="dg-t dg-t-b">main cycle 창 (상한 {{ doe.main_window_v_li[1] }} V)</text></g>
+      {% for c in doe.formation_cutoffs_v_li %}
+      <circle cx="{{ xpos(c) }}" cy="118" r="9" fill="{{ cfg.colors.get(c|string, cfg.colors.default) }}"/>
+      <text x="{{ xpos(c) }}" y="100" class="dg-t dg-small">{{ c }}</text>
+      {% endfor %}
+      <path class="dg-arrow" d="M {{ xpos(4.6) }} 108 L {{ xpos(4.6) }} 80"/>
+      <text x="{{ xpos(4.6) }}" y="30" class="dg-t dg-small">이 수준만 창 위를 한 번 다녀온다</text>
+      <text x="{{ xpos(3.7) }}" y="220" class="dg-t dg-small">낮은 cut-off: 첫 delithiation 이 얕다 → CEI 가 덜 생긴 채 4.4 V 로</text>
+    </svg>
+    <figcaption>수준의 구조: 4.4 V 는 main 창과 같고, 4.6 V 만 창 위 구간(SE 산화·격자 산소가 가장 의심되는 곳)을 formation 에서
+      겪는다 — <a href="/experiment/formation-cutoff-doe">DOE 설계</a>. 색은 <code>config/cells.yaml</code> 의 cut-off 색이며
+      <a href="/cells">셀 데이터</a> 차트와 같다.</figcaption>
+  </figure>
+</section>
+
+<!-- ══ 2 ══ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">2</span> 무엇이 달라질 수 있는가 — 메커니즘 {{ mechs|length }} 축</h2>
+  <p class="pipe-p">cut-off 는 <b>양극–SE 계면</b>에 작용하는 손잡이다. 아래 축들이 각각 "cut-off 가 무엇을 바꾸는가" 의 후보이고,
+    지금은 전부 <span class="chip chip-bg">미검증 배경</span>이다 — 논문이 들어오면 각 페이지의 근거 상태가 바뀐다.</p>
+  <ol class="pipe-find">
+    {% for m in mechs %}
+    <li><h3><a href="{{ m.url }}">{{ m.title }}</a></h3><p>{{ m.description|mdi }}</p></li>
+    {% endfor %}
+  </ol>
+</section>
+
+<!-- ══ 3 ══ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">3</span> 어떻게 가르나 — 측정의 흐름</h2>
+  <figure class="pipe-fig pipe-fig-wide">
+    <svg class="dg dg-flow" viewBox="0 0 980 150" role="img" aria-label="formation → 24 h rest → main cycle (2번째 SOC 100 % EIS) → 200 cycle → 사후분석; 옆에 3-전극 DRT 와 operando 압력">
+      <defs><marker id="rm-ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="dg-head"/></marker></defs>
+      <g class="dg-step s-1"><rect x="10" y="30" width="170" height="90" rx="10"/>
+        <text x="95" y="58" class="dg-t dg-t-b">formation</text><text x="95" y="80" class="dg-t dg-small">{{ doe.formation_c_rate }} · {{ doe.formation_cycles }} cyc</text><text x="95" y="100" class="dg-t dg-small">cut-off 6 수준</text></g>
+      <path class="dg-arrow" marker-end="url(#rm-ar)" d="M184 75 L210 75"/>
+      <g class="dg-step s-2"><rect x="214" y="30" width="150" height="90" rx="10"/>
+        <text x="289" y="58" class="dg-t dg-t-b">24 h rest</text><text x="289" y="80" class="dg-t dg-small">전압 tracking</text><text x="289" y="100" class="dg-t dg-small">자가방전·이완</text></g>
+      <path class="dg-arrow" marker-end="url(#rm-ar)" d="M368 75 L394 75"/>
+      <g class="dg-step s-3"><rect x="398" y="30" width="190" height="90" rx="10"/>
+        <text x="493" y="58" class="dg-t dg-t-b">main cycle {{ doe.main_c_rate }} · {{ doe.main_temperature_c }} °C</text><text x="493" y="80" class="dg-t dg-small">2번째 사이클 SOC 100 % EIS (RT)</text><text x="493" y="100" class="dg-t dg-small">{{ doe.main_cycles }} cycles</text></g>
+      <path class="dg-arrow" marker-end="url(#rm-ar)" d="M592 75 L618 75"/>
+      <g class="dg-step s-4"><rect x="622" y="30" width="160" height="90" rx="10"/>
+        <text x="702" y="58" class="dg-t dg-t-b">수득 (SOC 100 %)</text><text x="702" y="80" class="dg-t dg-small">XRD · XPS · ToF-SIMS</text><text x="702" y="100" class="dg-t dg-small">FIB-SEM · STEM · Raman</text></g>
+      <path class="dg-arrow" marker-end="url(#rm-ar)" d="M786 75 L812 75"/>
+      <g class="dg-step s-6"><rect x="816" y="30" width="154" height="90" rx="10"/>
+        <text x="893" y="58" class="dg-t dg-t-b">보조 셀</text><text x="893" y="80" class="dg-t dg-small">3-전극 DRT (Ag-C | Ag)</text><text x="893" y="100" class="dg-t dg-small">operando 압력 (LTO)</text></g>
+    </svg>
+    <figcaption>각 측정이 어느 메커니즘을 겨냥하는지는 <a href="/protocol/auxiliary-measurements">보조 측정</a> 표에, 귀속 논리는
+      <a href="/question/contact-loss-vs-cei-growth-attribution">저항 귀속 질문 카드</a>에 있다.</figcaption>
+  </figure>
+</section>
+
+<!-- ══ 4 ══ -->
+<section class="pipe-sec">
+  <h2 class="pipe-h"><span class="pipe-n">4</span> 위키가 지금 아는 것 / 모르는 것</h2>
+  <div class="pipe-two">
+    <div class="pipe-card pc-a">
+      <span class="pc-tag">있는 것 (실물 계수)</span>
+      <h3>논문 {{ papers|length }} · 메커니즘 {{ mechs|length }} · 프로토콜 {{ protos|length }} · 개념 {{ n_concepts }} · 질문 {{ qs|length }} · 프로젝트 {{ ents|length }}</h3>
+      <ul class="pg-list">
+        {% for p in papers %}<li><a href="{{ p.url }}">{{ p.title }}</a></li>{% endfor %}
+        {% for q in qs %}<li><a href="{{ q.url }}">{{ q.title }}</a> <span class="chip st st-{{ q.meta.get('status','open') }}">{{ q.meta.get('status','open') }}</span></li>{% endfor %}
+      </ul>
+    </div>
+    <div class="pipe-card pc-b">
+      <span class="pc-tag">미결 — 사용자 확인 필요</span>
+      <h3>킥오프 기록의 Q1–Q6</h3>
+      <ul class="pg-list">
+        <li><b>Q1</b> 파일명 질량(g/mg)의 정체 — 전극 질량인가 활물질 질량인가</li>
+        <li><b>Q2</b> 복합양극 조성비와 2 mAh cm⁻² 에 해당하는 mg cm⁻²</li>
+        <li><b>Q3</b> Li-In 음극의 조성(몰비)·두께</li>
+        <li><b>Q4</b> formation 방전 cut-off · rest · 온도</li>
+        <li><b>Q5</b> 사후분석 "SOC 100 %" 의 정의</li>
+        <li><b>Q6</b> 완료된 셀 목록 (registry 채우기)</li>
+      </ul>
+      <p class="pg-why">다음 ingest: <b>투입 예정 논문 10편</b> — 들어와야 <a href="/compare">비교표</a>에 행이 생기고 메커니즘 페이지가
+        근거를 얻는다. 첫 논문으로 "Chemo-Mechanical Behavior of High- and Mid-Ni Cathodes in Sulfide-Based ASSBs" 를 권한다.</p>
+    </div>
+  </div>
+</section>
+
+<p class="pipe-p pipe-caveat">이 화면의 셀 조건·프로토콜은 <code>config/cells.yaml</code> 과 <code>wiki/raw/transcripts/2026-09-11-midni-formation-wiki-kickoff-session.md</code>
+  (사용자 진술, sha256 봉인) 의 사본이다. 실험 수치는 여기 없다 — 정본은 <code>data/</code> 다.</p>
+{% endblock %}

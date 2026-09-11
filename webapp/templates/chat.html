@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}위키와 대화{% endblock %}
+{% block content %}
+{# 위키 근거 대화. 서버는 질문을 받아 위키 절(논문 노트·digest·메커니즘·프로토콜·질문 카드) + 우리 셀 ours: + 셀 요약을
+   골라 Claude 에게 넘기고 답을 흘린다. **서버는 아무것도 저장하지 않는다** — 기록은 이 브라우저(localStorage)에만. #}
+<header class="phead phead-chat">
+  <p class="eyebrow">위키 절을 근거로 · 서버는 저장하지 않는다 · raw CSV 는 넘어가지 않는다</p>
+  <h1>위키와 대화</h1>
+  <p class="lead">질문하면 위키({{ n_pages }}페이지)에서 관련 절을 골라 <b>출처(1저자·연도·저널·figure/page)</b>와 함께 답한다.
+    위키에 없는 것은 <code>[DB 외 일반 지식/추론]</code> 으로 표시하게 되어 있고, 논문끼리·논문과 우리 셀을 비교하면
+    <b>전압 기준전극 · 양극 조성(원문 표기) · 온도 · 압력 · loading</b> 차이를 먼저 짚는다. 영어 용어를 설명할 때는 IPA 와
+    강세를 붙인다. 답이 아까우면 Claude Code 에서 <code>/wiki-query</code> 로 file-back 한다.</p>
+  <div class="chat-status" id="chat-status" data-ok="{{ 'y' if status.ok else 'n' }}">
+    {% if status.ok %}
+    <span class="chip st st-answered">준비됨</span>
+    <span class="muted">모델 <code>{{ status.model }}</code> · effort {{ status.effort }}{% if status.fake %} · <b>FAKE 모드</b>{% endif %}</span>
+    {% else %}
+    <span class="chip st st-open">비활성</span>
+    <span class="muted">
+      {% if not status.sdk %}<code>anthropic</code> SDK 가 없다 — <code>.venv/bin/pip install anthropic</code>.
+      {% elif not status.key %}<code>ANTHROPIC_API_KEY</code> 가 없다 — WSL 셸에서 <code>export ANTHROPIC_API_KEY=…</code> 후 <code>midni restart</code>.
+      {% endif %}
+      나머지 화면은 그대로 동작한다.</span>
+    {% endif %}
+  </div>
+</header>
+
+<div class="chat-wrap" id="chat" data-ok="{{ 'y' if status.ok else 'n' }}">
+  <section class="chat-main">
+    <div class="chat-log" id="chat-log" aria-live="polite">
+      <div class="chat-empty" id="chat-empty">
+        <h2>무엇이든 위키에 물어 보라</h2>
+        <p>예를 들어:</p>
+        <ul class="chat-starters">
+          {% for s in starters %}<li><button type="button" class="chat-starter" data-q="{{ s }}">{{ s }}</button></li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    <form class="chat-form" id="chat-form">
+      <textarea id="chat-q" rows="3" placeholder="질문… (Enter 로 보내기, Shift+Enter 줄바꿈)" aria-label="질문"{% if not status.ok %} disabled{% endif %}></textarea>
+      <div class="chat-form-row">
+        <span class="muted chat-hint">최근 12턴을 함께 보낸다 · 기록은 이 브라우저에만</span>
+        <span class="chat-btns">
+          <button type="button" class="btn btn-sm" id="chat-new" title="새 대화 (이 기록은 지운다)">새 대화</button>
+          <button type="button" class="btn btn-sm" id="chat-export" title="대화를 마크다운으로 내려받는다"><svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg>내보내기</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="chat-send"{% if not status.ok %} disabled{% endif %}><svg class="ic" aria-hidden="true"><use href="#i-send"></use></svg>보내기</button>
+        </span>
+      </div>
+    </form>
+  </section>
+  <aside class="chat-rail" aria-label="이번 답의 근거">
+    <div class="rail-h"><span class="rail-t">근거 페이지</span></div>
+    <p class="rail-hint" id="src-hint">답이 만들어질 때 어느 페이지의 절을 넘겼는지가 여기 뜬다. <span class="chip chip-bg">미검증 배경</span> 표시가 붙은 페이지는 인용 근거가 아니다. 인용을 눌러 원문으로 내려가서 확인한다 — 답은 사본, 위키가 정본.</p>
+    <ul class="rail-list" id="src-list"></ul>
+    <div class="rail-h" style="margin-top:14px"><span class="rail-t">이번 요청</span></div>
+    <dl class="kv kv-sm" id="chat-usage"></dl>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/chat.js') }}?v={{ asset_version }}" defer></script>
+{% endblock %}

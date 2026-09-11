@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_card %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<header class="phead">
+  <p class="eyebrow">{{ eyebrow }}</p>
+  <h1>{{ title }}</h1>
+  <p class="lead">{{ lead }}</p>
+</header>
+<div class="cards{% if kind in ('protocol','experiment','entity') %} cards-wide{% endif %}">
+  {% for it in items %}
+  {{ page_card(it, ['confidence','verificationStatus','claimType','evidenceScope'] if kind != 'entity' else ['confidence','evidenceScope']) }}
+  {% else %}<p class="empty">{{ kind_label }} 페이지가 없다.</p>{% endfor %}
+</div>
+{% endblock %}

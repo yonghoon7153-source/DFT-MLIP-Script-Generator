@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badges, tags, sources, toc_nav, claim_legend %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="위치">
+  {% if page.kind=='mechanism' %}<a href="/mechanisms">열화 메커니즘</a>
+  {% elif page.kind=='protocol' %}<a href="/protocols">프로토콜</a>
+  {% elif page.kind=='experiment' %}<a href="/experiments">실험</a>
+  {% elif page.kind=='concept' %}<a href="/concepts">개념·규약</a>
+  {% elif page.kind=='entity' %}<a href="/entities">프로젝트</a>
+  {% elif page.kind=='comparison' %}<a href="/compare">비교</a>
+  {% elif page.kind in ('transcript','article','repository') %}<a href="/">raw</a>
+  {% else %}<a href="/">홈</a>{% endif %}
+  <span aria-hidden="true">/</span><b>{{ page.slug }}</b><span class="chip kind">{{ page.kind_label }}</span>
+</nav>
+
+<header class="phead doc-head">
+  <span class="kind-eyebrow">{{ page.kind_label }}<span class="sep">·</span><span class="w">{{ page.layer }}</span></span>
+  <h1>{{ page.title }}</h1>
+  {% if page.background %}<p class="note note-bg"><b>미검증 배경</b> — 이 페이지의 설명은 아직 근거 논문이 없는 일반 지식이다. 인용 근거가 아니며 <a href="/chat">대화</a>에서는 "DB 외 일반 지식/추론" 으로 표시된다. 논문이 들어오면 <code>sources</code> 와 등급이 바뀐다.</p>{% endif %}
+  {% if meta.get('description') %}<p class="lead">{{ meta.get('description')|mdi }}</p>{% endif %}
+  {{ badges(meta) }}
+  <dl class="kv kv-inline">
+    {% if meta.get('created') %}<dt>created</dt><dd><time>{{ meta.get('created') }}</time></dd>{% endif %}
+    {% if meta.get('updated') %}<dt>updated</dt><dd><time>{{ meta.get('updated') }}</time></dd>{% endif %}
+    {% if meta.get('sha256') %}<dt>sha256 <span class="dt-note">원문 봉인</span></dt><dd class="mono wrap">{{ meta.get('sha256') }}</dd>{% endif %}
+    {% if meta.get('feedsInto') %}<dt>feedsInto</dt><dd>{{ meta.get('feedsInto')|mdi }}</dd>{% endif %}
+    <dt>파일</dt><dd class="mono wrap">{{ page.relpath }}</dd>
+  </dl>
+  {{ tags(meta) }}
+  {{ sources(meta, wl_index) }}
+</header>
+
+{% if ours_rows %}
+<details class="fold cmp-fold" open>
+  <summary><span class="fold-mark" aria-hidden="true"></span>우리 셀 <code>ours:</code> — <a href="/compare">비교표</a>의 첫 행 (사본 · 정본은 프로토콜·registry)</summary>
+  <div class="fold-body"><dl class="kv kv-cmp">{% for h, v in ours_rows %}<dt>{{ h }}</dt><dd>{{ v|mdi }}</dd>{% endfor %}</dl></div>
+</details>
+{% endif %}
+
+{{ claim_legend(claims) }}
+
+<div class="reader">
+  <div class="reader-side">{{ toc_nav(toc) }}</div>
+  <article class="prose doc-body">{{ body_html|safe }}</article>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}셀 데이터{% endblock %}
+{% block content %}
+<header class="phead">
+  <p class="eyebrow">data/registry/cells.csv (정본) + data/cells/&lt;id&gt;/summary.json (import 요약) · prototype</p>
+  <h1>셀 데이터</h1>
+  <p class="lead">registry 가 <b>source of truth</b> 다 — 파일명에서 읽은 값은 제안일 뿐이다. 이 화면은 registry 와 pandas 요약을
+    <b>읽기만</b> 한다. 전압은 원본(vs. In/Li-In)과 변환값(vs. Li/Li⁺, +{{ ov.offset if ov.ok else '0.62' }} V) 을 함께 보이고, 용량은 mAh g⁻¹
+    (활물질 질량이 registry 에 없으면 비운다). cut-off 별 색은 <code>config/cells.yaml</code> 에서 사용자가 정한다.</p>
+</header>
+
+{% if not ov.ok %}
+<p class="empty">셀 모듈이 비활성이다 — <code>.venv/bin/pip install pandas PyYAML</code> 후 다시 띄운다.</p>
+{% else %}
+
+<section class="panel">
+  <h2 class="panel-h">cut-off 별 셀 수 <span class="muted">— 같은 수준의 n 이 곧 통계적 신뢰</span></h2>
+  <div class="cut-n">
+    {% for b in ov.by_cutoff %}
+    <div class="cut-i"><span class="cut-dot" style="background:{{ b.color }}"></span><b>{{ b.cutoff }}</b><span class="muted">V vs. Li/Li⁺</span><span class="cut-c">n = {{ b.n }}</span></div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if ov.chart %}
+<section class="panel">
+  <h2 class="panel-h">방전 비용량 vs 사이클 <span class="muted">— import 된 셀만 · 색 = formation cut-off</span></h2>
+  {% set ch = ov.chart %}
+  <figure class="chart-fig">
+    <svg class="chart" viewBox="0 0 {{ ch.w }} {{ ch.h }}" role="img" aria-label="셀별 방전 비용량 vs 사이클">
+      {% for t in ch.y_ticks %}
+      <line class="c-grid" x1="{{ ch.ml }}" x2="{{ ch.ml + ch.pw }}" y1="{{ t.py }}" y2="{{ t.py }}"/>
+      <text class="c-tick c-tick-y" x="{{ ch.ml - 8 }}" y="{{ t.py + 4 }}">{{ t.label }}</text>
+      {% endfor %}
+      {% for t in ch.x_ticks %}
+      <line class="c-grid c-grid-v" y1="{{ ch.mt }}" y2="{{ ch.mt + ch.ph }}" x1="{{ t.px }}" x2="{{ t.px }}"/>
+      <text class="c-tick c-tick-x" x="{{ t.px }}" y="{{ ch.mt + ch.ph + 18 }}">{{ t.label }}</text>
+      {% endfor %}
+      <line class="c-axis" x1="{{ ch.ml }}" x2="{{ ch.ml + ch.pw }}" y1="{{ ch.mt + ch.ph }}" y2="{{ ch.mt + ch.ph }}"/>
+      <line class="c-axis" x1="{{ ch.ml }}" x2="{{ ch.ml }}" y1="{{ ch.mt }}" y2="{{ ch.mt + ch.ph }}"/>
+      <text class="c-axlabel" x="{{ ch.ml + ch.pw / 2 }}" y="{{ ch.h - 12 }}">{{ ch.x_label }}</text>
+      <text class="c-axlabel" transform="translate(16 {{ ch.mt + ch.ph / 2 }}) rotate(-90)">{{ ch.y_label }}</text>
+      {% for s in ch.series %}
+      <path class="c-line" d="{{ s.path }}" style="stroke:{{ s.color }}"/>
+      {% for p in s.pts_svg %}<circle class="c-pt" cx="{{ p.cx }}" cy="{{ p.cy }}" r="2.2" style="fill:{{ s.color }}"><title>{{ s.cell_id }} · cycle {{ p.x }} · {{ '%.1f'|format(p.y) }} mAh g⁻¹</title></circle>{% endfor %}
+      <text class="c-endlabel" x="{{ s.end.cx + 6 }}" y="{{ s.end.cy + 4 }}" style="fill:{{ s.color }}">{{ s.cell_id }}{% if s.cutoff %} ({{ s.cutoff }} V){% endif %}</text>
+      {% endfor %}
+    </svg>
+    <figcaption>정본은 <code>{{ ov.cells_dir }}/&lt;id&gt;/cycles.csv</code>. 사이클 번호는 raw 의 <code>cycle_index</code> 그대로(formation 포함 여부는 장비 설정에 따른다).</figcaption>
+  </figure>
+</section>
+{% endif %}
+
+<section class="panel">
+  <h2 class="panel-h">registry <code class="src-of">{{ ov.registry_path }}</code></h2>
+  {% if ov.rows %}
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>cell</th><th>cut-off<br><span class="muted">V vs. Li/Li⁺</span></th><th>활물질<br><span class="muted">mg</span></th><th>loading</th><th>압력 제작/음극/구동<br><span class="muted">MPa</span></th><th>status</th><th>cycles</th><th>첫/마지막 방전<br><span class="muted">mAh g⁻¹</span></th><th>retention<br><span class="muted">last/first %</span></th><th>CE 평균 %</th><th>v_max<br><span class="muted">raw → vs. Li/Li⁺</span></th><th>비고</th></tr></thead>
+      <tbody>
+      {% for r in ov.rows %}{% set s = r.summary %}
+        <tr{% if r.orphan %} class="is-orphan"{% endif %}>
+          <td class="rowh"><span class="cut-dot" style="background:{{ r.color }}"></span> <a href="{{ r.url }}">{{ r.cell_id }}</a></td>
+          <td class="num">{{ r.formation_cutoff_v_li or '—' }}</td>
+          <td class="num">{{ r.active_mass_mg or '—' }}</td>
+          <td>{% if r.loading_mah_cm2 %}{{ r.loading_mah_cm2 }} mAh cm⁻²{% endif %}{% if r.loading_mg_cm2 %} · {{ r.loading_mg_cm2 }} mg cm⁻²{% endif %}</td>
+          <td class="num">{{ r.fab_pressure_mpa or '—' }} / {{ r.anode_fab_pressure_mpa or '—' }} / {{ r.op_pressure_mpa or '—' }}</td>
+          <td><span class="chip{% if not r.status_ok %} chip-bg{% endif %}">{{ r.status or '—' }}</span></td>
+          <td class="num">{{ s.n_cycles if s else '—' }}</td>
+          <td class="num">{% if s and s.first_discharge_mah_g is not none %}{{ '%.1f'|format(s.first_discharge_mah_g) }} / {{ '%.1f'|format(s.last_discharge_mah_g) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if s and s.retention_pct_last_over_first is not none %}{{ '%.1f'|format(s.retention_pct_last_over_first) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if s and s.ce_mean_pct is not none %}{{ '%.2f'|format(s.ce_mean_pct) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if s and s.voltage.v_max_raw is not none %}{{ '%.3f'|format(s.voltage.v_max_raw) }} → {{ '%.3f'|format(s.voltage.v_max_vs_li) }}{% else %}—{% endif %}</td>
+          <td>{{ r.notes }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-box">
+    <p class="empty">registry 가 비어 있다 (헤더만). 채우는 법:</p>
+    <pre class="raw">cp  <raw.csv>  data/raw/                                      # 원 데이터 (커밋되지 않는다)
+python3 tools/cells/import_cell.py --propose data/raw/<raw.csv>   # 파일명에서 제안값 보기
+#  → data/registry/cells.csv 에 행을 적는다 (cell_id, formation_cutoff_v_li, active_mass_mg, …, raw_file)
+python3 tools/cells/import_cell.py --cell <cell_id>               # 사이클 요약 계산 → data/cells/<cell_id>/</pre>
+    <p class="muted">열 정의는 <a href="/experiment/cell-registry">cell registry</a> 페이지, 스키마 전체는 <a href="/doc/guides/cell-data-module">셀 데이터 모듈</a>.</p>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

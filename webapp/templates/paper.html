@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badges, tags, sources, toc_nav, claim_legend, doe_chips %}
+{% block title %}{{ page.title }} · 논문{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="위치"><a href="/papers">논문</a><span aria-hidden="true">/</span><b>{{ page.slug }}</b></nav>
+
+<header class="phead doc-head">
+  <span class="kind-eyebrow">논문<span class="sep">·</span><span class="w">{% if note %}노트 (2층 · 수정 가능){% endif %}{% if note and digest %} + {% endif %}{% if digest %}digest (1층 · 불변 · sha256 봉인){% endif %}</span></span>
+  <h1>{{ page.title }}</h1>
+  {% if meta.get('description') %}<p class="lead">{{ meta.get('description')|mdi }}</p>{% endif %}
+  {% if note %}{{ badges(meta) }}{% endif %}
+  <dl class="kv kv-inline">
+    {% if block.get('bib') %}
+      {% set bib = block.get('bib') %}
+      {% if bib.get('first_author') %}<dt>인용</dt><dd>{{ bib.get('first_author') }} {{ bib.get('year') or '' }}{% if bib.get('journal') %}, {{ bib.get('journal') }}{% endif %}</dd>{% endif %}
+      {% if bib.get('authors') %}<dt>저자</dt><dd>{{ bib.get('authors') }}</dd>{% endif %}
+      {% if bib.get('doi') %}<dt>DOI</dt><dd class="mono">{{ bib.get('doi') }}</dd>{% elif bib.get('doi_missing_reason') %}<dt>DOI</dt><dd>없음 — {{ bib.get('doi_missing_reason') }}</dd>{% endif %}
+    {% endif %}
+    {% if block.get('supplementary') and block.get('supplementary').get('files') %}<dt>Supplementary</dt><dd class="mono wrap">{{ block.get('supplementary').get('files')|join(' · ') }}</dd>{% endif %}
+    {% if dmeta.get('ingested') %}<dt>ingested</dt><dd><time>{{ dmeta.get('ingested') }}</time></dd>{% endif %}
+    {% if sha %}<dt>sha256 <span class="dt-note">digest 봉인</span></dt><dd class="mono wrap">{{ sha }}</dd>{% endif %}
+    {% if dmeta.get('source_url') %}<dt>source</dt><dd class="mono wrap">{{ dmeta.get('source_url') }}</dd>{% endif %}
+    {% if note %}<dt>노트</dt><dd class="mono wrap">{{ note.relpath }}</dd>{% endif %}
+    {% if digest %}<dt>digest</dt><dd class="mono wrap">{{ digest.relpath }}</dd>{% endif %}
+  </dl>
+  {{ tags(meta) }}
+  {% if note %}{{ sources(meta, wl_index) }}{% endif %}
+</header>
+
+{% if flags %}
+<p class="note">내 DOE 창과의 관계 {{ doe_chips(flags) }} <span class="muted">— {{ flags.main_label }} · {{ flags.formation_label }} (전압 창만 본다; loading·압력·온도 차이는 아래 표).</span></p>
+{% endif %}
+
+{% if cmp_rows %}
+<details class="fold cmp-fold" open>
+  <summary><span class="fold-mark" aria-hidden="true"></span>추출 스키마 <code>paper:</code> — 이 논문의 구조화 값 (<a href="/compare">전체 표</a>). 빈 항목은 논문이 주지 않은 값.</summary>
+  <div class="fold-body">
+    <dl class="kv kv-cmp">
+      {% for h, v in cmp_rows %}<dt>{{ h }}</dt><dd>{{ v|mdi }}</dd>{% endfor %}
+    </dl>
+  </div>
+</details>
+{% elif note %}
+<p class="note">이 노트의 <code>paper:</code> 블록은 아직 비어 있다 (전부 null) — 추측으로 채우지 않는다.</p>
+{% endif %}
+
+{% if note_html %}
+<section class="panel">
+  <h2 class="panel-h">노트 (우리 판단 · 수정 가능)</h2>
+  <div class="prose">{{ note_html|safe }}</div>
+</section>
+{% endif %}
+
+{% if digest %}
+{{ claim_legend(claims) }}
+{% if figs %}
+<p class="note note-fig">
+  본문의 <b>Fig. N</b> · <b>Fig. S<i>n</i></b> · <b>Table N</b> 표기는 자동 링크된다 — 마우스를 올리면 옆에 뜨고, 누르면 고정된다.
+  그림 <b>{{ figs|length }}</b>장은 <code>wiki/raw/figures/{{ page.slug }}/</code> 의 크로핑본이고 캡션은 <code>figures.json</code> 에서 온다{% if figmeta.get('generated') %} (추출 {{ figmeta.get('generated') }}{% if figmeta.get('dpi') %} · {{ figmeta.get('dpi') }} dpi{% endif %}){% endif %}.
+</p>
+{% endif %}
+<h2 class="panel-h">digest (원문 해체 · 봉인)</h2>
+<div class="reader reader-3" data-annot="{{ page.slug }}">
+  <div class="reader-side">{{ toc_nav(toc, '이 digest') }}</div>
+  <article class="prose doc-body" id="digest-body">{{ body_html|safe }}</article>
+  <aside class="rail" id="annot-rail" aria-label="메모와 하이라이트">
+    <div class="rail-h">
+      <span class="rail-t">메모 <b id="note-n">0</b></span>
+      <button class="btn btn-xs" id="annot-export" type="button" title="이 문서의 메모·하이라이트를 마크다운으로 내려받는다">
+        <svg class="ic" aria-hidden="true"><use href="#i-download"></use></svg>내보내기
+      </button>
+    </div>
+    <p class="rail-hint" id="annot-hint">본문에서 <b>글자를 끌어 선택</b>하면 하이라이트·메모를 남길 수 있다. 이 앱은 저장소에 쓰지 않는다 — 주석은 <b>이 브라우저에만</b> 남는다.</p>
+    <ul class="rail-list" id="annot-list"></ul>
+  </aside>
+</div>
+<div class="sel-bar" id="sel-bar" hidden>
+  <button type="button" data-hl="y" title="노랑">·</button>
+  <button type="button" data-hl="g" title="초록">·</button>
+  <button type="button" data-hl="p" title="보라">·</button>
+  <button type="button" data-hl="r" title="빨강">·</button>
+  <span class="sel-sep"></span>
+  <button type="button" data-act="note">메모</button>
+</div>
+{% else %}
+<p class="note">이 논문은 <b>digest 가 없다</b> — 원문 해체 기록이 아직 없으므로 인용 좌표(page/figure)를 확인할 수 없다. <code>/paper</code> 로 digest 를 만든다.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if digest %}
+<div id="figdata" data-slug="{{ page.slug }}" hidden></div>
+<script src="{{ url_for('static', filename='js/figref.js') }}?v={{ asset_version }}"></script>
+{% endif %}
+{% endblock %}

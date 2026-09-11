@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ c.cell_id }} · 셀{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="위치"><a href="/cells">셀 데이터</a><span aria-hidden="true">/</span><b>{{ c.cell_id }}</b></nav>
+<header class="phead doc-head">
+  <span class="kind-eyebrow">셀<span class="sep">·</span><span class="w">3층 · 실험 데이터 (사본 — 정본은 data/)</span></span>
+  <h1><span class="cut-dot" style="background:{{ c.color }}"></span> {{ c.cell_id }}</h1>
+  <dl class="kv kv-inline">
+    <dt>formation cut-off</dt><dd>{{ c.formation_cutoff_v_li or '—' }} V vs. Li/Li⁺</dd>
+    <dt>활물질</dt><dd>{{ c.active_mass_mg or '—' }} mg</dd>
+    <dt>status</dt><dd>{{ c.status or '—' }}</dd>
+    {% if c.notes %}<dt>비고</dt><dd>{{ c.notes }}</dd>{% endif %}
+    {% if c.summary %}<dt>source</dt><dd class="mono">{{ c.summary.source }}</dd><dt>retention 정의</dt><dd>{{ c.summary.retention_definition }}</dd>{% endif %}
+  </dl>
+</header>
+
+{% if c.chart %}
+{% set ch = c.chart %}
+<figure class="chart-fig">
+  <svg class="chart" viewBox="0 0 {{ ch.w }} {{ ch.h }}" role="img" aria-label="{{ c.cell_id }} 방전 비용량 vs 사이클">
+    {% for t in ch.y_ticks %}<line class="c-grid" x1="{{ ch.ml }}" x2="{{ ch.ml + ch.pw }}" y1="{{ t.py }}" y2="{{ t.py }}"/><text class="c-tick c-tick-y" x="{{ ch.ml - 8 }}" y="{{ t.py + 4 }}">{{ t.label }}</text>{% endfor %}
+    {% for t in ch.x_ticks %}<text class="c-tick c-tick-x" x="{{ t.px }}" y="{{ ch.mt + ch.ph + 18 }}">{{ t.label }}</text>{% endfor %}
+    <line class="c-axis" x1="{{ ch.ml }}" x2="{{ ch.ml + ch.pw }}" y1="{{ ch.mt + ch.ph }}" y2="{{ ch.mt + ch.ph }}"/>
+    <line class="c-axis" x1="{{ ch.ml }}" x2="{{ ch.ml }}" y1="{{ ch.mt }}" y2="{{ ch.mt + ch.ph }}"/>
+    <text class="c-axlabel" x="{{ ch.ml + ch.pw / 2 }}" y="{{ ch.h - 12 }}">{{ ch.x_label }}</text>
+    <text class="c-axlabel" transform="translate(16 {{ ch.mt + ch.ph / 2 }}) rotate(-90)">{{ ch.y_label }}</text>
+    {% for s in ch.series %}<path class="c-line" d="{{ s.path }}" style="stroke:{{ s.color }}"/>{% for p in s.pts_svg %}<circle class="c-pt" cx="{{ p.cx }}" cy="{{ p.cy }}" r="2.4" style="fill:{{ s.color }}"><title>cycle {{ p.x }} · {{ '%.1f'|format(p.y) }} mAh g⁻¹</title></circle>{% endfor %}{% endfor %}
+  </svg>
+</figure>
+{% endif %}
+
+<section class="panel">
+  <h2 class="panel-h">사이클 요약 <span class="muted">— 전압 열: raw (vs. In/Li-In) → vs. Li/Li⁺ (+{{ c.offset }} V)</span></h2>
+  {% if c.cycles %}
+  <div class="tablewrap">
+    <table class="data">
+      <thead><tr><th>cycle</th><th>충전<br><span class="muted">mAh g⁻¹</span></th><th>방전<br><span class="muted">mAh g⁻¹</span></th><th>CE %</th><th>평균 충전 V<br><span class="muted">raw → Li</span></th><th>평균 방전 V<br><span class="muted">raw → Li</span></th><th>hysteresis V</th><th>v_max<br><span class="muted">raw → Li</span></th><th>v_min<br><span class="muted">raw → Li</span></th><th>points</th><th>complete</th></tr></thead>
+      <tbody>
+      {% for r in c.cycles %}
+      <tr>
+        <td class="num rowh">{{ r.cycle|int if r.cycle is not none else '—' }}</td>
+        <td class="num">{{ '%.1f'|format(r.charge_capacity_mah_g) if r.charge_capacity_mah_g is not none else '—' }}</td>
+        <td class="num">{{ '%.1f'|format(r.discharge_capacity_mah_g) if r.discharge_capacity_mah_g is not none else '—' }}</td>
+        <td class="num">{{ '%.2f'|format(r.coulombic_efficiency) if r.coulombic_efficiency is not none else '—' }}</td>
+        <td class="num">{% if r.mean_charge_voltage is not none %}{{ '%.3f'|format(r.mean_charge_voltage) }} → {{ '%.3f'|format(r.mean_charge_voltage_li) }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.mean_discharge_voltage is not none %}{{ '%.3f'|format(r.mean_discharge_voltage) }} → {{ '%.3f'|format(r.mean_discharge_voltage_li) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ '%.3f'|format(r.voltage_hysteresis) if r.voltage_hysteresis is not none else '—' }}</td>
+        <td class="num">{% if r.v_max is not none %}{{ '%.3f'|format(r.v_max) }} → {{ '%.3f'|format(r.v_max_li) }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.v_min is not none %}{{ '%.3f'|format(r.v_min) }} → {{ '%.3f'|format(r.v_min_li) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ r.points|int if r.points is not none else '—' }}</td>
+        <td>{{ '✓' if r.complete else '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">import 산출물이 없다 — <code>python3 tools/cells/import_cell.py --cell {{ c.cell_id }}</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}

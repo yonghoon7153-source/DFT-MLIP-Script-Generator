@@ -1,0 +1,131 @@
+{# frontmatter 배지 — 값 자체를 클래스에 넣지 않고 화이트리스트로 고른다. 색만으로 구분하지 않는다
+   (축 이름 + 값 + 글리프). #}
+{% set _tone = {
+  'confidence': {
+    'high':   ('good', '●', '증거가 강하다'),
+    'medium': ('mid',  '◐', '증거가 있으나 결정적이지 않다'),
+    'low':    ('weak', '○', '증거가 약하다 — 미검증 배경이거나 근거 논문 없음')},
+  'verificationStatus': {
+    'verified':   ('good', '●', 'raw 원문과 대조해 확인됨'),
+    'unverified': ('weak', '○', '아직 원문 대조 전'),
+    'disputed':   ('bad',  '✗', '페이지 간 충돌 — 양쪽 보존')},
+  'status': {
+    'open':      ('mid',  '◑', '열린 질문 — 답이 없다'),
+    'active':    ('mid',  '◑', '작업 중'),
+    'answered':  ('good', '●', '답이 나왔다'),
+    'abandoned': ('weak', '◌', '접음')},
+  'claimType': {
+    'empirical':    ('info', '▣', '관측·실측에 근거한 주장'),
+    'theoretical':  ('info', '◈', '이론·모형에 근거한 주장'),
+    'prescriptive': ('info', '▤', '무엇을 하라는 지침'),
+    'definition':   ('info', '▦', '정의'),
+    'mixed':        ('info', '▧', '혼합'),
+    'interpretive': ('info', '▨', '해석')},
+  'evidenceScope': {
+    'multi-source-primary': ('good', '●', '복수 1차 자료'),
+    'multi-source-mixed':   ('mid',  '◐', '복수 자료 (혼합)'),
+    'single-source':        ('weak', '○', '자료 하나 — confidence: high 금지'),
+    'synthesis-only':       ('bad',  '○', '근거 논문 없음 — 미검증 배경'),
+    'user-original':        ('mid',  '◐', '사용자 진술이 근거')}
+} %}
+
+{% macro badges(meta, fields=None) %}
+{% set fs = fields or ['confidence','verificationStatus','status','claimType','evidenceScope'] %}
+<div class="badges">
+  {% for f in fs %}
+    {% set v = meta.get(f) %}
+    {% if v %}
+      {% set vs = v|string %}
+      {% set t = _tone.get(f, {}).get(vs) %}
+      <span class="badge tone-{{ t[0] if t else 'plain' }}" title="{{ f }}: {{ vs }}{% if t %} — {{ t[2] }}{% endif %}">
+        <span class="b-glyph" aria-hidden="true">{{ t[1] if t else '·' }}</span>
+        <span class="b-key">{{ f }}</span><span class="b-val">{{ vs }}</span>
+      </span>
+    {% endif %}
+  {% endfor %}
+  {% if meta.get('explored') is not none %}
+    {% set ex = meta.get('explored') %}
+    <span class="badge tone-{{ 'good' if ex else 'weak' }}" title="explored: {{ 'yes' if ex else 'no' }} — 사람이 실제로 읽었는가 (에이전트는 못 바꾼다)">
+      <span class="b-glyph" aria-hidden="true">{{ '●' if ex else '○' }}</span>
+      <span class="b-key">explored</span><span class="b-val">{{ 'yes' if ex else 'no' }}</span>
+    </span>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro tags(meta) %}
+{% if meta.get('tags') %}
+<div class="tags">
+  {% for t in meta.get('tags') %}<span class="tag">{{ t }}</span>{% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro sources(meta, index) %}
+{% if meta.get('sources') %}
+<div class="srcs">
+  <span class="srcs-h">sources</span>
+  <div class="srcs-l">
+  {% for s in meta.get('sources') %}
+    {% set key = (s|string).replace('.md','') %}
+    {% if index.get(key) %}<a class="src" href="{{ index.get(key) }}">{{ s }}</a>
+    {% else %}<span class="src src-plain">{{ s }}</span>{% endif %}
+  {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro toc_nav(toc, label='이 문서 안') %}
+{% if toc|length > 2 %}
+<nav class="toc" id="toc" aria-label="{{ label }} 목차">
+  <div class="toc-h">{{ label }}</div>
+  <ul class="toc-l">
+    {% for h in toc %}
+    <li class="lv-{{ h.level }}"><a href="#{{ h.id }}" data-toc="{{ h.id }}">{{ h.text }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# digest 4구분 범례 #}
+{% macro claim_legend(claims) %}
+{% if claims and (claims.get('인쇄') or claims.get('도표') or claims.get('해석') or claims.get('재현')) %}
+<div class="legend" role="note">
+  <span class="legend-h">표기 4구분</span>
+  <span class="lg lg-printed"><code class="ctag ct-printed">[인쇄]</code> 원문에 글자로 있는 것 <b>{{ claims.get('인쇄', 0) }}</b></span>
+  <span class="lg lg-figure"><code class="ctag ct-figure">[도표]</code> 그림에서 읽은 근사값 <b>{{ claims.get('도표', 0) }}</b></span>
+  <span class="lg lg-ours"><code class="ctag ct-ours">[해석]</code> <b>우리</b> 판단 · 논문의 주장이 아니다 <b>{{ claims.get('해석', 0) }}</b></span>
+  {% if claims.get('재현') %}<span class="lg lg-repro"><code class="ctag ct-repro">[재현]</code> 원문 값의 산술 환산 (식 병기) <b>{{ claims.get('재현', 0) }}</b></span>{% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# 내 DOE 창과의 겹침 칩 — 전압 창만 본다 #}
+{% macro doe_chips(flags) %}
+{% if flags %}
+<span class="flags">
+  <span class="flag fl-{{ flags.main }}" title="{{ flags.main_label }}">창 {{ {'same':'같음','beyond':'위','below':'아래','inside':'안','unknown':'?'}[flags.main] }}</span>
+  <span class="flag fl-f-{{ flags.formation }}" title="{{ flags.formation_label }}">formation {{ {'in':'DOE 안','out':'DOE 밖','unknown':'—'}[flags.formation] }}</span>
+</span>
+{% endif %}
+{% endmacro %}
+
+{# 페이지 카드 (목록 화면 공통) #}
+{% macro page_card(it, fields=None, cta='열기') %}
+<article class="card card-k-{{ it.kind }}{% if it.background %} is-bg{% endif %}">
+  <div class="card-body">
+    <a class="card-t" href="{{ it.url }}">{{ it.title }}</a>
+    {% if it.background %}<span class="chip chip-bg" title="근거 논문이 없는 일반 지식 — 인용 근거가 아니다">미검증 배경</span>{% endif %}
+    {% if it.description %}<p class="card-d">{{ it.description|mdi }}</p>{% endif %}
+    {{ badges(it.meta, fields or ['confidence','verificationStatus','claimType','evidenceScope']) }}
+    {{ tags(it.meta) }}
+  </div>
+  <footer class="card-foot">
+    <span class="muted">updated <time>{{ it.updated or '—' }}</time></span>
+    <a class="btn btn-go" href="{{ it.url }}">{{ cta }} <span aria-hidden="true">→</span></a>
+  </footer>
+  <code class="card-path">{{ it.relpath }}</code>
+</article>
+{% endmacro %}
