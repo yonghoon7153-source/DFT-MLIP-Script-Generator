@@ -1472,3 +1472,34 @@ def test_r2_09_audit97_reports_per_row_thresholds_not_a_single_cutoff():
     assert "나올 수 없었다" not in r.stdout, r.stdout[-600:]
     assert "1.177" in r.stdout and "1.196" in r.stdout, r.stdout[-800:]
     assert "기준" in r.stdout and "고정" in r.stdout
+
+
+# ── §1-8 의 192 값은 이제 저장소 안 산출물 위에 선다 (2026-09-11, C21) ─────
+
+def test_section_1_8_192_values_are_backed_by_committed_recompare_artifacts():
+    """R2 재대조에서 §1-8 의 CSV 가 미보존이라는 것이 드러났다 (C21). 툴박스 `dd_eval` 을
+    네 조합에 다시 돌려 `out/recompare/` 에 CSV 와 고친 비교기의 판정을 넣었다.
+    이 테스트는 그 산출물이 §1-8 의 문장(앵커 16 · rmse 32 · 최대 상대차 4.04e-12,
+    "실제 수치 차이" 띠)을 실제로 받치는지 본다. 판정 텍스트에 미완/부분이 있으면 실패.
+    """
+    import re
+    d = ROOT / "out" / "recompare"
+    files = sorted(d.glob("dd_eval_*_r2.csv"))
+    if not files:
+        pytest.skip("out/recompare 없음")
+    assert len(files) == 4, [f.name for f in files]
+    worst = 0.0
+    for f in files:
+        anchors, rows, hdr = verify.read_dd_eval_csv(f)
+        assert len(anchors) == 16 and len(rows) == 8, (f.name, len(anchors), len(rows))
+        assert hdr[5:] == ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"], hdr
+        t = f.with_suffix(".txt").read_text(encoding="utf-8")
+        assert "앵커 16개가 전부 맞고" in t and "rmse 32개" in t, f.name
+        for bad in ("미완", "부분", "처음 갈린다", "목적함수 산술"):
+            assert bad not in t, (f.name, bad)
+        m = re.search(r"최대 상대차 ([0-9.]+e-[0-9]+)", t); assert m, f.name
+        v = float(m.group(1)); assert 0 < v < 1e-9, (f.name, v)
+        worst = max(worst, v)
+    assert abs(worst - 4.04e-12) < 0.01e-12, f"§1-8 의 최대 4.04e-12 와 다르다: {worst:.2e}"
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    assert "4.04e-12" in _section(txt, "### 1-8"), "§1-8 에 최대 상대차가 없다"
