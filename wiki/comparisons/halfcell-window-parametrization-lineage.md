@@ -2,10 +2,10 @@
 title: 반쪽전지 창 매개화 계보 비교 (자유도와 제약)
 description: "같은 4개 창 좌표를 무엇으로 매개화하고 여분을 어떻게 죽이는가 — Dubarry 2012 부터 우리 파이프라인까지"
 created: 2026-09-03
-updated: 2026-09-10
+updated: 2026-09-11
 type: comparison
 tags: [battery, degradation, research]
-sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md]
+sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/lee2020_estimation-error-bound-limited-data-window.md, raw/papers/wang2025_aging-induced-rate-independent-li-plating.md]
 confidence: high
 explored: false
 verificationStatus: unverified
@@ -42,6 +42,7 @@ their estimation" 의 구체적 목록이다.
 | [[np-lip-ocv-reparametrization]] (Lin 2024) | `r_N/P`, `z₀⁺` | **2** | 0 | **재매개화로 애초에 안 만든다** | SOC 정규화 OCV **형상** |
 | Navidi 2024 (부록 A1) | `m_p, δ_p, m_n, δ_n` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 |
 | **Schmitt 2022 (2026-09-10 추가)** | `α_cat, β_cat, α_an, β_an` **+ `γ_Si`** | **5** | **0** (단 `β<0` 부호 제약) | **여분을 죽이지 않고 늘린다** — 다섯째는 창이 아니라 **반쪽전지 곡선의 모양**을 매개화 | full-cell C/30 충전 곡선의 **DV** |
+| **Wang (Xiong) 2025 (2026-09-11 추가)** | `K_NE, K_PE, S_NE, S_PE` **+ 음극 구간별 `K_NE1..K_NE5`** | **8** | **0** | **여분을 늘린다 (+4)** — 음극 곡선을 DV 극값 4개로 5 구간으로 잘라 구간마다 가로 스케일 (구간 ⑤ = 0 V 이하 도금 구간). GA 적합, 검증은 RMSE < 10 mV 뿐 | full-cell 0.05 C 의사-OCV 충전 곡선 (LFP/graphite) |
 | [[fused-lasso-feature-design-framework]] SI S11 | `β_c, β_a, Q_rem, V_shift` | **4** | 0 | 여분 없음 | C/20 RPT 곡선 |
 | **우리 (`degradation-degeneracy`)** | `α_PE, β_PE, α_NE, β_NE` | **4** | **0** | 여분 없음 (전단사) | full-cell 전압 곡선 (+옵션 dQ/dV) |
 
@@ -133,6 +134,27 @@ results with regard to the full-cell OCV**" (`γ_Si ↓` 와 `α_an ↓`).
 밖에 차이나지 않는다. 심지어 "충전 종료를 제한하는 전극" 이라는 **정성적 결론이
 뒤집힌다**. → 이 위키의 `mode-identifiability-unmeasured-lineage` 논지의
 **야생 실측 두 번째 사례** (첫째는 Marongiu 의 초기값 민감도 6.38 → 14.46 %).
+
+## ★ 여섯 번째 축 — **반쪽전지 곡선을 구간별로 매개화한다** (2026-09-11, Wang (Xiong) 2025)
+
+Schmitt 가 곡선의 **성분 비**(`γ_Si`)를 열었다면, Wang (Xiong) 2025 는 곡선의
+**구간 폭**을 연다. `[인쇄]` 음극 과방전 반쪽전지 곡선(0 V 이하 도금 구간 포함)을
+DV 봉우리 4개에서 잘라 5 구간으로 나누고, 식 (4) 로 구간마다 다른 가로 스케일
+`K_NEi` 를 두어 이어 붙인다: `θn = [K_NE1, K_NE2, K_NE3, K_NE4, K_NE5, K_PE, S_NE, S_PE]`
+(식 5). 이유는 무율 리튬 도금이 만든 충전 말단 어깨를 아핀 변환이 못 맞추기 때문이다
+(Fig. 4b; [[rate-independent-li-plating-signature]]).
+
+`[해석]` 구조는 **구간별 아핀(piecewise-affine)** 이다 — 각 구간의 전위 값은 고정,
+가로 폭만 자유. 새 관측(어깨)에 직접 묶이는 것은 구간 ⑤ 의 폭 하나뿐이고, `K_NE1–4`
+는 종래 `K_NE` 하나가 하던 일을 넷이 나눠 갖는다 (합만 구속 → 서로 보상 가능). 검증은
+RMSE 2.7–9.1 mV (Table 3) 뿐이며 `uniqu*`·`uncertaint*`·`identifiab*` 전부 **0회**.
+**Schmitt 와 같은 방향(늘린다)이고, 같은 침묵이다.** 이 위키의 처방 후보는 반대다:
+4-창 좌표에 **도금 구간 폭 1개**만 더한다 (concept 페이지 §적용).
+
+같은 논문에서 이 표의 **관측 창 축(네 번째 축)** 의 야생 실례가 하나 나온다: 음극
+0 V 교차점이 노화로 full-cell SOC `[도표]` 1.08 → 0.88 로 **창 밖에서 안으로**
+들어오고, 그 경계에서 추정 `Q_NE` 가 계단처럼 떨어진다 (Fig. 11·12). Lee 2020 은
+창을 **움직여** 전극 가시성을 바꿨고, 여기서는 **전극 창이 움직여** 들어온다.
 
 ## ★ Marongiu 식 (2)–(5) 의 null 을 닫힌 형태로 풀었다
 
@@ -279,3 +301,4 @@ n₂ = ( +1 , −1 , +1 ,  0 ,  0 )   ⟺  LAM_Pe 를 li→de 로 ε 옮기고 L
 - [[dubarry-mechanistic-mode-synthesis]]
 - [[nullspace-coefficient-interpretation]]
 - [[22p-physics-or-degeneracy]]
+- [[rate-independent-li-plating-signature]] — 여섯째 축의 원전 서명과 모드 회계

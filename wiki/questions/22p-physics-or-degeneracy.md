@@ -2,7 +2,7 @@
 title: 22p 결과는 물리인가 fitting degeneracy 인가
 description: "Is the seminar 22p LLI/LAM decomposition (LAM_PE=LAM_NE=13%, LLI=17%) real physics or an artifact of non-identifiability"
 created: 2026-08-11
-updated: 2026-09-10
+updated: 2026-09-11
 type: research-question
 tags: [battery, degradation, research]
 sources: [raw/repositories/degradation-degeneracy-audit.md, raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/natterer2026_re-halfcell-anode-potential-aging.md]
@@ -145,6 +145,25 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   추정 잡음이 주장 효과 크기(1–3 pp)와 같은 자릿수다 → **방향은 신뢰, 크기는
   유보**. (c) 원전은 `identifiability`·`degeneracy` 를 **한 번도 쓰지 않고**
   축퇴를 재지 않는다 — 이 항목은 원전의 주장이 아니라 원전 데이터의 재해석이다.
+- **[2026-09-11] 전극 창이 관측 창 밖에 있는 동안의 약한 식별 — 야생 궤적의 계단
+  (Wang (Xiong) 2025, LFP/graphite 1.1 Ah, `raw/papers/wang2025_aging-induced-rate-independent-li-plating.md`).**
+  `[도표]` Fig. 11 에서 음극 0 V 교차점이 SOH 100 → 91 → 82.5 → 57.1 % 에 걸쳐
+  full-cell SOC **1.08 → 1.0 → 0.93 → 0.88** 로 **창 밖에서 안으로** 들어오고,
+  Fig. 12 의 추정 `Q_NE` 는 그 경계 부근 **100–300 사이클 안에 ≈0.1 Ah** 계단으로
+  떨어진다 (S1 기울기의 열 배 이상). `[해석]` 창 밖에 있는 동안 `K_NE`(우리 `a_NE`)
+  는 곡선 **내부** 상전이 간격으로만 정해지고, 가장자리가 들어오는 순간 어깨 위치가
+  그것을 강하게 고정한다 — 추정값이 "약한 추정 → 강한 추정" 으로 점프하는 국면
+  전환이다. 원전은 이를 물리(도금이 LAM_NE 를 가속)로만 읽고 대안을 검토하지
+  않는다. [[data-window-identifiability]] 의 기제와 같되, 창이 아니라 **전극 창이
+  움직인** 경우. 22p 셀도 N/P > 1 인 한 음극 상단 가장자리는 창 밖이다 — 그 구간의
+  `a_NE` 가 이 카드의 "동부호 결합" 방향으로 미끄러질 자유를 갖는다는 뜻이다.
+  **범위 한정 3개**: (a) 오차 막대·초기값 산포가 원전에 없어 두 독해(물리 vs 국면
+  전환)를 원전 데이터로 가를 수 없다. (b) LFP 양극은 평탄해 `Q_PE` 가 구조적으로
+  비식별이고 원전도 `Q_PE` 를 인쇄하지 않는다 — 우리 22p 셀(NMC 계열이면)의 축퇴와
+  **종류가 다르다**. (c) 8-파라미터 GA 적합의 결과라 4-파라미터 좌표의 계단과 1:1
+  대응은 아니다. **미실행 판별**: 합성 truth 에서 `a_NE` 를 창 밖 → 안으로 움직이며
+  4-파라미터 적합의 `a_NE` 부트스트랩 오차막대가 **불연속으로 줄어드는 지점**이
+  있는지 — 개념 페이지 [[rate-independent-li-plating-signature]].
 
 ## Evidence Against
 - (방향성 관측, 인용 금지 등급) half-cell 기준(Case 1)과 dQ/dV 항 추가가 복원
@@ -939,6 +958,24 @@ LAM_PE ≈ LAM_NE 는 물리가 아니라 **flat valley 방향에서 두 전극�
   **미실행 후속 (값싸다)**: 같은 PyBaMM 모델에서 **half-cell 항만 뺀 적합**을
   돌려 원문의 가장 강한 반사실 주장("RE 없었으면 양극 저항 증가가 음극에
   오귀속됐을 것")을 정량화하는 것. 그것이 곧 [[fitting-degeneracy]] 의 직접 측정이다.
+
+- **[2026-09-11] Wang (Xiong) 2025 흡수 — 이 카드에 "네 번째 항목" 이 붙었다.**
+  `active` 유지. Evidence For 에 1건 추가(위: 전극 창이 관측 창 밖에 있는 동안의
+  약한 식별과 야생 궤적의 계단). 이 카드에 준 것 셋:
+  - **모드 3개 밖의 양이 하나 있다**: 무율(rate-independent) 리튬 도금. 원인은
+    `LAM_NE` (`Q_NE < Q_Li`), 비가역분만 `LLI`, **가역분은 어느 칸에도 안 들어간다**
+    (용량에는 들어가고 `Q_NE` 에는 안 들어간다). 4-파라미터 창 모델에는 이 칸이
+    없으므로 도금 셀에서는 잔차 어깨가 남거나 `a_NE` 가 오염된다 — 어느 쪽인지는
+    우리 합성 프레임으로 잴 수 있다 (미실행). 새 개념 페이지
+    [[rate-independent-li-plating-signature]].
+  - **좌표의 불완전성 축(2026-09-10 Schmitt)의 두 번째 야생 사례**: 순수 graphite
+    에서도 도금이 생기면 음극 곡선이 아핀 변환 밖으로 나간다 (Fig. 4b). 처방은
+    또 "늘리고 안 잰다" — 자유도 4 → 8, `identifiab*`·`uniqu*`·`uncertaint*` 0회.
+  - **경계 하나**: LFP 의 평탄 양극은 `Q_PE` 를 구조적으로 비식별로 만든다 (양극
+    창 상단은 컷오프에 고정, 하단은 창 밖). 이 축퇴는 NMC 로 옮기면 사라지므로
+    이 논문의 수치를 22p 에 직접 대지 않는다.
+  `bms-balancing/` 요구서용으로는 raw digest §12 의 표 (관측 O1–O5 · 후보 원인
+  4 · 구분 시험 T1–T5 · 채택 기준 · 한계) 가 이 논문에서 나온 산출물이다.
 
 ### 이 카드가 속한 논지 (2026-09-03)
 

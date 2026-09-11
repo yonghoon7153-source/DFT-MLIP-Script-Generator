@@ -2,7 +2,7 @@
 title: PVS·SEV 는 LLI 와 LAM_PE 를 가르는가
 description: "Do the two physics-inspired features add an independent direction separating LLI from LAM_PE, or do they share one contrast"
 created: 2026-09-03
-updated: 2026-09-10
+updated: 2026-09-11
 type: research-question
 tags: [battery, degradation, research]
 sources: [raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/transcripts/2026-09-03-voice-memo-007-degradation-mode-ml.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/navidi2024_piml-degradation-diagnostics-comparison.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/natterer2026_re-halfcell-anode-potential-aging.md]
@@ -539,6 +539,20 @@ H2 가 참일 수 있음에 주의한다 — 부호가 같다고 벡터가 평�
     같은 관측(full-cell OCV)을 유지한 채 LAM 을 하위 분할하면 식별성이
     무너진다는 것이 이미 한 번 문서화된 셈이다. Si/Gr 분할이 다른 결과를
     내려면 **새 독립 관측**이 필요하다는 이 카드의 논지를 지지한다.
+- **[2026-09-11] 새 봉우리의 출현이 순서 기반 feature 를 깨고, 2 mV 동역학 하강이
+  SEV 축에 걸린다 — 둘 다 미정량** (Wang (Xiong) 2025,
+  `raw/papers/wang2025_aging-induced-rate-independent-li-plating.md`).
+  무율 리튬 도금(`Q_NE < Q_Li`)은 0.05 C 의사-OCV 의 충전 dV/dQ 에 **원래 없던
+  봉우리**를 고 SOC 에 만들고(`[도표]` SOC ≈0.865, 높이 ≈1.25 dV/dSOC), 같은 곡선에서
+  기존 음극 봉우리는 `LAM_NE` 로 **이동**한다(0.67 → 0.52). PVS 처럼 "두 번째
+  봉우리/골" 로 정의된 feature 는 봉우리 **개수**가 바뀌면 다른 것을 재게 된다 — 이
+  카드의 두 후보 중 PVS 쪽의 정의 취약성이며, 세미나 원전은 이 경우를 다루지 않는다.
+  SEV 쪽: 원전 `[인쇄]` "a slight voltage drop of around 2 mV … when the voltage
+  reaches the onset of lithium plating during charging cycles, followed by a rapid
+  recovery" — 저자 해석은 도금이 전하전달 저항의 **병렬 가지**가 된다는 것. 이는
+  LLI·LAM 어느 것도 만들지 않는 **동역학 서명**이므로 SEV(충전 종료 전압강하) 축에
+  걸릴 수 있는데, 원전은 전류 차단 관측이 없어 크기를 비교할 수 없다. **미실행**:
+  도금 셀의 EOC ΔV 가 비도금 셀과 다른가.
 
 ## Status Log
 
@@ -892,6 +906,13 @@ H2 가 참일 수 있음에 주의한다 — 부호가 같다고 벡터가 평�
     [[reference-electrode-halfcell-dma]] 에 그 구분을 고정했다.
   이 카드의 두 후보 중 **SEV 쪽에만** 걸리는 자료다 — PVS(열역학, 곡선의 함수)
   에는 새 정보를 주지 않는다.
+
+- [2026-09-11] open 유지 — Wang (Xiong) 2025 (무율 리튬 도금, LFP/graphite) 흡수.
+  Gap 1건(위). 이 카드의 두 후보에 각각 하나씩: **PVS** 는 새 봉우리 출현에 대한
+  정의 취약성(순서로 세는 feature), **SEV** 는 도금의 2 mV 동역학 하강이 같은 축에
+  걸린다는 것. Evidence For/Against 어느 쪽도 아니다 — 두 feature 가 LLI/LAM_PE 를
+  가르는가와 무관하게, **모드 3개 밖의 네 번째 현상이 두 feature 를 오염시킬 수 있다**
+  는 경계다. 새 개념 페이지 [[rate-independent-li-plating-signature]].
 
 ### 이 카드가 속한 논지 (2026-09-03)
 

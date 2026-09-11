@@ -2,10 +2,10 @@
 title: 이 계보는 모드 분해를 재면서 그 분해의 유일성은 모드 좌표에서 재지 않았다
 description: "Fifteen papers report LLI/LAM decompositions; one (Mohtat 2019) quantifies identifiability but not in mode coordinates, and none reports the direction of the degeneracy — yet the instruments are already scattered across the same fifteen"
 created: 2026-09-03
-updated: 2026-09-10
+updated: 2026-09-11
 type: synthesis
 tags: [battery, degradation, identifiability, research]
-sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md]
+sources: [raw/papers/schmitt2022_sic-ocp-shape-change-degradation-modes.md, raw/papers/birkl2017_degradation-diagnostics-ocv.md, raw/papers/dubarry2012_synthesize-degradation-modes.md, raw/papers/marongiu2016_lfp-onboard-capacity-halfcell.md, raw/papers/lin2024_ocv-degradation-mode-identifiability.md, raw/papers/schaeffer2024_nullspace-regularization-interpretation.md, raw/papers/cui2024_electrode-utilization-formation-cycle-life.md, raw/papers/rhyu2025_systematic-feature-design-formation.md, raw/papers/tao2025_nondestructive-degradation-decoupling.md, raw/papers/wang2025_interpretable-ml-battery-prognosis.md, raw/papers/zhang2020_eis-gpr-capacity-rul.md, raw/papers/su2024_drt-soh-health-features.md, raw/papers/kim2023_graphite-heterogeneity-lifetime.md, raw/papers/2026-09-02-siwon-kim-degradation-mode-ml-seminar.md, raw/papers/mohtat2019_electrode-soh-estimability-expansion.md, raw/papers/wang2025_aging-induced-rate-independent-li-plating.md]
 confidence: high
 explored: false
 verificationStatus: unverified
@@ -18,9 +18,9 @@ targetVenue: 다음 연구세미나 발표 도입부 + degradation-degeneracy �
 
 ## Thesis
 
-흡수한 15편(2026-09-10 Schmitt 2022 추가)은 LLI/LAM 분해(또는 그 등가물)를 **보고**하지만 그 분해가 **유일한지**를
+흡수한 16편(2026-09-11 Wang (Xiong) 2025 추가)은 LLI/LAM 분해(또는 그 등가물)를 **보고**하지만 그 분해가 **유일한지**를
 **모드 좌표에서, 축퇴의 방향까지, 추정기로** 잰 논문은 하나도 없고, 그러면서
-**그것을 잴 도구는 이미 이 15편 안에 흩어져 있다** — 빠진 것은 도구가 아니라
+**그것을 잴 도구는 이미 이 16편 안에 흩어져 있다** — 빠진 것은 도구가 아니라
 **그 도구를 자기 결과에 겨누는 한 걸음**이다.
 
 > **⚠ 2026-09-04 — 이 Thesis 는 좁혀졌다.** 원래 문장은 "그 분해가 유일한지를 잰
@@ -62,6 +62,7 @@ targetVenue: 다음 연구세미나 발표 도입부 + degradation-degeneracy �
 | Lin & Khoo 2024 | **26** | **0** | 개념을 **절반만** 자기 쪽으로 (비유일성을 `redundancy` 라 부른다) |
 | Schaeffer 2024 | **0** | 0 | `nullspace` **69회** — 정면으로 다루되 **자기 어휘를 새로 만든다** |
 | **Mohtat 2019** (2026-09-04 추가) | **23** | **0** | **침묵하지 않는다** — 키워드가 `Identifiability analysis` 이고 제약 CRB 로 정량한다. 대신 **대상이 다르다** (아래) |
+| **Wang (Xiong) 2025 — 무율 도금** (2026-09-11 추가) | **0** | **0** | 자유도를 **4 → 8** 로 늘리는 구간별 스케일링을 GA 로 돌리면서 `uniqu*`·`uncertaint*`·`error bar` 까지 **전부 0**. 검증은 RMSE < 10 mV. Schmitt 와 같은 "늘리고 안 잰다" 형이며, 모드 궤적의 계단(Fig. 12)을 물리로만 읽는다 |
 | **Lee 2020** (2026-09-04 추가) | **16** | **0** | **침묵하지 않되 `estimab*` 0 · `global` 0.** 제약 CRB 를 **창(DW) 축으로** 돌리고, 이 계보에서 **처음으로 비대각을 그림으로** 보인다 (Fig. 7 오차 타원). 그러나 수치 ρ 0회, **모드 좌표로 전파 0회** |
 
 `[2026-09-04]` **Mohtat 행이 이 표의 성격을 바꾼다.** `identifiab*` 23회는 Lin 의
@@ -582,7 +583,7 @@ electrodes**", 그리고 식 (26) `σ_y·α = σ_x·β`. **다만 그 의존성�
    1쪽 좌하단에 인쇄된 값으로 대조). **자기의심이 지목한 반례가 실재했고, Thesis 를
    좁혔다** (Counter-argument (f)). 이 항목은 이제 편향의 *증거*가 아니라 **자기의심이
    실제로 작동한 사례**로 남긴다.
-   **남은 편향은 그대로다**: 15편은 여전히 우리가 고른 것이 아니라 사용자가 준 것이고,
+   **남은 편향은 그대로다**: 16편은 여전히 우리가 고른 것이 아니라 사용자가 준 것이고,
    Mohtat 이 인용한 **[15] Lee 2020**(*IEEE TII* 16(5), 3376) 은 아직 미독이다.
    그리고 이번 한 편이 논지를 좁혔다는 사실 자체가, **아직 안 읽은 편이 더 좁힐 수
    있음**을 말한다.
@@ -648,5 +649,7 @@ electrodes**", 그리고 식 (26) `σ_y·α = σ_x·β`. **다만 그 의존성�
 - [[np-lip-ocv-reparametrization]] · [[nullspace-coefficient-interpretation]] —
   §3 의 *무엇을* 과 §4 의 *어떻게*. 두 페이지가 짝이다.
 - [[halfcell-window-parametrization-lineage]] — §2 의 표와 null 계산.
+- [[rate-independent-li-plating-signature]] — (2026-09-11) 자유도를 늘리고 안 잰
+  두 번째 편 (Wang (Xiong) 2025) 의 서명과 회계. 계보 15 → 16편.
 - [[piml-physics-injection-points]] — 우리 파이프라인이 쓰는 두 자리(학습 데이터·
   라벨)가 표준 4분류에 없다는 것. 이 논지의 방법론 쪽 짝.

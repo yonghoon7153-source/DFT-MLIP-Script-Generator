@@ -1260,3 +1260,67 @@ inform but do not fully resolve identifiability" 로 둘을 구분한다.
 정량화하는 것 — 원문에 대조군이 없다.
 
 `python3 wiki/tools/lint.py` → **0 errors** 확인.
+
+## [2026-09-11] ingest | Wang (Xiong) et al. 2025 — Aging-induced, rate-independent lithium plating: a complete mechanism analysis throughout the battery lifecycle (Applied Energy 393, 126094)
+
+사용자가 올린 세 편(16·19·20) 중 **19번**. `bms-balancing/` 의 새 독자 모델 요구서
+(관측 → 후보 원인 → 구분 시험 → 채택 기준 → 한계)를 쓰는 단계라, digest 의 무게중심을
+"도금의 기전" 이 아니라 **"아핀 α·β 적합이 못 맞추는 잔차가 나오면 무엇을 의심하고
+어떻게 가를 것인가"** 에 뒀다.
+
+**raw**: `raw/papers/wang2025_aging-induced-rate-independent-li-plating.md` (sha256
+봉인, 절별 STANDALONE 해체분석 13절 + 공백 G1–G13). 크로핑
+`raw/figures/wang2025_aging-induced-rate-independent-li-plating/` (fig 12 + tab 3) —
+**Fig. 2, 4, 5, 6, 7, 9, 10, 11, 12 의 9장을 Read 로 직접 보고** 썼다 (Fig. 1·3·8 은
+도식·SEM 이라 안 봤고, 표 3장은 PDF 텍스트로).
+
+**논문이 한 것**: 1.1 Ah LFP/graphite 17 셀·6 조건 사이클 중 **10 셀(58.8 %)** 에서
+노화 후반 0.05 C 의사-OCV 의 **충전 말단에 새 평탄역**(`[도표]` ≈3.46 V), **방전
+시작에 짝 평탄역**(≈3.40 V), dV/dQ 에 **원래 없던 봉우리**가 생긴다. 분해한 음극
+반쪽전지를 0 V 아래로 6 h 과방전시켜 도금 구간 전위(≈−0.015 V)를 직접 재고, 원인을
+과전위가 아니라 **`Q_NE < Q_Li`** (LAM_NE 가 리튬 재고를 밑돎) 로 확정 — 그래서
+"rate-independent". 아핀 4-창 적합이 이 어깨를 못 맞추자(Fig. 4b) 음극 곡선을 DV
+극값 4개로 5 구간으로 잘라 **구간별 스케일**(자유도 4 → 8, GA) 을 두고 RMSE 2.7–9.1
+mV 를 얻는다. 모드 궤적(Fig. 12)에서 `Q_NE` 가 `Q_Li` 를 가로지르는 곳이 용량
+변곡점과 겹친다.
+
+**우리 축에 걸린 것 셋**:
+1. **모드 3개 밖의 네 번째 칸.** 원전 정의(식 3·6·7)로 회계를 재구성하면 가역 도금은
+   **LLI 도 LAM 도 아니다** (용량에는 들어가고 `Q_NE` 에는 안 들어간다); 원인만
+   LAM_NE, 비가역분만 LLI. 4-창 모델에는 이 칸이 없다.
+2. **좌표의 불완전성 두 번째 야생 사례** (첫째는 2026-09-10 Schmitt, blend). 순수
+   graphite 에서도 도금이 생기면 아핀 변환 밖으로 나간다. 처방은 또 "늘리고 안
+   잰다" — `identifiab*`·`uniqu*`·`uncertaint*`·`error bar` **전부 0회**.
+3. **식별 국면 전환의 야생 궤적** `[도표]`: 음극 0 V 교차점이 SOH 100 → 57.1 % 에
+   걸쳐 full-cell SOC **1.08 → 0.88** 로 창 밖에서 안으로 들어오고, 그 경계에서 추정
+   `Q_NE` 가 100–300 사이클에 ≈0.1 Ah **계단**으로 떨어진다. 원전은 물리로만 읽지만
+   "창 밖 가장자리의 약한 식별 → 안으로 들어오며 강한 식별" 로도 읽힌다
+   ([[data-window-identifiability]] 의 기제, 전극 창이 움직인 판).
+
+**원문 안의 불일치 2건** (digest §9.5): (a) §4.3 "decreasing ratio of lithium
+inventory-to-anode capacity" 인데 Table 3 의 `Q_Li/Q_NE` 는 `[재현]` 0.941 → 1.085 →
+1.109 → 1.165 로 **증가** (도금 조건이 바로 이 비가 1 을 넘는 것); (b) Fig. 4(a) 의
+`Q_NE/Q_Li ≈ 1.25` vs Table 3 의 1.063 — 셀 미표기. 그리고 식 (6) `K_NE =
+max(SOC′(SOC′ ≥ 0))` 는 인쇄된 대로는 뜻이 안 통한다 (G3).
+
+**LFP 경계**: 평탄 양극은 창 상단을 컷오프에 고정하고 하단을 창 밖에 둔다 →
+`Q_Li = (1 − S_NE)·Q_Full` 로 `Q_Li` 는 식별되지만 **`Q_PE` 는 구조적으로 비식별** —
+원전이 `Q_PE` 를 어디에도 인쇄하지 않는 것과 정합. NMC 로 옮기면 사라지는 축퇴라
+22p 에 직접 대지 않는다.
+
+**컴파일**:
+- 신규 concept [[rate-independent-li-plating-signature]] — 서명 S1–S7, 모드 회계,
+  요구서용 구분 시험 T1–T5 와 채택 기준 (index 등록, 30 페이지).
+- [[halfcell-window-parametrization-lineage]] — Wang (Xiong) 2025 행(8, 제약 0) +
+  새 절 "**여섯 번째 축 — 반쪽전지 곡선을 구간별로 매개화한다**".
+- [[mode-identifiability-unmeasured-lineage]] — 표에 행 추가, 계보 15 → **16편**.
+- [[22p-physics-or-degeneracy]] — Evidence For 1건(창 밖 가장자리의 약한 식별과
+  계단, 범위 한정 3개) + Status Log.
+- [[pvs-sev-lli-lampe-separability]] — Gap 1건(새 봉우리 출현이 순서 기반 feature 를
+  깨고, 2 mV 동역학 하강이 SEV 축에 걸린다) + Status Log.
+
+**미실행 후속 (값싸다)**: 합성 truth 에서 `a_NE` 를 창 밖 → 안으로 움직이며
+4-파라미터 적합의 `a_NE` 오차막대가 **불연속으로 줄어드는 지점**이 있는지; 8-파라미터
+구간 스케일링의 `JᵀJ` 조건수·null 방향.
+
+`python3 wiki/tools/lint.py` → **0 errors, 0 warnings** 확인 (pages 30, raw files 25).

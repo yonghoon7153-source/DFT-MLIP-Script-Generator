@@ -1,0 +1,311 @@
+{
+ "slug": "wang2025_aging-induced-rate-independent-li-plating",
+ "dpi": 300,
+ "maxpx": 3000,
+ "generated": "2026-09-11",
+ "sources": [
+  "19_aging_induced_rate_independent_lithium_plating.pdf"
+ ],
+ "figures": [
+  {
+   "key": "f1",
+   "kind": "figure",
+   "label": "1",
+   "page": 3,
+   "file": "fig_1.png",
+   "caption": "Fig. 1. Electrode OCV test procedure.",
+   "rotated_deg": 0,
+   "bbox": [
+    303.7,
+    507.4,
+    560.3,
+    730.8
+   ],
+   "w": 1070,
+   "h": 931,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.704
+  },
+  {
+   "key": "f2",
+   "kind": "figure",
+   "label": "2",
+   "page": 4,
+   "file": "fig_2.png",
+   "caption": "Fig. 2. Graphite electrode potential curves of LIBs. (a) Induced lithium plating potential curve, (b) Potential curves with/without lithium-plating, (c) Potential curves under different rates, (d) Potential curves at different aging levels. 0.08 times the capacity of the aged battery (i.e., 0.08C). To assess the impact of such variations, OCV tests were conducted on the graphite electrodes at different current rates. Fig. 2(d) presents the half-cell test curves assembled from electrode strips of batteries at varying aging levels. The results indicate that as the battery ages, the relationship between the electrode’s OCP and SOC remains unchanged, providing a",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    566.0,
+    317.0
+   ],
+   "w": 2228,
+   "h": 1114,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.872
+  },
+  {
+   "key": "f3",
+   "kind": "figure",
+   "label": "3",
+   "page": 4,
+   "file": "fig_3.png",
+   "caption": "Fig. 3. Overview of the proposed method. 4",
+   "rotated_deg": 0,
+   "bbox": [
+    94.2,
+    394.7,
+    500.5,
+    730.8
+   ],
+   "w": 1694,
+   "h": 1401,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.679
+  },
+  {
+   "key": "f4",
+   "kind": "figure",
+   "label": "4",
+   "page": 6,
+   "file": "fig_4.png",
+   "caption": "Fig. 4. OCV matching illustration. (a) without lithium plating; (b) with lithium plating.",
+   "rotated_deg": 0,
+   "bbox": [
+    93.2,
+    49.4,
+    502.1,
+    180.3
+   ],
+   "w": 1704,
+   "h": 547,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.887
+  },
+  {
+   "key": "f5",
+   "kind": "figure",
+   "label": "5",
+   "page": 6,
+   "file": "fig_5.png",
+   "caption": "Fig. 5. Illustration of the anode potential segmentation method. subsequent low current discharge, such as at 0.05C. The primary cause of this lithium plating is the excessive loss of active material in the anode during aging process. As a result, excess lithium ions released from the cathode are unable to intercalate into the anode, depositing as metallic lithium on the surface of the graphite anode.",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    207.8,
+    297.0,
+    365.7
+   ],
+   "w": 1107,
+   "h": 659,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.433
+  },
+  {
+   "key": "f6",
+   "kind": "figure",
+   "label": "6",
+   "page": 6,
+   "file": "fig_6.png",
+   "caption": "Fig. 6. Distribution of batteries with and without lithium plating across six distinct operational conditions.",
+   "rotated_deg": 0,
+   "bbox": [
+    300.6,
+    207.8,
+    565.7,
+    354.0
+   ],
+   "w": 1106,
+   "h": 610,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.726
+  },
+  {
+   "key": "f7",
+   "kind": "figure",
+   "label": "7",
+   "page": 7,
+   "file": "fig_7.png",
+   "caption": "Fig. 7. OCV curves and DV analysis results over the entire lifecycle. (a)-(b) charging voltage curve (c)-(d) discharging voltage curve (e) charging DV curve (f) discharging DV curve. occurs, the graphite anode potential drops below 0 V and stabilizes at the lithium plating voltage plateau, as shown in Fig. 2. The extent of this plateau reflects the amount of lithium plating. quantify lithium plating. 4.1.3. Electrode morphology Graphite anodes were obtained by disassembling the fresh and the aged batteries within a sealed glove box, where the aged battery had deteriorated below the end-of-life threshold and exhibited lithium plating peaks in its DV curve. Then, they are cut into small sections, thoroughly soaked, and cleaned with dimethyl carbonate (DMC) solu­ tion to eliminate residual electrolytes from the surface. Fig. 8 presents the macroscopic morphology and SEM microstructure of th",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.8,
+    566.0,
+    424.0
+   ],
+   "w": 2228,
+   "h": 1560,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.838
+  },
+  {
+   "key": "f8",
+   "kind": "figure",
+   "label": "8",
+   "page": 8,
+   "file": "fig_8.png",
+   "caption": "Fig. 8. Macroscopic morphology and SEM microstructure images of graphite anode sheets. (a)/(b): SOH = 100 %, (c)/(d): SOH = 57.1 %, (e)/(f): SOH = 58 %. 4.2. Effects 4.2.1. Capacity loss In this section, the DV method is employed to quantify lithium plating for LIBs during charging and discharging cycles. As illustrated in Fig. 9, lithium plating can be detected by analyzing the DV peaks that correspond to lithium plating and stripping processes, enabling accurate quantification of lithium deposition. Irreversible lithium plating can consume usable lithium within a battery, accelerating capacity degradation. In severe cases, it may cause internal short circuits as lithium dendrites grow and potentially pierce the battery separator, posing safety risks. For LFP batteries, rate- independent lithium plating introduces a new voltage plateau in the OCV curve, further complicating battery stat",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.5,
+    566.0,
+    416.0
+   ],
+   "w": 2228,
+   "h": 1528,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.422
+  },
+  {
+   "key": "f9",
+   "kind": "figure",
+   "label": "9",
+   "page": 8,
+   "file": "fig_9.png",
+   "caption": "Fig. 9. Comparison of DV curves with and without lithium plating. (a) charging process, (b) discharging process. 8",
+   "rotated_deg": 0,
+   "bbox": [
+    108.3,
+    600.9,
+    487.0,
+    730.8
+   ],
+   "w": 1579,
+   "h": 542,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.93
+  },
+  {
+   "key": "f10",
+   "kind": "figure",
+   "label": "10",
+   "page": 9,
+   "file": "fig_10.png",
+   "caption": "Fig. 10. Calculation results of lithium plating amount during the aging process of LIBs. 9",
+   "rotated_deg": 0,
+   "bbox": [
+    93.1,
+    301.3,
+    502.1,
+    730.8
+   ],
+   "w": 1705,
+   "h": 1790,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.465
+  },
+  {
+   "key": "f11",
+   "kind": "figure",
+   "label": "11",
+   "page": 10,
+   "file": "fig_11.png",
+   "caption": "Fig. 11. The OCV matching results at different aging stages throughout the entire lifecycle. designed end-of-life threshold. This transition from linear to accelerated degradation may involve shifts in both electrochemical and mechanical stress at the electrode level, suggesting areas for future in-depth exploration.",
+   "rotated_deg": 0,
+   "bbox": [
+    106.3,
+    49.4,
+    566.0,
+    296.1
+   ],
+   "w": 1917,
+   "h": 1029,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.925
+  },
+  {
+   "key": "f12",
+   "kind": "figure",
+   "label": "12",
+   "page": 11,
+   "file": "fig_12.png",
+   "caption": "Fig. 12. The results of battery aging mode identification across the entire lifecycle of the lithium plating battery. polarization voltage reduction on the graphite anode surface due to lithium plating, leading to a slight voltage drop. This self-regulating behavior underscores a complex feedback mechanism in plating dynamics. the work reported in this paper. Acknowledgements We also address the limitations of traditional OCV curve analysis methods for aging, which assume simple translation and scaling. To enhance accuracy, we propose an innovative phase-based scaling method utilizing the over-discharge potential curve with lithium plating, which adapts to the full OCV profile under plating and non- plating conditions. Validation confirms that this method achieves the RMSE of less than 10 mV across the battery lifecycle, successfully capturing aging patterns. This work was supported by t",
+   "rotated_deg": 0,
+   "bbox": [
+    31.6,
+    49.4,
+    563.7,
+    372.6
+   ],
+   "w": 2218,
+   "h": 1348,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.762
+  },
+  {
+   "key": "t1",
+   "kind": "table",
+   "label": "1",
+   "page": 6,
+   "file": "tab_1.png",
+   "caption": "Table 1 Test conditions and counts of plated batteries across six distinct operational conditions. No. groups tested batteries plated batteries 1 1.5 A-3.5 V-2.2 A-2.0 V 2 2 2 3.3 A-3.6 V-3.3 A-2.1 V 3 3 3 5.5 A-3.7 V-1.1 A-1.9 V 3 0 4 1.5 A-3.6 V-3.3 A-1.9 V 3 0 5 3.3 A-3.7 V-1.1 A-2.0 V 3 2 6 5.5 A-3.5 V-2.2 A-2.1 V 3 3",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    564.7,
+    745.0
+   ],
+   "w": 2219,
+   "h": 2974,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.82
+  },
+  {
+   "key": "t2",
+   "kind": "table",
+   "label": "2",
+   "page": 9,
+   "file": "tab_2.png",
+   "caption": "Table 2 Summary of battery degradation and lithium plating characteristics. No. condition SOHstart SOHend Max Qli-plating (mAh)",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    556.7,
+    748.3
+   ],
+   "w": 2185,
+   "h": 2987,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.704
+  },
+  {
+   "key": "t3",
+   "kind": "table",
+   "label": "3",
+   "page": 10,
+   "file": "tab_3.png",
+   "caption": "Table 3 Results of aging modes at different aging stages throughout the entire lifecycle. No. SOH QNE(Ah) QLi(Ah) Voltage RMSE(V)",
+   "rotated_deg": 0,
+   "bbox": [
+    32.6,
+    31.6,
+    563.3,
+    748.6
+   ],
+   "w": 2212,
+   "h": 2989,
+   "dpi": 300,
+   "src": "19_aging_induced_rate_independent_lithium_plating.pdf",
+   "blank": 0.887
+  }
+ ]
+}
