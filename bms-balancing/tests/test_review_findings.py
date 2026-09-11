@@ -1667,3 +1667,18 @@ def test_ne_shape_measures_the_consumed_pe_axis_too(tmp_path, monkeypatch):
     row = next(_csv.DictReader((tmp_path / "ne_shape_GITT_Li.csv").open(encoding="utf-8")))
     assert abs(float(row["pe_shape_max_mV"]) - 20.0) < 1e-6 and abs(float(row["pe_shape_rms_mV"]) - 20.0) < 1e-6, row
     assert "PE" in buf.getvalue()
+
+
+def test_section_1_12_pe_axis_strength_table_matches_the_csv():
+    """§1-12 조건 7: 대조 실험이 실제로 흔든 PE 축의 변화량이 CSV 와 칸별로 같아야 한다."""
+    R = _ne_shape_csv()
+    if "pe_shape_max_mV" not in next(iter(R.values())):
+        pytest.skip("구판 CSV — PE 축 없음")
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-12")
+    t = _table_rows(sec, ("100", "200", "300_0009"), header_has="E_PE 변화 max")
+    assert len(t) == 3, sorted(t)
+    for st, c in t.items():
+        assert abs(_num(c[0]) - R[st]["pe_shape_max_mV"]) < 0.005, (st, c)
+        assert abs(_num(c[1]) - R[st]["pe_shape_rms_mV"]) < 0.005, (st, c)
+    # 100 에서만 강한 개입 — 문장의 근거
+    assert R["100"]["pe_shape_rms_mV"] > 5 * max(R["200"]["pe_shape_rms_mV"], R["300_0009"]["pe_shape_rms_mV"])
