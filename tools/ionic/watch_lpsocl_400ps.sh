@@ -60,9 +60,13 @@ if [ "${1:-}" = "--selftest" ]; then
 fi
 
 R=${1:-$HOME/work/runs/lpsocl_box331_400ps}
+# ⚠ 2026-09-11 — 이 스크립트는 **같은 드라이버로 도는 어떤 400 ps 캠페인에도** 붙는다
+#   (modelc_box331_400ps 등). 경로만 인자로 주면 된다.
+#   그리고 실행모드(turbo/default)를 같이 찍는다 — 한 캠페인 안에서 섞이면 그 묶음을
+#   한 표에 못 쓰므로(카드 §8 무효조건), 감시가 그걸 먼저 보여야 한다.
 [ -d "$R" ] || { echo "⛔ 런 루트가 없습니다: $R"; exit 2; }
 
-echo "════════ LPSOCl 3×3×1 · 400 ps × 9런 (안 B) · $(date '+%m-%d %H:%M:%S') ════════"
+echo "════════ $(basename "$R") · 3×3×1 400 ps × 9런 · $(date '+%m-%d %H:%M:%S') ════════"
 
 if command -v nvidia-smi >/dev/null; then
   echo "  GPU: $(nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total \
@@ -120,3 +124,16 @@ if [ "$_done" -gt 0 ]; then
   fi
 fi
 echo "  ⛔ 이 표는 plateau·Ea·골격을 판정하지 않는다 — R1–R5 는 반송 뒤 별도"
+
+# ── UMA 실행모드 (시드별 run_meta.json) ────────────────────────────────────
+_modes=$(for d in "$R"/s*/run_meta.json; do
+  [ -f "$d" ] || continue
+  python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(d.get('uma_inference_mode') or d.get('uma_inference_mode_requested') or '?')" "$d" 2>/dev/null
+done | sort -u | tr '\n' ' ')
+if [ -n "${_modes// /}" ]; then
+  if [ "$(echo $_modes | wc -w)" -gt 1 ]; then
+    echo "  ⛔ UMA 실행모드가 시드마다 다르다 [$_modes] — 한 묶음으로 못 쓴다 (카드 §8 무효조건)"
+  else
+    echo "  UMA 실행모드 ${_modes% } (전 시드 동일)"
+  fi
+fi
