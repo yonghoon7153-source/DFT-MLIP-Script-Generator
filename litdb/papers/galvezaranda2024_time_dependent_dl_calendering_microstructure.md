@@ -552,6 +552,17 @@ Fig 5b (micro I @45 %) 를 디지타이즈하면 (`digitized — TREND only`):
   (b) 진짜 rollout 인데 **CD 조건화가 자기보정 통로를 준다** (§4-3-③: 입력의 1/4 이 목표 CD 상수).
   ★ (b)도 원리적으로 가능하므로 **단정하지 않는다.**
 - ⚠ **Methods (§2.3–2.5·2.7) 에 어느 쪽인지 한 줄도 없다.**  ⇒ **인용 시 반드시 이 불확실성을 함께 적을 것.**
+- ★★ **갱신 2026-09-11 — 자매편(건조)에서 *rollout 의 실측 서명* 을 확보했다.  읽기 (a) 가 강화된다, 단 단정은 아니다.**
+  정본: `galvezaranda2025_paml_vgg16_dem_slurry_drying` (§0 · §4-4).  그쪽은 **명백한 free-running rollout** 이다 —
+  본문이 *"the DL is fed using the following 4 microstructures (TF = 2, 3, 4, and **5**)"* 라고 적고(TF 5 = **모델 자신의 출력**),
+  **Fig 3 이 색으로 못 박는다**: 검은 원 = DEM 참값은 **1,2,3,4 네 개뿐**이고 5\*/5/6\*/6/…/21 이 **전부 회색(모델 산출)**.
+  ★ **그리고 그 rollout 의 R² 는 단조 붕괴한다** (nDEM=0 팔: 0.83 → TF 16–19 에서 **≈0.0**; nDEM=5000 도 TF 19 에서 0.69 까지).
+  ⇒ **여기 Fig 5c 의 "92.2 → 프레임 9 에 정확히 100 복귀" 와 Fig 6b 의 "87.2 → 99.5 복귀" 는 그 서명과 정반대 모양**이다.
+  ⚠⚠ **그렇다고 이 논문이 teacher-forced 라고 단정하지 않는다** — 다른 논문·다른 조건화이고, 읽기 (b)(CD 상수가
+  입력의 1/4 를 차지해 자기보정 통로를 준다)가 **원리적으로 여전히 가능**하다.  그리고 이쪽은 **복셀 격자**를,
+  저쪽은 **입자 좌표**를 뱉으므로 누적 기전 자체가 다를 수 있다.
+  ⇒ **판정 = "미해결, 단 (a) 쪽으로 기울었다."**  **인용 규약**: *"추론 프로토콜 미기재 — 자매편(건조)의 rollout 서명과
+  R² 모양이 어긋난다"* 를 함께 적고, **188× 를 surrogate 가속으로 쓸 때는 그 조건을 명시**한다.
 - ⚠ 참고로 **train/val 손실이 사실상 같다는 것(§5-1)도 같은 방향의 경고**다 — 3-lag 이웃 프레임끼리는
   거의 동일한 구조라 val 분리가 실질적이지 않다.
 
@@ -655,21 +666,35 @@ micro IV 확산도: **Table S2** = CD20 (test 15.26, DL 14.41) · CD25 (11.00, 1
 
 ## 12. 미해결 / 다음에 할 것
 
-1. ⬜ ★★ **자매편 3 — Galvez-Aranda, Fernandez, Franco, "Physics-assisted ML for slurry drying:
-   hybrid time-dependent VGG16-DEM"** (chemRxiv 2024 → **ACS Applied Materials & Interfaces 2025**).
-   ⚠ **이 PDF 의 참고문헌 51 편에 없다** (전수 확인: 저자 "Fernandez" 0건, "VGG" 0건,
-   "chemRxiv" 0건, "ACS Appl" 0건).  2024-01 접수라 시기적으로 당연하다.
-   ⇒ **정확한 서지를 여기서 뽑을 수 없다** — 날조 금지.  **다음 digest 후보 1순위**
-   (이름대로면 **DEM 에 DL 을 직접 붙인 것**이라 우리 축에 이 논문보다 더 가깝다).
-   확보 시 확인할 것: ① VGG16 이 **DEM 궤적 안에** 들어가는가, 아니면 전후처리인가
-   ② **teacher forcing 인가 rollout 인가**(§10-⑤ 의 미해결이 그쪽에서 풀릴 수 있다)
-   ③ 건조 단계에 **압력/응력 축**이 있는가.
+1. ✅ ★★ **digest 완료 2026-09-11 — 자매편 3 (건조)**: Galvez-Aranda, Fernandez, Franco,
+   *"Physics-Assisted Machine Learning for the Simulation of the Slurry Drying in the Manufacturing Process of
+   Battery Electrodes: A Hybrid Time-Dependent VGG16-DEM Model"*, ***ACS Appl. Mater. Interfaces* 17 (2025)
+   32150−32162**, DOI `10.1021/acsami.4c23103` (특집 *Machine Learning for Materials Chemistry*).
+   → **정본 카드 `papers/galvezaranda2025_paml_vgg16_dem_slurry_drying.md`** · 비교노트 **F-DL5**.
+   ⚠ 이 PDF 의 참고문헌 51 편에 없던 것이 맞다 (2024-01 접수 vs 2025-01 접수) — **서지는 이제 확정**이다.
+   ★★ **여기서 확인하라고 적어 둔 세 가지가 전부 답해졌다**:
+   - ① **VGG16 은 DEM 루프 *안*** — 단 힘 계산 대체가 아니라 **프레임 건너뛰기**다.
+     DL 이 **한 칸(1,500,000 step = 75 µs)** 을 통째로 점프시키고 **nDEM(5,000–10,000) 진짜 DEM step** 이
+     그 pseudo-구조를 물리 위로 **투영**한다 = **predictor–corrector / multiple-time-stepping**.
+   - ② **rollout 확정** (= 위 §10-⑤ 갱신의 근거).  **teacher forcing 이 아니다.**
+   - ③ **압력/응력 축 ⛔ 없다** — 본문·SI 전수 grep 에서 `MPa` **0회**, `stress` **0회**, `pressure`(응력) **0회**.
+     공정 축은 **시간 프레임(75 µs/칸)** 뿐.  ⇒ ★ **이로써 이 사슬 3편(슬러리·건조·압연) 어느 것도 MPa 를
+     들지 않는 것이 확정**됐고, 우리 300 MPa·`P_y = 138 MPa` 로의 전이점은 **여전히 0 개**다.
+   ★ 그 카드가 추가로 준 것: 🧮 **정직 end-to-end 가속 4.77× · Amdahl 천장 6.67×**(시드 프레임 15 %) ·
+   🧮 **손익분기 13.9 런**(학습셋 11 런의 1.27배) · ⚠⚠ **"exceptional generalization" 근거 그림(Fig 8)이
+   학습 조성 그림(Fig 6)의 행 치환 복사본**(32 칸 중 23 칸) · ⚠ **MAE 단위 미기재(1,000 배 갈림)** ·
+   ★ **길이-1 conv · 항등 max-pool 3 개** 라는 **이 카드가 잡은 것과 똑같은 구조 병리의 재발**.
 2. ⬜ **ref [36] Xu, Ngandjong, Liu, Zanotto, Arcelus, Demortière, Franco, *J. Power Sources* 554 (2023)
-   232294** — 이 논문의 **DEM 물리 전체**(접촉법칙·E·ν·µ·COR·CT 입자형상)와
+   232294** — ✅ **서지 교차확인 완료 2026-09-11**: 자매편(건조)에서는 **ref [33]** 번호로 같은 논문을 인용하고,
+   제목은 *"Lithium ion battery electrode manufacturing model accounting for 3D realistic shapes of active
+   material particles"* 다.  그 논문 감사문에 *"Jiahui Xu … the **DEM code used in her PhD thesis work**"* 로
+   적혀 있어 **이 사슬 3편의 DEM 물리가 전부 그 한 편 소유**임이 확정됐다.
+   이 논문의 **DEM 물리 전체**(접촉법칙·E·ν·µ·COR·CT 입자형상)와
    **유일한 실험 검증**(τ·porosity)이 거기 있다.  ⇒ **DEM 파라미터가 필요하면 진입점은 그쪽.**
    `ngandjong2021_dem_calendering_digital_twin`(ref [25], 압력축 0–160 MPa 보유)과 **어디가 바뀌었는지**를
    대조하는 것이 우리에게 가장 값진 후속.
-3. ⬜ **persistence 기준선(B3)** — 프레임별 복셀 데이터가 공개되지 않아 못 돌렸다.
+3. ⬜ **persistence 기준선(B3)** — ⚠ **자매편(건조)에서도 똑같이 판정 불가였다**(그쪽 §10-⑧: 프레임별 좌표
+   미공개).  ⇒ **이 그룹 두 편 연속으로 trivial baseline 이 0 개**다.  프레임별 복셀 데이터가 공개되지 않아 못 돌렸다.
    ⇒ 우리 자신의 시간-surrogate 를 만들 때는 **B3 를 1번 기준선으로 고정**한다
    (프레임당 두께 변화 1.43 % ⇒ B3 는 매우 강하다).
 4. ⬜ **우리 `--protocol release` 팔** (§8-①) — springback 축을 낼 수 있게 플래튼 상승 구간 추가.
