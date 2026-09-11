@@ -1,16 +1,17 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-11 · managed-files: 392
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-11 · managed-files: 393
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 197건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 198건)
 - 2026-09-11 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-11 · `kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11 · 진행
 - 2026-09-11 · `kb/reviews/codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11 · 진행
 - 2026-09-11 · `kb/reviews/codex_BL_response_lpsocl_gate_ambiguity_2026_09_11.md` — 회신 BL 대응 — NO-GO 수용(추가 MD·C3 실행 0), 감사 GO 항목 전부 착수: 개정안(post-hoc)·C3 도구 2판·C6 원장 등록 · 진행
+- 2026-09-11 · `kb/syntheses/cathode_coating_computational_lineage.md` — 양극 코팅 계산 계보 — Wolverton → Ceder → Mo 라인과 우리 LPSCl 산화축의 관계 · 진행
 - 2026-09-09 · `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 · SUPERSEDED (문턱) / 유효 (시드·정지 규칙)
 - 2026-09-09 · `kb/methodology/name_vs_substance_2026_09_09.md` — 이름과 실체가 갈린다 — 하루에 여섯 번 (2026-09-09) · 진행
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
@@ -26,7 +27,6 @@
 - 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 (Codex BI NO-GO + v3 재편 + cascade 재설계) · 대기
 - 2026-09-09 · `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09 · 진행
 - 2026-09-08 · `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 · 진행
-- 2026-09-08 · `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건 · 발송
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -368,8 +368,9 @@
 - `kb/questions/sdcp_site_preference.md` — SDCP 조각은 LiNiO₂(104)에서 Li 자리와 Ni 자리 중 어디에 붙는가 [active]  (2026-08-11 · active)
 - `kb/questions/sdcp_stageA_holdout_selector_2026_08_30.md` — estimand 카드 — Stage A 홀드아웃: UMA 선택기가 DFT 순위를 맞히나 [open]  (2026-08-30 · open)
 
-## syntheses/ (6)
+## syntheses/ (7)
 - `kb/syntheses/binder_adsorption_charge_state_2026_08_29.md` — 음이온성 바인더의 흡착에너지 — ICEP 의 (−H) 는 탈양성자가 아니라 H 이동이었다  (2026-08-29 · 판독 완료 — ICEP 본문 + SI, Kang 본문 + SI 모두 확보)
+- `kb/syntheses/cathode_coating_computational_lineage.md` — 양극 코팅 계산 계보 — Wolverton → Ceder → Mo 라인과 우리 LPSCl 산화축의 관계  (2026-09-11 · 진행)
 - `kb/syntheses/li3n_barrier_revision_defense_2026_08_12.md` — Li3N(001) 장벽 — 리비전 방어 카드 (AF-ASSB 원고 v5)  (2026-08-13 · 확정 — 2026-08-12: 0.118 로 통일 · 궤적 패널 제외…)
 - `kb/syntheses/md_sampling_variance_defense_2026_08_25.md` — 왜 3시드·200 ps·β 게이트인가 — 짧은 단일 런은 산포를 없애지 않고 가린다  (2026-08-25 · 방어논지)
 - `kb/syntheses/nd_doping_two_axis_verdict.md` — Nd₂O₃ 도핑 — 열역학 창과 전자구조가 **같은 방향으로** 진다  (2026-08-12 · 진행)
@@ -455,4 +456,4 @@
 ## elements/ — 118개 (생성물/템플릿, 목록 생략)
 ## templates/ — 3개 (생성물/템플릿, 목록 생략)
 
-## litdb/ — digest 252개 (정본 목록: litdb/INDEX.md)
+## litdb/ — digest 255개 (정본 목록: litdb/INDEX.md)
