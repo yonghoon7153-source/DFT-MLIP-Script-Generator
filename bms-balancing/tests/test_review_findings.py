@@ -993,3 +993,166 @@ def test_fixed_hc_scan_parses_state_names_in_both_sources(tmp_path):
     assert set(got) == {"GITT", "step_005C"}, f"소스를 못 찾았다: {sorted(got)}"
     for src in got:
         assert sorted(got[src]) == want, f"[{src}] 상태 이름이 다르다: {sorted(got[src])}"
+
+
+# ── §1-12 의 숫자는 산출물에서 나와야 한다 (2026-09-11) ────────────────────
+
+def _section(txt: str, head: str) -> str:
+    """`head` 로 시작하는 절의 본문만. 다음 `##` 제목 전까지."""
+    i = txt.index(head)
+    rest = txt[i + len(head):]
+    for mark in ("\n## ", "\n### "):
+        j = rest.find(mark)
+        if j != -1:
+            rest = rest[:j]
+    return rest
+
+
+def _table_rows(sec: str, states) -> dict:
+    """`| 100 | 0.29 | **0.49** | ... |` 형태의 행을 {상태: [칸,...]} 로."""
+    rows = {}
+    for ln in sec.splitlines():
+        if not ln.strip().startswith("|"):
+            continue
+        cells = [c.strip().replace("**", "").replace("+", "")
+                 for c in ln.strip().strip("|").split("|")]
+        if cells and cells[0] in states:
+            rows[cells[0]] = cells[1:]
+    return rows
+
+
+DEG_ROOTS = {"pouch": "out", "fixedhc": "out/cells_pouch_fixedhc",
+             "c168": "out/cells_c168", "c171": "out/cells_c171"}
+MODES = ("LAM_PE", "LAM_NE", "LLI")
+
+
+def _bands(sub: str):
+    """{상태: {양: (최적, 반폭, 최소, 최대)}}.
+
+    ⚠ 판 선택은 **`compare_states.load_degeneracy` 를 재사용**한다. 직접
+    글롭하면 `degeneracy_300_0009_Li_v2.json` 을 건너뛰고 **옛 판**을 읽는다
+    — 이 저장소가 2026-09-10 에 세 번 당한 실패이고, 이 테스트 첫 판도
+    똑같이 당했다 (2026-09-11).
+    """
+    deg = _load_script("compare_states").load_degeneracy(ROOT / sub)
+    return {st: {k: (e["j"]["best_modes_percent"][k],
+                     e["j"][f"{k}_percent"]["span"] / 2,
+                     e["j"][f"{k}_percent"]["min"],
+                     e["j"][f"{k}_percent"]["max"]) for k in MODES}
+            for st, e in deg.items()}
+
+
+def test_section_1_12_control_rules_out_the_half_cell_substitution():
+    """§1-12 의 중심 주장: 반쪽전지를 고정해도 LLI 띠가 거의 안 움직인다.
+
+    이것이 "원통형의 넓은 띠는 우리 대체 탓이 아니다" 의 근거 전부다.
+    문서와 산출물이 갈리면 깨진다.
+    """
+    have = {k: (ROOT / v).is_dir() for k, v in DEG_ROOTS.items()}
+    if not all(have.values()):
+        pytest.skip(f"산출이 없다: {[k for k, v in have.items() if not v]}")
+
+    B = {k: _bands(v) for k, v in DEG_ROOTS.items()}
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+
+    for st in ("100", "200", "300_0009"):
+        p = B["pouch"][st]["LLI"][1]
+        f = B["fixedhc"][st]["LLI"][1]
+        moved = f - p
+        assert 0 <= moved <= 0.25, (
+            f"{st}: 반쪽전지 고정이 LLI 반폭을 {moved:+.2f} %p 움직였다. "
+            f"§1-12 는 0.03~0.20 이라고 적었다")
+        for cell in ("c168", "c171"):
+            gap = B[cell][st]["LLI"][1] - p
+            assert gap > 2.0, f"{st} {cell}: 격차가 {gap:.2f} %p 뿐이다"
+            share = 100 * moved / gap
+            assert share < 10, (
+                f"{st} {cell}: 대체가 격차의 {share:.1f} % 를 설명한다 — "
+                f"§1-12 의 '0.5~5 %' 가 안 맞는다")
+    # 문서의 표를 **칸별로** 대조한다.
+    # ⚠ `f"{v:.2f}" in txt` 로 하면 안 된다 — 그 숫자가 문서 어딘가에만 있으면
+    #   통과해서, 표를 틀리게 고쳐도 안 잡힌다 (2026-09-11 변이 시험에서 실측).
+    sec = _section(txt, "### 1-12")
+    tbl = _table_rows(sec, ("100", "200", "300_0009"))
+    assert len(tbl) == 3, f"§1-12 의 대조 표를 못 찾았다: {sorted(tbl)}"
+    for st, cells in tbl.items():
+        want = [B["pouch"][st]["LLI"][1], B["fixedhc"][st]["LLI"][1],
+                B["fixedhc"][st]["LLI"][1] - B["pouch"][st]["LLI"][1],
+                B["c168"][st]["LLI"][1], B["c171"][st]["LLI"][1]]
+        got = [float(c) for c in cells[:5]]
+        for i, (g, w) in enumerate(zip(got, want)):
+            assert abs(g - w) < 0.005, (
+                f"§1-12 표 {st} 행 {i+1}번째 칸: 문서 {g} vs 산출 {w:.2f}")
+
+
+def test_section_1_12_ranking_and_overlap_come_from_artifacts():
+    """§1-12 의 두 불변식과 '겹침/분리' 표가 산출물에서 그대로 나오는가."""
+    if not all((ROOT / v).is_dir() for v in DEG_ROOTS.values()):
+        pytest.skip("산출이 없다")
+    B = {k: _bands(v) for k, v in DEG_ROOTS.items()}
+
+    rows = [(lab, st, r) for lab, R in B.items() for st, r in R.items()]
+    assert len(rows) == 13, f"13 행이어야 한다: {len(rows)}"
+
+    narrowest = [min(MODES, key=lambda k: r[k][1]) for _, _, r in rows]
+    widest = [max(MODES, key=lambda k: r[k][1]) for _, _, r in rows]
+    assert "LAM_NE" not in narrowest, "LAM_NE 가 최협인 행이 생겼다 — §1-12 의 0/13"
+    assert "LAM_PE" not in widest, "LAM_PE 가 최광인 행이 생겼다 — §1-12 의 0/13"
+
+    # 겹침/분리가 셀 종류에 따라 **반대**인가
+    def overlaps(r1, r2, k):
+        return min(r1[k][3], r2[k][3]) - max(r1[k][2], r2[k][2]) > 0
+
+    # 배율 표 — §1-12 의 헤드라인이다 ("LLI 만 한 자릿수로 무너진다")
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-12")
+    rng = _table_rows(sec, MODES)
+    assert len(rng) == 3, f"§1-12 의 배율 표를 못 찾았다: {sorted(rng)}"
+    pouch_rows = [r for lab, _, r in rows if lab in ("pouch", "fixedhc")]
+    cyl_rows = [r for lab, _, r in rows if lab in ("c168", "c171")]
+    for k, cells in rng.items():
+        for i, group in enumerate((pouch_rows, cyl_rows)):
+            v = sorted(r[k][1] for r in group)
+            lo, hi = (float(x) for x in cells[i].split("~"))
+            assert abs(v[0] - lo) < 0.005 and abs(v[-1] - hi) < 0.005, (
+                f"§1-12 배율 표 {k} {'파우치' if i == 0 else '원통형'}: "
+                f"문서 {lo}~{hi} vs 산출 {v[0]:.2f}~{v[-1]:.2f}")
+        mult = max(r[k][1] for r in cyl_rows) / max(r[k][1] for r in pouch_rows)
+        assert abs(float(cells[2].rstrip("x")) - mult) < 0.05, (
+            f"§1-12 배율 표 {k} 배율: 문서 {cells[2]} vs 산출 {mult:.1f}x")
+
+    for lab in DEG_ROOTS:
+        R = B[lab]
+        pouch_like = lab in ("pouch", "fixedhc")
+        for a, b in (("100", "200"), ("200", "300_0009")):
+            if a not in R or b not in R:
+                continue
+            lli = overlaps(R[a], R[b], "LLI")
+            pe = overlaps(R[a], R[b], "LAM_PE")
+            if pouch_like:
+                assert not lli, f"{lab} {a}→{b}: LLI 가 겹친다 — 파우치는 갈랐었다"
+            else:
+                assert lli, f"{lab} {a}→{b}: LLI 가 갈렸다 — 원통형은 겹쳤었다"
+                assert not pe, f"{lab} {a}→{b}: LAM_PE 가 겹친다 — 원통형은 갈랐었다"
+
+
+def test_fixed_hc_check_catches_a_partially_fixed_root(tmp_path, capsys):
+    """소스 하나만 고정된 루트를 `check` 가 잡아야 한다.
+
+    2026-09-11 에 실제로 났다 — `pouch_fixedhc` 는 GITT 만 눌리고
+    `step_005C` 는 원본 그대로였다. A축은 GITT 로 돌아 유효했지만 B축
+    (`matrix`)은 두 소스를 다 쓰므로 대조가 아니었다. 로그는 소스 *종류*만
+    찍으므로 이걸 못 알려준다.
+    """
+    m = _fixed_hc()
+    base = tmp_path / "partial"
+    g = base / "data" / "half_cell" / "GITT"
+    s = base / "data" / "half_cell" / "step_005C"
+    g.mkdir(parents=True); s.mkdir(parents=True)
+    for i, st in enumerate(("pristine", "100", "200")):
+        (g / f"{st}.xlsx").write_bytes(b"pinned")          # 전부 같은 파일
+        (s / f"{st}_005C.xlsx").write_bytes(b"x" + bytes([i]))  # 상태마다 다름
+
+    assert m.cmd_check(SimpleNamespace(root=str(base), expect="fixed")) == 2, \
+        "GITT 만 고정된 루트를 '전부 고정' 으로 통과시켰다"
+    out = capsys.readouterr().out + capsys.readouterr().err
+    assert "step_005C" in out, "어느 소스가 안 눌렸는지 안 알려준다"

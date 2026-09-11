@@ -9,44 +9,44 @@
 
 ---
 
-## 지금 막혀 있는 것 — 하나뿐이다
+## 지금 할 것 — **Codex 2차 적대 리뷰 요청문**
 
-**셀 일반화 (§1-12).** 원통형 셀 둘(#168 · #171)의 띠가 파우치보다 넓게
-나왔는데, 그 셀들은 반쪽전지를 한 번만 재서 `scripts/prepare_cell.py` 가
-같은 파일을 네 상태에 복사했다. `c_lit = (a_PE + b_PE − b_NE)·c` 라 그
-대체가 **LAM_PE 와 LLI 양쪽에** 들어간다 (LAM_NE 만 절연 —
-`tests/test_review_findings.py::test_half_cell_substitution_reaches_lli_not_just_lam_pe`).
+막고 있던 셀 일반화가 2026-09-11 에 닫혔다 (§1-12). 우리가 더 닫을 수 있는
+미결이 없다 — 남은 것은 전부 규진팀이나 계측 쪽에 있다. 그러므로 다음 단계는
+`CODEX_REVIEW_REQUEST.md` **2차 판을 새로 쓰는 것**이다 (1차 판은 배너로
+인용 금지를 박아 뒀고, 상한 자리마다 `→` 갱신을 달아 뒀다).
 
-그래서 **셀 차이인지 우리 대체 탓인지 아직 못 가른다.**
+2차 요청문에서 제일 세게 맞아야 할 자리 (스스로 신고할 것):
 
-가르는 대조 실험: 파우치를 pristine 반쪽전지 하나로 고정해 재실행
-(`~/dd/cells/pouch_fixedhc`, 2026-09-11 새벽 완주, 산출 9개).
-파우치 원본 대비 띠가 원통형만큼 벌어지면 원인은 **대체**이고, 안 벌어지면
-**셀 차이**가 남는다.
+1. **§1-12 의 대조가 충분히 강했나.** 파우치 상태별 반쪽전지가 서로 다른
+   파일이라는 것(해시)만 확인했고 **얼마나 다른지는 원장에 없다.**
+   `scripts/ne_shape.py` 를 한 번 돌려 mV 로 적으면 닫힌다 — 이게 우리가
+   리뷰 전에 할 수 있는 **유일하게 남은 실측**이다.
+2. **"셀 차이" 와 "그 셀 자료의 잡음·분해능" 을 못 갈랐다.** 결론 문장이
+   셀 쪽으로 읽히게 쓰여 있지 않은지.
+3. 원통형 13 행 중 3 행이 `a_NE=ub` 에 눌려 있다.
+4. dQ/dV 항의 로컬 함수 둘은 여전히 **전사**다.
 
-### 다음에 칠 명령 (사용자 기계, `~/dd/bms-balancing`)
+그 뒤 순서: Codex 리뷰 → 반영 → 규진팀에 `FOR_BMS_TEAM.md` 전달.
+
+### 재현 명령 (사용자 기계, `~/dd/bms-balancing`)
 
 ```bash
-cd ~/dd/bms-balancing
-git pull --rebase origin claude/bms-alpha-beta-verify
-git push  -u origin claude/bms-alpha-beta-verify     # ← 1d671ce(원통형 산출)가 아직 원격에 없다
 source .venv/bin/activate
 export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
 
-# ① 대조가 정말 대조였는지 — 해시로. 둘 다 돌려야 판정기가 살아 있다는 증거가 된다
+# 네 갈래 비교 (§1-12 의 표가 여기서 나온다)
+python3 scripts/compare_states.py \
+    pouch=out fixedhc=out/cells_pouch_fixedhc \
+    c168=out/cells_c168 c171=out/cells_c171
+
+# 대조 루트가 정말 고정본인지 — 해시로. 둘 다 돌려야 판정기가 살아 있다는 증거
 python3 scripts/fixed_hc.py check --root ~/dd/cells/pouch_fixedhc --expect fixed
 python3 scripts/fixed_hc.py check --root "$BMS_DATA_ROOT"        --expect per-state
 
-# ② 네 갈래 비교
-python3 scripts/compare_states.py \
-    pouch=out fixedhc=~/dd/cells/pouch_fixedhc/out \
-    c168=~/dd/cells/c168/out c171=~/dd/cells/c171/out
+# 남은 실측 하나 — 반쪽전지가 상태 사이에 얼마나 다른가 (위 1번)
+python3 scripts/ne_shape.py
 ```
-
-①이 기대와 다르면 **어젯밤 실행은 대조가 아니다** — `fixed_hc.py make` 로
-다시 만들어 `run_states.sh` 를 다시 돌려야 한다.
-
----
 
 ## 닫힌 것
 
@@ -57,6 +57,7 @@ python3 scripts/compare_states.py \
 | 최적화 절차 | §1-9 | 자유 조합 최대 0.17 %p. 갈린 두 점에서 이긴 건 **그들** |
 | 97 행 원표 | §2 · §2-1 | `out/bms97/` 커밋. 음수 LAM 이 경계 산물이라는 것을 **산술로** |
 | 상태 일반화 | §1-10 | 파우치 네 상태에서 LAM_NE 최광 · LLI 최협 (4/4). **절대 폭으로 말할 때만** |
+| **셀 일반화** | **§1-12** | **넘어가지 않는다.** 대조로 반쪽전지 대체를 배제(이동 0.03~0.20 vs 격차 2.23~5.64 %p). 원통형은 순위가 반대 — LAM_PE 로 사이클을 가르고 LAM_NE·LLI 는 겹친다 |
 | 문서↔산출 정합 | `cb23dbf` | 여섯 문서 중 넷이 뒤처져 있었다. drift 테스트 둘로 고정 |
 
 ## 열려 있는 것 (셀 말고)
