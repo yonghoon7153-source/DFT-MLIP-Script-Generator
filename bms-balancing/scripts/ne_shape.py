@@ -86,8 +86,9 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
         w.writerow(["state", "cap_delta_pct", "gamma_target", "gamma_ref",
                     "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
                     "blend_vs_meas_max_mV", "blend_vs_meas_rms_mV",
-                    "max_at_x", "frac_over_50mV"])
-        for s_, da, db, ratio, cmax, crms, g, gr in rows:
+                    "max_at_x", "frac_over_50mV", "pe_shape_max_mV", "pe_shape_rms_mV"])
+        for s_, da, db, ratio, cmax, crms, g, gr, *rest in rows:
+            pe_max, pe_rms = (list(rest) + [float("nan"), float("nan")])[:2]
             c = cwhere.get(s_)
             # ⚠ Codex R2-10: 전 판은 `gamma_ref` 열에 **대상** γ 를 썼다. 두 역할을 따로.
             w.writerow([s_, f"{100*(cap[s_]/base_cap-1):.4f}",
@@ -95,7 +96,8 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
                         f"{gr:.6f}" if gr is not None else "",
                         f"{da:.6f}", f"{db:.6f}", f"{ratio:.6f}",
                         f"{cmax:.6f}", f"{crms:.6f}",
-                        f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else ""])
+                        f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else "",
+                        f"{pe_max:.6f}", f"{pe_rms:.6f}"])
     from provenance import git_state          # scripts/ 가 sys.path 에 있다
     sha, dirty = git_state()
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
@@ -131,8 +133,11 @@ def main() -> int:
     if "pristine" not in states:
         raise SystemExit(f"`{a.source}` 에 pristine 이 없다 — 기준이 없으면 못 잰다")
 
-    meas = {s: HalfCell(D.half_cell_path(root, a.source, s),
-                        window=11, poly_order=3).E_NE(GRID) for s in states}
+    hcs = {s: HalfCell(D.half_cell_path(root, a.source, s), window=11, poly_order=3) for s in states}
+    meas = {s: hcs[s].E_NE(GRID) for s in states}
+    # ⚠ Codex R2-07 · L5-F2: 목적함수가 소비하는 반쪽전지 축은 **PE 뿐**이다. 대조 실험
+    #   (반쪽전지 고정)의 강도를 말할 수 있는 유일한 양은 E_PE 의 상태별 변화다.
+    pe = {s: np.asarray(hcs[s].E_PE(GRID), float) for s in states}
     cap = {s: raw_ne_capacity(D.half_cell_path(root, a.source, s)) for s in states}
     si_c, si_v, gr_c, gr_v = D.load_literature(root, a.si_source)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
@@ -193,11 +198,16 @@ def main() -> int:
                 flips.append((s, fwd, rev))
         else:
             cmax = crms = float("nan")
-        rows.append((s, da, db, ratio, cmax, crms, g, gr))
+        d_pe = (pe[s] - pe["pristine"]) * 1e3
+        pe_max, pe_rms = float(np.max(np.abs(d_pe))), float(np.sqrt(np.mean(d_pe ** 2)))
+        rows.append((s, da, db, ratio, cmax, crms, g, gr, pe_max, pe_rms))
         print(f"{s:10}{100*(cap[s]/base_cap-1):>9.2f}"
               f"{(f'{g:.4f}' if g is not None else '—'):>8}"
               f"{da:>13.2f}{db:>11.2f}{ratio:>9.2f}{cmax:>13.1f}{crms:>6.1f}")
 
+    print("\n(PE 축 — 목적함수가 실제로 소비하는 반쪽전지 곡선) E_PE(state) − E_PE(pristine):")
+    for r in rows:
+        print(f"    {r[0]:10} max {r[8]:7.2f} mV   rms {r[9]:6.2f} mV")
     if a.write:
         art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
                          {c[0]: c for c in cwhere})

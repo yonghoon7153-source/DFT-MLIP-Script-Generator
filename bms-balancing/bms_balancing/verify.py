@@ -339,6 +339,10 @@ def mode_profile_extrema(obj: Objective, ref_p, ref_c, c_cell, best, best_val,
         a = np.array(attainable, dtype=float) * 100.0
         out[key] = {"min": float(a.min()), "max": float(a.max()),
                     "span": float(a.max() - a.min()),
+                    # ⚠ Codex R2-05: 외곽 [min,max] 만으로는 가능집합이 비연결인지 모른다.
+                    #   도달한 격자점을 그대로 남겨 "공유 가능값" 을 나중에 물을 수 있게.
+                    "attainable_pct": [float(x) for x in a],
+                    "grid_pct": [float(x) * 100.0 for x in grid],
                     "n_grid_attainable": int(a.size), "n_grid": int(grid.size),
                     "grid_range_pct": [g_lo * 100.0, g_hi * 100.0],
                     "grid_from_hint": bool(hint and key in hint),

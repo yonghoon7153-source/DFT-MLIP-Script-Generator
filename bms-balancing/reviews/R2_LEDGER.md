@@ -29,13 +29,13 @@
 | C18 | `ne_shape` CSV `gamma_ref` 열이 대상 γ (스키마 오류) | R2-10, L5-F3 | writer 닫힘 — `gamma_target`·`gamma_ref` 분리; **커밋된 CSV 재생성 대기(사용자 기계)** — 그때까지 `test_r2_10_*` 는 빨강 |
 | C19 | 철회 문장 잔존 묶음: matlab/README "실질 오차막대" 제목 · INTRO §6-3·FOR_BMS :375 "반복 측정 필요" · README:134 · FINDINGS:527/531 · WORKING_STATE "유일하게 남은 실측"/"원통형 13 행" · CODEX 요청문 "셀은 넷"/"13 행" · `1629b82`→`3fdeaa2` | L2-F8 | 대부분 닫힘 — matlab/README 제목 · INTRO §6-3 · README:134 · FINDINGS §1-10 말미 · CODEX 요청문 '셋'/'6 적합' · `1629b82` 는 §1-12 재작성으로 소멸. FOR_BMS 는 동결(배너) |
 | C21 | **§1-8 (192 값·4.04e-12) 의 산출물이 없다.** 재대조에서 드러남 — 그 폴더의 4 CSV 는 §1-0 구판. 헤드라인 포팅 증거가 붙여넣기 출력에만 기댄다 | 재대조 | **닫힘** — 툴박스 `dd_eval` 재생성 4 CSV + 고친 비교기 판정이 `out/recompare/` 에 (00e9264). 앵커 16·rmse 32 전부, 최대 상대차 2.54~4.04e-12. `test_section_1_8_192_values_are_backed_by_committed_recompare_artifacts` |
-| C20 | 테스트 사각지대: §1-10 표 칸, FOR_BMS·INTRO·HANDOFF 숫자 무검사; `fixed_hc.sha` 첫 청크; `tol_percent_of_best`; 한정어 삭제; `_interp_lin_extrap` 중복 x 조용히 통과(실데이터 도달성 미확인 — L4 미실행) | L0 | 열림 |
+| C20 | 테스트 사각지대: §1-10 표 칸, FOR_BMS·INTRO·HANDOFF 숫자 무검사; `fixed_hc.sha` 첫 청크; `tol_percent_of_best`; 한정어 삭제; `_interp_lin_extrap` 중복 x 조용히 통과(실데이터 도달성 미확인 — L4 미실행) | L0 | 부분 닫힘 — `_interp_lin_extrap` 중복·비단조 x 에서 ValueError(MATLAB 과 같이, `test_interp_refuses_*`; **실데이터 도달 여부는 사용자 기계 `eval` 재실행으로 확인**) · `fixed_hc.sha` 1 MB 이후 차이 테스트 · 격자 도달 목록 `attainable_pct`/`grid_pct` 보존(R2-05 닫는 길) · `ne_shape` 가 PE 축 변화(`pe_shape_max/rms_mV`)를 잰다(§1-12 조건 7 — **사용자 기계 재실행 대기**). 남음: FOR_BMS·INTRO·HANDOFF 숫자 무검사, tol×100, 한정어 삭제 |
 
 ## 닫는 순서 (예산이 끊겨도 앞의 것부터 남는다)
 
 1. ~~이 원장·리뷰 원문 커밋~~ — 9470055
 2'. ~~코드 C3·C4·C5·C12·C10·C18(writer)~~ — d3ab669
-3'. ~~문서 철회·재작성 (C1·C2·C6~C11·C13·C14·C16·C17·C19)~~ — 이 커밋. 남은 것: C15(FOR_BMS 동결로 대체), C20(테스트 사각지대), U1·U2(원본·원자료를 우리가 직접 열기), PE 축 개입 강도 측정, γ 직접 적합, 격자 도달 목록 보존
+3'. ~~문서 철회·재작성 (C1·C2·C6~C11·C13·C14·C16·C17·C19)~~ — 이 커밋. 남은 것: C15(FOR_BMS 동결로 대체), C20 잔여, U1·U2(원본·원자료를 우리가 직접 열기), γ 직접 적합(표현력). **사용자 기계**: `ne_shape.py` 재실행(PE 축 강도) · `eval` 네 루트 재실행(interp 가드 도달 여부) · 파우치 3 상태 `run_states.sh` 재실행(provenance, 선택)
 2. 코드: C3·C4 (비교기) → C5 (profile) → C12 (표시) → C18 (스키마) → C10 (audit97 출력). 각각 Codex 반례를 RED 테스트로 먼저.
 3. 문서 철회 패스: §0-2 에 R2 철회 표 추가; 철회 문장을 취소선+정정으로 (C1·C2·C6·C7·C9·C10·C11·C13·C14·C16·C19).
 4. 문서 재작성: §1-12(C1·C2·C6·C7·C8), §5-2(C9), §2-1(C10), §1-10(C11·C12), §0-1(C16), FOR_BMS(C15), INTRO, HANDOFF(C14·C17), README, WORKING_STATE.

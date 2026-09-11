@@ -1594,3 +1594,76 @@ def test_section_1_10_table_prints_best_min_max_and_width():
             best, lo, hi = (float(x) for x in m.groups())
             assert abs(best - b[k][0]) < 5e-4 and abs(lo - b[k][2]) < 5e-4 and abs(hi - b[k][3]) < 5e-4, (st, k, c[1 + i])
         assert "±" not in "".join(c)
+
+
+# ═══ R2 후속 — C20 사각지대와 우리가 직접 닫는 실측 셋 (2026-09-11) ═══
+
+def test_interp_refuses_duplicate_or_nonmonotone_x_like_matlab():
+    """MATLAB `interp1` 은 x 가 단조가 아니면 에러다. 우리 `_interp_lin_extrap` 은 조용히
+    값을 냈다 (L0-7). 원통형 워크북은 우리가 썼으므로 중복 용량점이 들어올 수 있고,
+    그러면 조용한 쓰레기가 '넓은 띠' 로 보일 수 있다. 실패로 닫는다 (fail-closed)."""
+    from bms_balancing.model import _interp_lin_extrap as f
+    for name, xs in (("중복 x", [0, 1, 1, 2]), ("비단조 x", [0, 2, 1, 3])):
+        with pytest.raises(ValueError, match="interp1"):
+            f(np.array(xs, float), np.array([0, 1, 2, 3], float), np.array([0.5, 1.5]))
+    # 단조 증가·감소는 그대로
+    assert np.allclose(f(np.array([0, 1, 2.]), np.array([0, 1, 4.]), np.array([-1, 3.])), [-1, 7])
+    assert np.allclose(f(np.array([2, 1, 0.]), np.array([4, 1, 0.]), np.array([-1, 3.])), [-1, 7])
+
+
+def test_fixed_hc_sha_sees_bytes_after_the_first_chunk(tmp_path):
+    """L0-4: `sha()` 가 첫 1 MB 청크만 해시해도 기존 테스트는 통과했다 (파일이 작아서)."""
+    m = _fixed_hc()
+    base = bytes(1_200_000)
+    a = tmp_path / "a.bin"; b = tmp_path / "b.bin"
+    a.write_bytes(base); b.write_bytes(base[:1_100_000] + b"\x01" + base[1_100_001:])
+    assert m.sha(a) != m.sha(b), "1 MB 뒤의 차이를 해시가 못 본다"
+
+
+def test_mode_profile_keeps_the_attainable_grid_for_connectivity():
+    """[Codex R2-05] 외곽 범위 [min,max] 만 저장하면 가능집합이 비연결인지 알 수 없다.
+    도달한 격자점 목록을 같이 저장해야 나중에 '공유 가능값' 을 물을 수 있다."""
+    from bms_balancing.verify import mode_profile_extrema
+    class Quad:
+        c_cell = 1.0
+        def __call__(self, p):
+            p = np.asarray(p, float); return float(1.0 + 4.0 * np.sum((p[:4] - [1.2, -0.25, 1.2, -0.15]) ** 2))
+    best = np.array([1.2, -0.25, 1.2, -0.15, 0.25]); ref = best.copy()
+    out = mode_profile_extrema(Quad(), ref, 1.0, 1.0, best, Quad()(best), 0.01, n_grid=5, n_starts=1, seed=0)
+    for k in ("LAM_PE", "LAM_NE", "LLI"):
+        assert "attainable_pct" in out[k] and "grid_pct" in out[k], k
+        assert len(out[k]["attainable_pct"]) == out[k]["n_grid_attainable"]
+        assert len(out[k]["grid_pct"]) == out[k]["n_grid"]
+        assert min(out[k]["attainable_pct"]) == out[k]["min"] and max(out[k]["attainable_pct"]) == out[k]["max"]
+
+
+def test_ne_shape_measures_the_consumed_pe_axis_too(tmp_path, monkeypatch):
+    """[Codex R2-07 · L5-F2] 대조 실험이 실제로 흔든 축은 PE 곡선이다. `ne_shape` 가
+    `E_PE(state) − E_PE(pristine)` 를 같이 재고 CSV 에 남겨야 §1-12 조건 7 이 닫힌다."""
+    import io, contextlib, csv as _csv, sys as _s
+    m = _load_script("ne_shape")
+    u = np.linspace(0, 1, 301); arrays = ((1 - u) ** 2, 0.1 + 0.7 * u, 1 - u, 0.1 + 0.7 * u)
+    from bms_balancing.model import Blend
+    blend = Blend(*arrays, window=11, poly_order=3)
+    class P:
+        def __init__(self, st): self.state = st
+        def is_file(self): return True
+    class HC:
+        def __init__(self, path, **kw): self.st = path.state
+        def E_NE(self, x): return blend.E(x, 0.25)
+        def E_PE(self, x): return 3.8 + 0.02 * (self.st != "pristine") + 0.0 * np.asarray(x)
+    monkeypatch.setattr(m.D, "STATES", ["pristine", "100"])
+    monkeypatch.setattr(m.D, "data_root", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
+    monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    monkeypatch.setattr(m, "HalfCell", HC)
+    monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
+    monkeypatch.setattr(m, "fitted_pair", lambda *a, **k: (0.26, 0.25))
+    monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--write", str(tmp_path)])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = m.main()
+    assert rc == 0, buf.getvalue()
+    row = next(_csv.DictReader((tmp_path / "ne_shape_GITT_Li.csv").open(encoding="utf-8")))
+    assert abs(float(row["pe_shape_max_mV"]) - 20.0) < 1e-6 and abs(float(row["pe_shape_rms_mV"]) - 20.0) < 1e-6, row
+    assert "PE" in buf.getvalue()

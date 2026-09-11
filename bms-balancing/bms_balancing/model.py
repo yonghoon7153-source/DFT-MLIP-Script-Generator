@@ -86,6 +86,14 @@ def _interp_lin_extrap(xs: np.ndarray, ys: np.ndarray, xq):
     xq = np.atleast_1d(np.asarray(xq, dtype=float))
     if xs.size >= 2 and xs[0] > xs[-1]:
         xs, ys = xs[::-1], ys[::-1]
+    # ⚠ 2026-09-11 (R2 후속, L0-7): MATLAB `interp1` 은 x 가 단조가 아니면(중복 포함)
+    #   에러다. `np.interp` 는 조용히 값을 낸다. 원통형 워크북은 우리가 썼으므로 중복
+    #   용량점이 들어올 수 있고, 그러면 조용한 쓰레기가 "넓은 띠" 로 보인다. 죽인다.
+    if xs.size >= 2 and np.any(np.diff(xs) <= 0):
+        bad = int(np.argmax(np.diff(xs) <= 0))
+        raise ValueError(
+            f"interp1: x 가 단조 증가/감소가 아니다 (index {bad}: {xs[bad]!r} → {xs[bad+1]!r}). "
+            "MATLAB interp1 은 여기서 에러다 — 중복·비단조 용량점을 적재 단계에서 걸러라.")
     out = np.interp(xq, xs, ys)
     # 범위 밖은 양 끝 기울기로 선형 외삽 (np.interp 는 끝값을 유지한다)
     if xs.size >= 2:
