@@ -1578,11 +1578,6 @@
      "at": "2026-09-11",
      "state": "active",
      "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
-    },
-    {
-     "at": "2026-09-11",
-     "state": "active",
-     "note": "③ STO Ea 열람 선언 — 1저자 셸 기록에 `tail -40 ~/logs/lps400.log` 가 있고 그 로그에 `Ea=` 줄이 6개 있다 → **열람했을 가능성이 있다**(그 시점에 Ea 줄이 있었는지는 불명). 에이전트는 값을 열지 않았다. ⇒ 이 개정·C3 판정은 'STO Ea 미열람' 을 주장하지 않는다. MTO 기반 C3 입력·ΔEa·3점 Ea 는 2026-09-11 arrhenius_compat 2판 실행 전까지 미계산이었다."
     }
    ],
    "ratification": {
