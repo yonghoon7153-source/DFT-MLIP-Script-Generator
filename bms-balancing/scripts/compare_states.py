@@ -107,7 +107,10 @@ def main() -> int:
             print(f"\n[{label}] {d} — degeneracy 산출 없음"); continue
         print(f"\n[{label}] {d}")
         srcs = set()
-        print(f"  {'state':12}{'src':10}{'LAM_PE':>17}{'LAM_NE':>17}{'LLI':>17}"
+        # ⚠ 2026-09-11 Codex R2-04: `best ± span/2` 는 best 를 중점처럼 보이게 한다.
+        #   best 는 경계해에서 구간의 끝점이라 (c168 300_0009 LAM_NE: [2.30, 11.00] 을
+        #   2.30±4.35 로 찍어 [−2.05, 6.65] 로 읽혔다) 산출의 min/max 를 그대로 찍는다.
+        print(f"  {'state':12}{'src':10}{'LAM_PE best [min,max]':>25}{'LAM_NE':>25}{'LLI':>25}"
               f"  {'최광':7} 파일")
         for st, e in deg.items():
             j = e["j"]
@@ -119,7 +122,8 @@ def main() -> int:
                 ok_llI_narrowest = False
             src = j.get("half_cell", "?")
             srcs.add(src)
-            cells = "".join(f"{best[k]:8.2f}±{spans[k]/2:<7.2f}" for k in MODES)
+            cells = "".join(f"{best[k]:8.2f} [{j[f'{k}_percent']['min']:.2f}, "
+                            f"{j[f'{k}_percent']['max']:.2f}]".rjust(25) for k in MODES)
             print(f"  {st:12}{src:10}{cells}  {widest:7} {e['file']}")
             b = j.get("best_active_bounds") or []
             rb = j.get("ref_active_bounds") or []

@@ -83,14 +83,16 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
     art = d / f"ne_shape_{a.source}_{a.si_source}.csv"
     with art.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["state", "cap_delta_pct", "gamma_ref",
+        w.writerow(["state", "cap_delta_pct", "gamma_target", "gamma_ref",
                     "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
                     "blend_vs_meas_max_mV", "blend_vs_meas_rms_mV",
                     "max_at_x", "frac_over_50mV"])
-        for s_, da, db, ratio, cmax, crms, g in rows:
+        for s_, da, db, ratio, cmax, crms, g, gr in rows:
             c = cwhere.get(s_)
+            # ⚠ Codex R2-10: 전 판은 `gamma_ref` 열에 **대상** γ 를 썼다. 두 역할을 따로.
             w.writerow([s_, f"{100*(cap[s_]/base_cap-1):.4f}",
                         f"{g:.6f}" if g is not None else "",
+                        f"{gr:.6f}" if gr is not None else "",
                         f"{da:.6f}", f"{db:.6f}", f"{ratio:.6f}",
                         f"{cmax:.6f}", f"{crms:.6f}",
                         f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else ""])
@@ -100,7 +102,7 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
         "artifact": art.name, "half_cell_source": a.source,
         "si_source": a.si_source, "grid_n": int(GRID.size),
         "grid_range": [float(GRID[0]), float(GRID[-1])],
-        "gamma_from": f"{a.out_dir}/matrix_<state>.csv 의 ref_gamma_Si",
+        "gamma_from": f"{a.out_dir}/matrix_<state>.csv 의 gamma_Si(대상)·ref_gamma_Si(기준)",
         "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
         "git_commit": sha, "git_dirty": dirty,
         "created_utc": __import__("datetime").datetime.now(
@@ -191,7 +193,7 @@ def main() -> int:
                 flips.append((s, fwd, rev))
         else:
             cmax = crms = float("nan")
-        rows.append((s, da, db, ratio, cmax, crms, g))
+        rows.append((s, da, db, ratio, cmax, crms, g, gr))
         print(f"{s:10}{100*(cap[s]/base_cap-1):>9.2f}"
               f"{(f'{g:.4f}' if g is not None else '—'):>8}"
               f"{da:>13.2f}{db:>11.2f}{ratio:>9.2f}{cmax:>13.1f}{crms:>6.1f}")
@@ -214,9 +216,13 @@ def main() -> int:
         print(f"\n→ 모델 변화가 측정 변화의 **{worst[3]:.1f} 배** ({worst[0]}). γ 는 음극")
         print("  모양 변화를 따라가는 것이 아니라 **다른 것을 흡수하고 있다.**")
     elif worst[3] < 0.34:
-        print(f"\n→ 모델 변화가 측정 변화의 **{worst[3]:.2f} 배**에 그친다. 실제 음극은")
-        print("  γ 가 표현할 수 있는 것보다 **훨씬 크게** 변한다 — 그러면 그 차이는")
-        print("  a_NE·b_NE 로 새어 들어가고, 그것이 곧 LAM_NE 다.")
+        print(f"\n→ **적합이 고른 γ 쌍**이 만든 변화가 측정 변화의 {worst[3]:.2f} 배다.")
+        print("  ⚠ 이것은 γ 의 표현력 한계가 아니다 (Codex R2-08 · L5-F3): (b) 는 적합이")
+        print("    γ 를 그만큼만 움직였다는 뜻이고, 같은 크기를 낼 Δγ 는 상자 안에 있다.")
+        print("    표현력은 측정 곡선에 γ 를 직접 적합한 잔차로 재야 한다 — 미구현.")
+        print("    풀셀 목적함수가 그 방향으로 γ 를 안 움직였다는 것은 측정 NE 의 변화가")
+        print("    블렌드 모양이 아니라는(모델 부적합) 쪽을 가리키며, 보상은 a_NE 만이")
+        print("    아니라 a_PE·b_PE 로도 샌다 (profile 300_0009: LAM_PE 6.4 %p).")
     else:
         print(f"\n→ 두 변화가 같은 규모다 (최대 {worst[3]:.1f} 배). γ 가 측정된 모양")
         print("  변화를 대략 따라간다 — 자유 파라미터로 둘 근거가 있다.")

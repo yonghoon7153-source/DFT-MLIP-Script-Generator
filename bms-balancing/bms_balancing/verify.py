@@ -518,42 +518,65 @@ def read_dd_eval_csv(path):
 MODEL_REL = 1e-9
 
 
-def printed_abs_tol(path, default_decimals: int = 10) -> float:
-    """CSV 에 **적힌 자리수**가 허용하는 절대 오차 — 파일이 정한다.
+def _token_precision(f: str):
+    """토큰 하나의 (소수 자리수, 유효 자리수). 정수 토큰은 (None, n), nan/inf 는 (None, 0)."""
+    f = f.strip().lower()
+    if not f or f in ("nan", "inf", "-inf", "+inf"):
+        return None, 0
+    mant, _, exp = f.partition("e")
+    dec = len(mant.split(".")[1]) if "." in mant else None
+    sig = len(mant.replace("-", "").replace("+", "").replace(".", "").lstrip("0")) or 1
+    if dec is not None and exp:
+        dec = dec - int(exp)
+    return dec, sig
 
-    ⚠ 2026-09-10 실측 ①: `dd_eval.m` 이 rmse 를 `%.10f` 로 쓰던 판에서는 절대
-      양자화가 ±0.5e-10 이고, rmse_pocv≈0.0117 에서 그것만으로 **상대 4.3e-9**
-      가 된다. 그 파일을 상대 1e-9 문턱으로 재면 **없는 불일치를 보고**한다.
 
-    ⚠ 2026-09-10 실측 ②(반대쪽 실수): 위를 막으려고 `d = default_decimals` 로
-      시작해 `min()` 으로만 깎았더니, 파일이 `%.17g` 로 **더 정밀해져도** 10
-      자리 위로 못 올라갔다. 192값 대조 판정문이 상대 1e-12 짜리 실제 구현
-      차이를 "출력 반올림(1e-10) 안" 이라고 설명해 버렸다. 기본값은 **아무
-      것도 못 읽었을 때만** 쓴다.
+def printed_abs_tols(path, default_decimals: int = 10) -> dict:
+    """**열마다** 적힌 자리수가 허용하는 절대 한계.
+
+    ⚠ 2026-09-11 Codex R2-02: 전 판은 파일 전체에서 소수 자리수의 **최솟값**을
+      한계로 썼다. 그러면 `%.17g` 파일에 정확한 `1.5` 하나만 있어도 파일 전체
+      한계가 0.1 이 되어, 다른 행의 163 % 차이가 "적힌 자리수 안" 으로 덮였다.
+      짧은 토큰은 값이 정확히 표현된다는 뜻이지 producer 의 정밀도가 낮다는
+      뜻이 아니다. 그래서 (1) 열마다 따로 보고, (2) 유효 15자리 이상 토큰이 하나라도
+      있는 열은 **전정밀도 producer**(dd_eval.m 의 `%.17g`)로 보아 한계 0 — 차이는
+      상대 띠(`MODEL_REL`)로만 판정한다. 고정 소수 producer(`%.10f` 등)만 열의 최대
+      자리수로 한계를 준다.
     """
-    d = None
+    cols, decs, sigs = None, {}, {}
     try:
         for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
-            if not line or line.startswith("#") or line.startswith("a_PE"):
+            if not line or line.startswith("#"):
                 continue
-            for field in line.split(",")[5:]:
-                f = field.strip()
-                if "e" in f.lower():
-                    mant, _, exp = f.lower().partition("e")
-                    dec = len(mant.split(".")[1]) if "." in mant else 0
-                    dd = dec - int(exp)
-                elif "." in f:
-                    dd = len(f.split(".")[1])
-                else:
-                    continue        # 정수로 적힌 값은 자리수 정보를 안 준다
-                d = dd if d is None else min(d, dd)
-            break
+            if line.startswith("a_PE"):
+                cols = [c.strip() for c in line.split(",")][5:]
+                continue
+            fields = line.split(",")[5:]
+            names = cols if cols and len(cols) == len(fields) else [f"col{j}" for j in range(len(fields))]
+            for name, field in zip(names, fields):
+                dec, sig = _token_precision(field)
+                if sig:
+                    sigs[name] = max(sigs.get(name, 0), sig)
+                if dec is not None:
+                    decs[name] = max(decs.get(name, 0), dec)
     except (OSError, ValueError):
         pass
-    if d is None:
-        d = default_decimals
-    return 10.0 ** (-d)
+    out = {}
+    for name in set(sigs) | set(decs):
+        if sigs.get(name, 0) >= 15:
+            out[name] = 0.0
+        elif name in decs:
+            out[name] = 10.0 ** (-decs[name])
+        else:
+            out[name] = 10.0 ** (-default_decimals)
+    return out
+
+
+def printed_abs_tol(path, default_decimals: int = 10) -> float:
+    """파일 전체 한 값이 필요할 때 — 열별 한계의 **최솟값**(가장 빡빡한 열)."""
+    tols = printed_abs_tols(path, default_decimals)
+    return min(tols.values()) if tols else 10.0 ** (-default_decimals)
 
 
 def cmd_eval(args):
@@ -605,13 +628,20 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
     (옛 산출은 rmse 두 열뿐이다).
     """
     m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
-    atol = printed_abs_tol(matlab_csv)
+    atols = printed_abs_tols(matlab_csv)
+    atol = min(atols.values()) if atols else 1e-10
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
-    print(f"  (적힌 자리수가 허용하는 절대 한계 {atol:.1e} — 이보다 작은 차이는"
-          f" 두 구현의 차이가 아니라 출력 반올림이다)")
+    print("  (열별로 적힌 자리수가 허용하는 절대 한계: "
+          + ", ".join(f"{k} {v:.0e}" if v else f"{k} 전정밀도" for k, v in atols.items())
+          + " — 그 안의 차이는 두 구현의 차이가 아니라 출력 반올림이다)")
+    # ⚠ 2026-09-11 Codex R2-01: 전 판은 비교하지 **않은** 셀(행 누락·격자 불일치·
+    #   NaN)도 "전부 일치" 로 인증했다. 이제 기대 셀 수와 실제 비교한 셀 수를 세고,
+    #   하나라도 못 비교했으면 성공 문장을 내지 않는다.
+    result = {"status": "complete", "expected": 0, "compared": 0, "problems": [],
+              "worst_rel": 0.0, "first_bad": None}
     if not m_anchors and not m_rows:
         print("  ! 읽을 내용이 없다 — 경로가 맞나?")
-        return
+        result.update(status="empty"); return result
 
     def rel(a, b):
         return abs(a - b) / max(abs(b), 1e-30)
@@ -642,26 +672,37 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
         shared = ["rmse_pocv", "rmse_dvdq"]        # 헤더 없는 아주 옛 산출
         print("  (헤더가 없다 — 앞 두 열만 rmse 로 본다)")
     missing = [c for c in py_vals if c not in shared]
+    schema_partial = bool(missing)
     if missing:
         print(f"  (MATLAB 산출에 없는 열은 건너뛴다: {', '.join(missing)}"
-              f" — 옛 dd_eval.m 산출이다)")
+              f" — 옛 dd_eval.m 산출이다 → **부분 대조**)")
+    result["expected"] = len(py_P) * len(shared)
+    hard = result["problems"]
     if len(m_rows) != len(py_P):
-        print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_P)}")
-    else:
+        print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_P)} — 대조 미완")
+        hard.append(f"행 수 {len(m_rows)} vs {len(py_P)}")
+    n_rows = min(len(m_rows), len(py_P))
+    if n_rows:
         head = "  " + f"{'p 행':<5}" + "".join(f"{c + ' 상대차':>22}" for c in shared) + "   판정"
         print(head)
-        for i, mr in enumerate(m_rows):
+        for i, mr in enumerate(m_rows[:n_rows]):
             if max(abs(mr[j] - py_P[i][j]) for j in range(5)) > 1e-6:
-                print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다")
+                print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다 (이 행은 비교하지 않았다)")
+                hard.append(f"행 {i} 파라미터 불일치")
                 continue
             cells, eff = [], 0.0
             for c in shared:
                 j = m_header.index(c) if m_header else (5 + shared.index(c))
                 mv, pv = mr[j], py_vals[c][i]
+                if not (np.isfinite(mv) and np.isfinite(pv)):
+                    cells.append(f"{'비유한':>22}")
+                    hard.append(f"행 {i} {c} 비유한")
+                    continue
                 r = rel(mv, pv)
                 cells.append(f"{r:>22.2e}")
-                # 적힌 자리수 안이면 "차이" 가 아니다
-                if abs(mv - pv) > atol:
+                result["compared"] += 1
+                # 적힌 자리수 안이면 "차이" 가 아니다 — **그 열의** 한계로
+                if abs(mv - pv) > atols.get(c, atol):
                     eff = max(eff, r)
             worst_row = max(worst_row, eff)
             if eff == 0.0:
@@ -673,32 +714,48 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
             print(f"  {i:<5}" + "".join(cells) + f"   {verdict}")
 
     print()
+    result["worst_rel"] = worst_row
+    result["first_bad"] = first_bad
+    tag = f"판정(부분 — 열 {len(shared)}/{len(py_vals)}):" if schema_partial else "판정:"
     if first_bad:
         k, stage = first_bad
         print(f"판정: **{k}** 에서 처음 갈린다 → 범인 단계는 「{stage}」")
         print("      그 앞 앵커는 맞았으므로 그 앞 단계는 용의선상에서 빠진다.")
+        result["status"] = "anchor_mismatch"
+    elif hard:
+        print(f"판정: **대조 미완 — 성공 아님** (비교한 셀 {result['compared']}/{result['expected']}).")
+        for pmsg in hard[:12]:
+            print(f"      - {pmsg}")
+        print("      비교하지 못한 셀이 있으면 이 파일로는 '일치' 를 말할 수 없다.")
+        result["status"] = "incomplete"
     elif worst_row > MODEL_REL:
-        print(f"판정: 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
+        print(f"{tag} 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
         print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
+        result["status"] = "model_mismatch" + ("_partial" if schema_partial else "")
     elif worst_row > 0.0:
-        n_rmse = len(m_rows) * len(shared)
-        print(f"판정: 앵커 {len(m_anchors)}개가 전부 맞고, rmse {n_rmse}개는")
+        n_rmse = result["compared"]
+        print(f"{tag} 앵커 {len(m_anchors)}개가 전부 맞고, rmse {n_rmse}개는")
         print(f"      **적힌 자리수보다는 크고 {MODEL_REL:.0e} 보다는 작은**")
         print(f"      차이만 남는다 (최대 상대차 {worst_row:.2e}).")
         print(f"      이 파일은 {atol:.0e} 까지 담으므로 이건 출력 반올림이 아니라")
         print("      **실제 수치 차이**다 — 같은 식을 MATLAB 과 Python 으로 각각")
         print("      쓰면 남는 양(평활·보간·누산 순서)이고, 모델의 차이가 아니다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
+        if schema_partial:
+            result["status"] = "complete_partial_schema"
     else:
-        n_rmse = len(m_rows) * len(shared)
-        print(f"판정: 앵커 {len(m_anchors)}개와 rmse {n_rmse}개가"
+        n_rmse = result["compared"]
+        print(f"{tag} 앵커 {len(m_anchors)}개와 rmse {n_rmse}개가"
               f" **적힌 자리수 안에서 전부 일치**.")
+        if schema_partial:
+            result["status"] = "complete_partial_schema"
         print(f"      남은 차이는 전부 CSV 출력 반올림({atol:.0e}) 안이다 —")
         print("      이 파일로는 그보다 정밀하게 비교할 수 없다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
 
 
 # ── D. scale 비결정성 ──────────────────────────────────────────────────
+    return result
 
 def cmd_scale_noise(args):
     root = D.data_root(args.data_root)
@@ -870,7 +927,7 @@ def cmd_profile(args):
     gammas = np.linspace(LB5[4], UB5[4], args.grid)
     per_gamma_scale = getattr(args, "profile_scale", "global") == "per-gamma"
     global_scales = dict(obj.scales)
-    rows = []
+    rows, skipped = [], []
     for g in gammas:
         if per_gamma_scale:
             # MATLAB 검증기 절차: lb(5)=ub(5)=g 를 넘겨서 fit 을 부르므로,
@@ -887,15 +944,27 @@ def cmd_profile(args):
         rng = np.random.default_rng(args.seed)
         starts = [best[:4]] + list(LB5[:4] + rng.random((args.starts, 4))
                                    * (UB5[:4] - LB5[:4]))
+        # ⚠ 2026-09-11 Codex R2-03: 이 loop 는 multistart 의 success 필터를 안 받아
+        #   비정상 종료 결과를 완료 적합처럼 저장했다 (리뷰 A3 의 미종결 경로).
+        #   같은 정책으로 거르고, 시도/성공 수를 행에 남기며, 전부 실패한 γ 는
+        #   저장하지 않는다.
+        n_tried = n_ok = 0
         for s in starts:
+            n_tried += 1
             try:
                 r = minimize(f, s, method="L-BFGS-B", bounds=bnds,
                              options={"maxiter": 400, "ftol": 1e-12})
             except Exception:                            # noqa: BLE001
                 continue
-            if np.isfinite(r.fun) and r.fun < bv:
+            if not np.isfinite(r.fun) or not bool(getattr(r, "success", True)):
+                continue
+            n_ok += 1
+            if r.fun < bv:
                 bv, bx = float(r.fun), r.x.copy()
         if bx is None:
+            print(f"[profile] γ={g:.4f}: 시작점 {n_tried}개 전부 실패 (not_success/비유한) — "
+                  f"이 γ 는 저장하지 않는다 (skipped)", flush=True)
+            skipped.append(float(g))
             continue
         p = np.array([bx[0], bx[1], bx[2], bx[3], g])
         m = degradation_modes(ref_p, ref.c_cell, p, obj.c_cell)
@@ -907,7 +976,8 @@ def cmd_profile(args):
                      "bounds": ",".join(active_bounds(p)) or "-",
                      "LAM_PE_pct": m["LAM_PE"] * 100,
                      "LAM_NE_pct": m["LAM_NE"] * 100,
-                     "LLI_pct": m["LLI"] * 100})
+                     "LLI_pct": m["LLI"] * 100,
+                     "n_ok": n_ok, "n_tried": n_tried})
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]
@@ -928,18 +998,21 @@ def cmd_profile(args):
                "gamma_inside_tol": [float(min(r["gamma_Si"] for r in inside)),
                                     float(max(r["gamma_Si"] for r in inside))]
                if inside else None,
-               "n_inside": len(inside)}
+               "n_inside": len(inside),
+               "gamma_all_failed": skipped}
     for k in ("a_NE", "LAM_NE_pct", "LAM_PE_pct", "LLI_pct"):
         if inside:
             v = np.array([r[k] for r in inside], dtype=float)
             summary[k + "_span_inside_tol"] = float(v.max() - v.min())
     print("\nSUMMARY " + json.dumps(summary, ensure_ascii=False, default=float))
-    if args.out:
+    if args.out and rows:
         import csv
         with open(args.out, "w", newline="", encoding="utf-8") as fh:
             w_ = csv.DictWriter(fh, fieldnames=list(rows[0]))
             w_.writeheader(); w_.writerows(rows)
         print(f"wrote {args.out}")
+    elif args.out:
+        print(f"[profile] 저장할 행이 없다 (모든 γ 가 실패) — {args.out} 를 쓰지 않는다")
 
 
 

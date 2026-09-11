@@ -1182,8 +1182,8 @@ def test_ne_shape_writes_an_artifact_carrying_the_capacity_caveat(tmp_path):
     같이 들고 있어야 그 한정어가 숫자에서 안 떨어진다.
     """
     m = _load_script("ne_shape")
-    rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935),
-            ("300_0009", 119.34, 18.17, 0.152, 70.5, 21.7, 0.2397)]
+    rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935, 0.2953),
+            ("300_0009", 119.34, 18.17, 0.152, 70.5, 21.7, 0.2397, 0.2953)]
     cap = {"pristine": 1.0, "100": 0.9247, "300_0009": 0.7271}
     a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
     art = m._write_csv(tmp_path, a, rows, cap, cap["pristine"],
@@ -1194,7 +1194,7 @@ def test_ne_shape_writes_an_artifact_carrying_the_capacity_caveat(tmp_path):
     assert "cap_delta_pct" in got[0], "용량 변화 칸이 없다 — 한정어가 떨어진다"
     assert abs(float(got[1]["cap_delta_pct"]) - (-27.29)) < 0.01
     assert abs(float(got[1]["measured_shape_mV"]) - 119.34) < 0.01
-    assert abs(float(got[0]["gamma_ref"]) - 0.2935) < 1e-6, \
+    assert abs(float(got[0]["gamma_target"]) - 0.2935) < 1e-6, \
         "γ 칸이 비어 있다 — rows 에서 안 넘어온다"
     assert abs(float(got[0]["max_at_x"]) - 0.020) < 1e-6
 
@@ -1232,7 +1232,7 @@ def test_git_state_ignores_untracked_artifacts(tmp_path):
 
 def test_ne_shape_artifact_uses_lf_and_provenance_helper(tmp_path):
     m = _load_script("ne_shape")
-    rows = [("100", 1.0, 0.5, 0.5, 10.0, 2.0, 0.3)]
+    rows = [("100", 1.0, 0.5, 0.5, 10.0, 2.0, 0.3, 0.29)]
     a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
     art = m._write_csv(tmp_path, a, rows, {"pristine": 1.0, "100": 0.9}, 1.0, {})
     assert b"\r" not in art.read_bytes(), "CSV 가 CRLF 다 — 저장소 산출은 LF"
@@ -1269,7 +1269,8 @@ def test_section_1_12_and_5_2_ne_shape_tables_match_the_csv():
     t = _table_rows(sec, states, header_has="γ 가 만든 변화")
     assert len(t) == 3, f"§5-2 의 표를 못 찾았다: {sorted(t)}"
     for st, c in t.items():
-        want = [R[st]["cap_delta_pct"], R[st]["gamma_ref"], R[st]["measured_shape_mV"],
+        want = [R[st]["cap_delta_pct"], R[st].get("gamma_target", R[st]["gamma_ref"]),
+                R[st]["measured_shape_mV"],
                 R[st]["gamma_shape_mV"], R[st]["ratio_b_over_a"]]
         tol = [0.005, 0.00005, 0.005, 0.005, 0.005]
         for i, (cell, w, e) in enumerate(zip(c, want, tol)):
@@ -1327,3 +1328,147 @@ def test_degeneracy_json_records_its_settings():
     src = inspect.getsource(verify.cmd_degeneracy)
     assert '"n_starts": args.starts' in src and '"seed": args.seed' in src, \
         "cmd_degeneracy 가 starts/seed 를 산출에 안 남긴다"
+
+
+# ═══ R2 (Codex 2차, NO-GO) 반례 — reviews/R2_LEDGER.md 의 C3·C4·C5·C10·C12·C18 ═══
+
+def _r2_csv(tmp, anchors, cols, rows, fmt=".17g"):
+    lines = [f"# {k},{v:.17g}" for k, v in anchors.items()]
+    lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
+    lines.extend(",".join(format(x, fmt) for x in r) for r in rows)
+    p = pathlib.Path(tmp) / "r2.csv"; p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return p
+
+
+def _r2_base():
+    from bms_balancing.verify import ANCHOR_STAGE, DD_EVAL_P
+    anchors = {k: 1.0 for k, _ in ANCHOR_STAGE}; anchors["dv_n"] = 350.0
+    cols = ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"]
+    P = [list(p) for p in DD_EVAL_P]
+    py = {c: [0.0123456789012345 * (j + 1) + 0.001 * i for i in range(len(P))]
+          for j, c in enumerate(cols)}
+    rows = [p + [py[c][i] for c in cols] for i, p in enumerate(P)]
+    return anchors, cols, P, py, rows
+
+
+def _r2_run(anchors, P, py, path):
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        res = verify._compare_dd_eval(anchors, P, py, path)
+    return res, buf.getvalue()
+
+
+def test_r2_01_comparator_does_not_certify_uncompared_cells(tmp_path):
+    """[Codex R2-01] 행 누락·격자 불일치·NaN 을 "전부 일치" 로 인증하면 안 된다.
+
+    재현 원본: reviews/r2_repros/harness_r2_port_repros.py::comparator_probes.
+    abfed8b 에서 세 경우 모두 "… 전부 일치" 가 찍혔다 (rmse 28개 / 32개 / 32개).
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    ok_res, ok_txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, rows))
+    assert "전부 일치" in ok_txt and ok_res["status"] == "complete", ok_txt
+
+    cases = {}
+    r = [x.copy() for x in rows]; r.pop(); cases["missing_last_row"] = r
+    r = [x.copy() for x in rows]; r[3][0] += 0.05; r[3][5:] = [9.0] * 4; cases["wrong_parameter_row"] = r
+    r = [x.copy() for x in rows]; r[3][5:] = [float("nan")] * 4; cases["nan_rmse_row"] = r
+    for name, r in cases.items():
+        res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, r))
+        assert "전부 일치" not in txt, f"{name}: 비교 안 한 값을 일치로 인증했다\n{txt}"
+        assert res["status"] != "complete" and res["compared"] < res["expected"], (name, res)
+        assert "성공 아님" in txt or "미완" in txt, (name, txt)
+
+
+def test_r2_02_short_exact_token_does_not_relax_file_tolerance(tmp_path):
+    """[Codex R2-02] `%.17g` 파일의 정확한 `1.5` 하나가 파일 전체 atol 을 0.1 로 만들면 안 된다.
+
+    abfed8b: printed_abs_tol → 0.1, 다른 행 pOCV 163 % 차이가 "전부 일치".
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    rows[0][7] = 1.5; py["rmse_dqdv"][0] = 1.5           # 정확한 짧은 토큰
+    rows[3][5] += 0.025                                    # 다른 행, 상대 163 %
+    path = _r2_csv(tmp_path, anchors, cols, rows)
+    tol = verify.printed_abs_tol(path)
+    assert tol < 1e-14, f"짧은 토큰이 파일 한계를 {tol:.0e} 로 끌어올렸다"
+    res, txt = _r2_run(anchors, P, py, path)
+    assert "전부 일치" not in txt, "163 % 차이를 자리수 안이라고 덮었다\n" + txt
+    assert "모델 차이" in txt or "목적함수 산술" in txt, txt
+
+
+def test_r2_03_profile_does_not_store_failed_optimizer_rows(tmp_path, monkeypatch):
+    """[Codex R2-03] `cmd_profile` 은 multistart 와 달리 success 를 안 봤다 — A3 미종결 경로.
+
+    abfed8b: 4 회 전부 실패한 γ 두 점이 완료 적합처럼 저장됐다 (LAM_NE −16.67 %).
+    """
+    import csv as _csv
+    center = np.array([1.2, -0.25, 1.2, -0.15, 0.25])
+
+    class Obj:
+        c_cell = 1.0; scales = {"pocv": 1.0, "dvdq": 1.0, "dqdv": 1.0}; n_scale_samples = 1
+        def __call__(self, p): return float(1.0 + 1e-4 * np.square(np.asarray(p) - center).sum())
+        def rmse_pocv(self, p): return float(self(p))
+        def _auto_scales(self, *a, **k): return dict(self.scales)
+    failed = []
+    def nonconverged(fun, start, **kw):
+        x = np.array([1.2, -0.25, 1.4, -0.15]); v = float(fun(x)); failed.append(v)
+        return SimpleNamespace(x=x, fun=v, success=False, status=1, message="ITERATIONS LIMIT")
+    monkeypatch.setattr(verify.D, "data_root", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(verify, "build", lambda *a, **k: Obj())
+    monkeypatch.setattr(verify, "multistart", lambda *a, **k: (center.copy(), 1.0, []))
+    monkeypatch.setattr(verify, "minimize", nonconverged)
+    out = tmp_path / "p.csv"
+    args = SimpleNamespace(data_root=str(tmp_path), source="GITT", state="200", si_source="Li",
+                           w_dqdv=0.0, seed=0, starts=1, grid=2, tol=0.01,
+                           profile_scale="global", out=str(out))
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        verify.cmd_profile(args)
+    assert len(failed) == 4
+    rows = list(_csv.DictReader(out.open(encoding="utf-8"))) if out.is_file() else []
+    assert not rows, f"전부 실패한 γ 가 완료 적합처럼 저장됐다: {rows}"
+    assert "실패" in buf.getvalue() or "not_success" in buf.getvalue() or "skipped" in buf.getvalue()
+
+
+def test_r2_04_compare_states_prints_min_max_not_plus_minus():
+    """[Codex R2-04] `best ± span/2` 는 best 를 중점처럼 보이게 한다 — best 는 경계해에서 끝점이다.
+
+    c168 300_0009 LAM_NE: 산출 [2.30, 11.00], 표시 `2.30±4.35` → 암시 [−2.05, 6.65].
+    """
+    if not (ROOT / "out" / "cells_c168").is_dir():
+        pytest.skip("산출 없음")
+    import io, contextlib, subprocess, sys as _s
+    r = subprocess.run([_s.executable, str(ROOT / "scripts" / "compare_states.py"),
+                        f"c168={ROOT / 'out' / 'cells_c168'}"], capture_output=True, text=True)
+    a_axis = r.stdout.split("B. 모델 선택")[0]
+    assert "±" not in a_axis, "A축 표가 아직 ± 로 찍힌다"
+    assert "2.30 [2.30, 11.00]" in a_axis, a_axis
+
+
+def test_r2_10_ne_shape_csv_carries_both_gammas(tmp_path):
+    """[Codex R2-10] `gamma_ref` 열에 대상 γ 를 썼다. 두 역할을 따로 저장해야 한다."""
+    m = _load_script("ne_shape")
+    rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935, 0.2953)]
+    a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")
+    art = m._write_csv(tmp_path, a, rows, {"pristine": 1.0, "100": 0.9}, 1.0, {})
+    got = next(csv.DictReader(art.open(encoding="utf-8")))
+    assert abs(float(got["gamma_target"]) - 0.2935) < 1e-9 and abs(float(got["gamma_ref"]) - 0.2953) < 1e-9
+    committed = ROOT / "out" / "ne_shape_GITT_Li.csv"
+    if committed.is_file():
+        hdr = committed.open(encoding="utf-8").readline()
+        assert "gamma_target" in hdr, (
+            "커밋된 ne_shape CSV 가 구판 스키마다 (gamma_ref 에 대상 γ) — "
+            "사용자 기계에서 `python3 scripts/ne_shape.py` 를 다시 돌려 커밋해야 한다 (C18)")
+
+
+def test_r2_09_audit97_reports_per_row_thresholds_not_a_single_cutoff():
+    """[Codex R2-09] "1.20 아래로 잡았으면 음수 불가" 는 틀렸다 — 행별 임계 1.177~1.196, 고정-기준 조건."""
+    if not (ROOT / "out" / "bms97").is_dir():
+        pytest.skip("원표 없음")
+    import subprocess, sys as _s
+    r = subprocess.run([_s.executable, str(ROOT / "scripts" / "audit97.py")],
+                       capture_output=True, text=True)
+    assert "나올 수 없었다" not in r.stdout, r.stdout[-600:]
+    assert "1.177" in r.stdout and "1.196" in r.stdout, r.stdout[-800:]
+    assert "기준" in r.stdout and "고정" in r.stdout

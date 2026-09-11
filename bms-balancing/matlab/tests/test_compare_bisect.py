@@ -78,7 +78,10 @@ def main():
     # 3) 파라미터 격자가 어긋나면 알아채야 한다
     r3 = [list(r) for r in ROWS]
     r3[2][0] += 0.05
-    expect("p 격자 어긋남 감지", run(tmp, BASE, r3), ["격자가 어긋났다"])
+    expect("p 격자 어긋남 감지 → 성공 아님", run(tmp, BASE, r3),
+           ["격자가 어긋났다", "성공 아님"], ["전부 일치"])          # Codex R2-01
+    expect("행 누락 → 성공 아님", run(tmp, BASE, [list(r) for r in ROWS[:-1]]),
+           ["행 수가 다르다", "성공 아님"], ["전부 일치"])          # Codex R2-01
 
     # 4) 앞머리 없는 옛 산출도 죽지 않아야 한다
     old = pathlib.Path(str(tmp) + ".old")

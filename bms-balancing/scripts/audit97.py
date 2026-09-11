@@ -83,8 +83,9 @@ def mode_arithmetic(rows: list) -> dict:
     맞으면 그 다음이 따라온다: LAM_NE < 0 이려면
         a_NE / a_NE_ref  >  c_ref / c
     이어야 한다. `300_0009` 는 c_ref/c = 74.671/63.72 = 1.1718 이므로,
-    기준이 a_NE_ref≈1.02 로 자유로울 때 **대상의 a_NE 가 1.20 을 넘어야**
-    음수가 나온다. 상자 상한이 1.4 라 그 자리가 열려 있다.
+    기준이 자유로울 때 대상의 a_NE 가 **행별 임계 a_NE_ref·c_ref/c (1.177~1.196)** 를
+    넘어야 음수가 나온다. 상자 상한이 1.4 라 그 자리가 열려 있다. 이것은 기준을
+    고정한 조건의 부호 산술이지 경계 변경 재적합의 인과가 아니다 (R2-09).
     """
     by = {}
     for r in rows:
@@ -169,10 +170,12 @@ def main() -> int:
     print(f"\n  LAM_NE < −10 % 인 {len(strong)} 행 중 "
           f"**대상만 상한에 붙고 기준은 자유**인 행: {n_ub}")
     if strong:
-        need = max(d["need"] * d["a_NE_ref"] for d in strong)
-        print(f"  그 행들에서 음수가 되려면 a_NE 가 {need:.3f} 을 넘어야 한다."
-              f" 상자 상한은 1.400 이다.")
-        print(f"  → 상한을 {need:.2f} 아래로 잡았으면 **이 음수는 나올 수 없었다.**")
+        th = sorted(d["need"] * d["a_NE_ref"] for d in strong)
+        print(f"  행별 영점 임계 a_NE = {th[0]:.3f} ~ {th[-1]:.3f} (= a_NE_ref·c_ref/c; 상자 상한 1.400).")
+        print("  ⚠ 이것은 **기준 적합을 고정한** 조건에서의 부호 산술이다 (Codex R2-09 · L5-F5).")
+        print("    상한을 바꿔 양쪽을 재적합하면 어떻게 되는지는 말하지 않는다 — 활성 상한에서")
+        print("    무제약 최적은 더 음수일 수 있고, 그러면 상한은 음수를 만든 것이 아니라 잘라 준 것이다.")
+        print("    '상한을 낮추면 음수가 안 나온다' 는 원인 서술이 아니라 은폐 절차다.")
 
     if "--rows" in sys.argv:
         print(f"\n{'파일':30}{'행':>3} {'state':10}{'LAM_NE':>9}  경계")
