@@ -1486,7 +1486,7 @@
     ]
    },
    "title": "볼밀 LPSCl@Li₂S 계면상 — Li-S 전지용 (보고량 카드 · 결과 보기 전 봉인)",
-   "statement": "3층 설계. **0층(지금)**: ΔE_rxn(x) = [E(생성물) − E((1−x)Li₆PS₅Cl + x·Li₂S)]/N_atoms 를 `convex_hull_ehull.py --mode uma`(UMA 내부 일관 hull)로 낸다. 문턱 ±25 meV/atom — A: ≤−25 새 상 생성 · B: |·|<25 무차별 · C: ≥+25 반응 안 함. 1층: melt-quench 비정질 계면상(NPT, 담금질 시드 N≥5, 중앙값+산포). 2층: Ea(계면상) vs Ea(bulk LPSCl) vs Ea(bulk Li₂S), 전부 UMA-s-1p1 · Langevin NVT · MSD 창 2–50 ps · 600/800/1000 K. ⛔ 절대 σ 인용 금지.",
+   "statement": "3층 설계. **0층**: host = **comp1**(Li₆PS₅Cl, `db/structures/comp1_V0_k444.cif`, Li24P4S20Cl4 cubic a=10.0551) + Li₂S(`sei_li2s_mp-1153.cif`). 1저자 지정 조성 **Li₂S:LPSCl = 3:5 무게비** → x_Li2S = **0.778**(Li₂S 가 가벼워 몰로는 약 4:1). ΔE_rxn(x) = E_hull(c(x)) − [(1−x)e_A + x·e_B] 를 `convex_hull_ehull.py --mode uma --tieline` 로 x ∈ {0.10, 0.25, 0.50, 0.778, 0.90} 에서 낸다. 판정: **ΔE ≤ −25 meV/atom → 새 상 생성** · **|ΔE| < 25 → tie-line = 이상 공존, 새 결정상 없음** · **ΔE > +25 → 끝점이 hull 위에 없다(판정 아님, 게이트 위반 신호)**. 1층: melt-quench 비정질(NPT, 담금질 시드 N≥5, 중앙값+산포). 2층: Ea(계면상) vs Ea(bulk LPSCl) vs Ea(bulk Li₂S), UMA-s-1p1 · Langevin NVT · MSD 창 2–50 ps · 600/800/1000 K. ⛔ 절대 σ 인용 금지.",
    "rationale": "Li₆PS₅Cl 은 원래 Li₂S + P₂S₅ + LiCl 볼밀 산물이라 Li₂S 와 같은 삼원계 안에 있다 — 새 상이 있다면 이 계 안이다. Li-S 전지에서 Li₂S 활물질은 그 자체로 이온전도가 거의 없어, 계면 전도상 여부가 복합체 수송을 가른다.",
    "decision_state": "proposed",
    "record_kind": "prospective",
@@ -1499,7 +1499,7 @@
    ],
    "method_ref": "0층 UMA 단일점 → PhaseDiagram(내부 일관) → ΔE_rxn · 분해 생성물 목록",
    "reopen_criteria": "0층이 C(반응 안 함)로 나와도 **비정질 계면층 가설은 기각되지 않는다** — 볼밀은 비평형이고 0층은 결정 평형만 답한다. 반대로 0층 음성을 '그래도 뭔가 있을 것' 으로 무한정 미루지도 않는다: 1층은 카드 §4-1층 관문을 통과해야 시작한다.",
-   "enforcement": "⛔ 던지기 전 두 칸을 채운다 — §1-b 의 `실제_조성_농도`(볼밀 몰비 x)와 `host`(modelc vs LPSCl1.6 중 어느 LPSCl 인가). 비면 보고량이 정의되지 않는다. 그리고 0층 대조 잡(UMA hull 이 Li₆PS₅Cl·Li₂S·LiCl·Li₃PS₄ 의 안정성을 재현하는가)을 **우리 조성을 보기 전에** 통과해야 한다.",
+   "enforcement": "✅ §1-b 두 칸 채워짐(host=comp1 · x=0.778). 0층 대조 잡: UMA hull 이 Li₆PS₅Cl·Li₂S·LiCl·Li₃PS₄ 의 안정성을 재현하는지 **우리 조성을 보기 전에** 통과해야 한다 (Li₆PS₅Cl 의 E_above_hull ≲ 25 meV/atom). 불통과면 0층 결과를 쓰지 않고 `dft_decomp_check.py` 의 공통 분해상 기저로 DFT 대조를 붙인다.",
    "proposed_by": "claude-session-2026-09-11",
    "status": "proposed",
    "status_history": [
@@ -1507,6 +1507,11 @@
      "at": "2026-09-11",
      "state": "proposed",
      "note": "1저자 ratify 전에는 던지지 않는다. ⏳ §1-b 두 칸(조성 x · host)이 비어 있고, 채우는 것이 비준의 일부다."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "proposed",
+     "note": "1저자 지정 반영(host=comp1 · 3:5 wt → x=0.778). ⛔ 초판 statement 의 판정 갈래 'ΔE ≥ +25 → 반응 안 함' 은 **볼록 hull 에서 일어날 수 없는 경우**였다 — 끝점이 둘 다 hull 위면 ΔE ≤ 0 이 구조적으로 보장된다. '반응 안 함' 은 ΔE ≈ 0(tie-line)이고 양수는 끝점 이상 신호다. **결과를 보기 전에** 고쳤다."
     }
    ]
   }

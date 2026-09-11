@@ -32,9 +32,96 @@ def get_mp_entries(elements, key):
     return ents
 
 
+def tieline_points(xs, compA, nA, eA_tot, compB, nB, eB_tot, hull_fn):
+    """유사이원계 (1−x)·A + x·B 선을 훑어 **반응에너지** ΔE_rxn(x) 를 낸다.
+
+        ΔE_rxn(x) = E_hull(c(x)) − [(1−x)·e_A + x·e_B]      [eV/atom]
+
+    c(x) 는 **1 원자로 정규화한** 조성이므로 `hull_fn` 이 그 조성의 hull 에너지를
+    돌려주면 곧바로 원자당 값이다.
+
+    ⛔ 부호를 읽는 법 — 이걸 모르면 결과를 거꾸로 읽는다:
+      · A·B 가 **둘 다 hull 위**면 볼록성 때문에 ΔE ≤ 0 이 **구조적으로 보장**된다.
+        따라서 "양수가 나오면 반응 안 함" 은 틀린 해석이다.
+      · ΔE ≈ 0  → A–B 가 hull 의 **tie-line** 이다 = 사이에 안정한 중간상이 없다
+                  = **이상(二相) 공존**. 이것이 '새 결정상 없음' 이다.
+      · ΔE < 0  → 직선 아래에 중간상이 있다 = **새 상 생성**. 무엇인지는
+                  `decomp_fn` (호출부)이 따로 답한다.
+      · ΔE > 0  → **양 끝점이 hull 위에 없다**(우리 구조가 준안정). 판정이 아니라
+                  게이트 위반 신호다 — 그대로 쓰지 말고 끝점 E_above_hull 부터 본다.
+        ⇒ 그래서 이 함수는 양수를 **조용히 넘기지 않고** `endpoints_off_hull` 로 표시한다.
+
+    ⛔ 이 함수가 못 하는 것
+      · hull 을 만들지 않는다 (`hull_fn` 을 받는다 — 그래서 pymatgen 없이 시험 가능)
+      · 생성물이 **무엇인지** 답하지 않는다 (분해 목록은 호출부)
+      · 비평형(볼밀·비정질)을 답하지 않는다 — 결정 평형만이다
+    """
+    aA = {el: v / nA for el, v in compA.items()}
+    aB = {el: v / nB for el, v in compB.items()}
+    eA, eB = eA_tot / nA, eB_tot / nB
+    out = []
+    for x in xs:
+        c = {el: (1 - x) * aA.get(el, 0.0) + x * aB.get(el, 0.0)
+             for el in set(aA) | set(aB)}
+        eref = (1 - x) * eA + x * eB
+        ehull = hull_fn(c)
+        d = (ehull - eref) * 1000.0
+        out.append({"x": round(x, 4), "comp_per_atom": {k: round(v, 6) for k, v in c.items()},
+                    "E_unreacted_mix_per_atom_eV": eref, "E_hull_per_atom_eV": ehull,
+                    "dE_rxn_meV_per_atom": d,
+                    "endpoints_off_hull": bool(d > 1.0)})
+    return out
+
+
+def _selftest_tieline():
+    ok = bad = 0
+    def chk(c, m):
+        nonlocal ok, bad
+        print(("  \u2b55 " if c else "  \u26d4 ") + m)
+        ok, bad = ok + (1 if c else 0), bad + (0 if c else 1)
+
+    A, nA, eA = {"Li": 6, "P": 1, "S": 5, "Cl": 1}, 13, -13.0    # e/atom = -1.0
+    B, nB, eB = {"Li": 2, "S": 1}, 3, -6.0                        # e/atom = -2.0
+    line = lambda c, xs=None: None
+    def hull_on_line(c):      # hull 이 직선과 정확히 같다 = tie-line
+        x = c["Li"]           # 아래 산술로 x 를 되뽑지 않고 직접 계산한다
+        return None
+    # 직선 위 hull: eref 를 그대로 돌려주는 hull_fn 을 x 로부터 만든다
+    xs = [0.0, 0.25, 0.5, 0.75, 1.0]
+    ref = [(1 - x) * (eA / nA) + x * (eB / nB) for x in xs]
+    it = iter(ref)
+    r0 = tieline_points(xs, A, nA, eA, B, nB, eB, lambda c: next(it))
+    chk(all(abs(r["dE_rxn_meV_per_atom"]) < 1e-9 for r in r0),
+        "hull 이 직선과 같으면 \u0394E = 0 (tie-line = 이상 공존)")
+    # ⚠ `comp_per_atom` 은 **출력용으로 round(…,6)** 된 값이다. 원소 4종이면 합의
+    #   오차가 최대 2e-6 이라 1e-9 로 재면 통과할 수가 없다 — 첫 판에 이걸로 실패했다.
+    chk(all(abs(sum(r["comp_per_atom"].values()) - 1.0) < 5e-6 for r in r0),
+        "조성이 모든 x 에서 1 원자로 정규화된다 (출력 반올림 허용오차 5e-6)")
+    chk(r0[0]["comp_per_atom"]["Cl"] > 0 and r0[-1]["comp_per_atom"].get("Cl", 0) == 0,
+        "x=0 은 A(Cl 있음) · x=1 은 B(Cl 없음)")
+    it2 = iter([v - 0.05 for v in ref])
+    r1 = tieline_points(xs, A, nA, eA, B, nB, eB, lambda c: next(it2))
+    chk(all(abs(r["dE_rxn_meV_per_atom"] + 50.0) < 1e-6 for r in r1),
+        "hull 이 직선보다 50 meV/atom 낮으면 \u0394E = \u221250 (새 상 생성)")
+    chk(not any(r["endpoints_off_hull"] for r in r1),
+        "\u26d4음성: 음수 \u0394E 를 끝점 이상으로 오인하지 않는다")
+    it3 = iter([v + 0.05 for v in ref])
+    r2 = tieline_points(xs, A, nA, eA, B, nB, eB, lambda c: next(it3))
+    chk(all(r["endpoints_off_hull"] for r in r2),
+        "\u26d4음성: 양수 \u0394E 는 **끝점이 hull 위에 없다**로 표시한다 (판정으로 쓰지 않는다)")
+    print(f"tieline selftest: \u2b55 {ok} \u00b7 \u26d4 {bad}")
+    return 0 if bad == 0 else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cif", required=True, nargs="+",
+    ap.add_argument("--selftest", action="store_true",
+                    help="tie-line 산술만 시험한다 (pymatgen·UMA·MP 불필요)")
+    ap.add_argument("--tieline", nargs=2, type=int, metavar=("iA", "iB"),
+                    help="--cif 목록의 두 인덱스를 유사이원계 끝점으로 삼아 dE_rxn(x) 를 낸다")
+    ap.add_argument("--x", nargs="+", type=float, default=[0.10, 0.25, 0.50, 0.75, 0.90],
+                    help="tie-line 을 훑을 x (B 쪽 몰분율)")
+    ap.add_argument("--cif", nargs="+",
                     help="구조 파일 1개 이상. **여러 개를 주면 경쟁상 hull 을 한 번만 "
                          "만들어 재사용한다** — 같은 chemsys 를 구조마다 다시 도는 것은 "
                          "GPU 시간 낭비이고, 다른 GPU 런과 같이 돌 때는 위험까지 된다.")
@@ -49,6 +136,10 @@ def main():
                     help="이 프로세스의 VRAM 상한 (예: 0.10). 다른 UMA 런과 같이 돌 때 "
                          "**이쪽이 먼저 죽게** 만들어 기존 런을 지킨다.")
     args = ap.parse_args()
+    if args.selftest:
+        raise SystemExit(_selftest_tieline())
+    if not args.cif:
+        ap.error('--cif 가 필요하다 (--selftest 제외)')
     key = os.environ.get("MP_API_KEY")
     if not key:
         raise SystemExit("set MP_API_KEY env var")
