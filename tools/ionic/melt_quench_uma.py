@@ -177,10 +177,23 @@ def partial_gr(sym, pos, cell, pairs=(("P", "S"), ("S", "S"), ("Li", "S"), ("Li"
 
 
 # ───────────────────────── ③ MD ─────────────────────────
-def make_calc(device="cuda"):
+def make_calc(device="cuda", turbo=False):
+    """UMA-s-1p1 · omat. turbo=True 면 fairchem 의 MD 용 inference_settings="turbo" 를 시도한다
+    (원자 수·조성이 고정된 MD 전용 · 보통 ~2배). 이 fairchem 판에 없으면 **기본으로 내려가고 화면에 적는다** —
+    조용히 다른 설정으로 돌지 않는다 (결과 파일 plan.json 에 실제 모드를 남긴다)."""
     from fairchem.core import pretrained_mlip
     from fairchem.core.calculate.ase_calculator import FAIRChemCalculator
-    return FAIRChemCalculator(pretrained_mlip.get_predict_unit("uma-s-1p1", device=device), task_name="omat")
+    mode = "default"
+    if turbo:
+        try:
+            pu = pretrained_mlip.get_predict_unit("uma-s-1p1", device=device, inference_settings="turbo"); mode = "turbo"
+        except Exception as e:
+            print(f"⚠ turbo 불가 ({type(e).__name__}: {e}) — 기본 모드로 돈다")
+            pu = pretrained_mlip.get_predict_unit("uma-s-1p1", device=device)
+    else:
+        pu = pretrained_mlip.get_predict_unit("uma-s-1p1", device=device)
+    calc = FAIRChemCalculator(pu, task_name="omat"); calc._mq_mode = mode
+    return calc
 
 
 def schedule(T_melt, T_final, quench_rate_K_s, dt_fs):
@@ -354,6 +367,7 @@ def main():
     ap.add_argument("--dt_fs", type=float, default=2.0)
     ap.add_argument("--save_ps", type=float, default=1.0)
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--turbo", action="store_true", help="fairchem inference_settings='turbo' 시도 (없으면 기본으로 내려가고 기록)")
     ap.add_argument("--out_root", help="출력 루트 → <out_root>/<system>/seed<seed>/")
     ap.add_argument("--dry_run", action="store_true", help="셀만 만들고 계획을 찍는다 (UMA 안 부름)")
     a = ap.parse_args()
@@ -376,7 +390,10 @@ def main():
     print(f"[{a.system} seed{a.seed}] {len(sym)} 원자 · 셀 {cell[0,0]:.2f} Å · 담금질 {quench_ps:.0f} ps ({n_q} 스텝) → {out}")
     if a.dry_run:
         print("dry_run — 여기서 멈춘다"); return
-    calc = make_calc(a.device)
+    calc = make_calc(a.device, a.turbo)
+    plan["uma_inference_mode"] = getattr(calc, "_mq_mode", "default")
+    (out / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
+    print(f"UMA inference mode: {plan['uma_inference_mode']}")
     info = run_melt_quench(at, calc, out, seed=a.seed, T_melt=a.T_melt, T_final=a.T_final, melt_ps=a.melt_ps,
                            quench_rate=a.quench_rate, hold_ps=a.hold_ps, dt_fs=a.dt_fs, save_ps=a.save_ps)
     ind = indicators(at.get_chemical_symbols(), at.get_positions(), np.asarray(at.get_cell()))

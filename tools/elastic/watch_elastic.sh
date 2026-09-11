@@ -75,6 +75,7 @@ fi
 
 echo "════════ $(date '+%m-%d %H:%M:%S')  relaxed-ion Cij — $ROOT ════════"
 if command -v nvidia-smi >/dev/null 2>&1; then
+PW=$(pgrep -af "pw.x" | grep -v "pgrep\|watch_" | head -1); if [ -z "$PW" ]; then echo "■ ⏸ pw.x 없음 — 정지/대기 (아래 '진행' 은 파일 상태일 뿐이다)"; fi
     echo "■ GPU $(nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader | head -1)"
     nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>/dev/null \
         | sed 's/^/     /' | head -5
