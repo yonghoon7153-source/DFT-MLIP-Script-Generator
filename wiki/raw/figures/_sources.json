@@ -1,10 +1,26 @@
 {
+ "huang2026_high-entropy-sulfides-kinetic-accelerators-assb": {
+  "figures": 24,
+  "generated": "2026-09-11",
+  "pdfs": [
+   "bdb71cfd-2._HES_as_kinetic_accelerators_for_ASSLSBs.pdf",
+   "8a30c901-SI.docx"
+  ]
+ },
  "kim2023_reinforced-electrical-networking-high-loading-li2s-cathode": {
   "figures": 19,
   "generated": "2026-09-11",
   "pdfs": [
    "main.pdf",
    "cey2308sup0002supporting_information_1.docx"
+  ]
+ },
+ "zhang2026_anode-free-assb-nanocrystalline-amorphous-li2s-na-collector": {
+  "figures": 21,
+  "generated": "2026-09-11",
+  "pdfs": [
+   "6dbf5541-3._AFASSLSBs_with_Li2S_cathode_and_Na_current_collectors.pdf",
+   "6a25f2fa-3.___.docx"
   ]
  }
 }
