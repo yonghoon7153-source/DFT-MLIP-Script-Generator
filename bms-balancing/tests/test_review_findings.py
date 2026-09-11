@@ -764,7 +764,7 @@ def test_section_1_10_ranking_comes_from_artifacts():
 # ── 문서가 산출물보다 뒤처지는 것을 기계가 잡는다 (2026-09-10) ────────────
 
 #: 이 브랜치가 소유한 사람용 문서 전부. 새 문서를 만들면 여기 추가한다.
-SCOPE_DOCS = ("FINDINGS.md", "README.md", "INTRO.md",
+SCOPE_DOCS = ("FINDINGS.md", "README.md", "INTRO.md", "WORKING_STATE.md",
               "FOR_BMS_TEAM.md", "HANDOFF_TO_GATE.md", "CODEX_REVIEW_REQUEST.md")
 
 #: `~~취소선~~` 은 "철회했다" 는 표시, `"..."` 는 남의(옛) 말을 옮긴 것.
