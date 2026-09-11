@@ -1594,7 +1594,7 @@
    "id": "D-2026-09-11-elastic-conv-threshold",
    "kind": "gate",
    "decision_state": "active",
-   "statement": "relaxed-ion Cij 쌍(b2o3 · modelc_2x)의 이완 수렴 문턱을 **두 계 모두** forc_conv_thr 1e-3 Ry/Bohr · etot_conv_thr 1e-5 Ry 로 올린다. PAUSED_0911_1850 의 마지막 기하를 승계해 재시작한다. strain 점마다 60 BFGS 스텝 안에 수렴해야 하고, 하나라도 넘기면 그 계는 '이 설정에서 측정 불가' 로 닫고 12점 fit 을 하지 않는다. comp2 는 1e-4/1e-6 그대로 — 한 계 안에서 설정이 갈리면 그 Cij 가 무효다.",
+   "statement": "relaxed-ion Cij 쌍(b2o3 · modelc_2x)의 이완 수렴 문턱을 **두 계 모두** forc_conv_thr 1e-3 Ry/Bohr · etot_conv_thr 1e-5 Ry 로 올린다. PAUSED_0911_1850 의 마지막 기하를 승계해 재시작한다. strain 점마다 60 BFGS 스텝 안에 수렴해야 하고, 하나라도 넘기면 그 계는 '이 설정에서 측정 불가' 로 닫고 12점 fit 을 하지 않는다. comp2 는 1e-4/1e-6 그대로 — 한 계 안에서 설정이 갈리면 그 Cij 가 무효다. **2차 개정(1저자 B, 2026-09-11)**: 사전등록의 'gabia 에서 pw.x 와 UMA 동시 실행' 무효조건을 조건부로 바꾼다 — 동시 실행은 허용하되 각 잡이 OOM·중단 없이 완주하고 12/12 를 채워야 하며, 하나라도 죽으면 그 계를 처음부터 다시 돌린다(부분 결과 fit 금지).",
    "record": "db/properties/shear_b2o3_vs_lpscl16_2x_amendment_2026_09_11.json",
    "card": "db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json",
    "supersedes": [],
@@ -1610,6 +1610,16 @@
      "at": "2026-09-11",
      "state": "active",
      "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "동시실행 조건부 허용 개정 반영. 1저자 결정 B — 에이전트 권고는 A(기계 분리)였다. 실측 위험(pw.x 41.2 GB vs 가용 38.4 GB)을 발사 전에 기록했다."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
     }
    ],
    "status": "active",
@@ -1617,9 +1627,9 @@
     "state": "ratified",
     "role": "scientific_owner",
     "actor_id": "yonghoon7153@gmail.com",
-    "timestamp": "2026-09-11T12:49:48Z",
-    "commit": "4a46b826151cd593067603dc3a771821d91a2ed1",
-    "decision_digest": "sha256:c2e91fbaf95a471ca55546655db719b356eca700e0414e3ee3af8aca3785b4b0",
+    "timestamp": "2026-09-11T12:56:21Z",
+    "commit": "6cddcb6cb97c9c2ac5d7aff0f7c7dc23c0427efa",
+    "decision_digest": "sha256:2e1d425a45bfcb0c9bb16f88462b2f70242347b77e903c2b9b85d2a98aae0b2c",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
   }
