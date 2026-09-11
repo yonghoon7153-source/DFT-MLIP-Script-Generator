@@ -109,6 +109,17 @@ def _selftest_tieline():
     r2 = tieline_points(xs, A, nA, eA, B, nB, eB, lambda c: next(it3))
     chk(all(r["endpoints_off_hull"] for r in r2),
         "\u26d4음성: 양수 \u0394E 는 **끝점이 hull 위에 없다**로 표시한다 (판정으로 쓰지 않는다)")
+    # ⛔음성 — **이 시험이 오늘 놓친 실패 유형이다.** 2026-09-11 에 `--tieline` 플래그와
+    #   순수함수는 만들었는데 `main()` 에서 **부르지 않아** 플래그가 조용히 무시됐다.
+    #   순수함수 시험은 6/6 으로 통과했다. 배선을 소스에서 직접 확인한다.
+    import inspect, re as _re
+    src = pathlib.Path(inspect.getfile(inspect.currentframe())).read_text(encoding="utf-8") \
+        if False else open(__file__, encoding="utf-8").read()
+    body = src.split("def main(")[-1]
+    chk(bool(_re.search(r"\btieline_points\s*\(", body)),
+        "⛔음성: main() 이 tieline_points() 를 **실제로 부른다** (플래그만 있고 배선 없는 상태를 잡는다)")
+    chk("args.tieline" in body,
+        "⛔음성: main() 이 args.tieline 을 읽는다")
     print(f"tieline selftest: \u2b55 {ok} \u00b7 \u26d4 {bad}")
     return 0 if bad == 0 else 1
 
@@ -212,10 +223,14 @@ def main():
         result["hull_is_complete"] = bool(frac <= 0.05)
 
         outs = []
+        _ends = []          # ★ tie-line 용 — 끝점의 (조성·원자수·총에너지) 를 모은다
         for sp, s in structs:
             c = s.composition
             our_E = uma_E(s)
             our_entry = ComputedEntry(c, our_E)
+            _ends.append({"path": str(sp), "reduced": c.reduced_formula,
+                          "comp": {str(el): float(n) for el, n in c.get_el_amt_dict().items()},
+                          "n": len(s), "E_tot": our_E, "entry": our_entry})
             pd = PhaseDiagram(entries + [our_entry])
             eah = pd.get_e_above_hull(our_entry)            # eV/atom
             decomp = pd.get_decomposition(c)
@@ -239,6 +254,44 @@ def main():
                   f"({'ON HULL / stable' if eah < 1e-3 else 'metastable'})")
             print("  decomposes into:", r["decomposition"])
             outs.append((sp, r))
+
+        # ── tie-line 스캔 (--tieline) ─────────────────────────────────────
+        #   ⛔ 2026-09-11 — 플래그와 순수함수만 있고 **여기서 부르지 않아** `--tieline`
+        #     이 조용히 무시됐다. selftest 가 순수함수만 봐서 통과했다 —
+        #     CLAUDE.md 가 경고한 "양성만 있는 selftest" 다. 던지기 전에 잡았다.
+        if args.tieline:
+            from pymatgen.core import Composition
+            iA, iB = args.tieline
+            if not (0 <= iA < len(_ends) and 0 <= iB < len(_ends) and iA != iB):
+                raise SystemExit(f"⛔ --tieline 인덱스가 --cif 범위 밖이거나 같다: {args.tieline} "
+                                 f"(--cif 는 {len(_ends)}개)")
+            A, B = _ends[iA], _ends[iB]
+            pd_all = PhaseDiagram(entries + [e["entry"] for e in _ends])
+
+            def _hull(cdict):
+                return float(pd_all.get_hull_energy(Composition(cdict)))
+
+            pts = tieline_points(args.x, A["comp"], A["n"], A["E_tot"],
+                                 B["comp"], B["n"], B["E_tot"], _hull)
+            for pt in pts:                    # 각 x 에서 **무엇으로** 분해되는지
+                dec = pd_all.get_decomposition(Composition(pt["comp_per_atom"]))
+                pt["decomposition"] = {d.composition.reduced_formula: round(a, 4)
+                                       for d, a in dec.items()}
+            tl = {"A": {k: A[k] for k in ("path", "reduced", "n", "E_tot")},
+                  "B": {k: B[k] for k in ("path", "reduced", "n", "E_tot")},
+                  "x_is_mole_fraction_of": B["reduced"],
+                  "points": pts,
+                  "⛔_부호_읽는_법": ("A·B 가 둘 다 hull 위면 볼록성 때문에 ΔE ≤ 0 이 구조적으로 "
+                      "보장된다. ΔE ≈ 0 = tie-line = 이상 공존(새 결정상 없음) · ΔE < 0 = 새 상 생성 · "
+                      "ΔE > 0 = **끝점이 hull 위에 없다**(판정 아님, 게이트 위반 신호)."),
+                  "⛔_못_하는_것": "결정 평형만 답한다. 비평형(볼밀·비정질)은 이 수가 답하지 않는다."}
+            print(f"\n── tie-line: (1−x)·{A['reduced']} + x·{B['reduced']} ──")
+            for pt in pts:
+                flag = "  ⛔끝점이 hull 위에 없다" if pt["endpoints_off_hull"] else ""
+                print(f"  x={pt['x']:<6} ΔE_rxn = {pt['dE_rxn_meV_per_atom']:+8.1f} meV/atom"
+                      f"   → {pt['decomposition']}{flag}")
+            for _, r in outs:
+                r["tieline"] = tl
 
         if len(outs) > 1:
             ranked = sorted(outs, key=lambda x: x[1]["E_above_hull_eV_per_atom"])
