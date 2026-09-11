@@ -854,3 +854,142 @@ def test_review_request_clones_the_branch_that_owns_bms_balancing():
     assert all(c == owner for c in clones), (
         f"요청문이 `{clones}` 를 clone 하라고 한다. "
         f"`bms-balancing/` 소유는 `{owner}` 다 (CLAUDE.md 브랜치 표)")
+
+
+# ── 반쪽전지 대체가 어디까지 번지는가 — 산술로 고정한다 (2026-09-11) ──────
+
+def test_half_cell_substitution_reaches_lli_not_just_lam_pe():
+    """`a_PE`·`b_PE` 를 흔들면 **LLI 도 움직인다.** LAM_NE 만 절연돼 있다.
+
+    2026-09-10 에 사용자에게 "반쪽전지를 대체해도 LAM_NE·LLI 는 영향이 적다"
+    고 말했는데 **틀렸다.** 정의가
+        c_lit = (a_PE + b_PE − b_NE)·c,  LLI = (c_lit_i − c_lit)/c_lit_i
+    이므로 LLI 는 `a_PE`·`b_PE` 를 **직접** 쓴다. 원통형 셀은 반쪽전지를 한
+    번만 재서 같은 파일을 여러 상태에 복사했으므로, 그 대체가 LLI 폭에
+    그대로 들어간다 — 그것이 셀 일반화를 아직 못 쓰는 이유다.
+
+    말로 고치면 또 상하므로 산술로 박는다.
+    """
+    from bms_balancing.model import degradation_modes
+
+    p_ref = [1.10, -0.02, 1.00, 0.00, 0.30]
+    p     = [1.05, -0.03, 0.95, 0.01, 0.30]
+    base = degradation_modes(p_ref, 74.671, p, 63.720)
+
+    def bumped(i, d=1e-3):
+        q = list(p); q[i] += d
+        return degradation_modes(p_ref, 74.671, q, 63.720)
+
+    for idx, name in ((0, "a_PE"), (1, "b_PE")):
+        m = bumped(idx)
+        assert abs(m["LAM_NE"] - base["LAM_NE"]) < 1e-15, (
+            f"{name} 를 흔들었더니 LAM_NE 가 움직였다 — 절연이 깨졌다")
+        assert abs(m["LLI"] - base["LLI"]) > 1e-6, (
+            f"{name} 를 흔들었는데 LLI 가 그대로다. 정의상 LLI 는 {name} 를 "
+            f"직접 쓴다 — 이 테스트나 정의 중 하나가 틀렸다")
+
+    # a_PE 만은 LAM_PE 로도 간다 (b_PE 는 안 간다 — 둘을 섞어 말하지 않게)
+    assert abs(bumped(0)["LAM_PE"] - base["LAM_PE"]) > 1e-6
+    assert abs(bumped(1)["LAM_PE"] - base["LAM_PE"]) < 1e-15
+
+
+def test_prepare_cell_does_not_repeat_the_retracted_lli_claim():
+    """`prepare_cell.py` 머리말이 철회된 문장을 들고 있으면 실패.
+
+    이 셀 자료를 만든 변환기라 그 머리말이 셀 결과를 읽는 사람의 첫 안내다.
+    """
+    txt = (ROOT / "scripts" / "prepare_cell.py").read_text(encoding="utf-8")
+    RETRACTED = "LAM_NE\u00b7LLI 는 영향이 적다"
+    # 정정문이 옛 문장을 **인용**하는 것은 허용한다 — 그때는 따옴표를 친다.
+    # (`NOT_A_CLAIM` 을 그대로 쓰면 안 된다. 저건 마크다운용이라 Python 의
+    #  `\"\"\"` 독스트링 구분자와 짝이 어긋나 엉뚱한 구간을 지운다 — 2026-09-11 실측.)
+    bad = [f"  {i}: {ln.strip()}"
+           for i, ln in enumerate(txt.splitlines(), 1)
+           if RETRACTED in ln and '"' not in ln]
+    assert not bad, (
+        "철회된 문장이 인용 표시 없이 남아 있다 — LLI 는 a_PE·b_PE 를 직접 쓴다 "
+        "(test_half_cell_substitution_reaches_lli_not_just_lam_pe):\n"
+        + "\n".join(bad))
+
+
+# ── 대조 실험(반쪽전지 고정)이 정말 고정본인지 기계가 말한다 (2026-09-11) ──
+
+def _fixed_hc():
+    return _load_script("fixed_hc")
+
+
+def _fake_root(base, per_state=True):
+    """xlsx 자리에 아무 바이트나 둔다 — `check` 는 **해시만** 보므로 충분하다."""
+    hc = base / "data" / "half_cell" / "GITT"
+    hc.mkdir(parents=True, exist_ok=True)
+    for i, st in enumerate(("pristine", "100", "200", "300_0009")):
+        (hc / f"{st}.xlsx").write_bytes(b"HC" + (bytes([i]) if per_state else b"\x00"))
+    for rel in ("data/full_cell", "data/literature"):
+        d = base / rel
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "x.bin").write_bytes(b"same")
+    return base
+
+
+def test_fixed_hc_check_tells_fixed_from_per_state(tmp_path, capsys):
+    """`check` 가 고정본과 상태별을 **해시로** 가른다.
+
+    실행 로그의 "반쪽전지 소스: 100=GITT 200=GITT ..." 는 소스 *종류*만
+    찍으므로 고정 여부를 못 알려준다. 대조 실험의 결론이 그 구분에 통째로
+    걸려 있으므로 파일로 증명할 수 있어야 한다.
+    """
+    m = _fixed_hc()
+    ns = SimpleNamespace
+
+    per = _fake_root(tmp_path / "per", per_state=True)
+    assert m.cmd_check(ns(root=str(per), expect="per-state")) == 0
+    assert m.cmd_check(ns(root=str(per), expect="fixed")) == 2, \
+        "상태마다 다른 루트를 '고정됨' 으로 통과시켰다"
+
+    fix = _fake_root(tmp_path / "fix", per_state=False)
+    assert m.cmd_check(ns(root=str(fix), expect="fixed")) == 0
+    assert m.cmd_check(ns(root=str(fix), expect="per-state")) == 2
+
+    out = capsys.readouterr().out
+    assert "고정됨" in out and "상태마다 다름" in out
+
+
+def test_fixed_hc_make_pins_every_state_to_one_file(tmp_path, capsys):
+    """`make` 가 만든 루트는 반쪽전지가 전부 같은 파일이고, 나머지는 원본 그대로."""
+    m = _fixed_hc()
+    src = _fake_root(tmp_path / "src", per_state=True)
+    out = tmp_path / "out"
+    assert m.cmd_make(SimpleNamespace(src=str(src), out=str(out),
+                                      pin="pristine")) == 0
+
+    hc = sorted((out / "data" / "half_cell" / "GITT").glob("*.xlsx"))
+    assert len(hc) == 4, f"상태 4 개가 아니다: {[p.name for p in hc]}"
+    digests = {m.sha(p) for p in hc}
+    assert len(digests) == 1, "고정했는데 파일이 서로 다르다"
+    assert digests == {m.sha(src / "data" / "half_cell" / "GITT" / "pristine.xlsx")}, \
+        "pristine 이 아닌 것으로 고정했다"
+
+    # 반쪽전지 **말고는** 아무것도 안 바뀌어야 한다 — 축이 하나여야 대조가 성립한다
+    for rel in ("data/full_cell/x.bin", "data/literature/x.bin"):
+        assert m.sha(out / rel) == m.sha(src / rel), f"{rel} 이 달라졌다"
+
+
+def test_fixed_hc_scan_parses_state_names_in_both_sources(tmp_path):
+    """`scan` 이 두 소스의 이름 규칙에서 **같은 상태 이름**을 뽑아야 한다.
+
+    `GITT/{state}.xlsx` 와 `step_005C/{state}_005C.xlsx` 다. 꼬리표를 자르는
+    자리가 2026-09-11 에 실제로 틀렸었다 (`st[:-0]` → 빈 문자열). 상태 이름이
+    뭉개지면 `check` 는 에러가 아니라 **"판정불가"** 를 내므로 조용히 지나간다.
+    """
+    m = _fixed_hc()
+    want = ["100", "200", "300_0009", "pristine"]
+    for src, name in (("GITT", "{}.xlsx"), ("step_005C", "{}_005C.xlsx")):
+        d = tmp_path / "data" / "half_cell" / src
+        d.mkdir(parents=True, exist_ok=True)
+        for st in want:
+            (d / name.format(st)).write_bytes(b"x")
+
+    got = m.scan(tmp_path)
+    assert set(got) == {"GITT", "step_005C"}, f"소스를 못 찾았다: {sorted(got)}"
+    for src in got:
+        assert sorted(got[src]) == want, f"[{src}] 상태 이름이 다르다: {sorted(got[src])}"

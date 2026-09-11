@@ -23,7 +23,17 @@
    ⚠ 이것은 **모델 가정이 달라지는 자리**다. 파우치 쪽은 `E_PE` 가 상태마다
    갱신되는데 여기서는 고정이다. 그러면 양극 OCP 의 실제 변화가 전부
    `a_PE`·`b_PE` 로 흡수되어 **LAM_PE 가 다른 것을 재게 된다.**
-   두 셀의 LAM_PE 를 나란히 비교하지 마라. LAM_NE·LLI 는 영향이 적다.
+   두 셀의 LAM_PE 를 나란히 비교하지 마라.
+
+   ⚠⚠ **LLI 도 안전하지 않다** (2026-09-11 정정). 이 머리말은 오래
+   "LAM_NE·LLI 는 영향이 적다" 고 적어 왔고 사용자에게도 그렇게 말했는데
+   **틀렸다.** 정의가 `c_lit = (a_PE + b_PE − b_NE)·c` 이므로 LLI 는
+   `a_PE`·`b_PE` 를 **직접** 쓴다. 즉 위 대체는 LAM_PE 와 **LLI 양쪽**에
+   들어간다. 절연된 것은 **LAM_NE 하나뿐**이다 —
+   `LAM_NE = 1 − (a_NE·c)/(a_NE_ref·c_ref)` 에 PE 항이 없다.
+   이것이 원통형 셀의 넓은 LLI 띠를 "셀 차이" 로 읽으면 안 되는 이유다.
+   산술은 `tests/test_review_findings.py::
+   test_half_cell_substitution_reaches_lli_not_just_lam_pe` 가 고정한다.
    (덧붙여: `main_blend_final.m` 머리말은 "PE=pristine 고정" 이라고 적어
    두었으므로, 이 셀 쪽이 오히려 **그들이 문서에 쓴 의도**와 같다 — §4-3.)
 3. **`step_005C` 소스가 없다.** `matrix` 는 반쪽전지 축이 하나뿐이라
