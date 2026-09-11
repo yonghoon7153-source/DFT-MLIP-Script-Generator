@@ -1831,6 +1831,8 @@ def test_r3_07_eval_compare_exit_code_follows_the_verdict(tmp_path):
     assert rc == 3 and "부분" in out, (rc, out[-1500:])
     rc, out = run(old, "--allow-partial")
     assert rc == 0 and "부분" in out, (rc, out[-1500:])
+    rc, out = run(_r2_csv(tmp_path, anchors, cols, rows, name="ok2.csv"), "--precision", "bogus")
+    assert rc == 2 and "precision" in out, (rc, out[-600:])      # 잘못된 옵션은 성공이 아니다
 
 
 def _r3_profile_mocks(tmp_path, monkeypatch):

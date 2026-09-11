@@ -47,7 +47,7 @@ R2 조건별 판정(`R3_CODEX.md` §3)에서 "부분" 이던 01·02·03 은 위 
 4. ~~문서~~ — FINDINGS §0-1·§0-2·§1-8·§1-12·§5-2·§7-3 · WORKING_STATE · HANDOFF · INTRO · README · matlab/README · R2 원장 C8·C9
 5. ~~GREEN + 변이 감사~~ — 위 표
 6. **사용자 기계**: `python3 scripts/ne_shape.py` → CSV 재생성 커밋 → §5-2 "재실행 대기" 채움 (R3-03 실측)
-7. R4 요청문 (`R4_REQUEST.md`) — 대상 SHA 명시. GO 기준은 R3 §5 의 다섯 조건.
+7. ~~R4 요청문~~ — `R4_REQUEST.md` (이 커밋). 대상은 그 파일이 든 커밋. GO 기준은 R3 §5 의 다섯 조건. U11(ne_shape CSV) 재실행 커밋이 먼저 오면 요청문 §0·§5 의 U11 줄을 갱신한다.
 
 ## 유지되는 것 (Codex 가 인정한 긍정적 증거)
 

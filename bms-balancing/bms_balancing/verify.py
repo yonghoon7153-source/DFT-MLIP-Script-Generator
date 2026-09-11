@@ -707,8 +707,12 @@ def cmd_eval(args):
     if args.compare:
         # ⚠ 2026-09-11 Codex R3-07: 전 판은 여기서 dict 를 버리고 None 을 올려 `sys.exit(None)` = 0 —
         #   "rmse 가 갈린다" 를 찍고도 명령은 성공이었다. 판정이 곧 종료 코드다.
-        result = _compare_dd_eval(dict(anchors), P, vals, args.compare,
-                                  precision=getattr(args, "precision", None))
+        try:
+            result = _compare_dd_eval(dict(anchors), P, vals, args.compare,
+                                      precision=getattr(args, "precision", None))
+        except ValueError as e:                      # 잘못된 --precision 은 대조 미완이다
+            print(f"! {e}\n종료 코드 2 (invalid)")
+            return 2
         rc = EXIT_BY_STATUS.get(result["status"], 2)
         note = ""
         if rc == 3 and getattr(args, "allow_partial", False):
