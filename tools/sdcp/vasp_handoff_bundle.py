@@ -189,8 +189,22 @@ if not cen.get("job_keys") or not cen.get("stage_of"):
                "없다 (구판 번들이면 재생성하십시오)")
 else:
     want = set(cen["job_keys"])
+    # ⛔⛔ 2026-09-11 — v40 이 census 에서 멈췄다. run_staged 가 배치 프로브에서
+    #   `_hostpool/free`·`_hostpool/busy` 를 만드는데(census **전에** 만들어야 한다 —
+    #   run_job.sh 가 그 풀을 요구하므로 순서를 뒤집을 수 없다), 그 둘이 `*/*/` 글롭에
+    #   걸려 '계획 밖 잡 폴더' 로 거부됐다. `_` 로 시작하는 최상위 폴더는 러너의 작업
+    #   공간이지 잡이 아니므로 잡 폴더 집합에서 뺀다.
+    #   ⚠ 이 제외가 **계획된 잡을 숨기지 못하게** 못박는다 — 계획 키가 `_` 로 시작하면
+    #     그 자체를 거부한다. 그래야 '제외 규칙' 이 은폐 경로가 되지 않는다.
+    #   ⚠ `have`(job.json 기준)는 **거르지 않는다.** `_` 폴더 안에 job.json 이 생기면
+    #     그건 여전히 잡히는 게 맞다.
+    _plan_us = sorted(k for k in want if k.split("/", 1)[0].startswith("_"))
+    if _plan_us:
+        bad.append("계획된 잡 키가 `_` 로 시작한다 %s — census 의 인프라 폴더 제외 "
+                   "규칙과 충돌한다. 잡 키를 바꾸거나 이 규칙을 고쳐야 한다." % _plan_us[:4])
     have = {os.path.dirname(p).replace(os.sep, "/") for p in glob.glob("*/*/job.json")}
     dirs = {d.rstrip("/").replace(os.sep, "/") for d in glob.glob("*/*/")}
+    dirs = {d for d in dirs if not d.split("/", 1)[0].startswith("_")}
     if have != want:
         bad.append("job.json 집합이 계획과 다르다 — 없음 %s · 계획 밖 %s"
                    % (sorted(want - have)[:4], sorted(have - want)[:4]))
@@ -21702,6 +21716,32 @@ def _runner_e2e(bundle: Path, chk) -> bool:
     chk((_ok_root / "POTCAR_ROOT_SEAL.json").is_file()
         and (_ok_root / "ZIP_SHA256.txt").is_file(),
         "AR 해제조건 7: 러너가 봉인과 ZIP_SHA256.txt 를 실제로 만든다")
+
+    # ⛔⛔ 2026-09-11 실측 — **v40 이 census 에서 멈췄다.** run_staged 의 배치 프로브가
+    #   만드는 `_hostpool/free`·`_hostpool/busy` 가 `*/*/` 글롭에 걸려 '계획 밖 잡 폴더'
+    #   로 거부됐다. 풀은 census **전에** 있어야 하므로(run_job.sh 가 요구한다) 순서를
+    #   뒤집을 수 없다 ⇒ `_` 로 시작하는 최상위 폴더를 잡 집합에서 뺀다.
+    #   ⚠ 제외 규칙은 **은폐 경로가 될 수 있다** — 그래서 양성·음성을 짝으로 건다.
+    _hp = _copy("hostpool_dirs")
+    (_hp / "_hostpool" / "free").mkdir(parents=True, exist_ok=True)
+    (_hp / "_hostpool" / "busy").mkdir(parents=True, exist_ok=True)
+    _rcH, _oH = _run(_hp)
+    chk("✓ census" in _oH and "계획 밖" not in _oH,
+        "⭕양성 2026-09-11: `_hostpool/{free,busy}` 가 있어도 census 가 통과한다 "
+        "(v40 을 멈춘 바로 그 상황) · rc=%s" % _rcH)
+    if "✓ census" not in _oH:
+        print("     [진단] rc=%s\n%s" % (_rcH, _oH[-900:]))
+
+    _bog = _copy("plan_external_job")
+    (_bog / "zzz_notplanned" / "job1").mkdir(parents=True, exist_ok=True)
+    _rcB, _oB = _run(_bog)
+    chk(_rcB != 0 and "계획 밖" in _oB,
+        "⛔음성: `_` 로 시작하지 **않는** 계획 밖 잡 폴더는 여전히 거부한다 — "
+        "제외 규칙이 은폐 경로가 되지 않는다 · rc=%s" % _rcB)
+
+    chk("_plan_us" in CENSUS_PY and "계획된 잡 키가" in CENSUS_PY,
+        "⛔음성 소스잠금: 계획 키가 `_` 로 시작하면 census 가 **그 자체를 거부**한다 "
+        "(제외 규칙이 계획된 잡을 숨기는 경로를 닫는다)")
 
     # 🔴🔴 2026-09-04 — **랭크 수가 KPAR 의 배수가 아니면 비용 전에 멈춘다.**
     #   INCAR 은 해시로 동결돼 현장에서 KPAR 을 못 고친다. 배수가 아닌 랭크로 던지면
