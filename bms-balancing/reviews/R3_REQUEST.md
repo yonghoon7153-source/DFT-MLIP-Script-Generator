@@ -69,7 +69,7 @@ python3 scripts/compare_states.py pouch=out fixedhc=out/cells_pouch_fixedhc c168
 
 | # | 무엇 | 상태 |
 |---|---|---|
-| U1' | 원본 가중 버전 `compute_dqdv_rmse_weighted_blend`(328~347)의 분모(`sum(w)` vs `numel`) 및 `lower_half_mean_local` 대조 | 사용자 기계에서 두 함수 출력 대기 |
+| U1' | 원본 가중 버전 `compute_dqdv_rmse_weighted_blend`(328~347)의 분모 및 `lower_half_mean_local` 대조 | **닫힘 (요청문 발송 직후)** — 분모 `sum(w)` 로 포팅과 같음; lower_half_mean 은 빈-표본 가드(0 vs eps)만 ≠ (§1-13) |
 | U2 | pOCV 워크북이 원자료인지 재표본인지 | 간격 균일성 검사 대기 |
 | U3 | 원통형 차이 = 셀 물성 vs 자료 품질 vs 모델 부적합 | 부적합 증가로 한 칸 좁힘; 확정 아님 |
 | U4 | 파우치 100·200·300_0009 산출의 starts/seed provenance | 코드 동일성은 diff 로만; `run_states.sh` 재실행 미실행 |

@@ -869,10 +869,22 @@ dQ/dV 항의 `compute_dqdv_rmse_blend`·`build_peak_weights_local` 은
 **두 함수 모두 줄 단위로 같다.** §1-7·§1-8 의 dQ/dV 항 대조(`rmse_dqdv` 1.78e-12 /
 2.90e-12)는 이제 「원본 ↔ 우리 포팅」 대조다.
 
-**아직 열린 것 하나**: 원본에는 가중 버전 `compute_dqdv_rmse_weighted_blend` (328~347) 가
-따로 있다. 우리 포팅의 `rmse_dqdv_w` 는 `sqrt(Σ w·r² / Σ w)` 인데 원본 분모가 `sum(w)` 인지
-`numel` 인지(전 FOR_BMS §8 ③)는 그 함수를 봐야 닫힌다. `lower_half_mean_local` (374~383,
-우리 `_auto_scales` 의 "하위 절반 평균" 대응)도 같이 볼 것.
+**나머지 둘도 댔다** (같은 날, 원본 328~347 · 374~383):
+
+| 원본 `compute_dqdv_rmse_weighted_blend` | 포팅 `rmse_dqdv(weighted=True)` |
+|---|---|
+| 앞부분은 비가중과 동일 (v_model · sgolayfilt · gradient · unique · 범위 · `<5 → 1e6` · interp1) | 동일 (`_model_dqdv` 공유) |
+| `w_idx = w(idx)` | `w = self.w_peak[m]` |
+| `rmse = sqrt(sum(w_idx .* r.^2) / sum(w_idx))` — **분모 `sum(w)`** | `sqrt(Σ w·r² / Σ w)` — **같다** (전 FOR_BMS §8 ③ 닫힘) |
+
+| 원본 `lower_half_mean_local` | 포팅 `_auto_scales` |
+|---|---|
+| `vals(~isnan(vals))` | `a[np.isfinite(a)]` (NaN 과 ±Inf 제거 — rmse 는 1e6 감시값이라 Inf 는 안 나옴) |
+| 빈 배열 → `m = 0` | 빈 배열 → `np.finfo(float).eps` ≠ **0** — 0 으로 나누지 않으려는 의도적 가드. 표본 50 개가 전부 실패한 적은 없다(`scales` 기록) |
+| `sort`, `n_half = max(1, floor(n/2))`, `mean(1:n_half)` | `sort`, `half = max(1, n//2)`, `float(a[:half].mean()) + np.finfo(float).eps` — `+eps`(2.2e-16) 가 붙는다: 상대 1e-16, 의도적 0 가드 |
+
+**U1 닫힘.** dQ/dV 항 네 함수(비가중·가중·가중치·scale)가 원본과 대응한다. 남은 ≠MATLAB 은
+빈-표본 가드 둘뿐이고, 실제 실행에서 그 분기를 탄 적이 없다.
 
 ---
 
