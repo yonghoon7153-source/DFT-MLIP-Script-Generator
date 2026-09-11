@@ -654,8 +654,16 @@ SCF_COMPARE_GATE = {
 
 def scf_from_xyz(paths, out_dir, pseudo_dir, ecutwfc=52, ecutrho=520,
                  kpoints='2 2 1', pp_names=None, nspin=1, start_mag=None,
-                 hubbard=None, tot_mag_per=None, gate=None):
+                 hubbard=None, tot_mag_per=None, gate=None,
+                 smearing='gaussian', degauss=0.01):
     """구조 파일 여러 개 → `<out>/<name>/scf.in` + manifest.
+
+    ⛔ 2026-09-11 — smearing 종류가 **하드코딩 `mv` 였다.** 뜨거운 황화물 MD 스냅샷에서
+      `mv`(cold)는 음의 점유를 허용해 SCF 를 무너뜨린다: 실측 `runs/fc_pilot` 에서
+      **118,698 Ry 발산**, 같은 스냅샷·같은 mixing 에서 `gaussian` 은 **49 회 수렴**
+      (`runs/fc_gapchk`). 인자로 열고 기본을 `gaussian` 으로 바꾼다.
+      manifest 에도 실제 값을 적는다 — 종전엔 문자열 "smearing(mv,0.01)" 이 박혀 있어
+      호출부가 뭘 줬든 manifest 가 `mv` 라고 **거짓말**했다.
 
     `tot_mag_per` = {원소: 원자당 모멘트} — 셀마다 그 원소 개수 × 값으로 tot_magnetization
     을 계산한다 (셀마다 원자 수가 다르므로 상수로 박으면 틀린다).
@@ -669,7 +677,7 @@ def scf_from_xyz(paths, out_dir, pseudo_dir, ecutwfc=52, ecutrho=520,
            "settings": {"ecutwfc": ecutwfc, "ecutrho": ecutrho, "kpoints": kpoints,
                         "nspin": nspin, "starting_magnetization": start_mag or {},
                         "hubbard": hubbard or [], "tot_mag_per_atom": tot_mag_per or {},
-                        "occupations": "smearing(mv,0.01)", "calculation": "scf"},
+                        "occupations": f"smearing({smearing},{degauss})", "calculation": "scf"},
            "gate": _g, "cells": []}
     species_all = set()
     for pth in paths:
@@ -712,6 +720,7 @@ def scf_from_xyz(paths, out_dir, pseudo_dir, ecutwfc=52, ecutrho=520,
                             kpoints=kpoints, pseudo_dir=pseudo_dir,
                             pp_names={el: v["file"] for el, v in pp.items()},
                             calculation='scf', occupations='smearing',
+                            smearing=smearing, degauss=degauss,
                             nspin=nspin, start_mag=start_mag, hubbard=hubbard,
                             tot_magnetization=tm)
         (d / "scf.in").write_text(txt)
@@ -759,7 +768,11 @@ def main():
     p.add_argument('--occupations', default=None,
                   choices=('fixed', 'smearing'),
                   help="기본은 경로별 값. 뜨거운 MD 스냅샷은 fixed 로 수렴이 안 될 수 있다")
-    p.add_argument('--smearing', default='mv')
+    p.add_argument('--smearing', default='gaussian',
+                  help="⛔ 기본을 2026-09-11 에 mv → gaussian 으로 바꿨다. 뜨거운 황화물 "
+                       "MD 스냅샷에서 mv(cold)는 음의 점유를 허용해 SCF 를 무너뜨린다 — "
+                       "같은 스냅샷에서 mv 118,698 Ry 발산(runs/fc_pilot) vs gaussian 49회 "
+                       "수렴(runs/fc_gapchk). 금속에는 mv 가 표준이지만 이 계에는 아니다.")
     p.add_argument('--degauss', type=float, default=0.01)
     # ── 구조 파일 → scf 단일점 (Nd O-모티프 재채점) ─────────────────────────
     p.add_argument('--from_xyz', nargs='+',
@@ -805,7 +818,8 @@ def main():
                            args.ecutwfc, args.ecutrho, args.kpoints,
                            pp_names=_kv(args.pp), nspin=args.nspin,
                            start_mag=_sm, hubbard=args.hubbard,
-                           tot_mag_per=_tm)
+                           tot_mag_per=_tm,
+                           smearing=args.smearing, degauss=args.degauss)
         print(f"✓ {len(man['cells'])}셀 → {args.out}  (nspin={args.nspin}"
               f"{' · U=' + ','.join(args.hubbard) if args.hubbard else ''})")
         for c in man['cells']:
