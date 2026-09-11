@@ -161,3 +161,146 @@ def test_i6v_08_duplicate_run_id_column_is_not_a_match(tmp_path):
     p = tmp_path / "dup.csv"; p.write_text("run_id,x,run_id\nother-run,1,the-run\n", encoding="utf-8")
     ok, why = prov.check_run_id(p, "the-run")
     assert ok is False and "run_id" in why, (ok, why)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# D · 파생 보고서 · 공정성 렌즈 (DF-01…DF-10; 검증 판정 `reviews/r6_repros/derived/VERDICT.md`)
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+import csv, inspect, re                                                   # noqa: E402
+import numpy as np                                                        # noqa: E402
+from test_review_findings import NOT_A_CLAIM, _section                    # noqa: E402
+
+OUT = ROOT / "out"
+
+
+def _doc(name): return (ROOT / name).read_text(encoding="utf-8")
+def _live(txt): return NOT_A_CLAIM.sub("", txt)                           # 취소선·따옴표 인용은 주장이 아니다
+def _rows(p): return list(csv.DictReader((ROOT / p).open(encoding="utf-8", newline="")))
+
+
+def test_i6d_01_section_3_4_says_the_profile_grid_contains_the_constrained_endpoints():
+    """[R6 내부 DF-01] 힌트 격자는 `pad = span/2`, 21 점 → grid[5]·grid[15] 가 **정확히** 제약 최적화의 min·max 다.
+    LLI 의 "정확히 일치 (15.1517 / 16.2350)" 는 두 방법이 독립적으로 같은 값에 닿은 것이 아니라 같은 격자점을
+    되돌려 준 것이다 — 세 mode 모두 profile.max == ext.max 가 비트 단위로 같다. §3-4 는 힌트는 밝혔지만
+    "끝점 = 격자점" 은 밝히지 않은 채 '독립 수렴' 이라고 적었다. 폭 1.0832 와 `is_lower_bound` 는 그대로다."""
+    j = json.loads((OUT / "degeneracy_300_0009_Li_v2.json").read_text(encoding="utf-8"))
+    for k in ("LAM_PE", "LAM_NE", "LLI"):
+        sp = j[f"{k}_percent"]; ext = sp["from_constrained_extrema"]; prof = sp["from_mode_profile"]
+        g_lo, g_hi = prof["grid_range_pct"]; grid = np.linspace(g_lo, g_hi, 21)
+        assert abs(grid[5] - ext["min"]) < 1e-9 and abs(grid[15] - ext["max"]) < 1e-9, (k, grid[5], ext, grid[15])
+        assert prof["max"] == ext["max"], (k, prof["max"], ext["max"])
+    sec = _live(_section(_doc("FINDINGS.md"), "### 3-4"))
+    assert "격자점" in sec and "독립 수렴이 아니" in sec, sec[:400]
+    for stale in ("두 경로에서 독립적으로 나온다", "두 독립 방법이 수렴했다", "같은 값에 수렴**했다"):
+        assert stale not in sec, stale
+    assert "두 독립 방법이 수렴했다" not in _live(_doc("FINDINGS.md")).split("### 3-4")[1].split("\n")[0]
+
+
+def test_i6d_02_secondary_docs_do_not_keep_the_retracted_cell_conclusions():
+    """[R6 내부 DF-02] §0-2 가 철회한 결론("대체를 배제했다", "정확히 반대", "식별 가능성은 두 셀에서 똑같다",
+    "순위가 통째로 뒤집힌다", "우리 대체 탓이 아니다", "대조가 배제한 것은 반쪽전지 대체 하나") 이 HANDOFF §5 ·
+    INTRO §6-2 에 취소선 없이 남아 같은 문서의 정정판(HANDOFF §4 · INTRO §6-1) 과 모순됐다. R2 C13/C14 는 그 두
+    절만 고쳤다."""
+    stale = ("대체를 배제했다", "정확히 반대", "식별 가능성은 두 셀에서", "똑같다**", "순위가 통째로 뒤집힌다",
+             "우리 대체 탓이 아니다", "대조가 배제한 것은")
+    for name in ("HANDOFF_TO_GATE.md", "INTRO.md"):
+        live = _live(_doc(name))
+        hits = [s for s in stale if s in live]
+        assert not hits, (name, hits)
+
+
+def test_i6d_03_raw_lli_ratio_names_its_statistic():
+    """[R6 내부 DF-03] "원통형 LLI 하한 폭이 raw 로 5~10 배" — §1-12 의 raw 행은 max/max 10.52 · min/min 9.66 ·
+    med/med 10.04 이고 상태별 쌍 비는 5.1~18.3 배다. 문서가 이름붙인 어느 통계량도 '5~10' 을 주지 않는다 →
+    요약문은 통계량 이름과 함께 §1-12 표의 값을 적는다."""
+    raw_row = next(l for l in _doc("FINDINGS.md").splitlines() if l.startswith("| raw |"))
+    mm = re.search(r"\|\s*([0-9.]+)x\s*\|\s*([0-9.]+)x\s*\|\s*([0-9.]+)x", raw_row)
+    assert mm, raw_row
+    max_max = float(mm.group(1))
+    for name in ("FINDINGS.md", "HANDOFF_TO_GATE.md", "WORKING_STATE.md"):
+        live = _live(_doc(name))
+        assert "5~10 배" not in live and "5 ~ 10 배" not in live, name
+        assert f"max/max {max_max:.1f}" in live, (name, max_max)
+
+
+def test_i6d_04_working_state_test_count_matches_the_collection():
+    """[R6 내부 DF-04] "86 passed 기대" 가 87 개짜리 트리에 남았다 (Codex R5 §1 이 지난 라운드에 74/75 로 같은
+    종류를 짚었다). 문서의 기대 수는 수집된 테스트 수와 같아야 한다."""
+    import subprocess
+    out = subprocess.run([sys.executable, "-m", "pytest", "tests/", "--collect-only", "-q", "-p", "no:cacheprovider"],
+                         cwd=ROOT, capture_output=True, text=True).stdout
+    n = int(re.search(r"(\d+) tests? collected", out).group(1))          # 매개변수화된 항목까지 센 수 = "N passed"
+    m = re.search(r"# (\d+) passed 기대", _doc("WORKING_STATE.md"))
+    assert m and int(m.group(1)) == n, (m and m.group(0), n)
+
+
+def test_i6d_05_the_192_values_are_raw_rmse_and_the_docs_do_not_tie_u13_to_them():
+    """[R6 내부 DF-05] `cmd_eval` 은 `obj.rmse_*` (raw) 를 찍고 그 정의는 `scales` 를 안 본다 — scale 은 `__call__`
+    만 소비한다. 그러니 scale 동치(U13) 는 적합 산출의 목적함수 조건이지 192 값의 조건이 아니고, R5-09 가 말한
+    "96/192 빈틈" 은 192 값에는 없던 빈틈이다. §0-1·§1-13 은 U13 을 192 값에 묶었다."""
+    from bms_balancing import model
+    for fn in ("rmse_pocv", "rmse_dvdq", "rmse_dqdv"):
+        assert "scales" not in inspect.getsource(getattr(model.Objective, fn)), fn
+    assert "scales" in inspect.getsource(model.Objective.__call__)
+    live = _live(_doc("FINDINGS.md"))
+    assert "192 값의 Python 쪽 build 는 그 조건 안" not in live
+    assert "빈틈은 이 실측으로 메워졌다" not in live
+    assert "scale 을 소비하지 않" in live
+
+
+def test_i6d_06_section_4_0_states_the_tolerance_behind_its_counts():
+    """[R6 내부 DF-06] "6 개에서 목적함수가 나빠졌다 · 17 조합은 더 좋아졌다 · 나빠진 6 개는 전부 w_dqdv=1" 은 상대
+    변화 1e-9 초과만 셀 때의 숫자다 — 부호만 보면 10·22·0 이고 w=0 도 (1e-9 아래로) 나빠진다. 본문에 문턱이 없었다."""
+    k = lambda r: (r["half_cell"], r["si"], float(r["w_dqdv"]))
+    d1 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009.csv")}
+    d2 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009_v2.csv")}
+    def count(tol):
+        w = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] > tol]; b = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] < -tol]
+        return len(w), len(b), len(d2) - len(w) - len(b), all(kk[2] == 1.0 for kk in w)
+    assert count(1e-9) == (6, 17, 9, True), count(1e-9)
+    assert count(0.0)[:3] == (10, 22, 0) and count(0.0)[3] is False, count(0.0)
+    sec = _live(_section(_doc("FINDINGS.md"), "### 4-0"))
+    assert "1e-9" in sec and "부호만" in sec, sec[-600:]
+
+
+def test_i6d_07_section_1_10_carries_the_lower_bound_qualifier():
+    """[R6 내부 DF-07] §1-10 은 네 JSON 이 전부 `is_lower_bound: true` 인데 "다른 세 상태는 전부 양수 구간이다",
+    "순위가 완전히 일관된다 — 이것이 … 답이다" 를 탐색 하한 한정어 없이 적었다 (§0-1·§1-12 에는 있음)."""
+    for st in ("100", "200", "300_0009", "300_0147"):
+        j = json.loads((OUT / f"degeneracy_{st}_Li.json").read_text(encoding="utf-8"))
+        assert j["LLI_percent"]["is_lower_bound"] is True, st
+    sec = _live(_section(_doc("FINDINGS.md"), "### 1-10"))
+    hdr = next(l for l in sec.splitlines() if l.startswith("| state |"))
+    assert "하한" in hdr, hdr
+    assert sec.count("탐색 하한") >= 3, sec.count("탐색 하한")
+    assert "전부 양수 구간이다" not in sec
+
+
+def test_i6d_08_section_4_1_free_reference_width_is_the_width_of_the_values():
+    """[R6 내부 DF-08] 기준 자유 3 종(Jiang·Kunz·Li) 의 LAM_NE 폭은 원값으로 2.1016 — "2.11" 은 두 자리로 반올림한
+    표값끼리의 차(7.90 − 5.79) 였다."""
+    g = [r for r in _rows("out/matrix_300_0009_v2.csv") if r["half_cell"] == "GITT" and float(r["w_dqdv"]) == 0 and r["ref_bounds"] == "-"]
+    v = [float(r["LAM_NE_pct"]) for r in g]
+    assert len(v) == 3 and abs(max(v) - min(v) - 2.1016) < 5e-5, v
+    sec = _live(_section(_doc("FINDINGS.md"), "### 4-1"))
+    assert "2.10 %p" in sec and "2.11 %p" not in sec, sec[-400:]
+
+
+def test_i6d_09_section_3_3_cites_the_matrix_row_that_actually_matches():
+    """[R6 내부 DF-09] `best` 의 LAM/LLI 가 "`out/matrix_300_0009.csv` 의 GITT/Li/w0 행과 일치" — 비트 단위로 같은
+    것은 `_v2` 행(Δ 0) 이고 v1 행은 Δ 5.5e-5 %p (§4-0 이 말하는 옛 multistart 산출)."""
+    bm = json.loads((OUT / "degeneracy_300_0009_Li_v2.json").read_text(encoding="utf-8"))["best_modes_percent"]
+    pick = lambda p: next(r for r in _rows(p) if r["half_cell"] == "GITT" and r["si"] == "Li" and float(r["w_dqdv"]) == 0)
+    d1 = max(abs(bm[k] - float(pick("out/matrix_300_0009.csv")[k + "_pct"])) for k in bm)
+    d2 = max(abs(bm[k] - float(pick("out/matrix_300_0009_v2.csv")[k + "_pct"])) for k in bm)
+    assert d2 == 0.0 and d1 > 1e-6, (d1, d2)
+    sec = _live(_section(_doc("FINDINGS.md"), "### 3-3"))
+    assert "`out/matrix_300_0009_v2.csv` 의 GITT/Li/w0 행과 일치" in sec, sec[-500:]
+
+
+def test_i6d_10_intro_6_3_does_not_keep_the_retracted_n_equals_1_sentence():
+    """[R6 내부 DF-10] INTRO §6-3 "n=1 에서는 분산을 추정할 수 없다 … 산수다" 와 제목 "산수라서 진짜 못 한다" 는
+    같은 절 마지막 문단과 FINDINGS §7-3 ("그건 틀렸다") 이 철회한 문장이다."""
+    live = _live(_doc("INTRO.md"))
+    assert "분산을 추정할 수 없다" not in live and "산수라서 진짜 못 한다" not in live
+    assert "고차 차분" in live

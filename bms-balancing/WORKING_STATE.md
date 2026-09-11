@@ -39,7 +39,7 @@ R4 에서 Codex 가 종결로 인정한 것: R4-01·03·S-02, R4-02/04/05/06/07 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 86 passed 기대
+python3 -m pytest tests/ -q                       # 107 passed 기대
 # U13: 새 감사 줄(식별자·eps_rel·동치 flag 포함) — GITT·Li 16 build + Kunz·step_005C 조합. `# scale_audit` 줄만 붙여 주면 된다
 for st in pristine 100 200 300_0009; do python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done
 for c in c168 c171 pouch_fixedhc; do for st in pristine 100 200 300_0009; do BMS_DATA_ROOT=~/dd/cells/$c python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done; done
@@ -103,7 +103,7 @@ git add out/ne_shape_GITT_Li.csv* && git commit -m "ne_shape 재실행 — PE �
 | 최적화 절차 | §1-9 | 자유 조합 최대 0.17 %p. 갈린 두 점에서 이긴 건 **그들** |
 | 97 행 원표 | §2 · §2-1 | `out/bms97/` 커밋. 음수 LAM 이 경계 산물이라는 것을 **산술로** |
 | 상태 일반화 | §1-10 | 파우치 네 상태에서 LAM_NE 최광 · LLI 최협 (4/4). **절대 폭으로 말할 때만** |
-| **셀 일반화** | **§1-12** | **넘어가지 않는다** — 기술적 결과만. 원통형 LLI 하한 폭이 raw 로 5~10 배; 파우치 PE 고정 실험은 그 폭을 만들지 않았으나 LAM_PE 에서는 원통형 패턴을 재현 (R2 정정). 외곽 범위는 원통형에서 LAM_PE 분리·LAM_NE·LLI 겹침 (공유 가능값 미확정). 잔차 증가는 관측, 원인 미확정 (R3-01) |
+| **셀 일반화** | **§1-12** | **넘어가지 않는다** — 기술적 결과만. 원통형 LLI 하한 폭이 raw 로 max/max 10.5 배; 파우치 PE 고정 실험은 그 폭을 만들지 않았으나 LAM_PE 에서는 원통형 패턴을 재현 (R2 정정). 외곽 범위는 원통형에서 LAM_PE 분리·LAM_NE·LLI 겹침 (공유 가능값 미확정). 잔차 증가는 관측, 원인 미확정 (R3-01) |
 | 문서↔산출 정합 | `cb23dbf` | 여섯 문서 중 넷이 뒤처져 있었다. drift 테스트 둘로 고정 |
 
 ## 열려 있는 것 (셀 말고)
