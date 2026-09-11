@@ -1,13 +1,13 @@
 ---
 title: "리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)"
-date: 2026-09-09
-updated: 2026-09-09
+date: 2026-09-11
+updated: 2026-09-11
 tags: [index, review, codex]
 status: 자동생성
 kind: index
 confidence: high
 verificationStatus: verified
-verifiedAt: 2026-09-09
+verifiedAt: 2026-09-11
 verifiedBy: tools/kb_wiki.py reviews --write (산출물에서 재구성)
 explored: false
 authoredBy: agent
@@ -76,9 +76,10 @@ evidenceScope: multi-source-primary
 | BG | 2026-09-07 | `codex_BG_prompt_webapp_aw_release_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 2회 |
 | BH | 2026-09-07 | `codex_BH_prompt_md_axis_audit_2026_09_07.md` | — | 작성 — 발송 대기 | 판정 인용 1회 |
 | BI | 2026-09-08 | `codex_BI_prompt_webapp_claim_binding_2026_09_08.md` | — | 발송 | — |
-| BJ2 | 2026-09-09 | `codex_BJ2_prompt_cascade_redesign_2026_09_09.md` | — | 초안 | — |
+| BJ2 | 2026-09-09 | `codex_BJ2_prompt_cascade_redesign_2026_09_09.md` | `codex_BJ2_reply_2026_09_09.md` | 초안 | 회신 본문의 `요청:` 역링크 |
 | BJ | 2026-09-09 | `codex_BJ_prompt_cascade_redesign_2026_09_09.md` | — | 회신됨-NO-GO | — |
 | BK | 2026-09-09 | `codex_BK_prompt_doping_question_2026_09_09.md` | — | 초안 | — |
+| BL | 2026-09-11 | `codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` | `codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` | 진행 | 같은 라벨 · 주제 토큰 일치 ['ambiguity', 'gate', 'lpsocl'] |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 
