@@ -3,7 +3,7 @@
 > 세션이 바뀌어도 유지되는 미결 사항 추적. 닫을 때 날짜+근거를 남기고 ✅로 옮긴다.
 > 등록: 2026-07-27 (MAX 감사 후속).
 
-## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-10**)
+## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-11**)
 
 > 순서가 있다. 앞이 끝나야 뒤가 뜻이 있다.
 >
@@ -11,7 +11,77 @@
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
 
-### ⏭-NOW. 2026-09-10 23:20 기준 **실측** 상태 (ps·nvidia-smi·git log 로 받침)
+### ⏭-NOW. 2026-09-11 14:40 기준 **실측** 상태 (ps·nvidia-smi·tmux·git log 로 받침)
+
+> ⛔ **오늘의 교훈이 하나뿐이다 — 던지기 전에 서버를 본다.**
+> 같은 실수를 **두 번** 했다. ① 힘 대조 파일럿을 아침 내내 다시 돌렸는데 tmux `fcgap` 에
+> 09-09 완주 기록이 있었다. ② modelc 갭 nscf 를 다시 돌리려 했는데 gabia 에 09-03 완주본이
+> 있었다. 둘 다 **계산이 아니라 기록이 밀린 것**이었다. `tmux ls` · `pgrep` · 런 디렉터리
+> 전수는 30초다.
+
+**▶ 지금 돌고 있는 것 (셋)**
+- **gabia 탄성** — `/data/work/runs/elastic_modelc_2x` V0_relax · BFGS 12스텝 · **663 SCF**
+  · |F| 0.004845→**0.002603** (하강 중) · E −2525.78575693 Ry · cpu 40,386 s · **strain 0/12**.
+  어제 봉인한 재점검 규칙에서 **2번 갈래(2.5~3.3e-3 → 6시간 더)**. 16:30 경 재점검.
+  ⚠ 화면의 `Total force` 는 **노름**이고 QE 의 수렴 판정은 **성분 최댓값**이다 — 실제 남은
+  거리는 26배가 아니라 4~7배쯤이다. ⚠ V0 하나에 11.2 h 를 썼는데 strain 이 12점 남았다.
+  V0 끝나면 **첫 strain 점의 스텝당 시간을 재서 12점을 외삽**한다.
+- **kgy lpsocl MD** — `~/work/runs/lpsocl_box331_400ps` **8/9 완주** · s4/1000 K **97 %**
+  (PID 1776487). 9/9 뜨면 `lpsocl_box331_closure_conditions_2026_09_07.json`(active)의
+  **C1–C6 게이트가 먼저**다. 결과는 셋 — 값 · HOLD · no_value. HOLD 는 실패가 아니다.
+- **kgy Nd DOS** — PID 2400966 `run_gap_nscf_gabia.sh DOS=1 ndo_lpscl16_n5fu_O-distributed`.
+
+**⏸ 되살릴 것**
+- **SEI 큐** — 어제와 동일. 탄성이 끝나야
+  `cd /data/work/repo && tmux new -s sei -d 'bash tools/sei/restart_qe_relax.sh --run'`.
+  r2 박제 `/data/work/runs/sei_control/li3nd_mp-976264_p333_r2/PAUSED_0910_2304/`
+  (step 40 · |F| 0.032609 · E −14652.33022106 · `.bfgs` sha 3feb4c36).
+
+**✅ 오늘(09-11) 닫힌 것**
+- **gap 원장 4/4 해소 · N 항목 닫음.** modelc 실행본이 gabia
+  `/data/work/runs/gap_nscf/modelc/nscf_gap.{in,out}` 에 있었다 — `occupations='fixed'` ·
+  `K_POINTS 8 8 2` → **68 irr**(정본 일치) · VBM 2.4447 / CBM 4.5436 / **gap 2.0989**
+  (정본 2.099, 소수 넷째 자리). ⇒ 네 계가 같은 `gap-fixedocc-eigenvalue-v1` 등급.
+  **논문 표에 단서 없이 나란히 쓸 수 있다.** comp2 2.04 는 여전히 다른 줄.
+  ⚠ 사본이 gabia 한 곳뿐(`needs_duplication`).
+- **힘 대조 카드 §4 3판 비준** (`content_digest 87091598…`). `fixed` → `smearing/gaussian`.
+  근거: b2o3 **0 K −TS 0.000** vs **700 K −TS −0.00318 Ry** matched 대조 —
+  갭이 닫힌 건 조성이 아니라 **온도** 탓이다. `fixed` 는 nbnd=nelec/2 로 여유 밴드가 0 이라
+  그 상태를 표현할 수 없다. beta 0.05~0.2 · ndim 8~16 · maxstep 400~600 **전부 실패**했다.
+  ⛔ **smearing 종류가 갈랐다**: gaussian 49회 수렴 / **mv 118,698 Ry 발산**.
+- **도구 3건** — `generate_dft_inputs` `--help` 가 철회된 local-TF 를 권하고 있었다 /
+  `--smearing` 기본 mv → **gaussian** · `scf_from_xyz` 의 mv 하드코딩 제거(manifest 가
+  호출부 값과 무관하게 "mv" 라고 거짓말했다) / `prereg_ratify` 가 `record` 만 봐서
+  `kind:"estimand"`(=`card`) 문서의 **비준 자체를 막고 있었다**.
+- **결정문 드리프트** — `D-2026-09-08-b2o3-uma-vs-dft-force` 의 statement 가 1판
+  (800·1000 K · 온도 2축)으로 3일간 남아 있었다. 카드 기준으로 맞췄다.
+
+**⏭ 바로 다음 (순서 있다)**
+1. **대조 잡 판정** — `~/work/runs/fc_control_smear/modelc_2_t10ps` 실행 중(GPU, 회당 ~13 s).
+   좌표해시 `bf6710fec368b7b8` 이 본배치와 **일치 확인됨**(§8 무효조건 1번 통과).
+   `-TS` ~0 이면 대조군이 안 흔들린 것 → 2번으로. 크면 그 크기를 결과 파일에 적고 진행.
+2. **힘 대조 20점** — ⚠ **입력 재생성부터.** 본배치 20점의 scf.in 은 local-TF 철회
+   **9분 전** 생성물이다(러너 09-08 22:53:30 / 철회 커밋 23:02:32). 새 디렉터리
+   `force_check_700K_v2` 에 만든다 — 옛 배치는 실패 증거라 덮지 않는다.
+3. **ICOHP·DOS CSV 원장 등재 + claim 결속** (아래 남은 사무).
+
+**⛔ 남은 사무 (짧다)**
+- ICOHP·DOS CSV **원장 등재 + claim 결속** — 인용 제한 셋을 값 요소 *안*에:
+  P–S −6.288 을 `ICOHP_PS` 와 못 섞음(방법 대조 안 함) · Rietveld 유래 대조군이라
+  main track(cfg141)으로 못 옮김 · frozen-4f 라 4f 주장 불가 · DOS **곡선**은 irr 10 k
+  tetrahedra 라 표시용(갭·성분비는 유효).
+- `elastic.json` 의 **b2o3_champion 에 setup/strain_step/n_scfs 가 없다** (나머지 넷은 있다).
+  2026-07-03 판의 입력이 어디에도 없어 그 Cij(K 27.02 포함)는 설정 미확인으로 남는다.
+  canonical B0 24.48 은 별개 EOS 라 무관.
+- **`gap2_{b2o3,modelc2x}`(156·160원자)는 세워뒀다** — 힘 대조와 **다른 셀**이라 카드의
+  대조 잡이 아니다. kgy GPU 에서 OOM(128원자는 되고 160은 안 된다). 큰 셀 갭은 별건.
+- **kgy 클론이 셋**이다: `~/lldvar`(정본) · `~/work/Yonghoon-DEM-DFT`(낡음) ·
+  `~/Yonghoon-DEM-DFT`(**SDCP 원고 브랜치**). kgy 블록은 `~/lldvar` 만 쓴다.
+  그리고 `python3` 은 `/bin/python3`(시스템)이라 **`$CONDA_PREFIX/bin/python`** 을 쓴다.
+  tmux 서버가 7월부터 떠 있어 새 세션이 **옛 환경**을 물려받는다 — env 를 명령 문자열 안에.
+
+<!-- 아래는 2026-09-10 판 (이력) -->
+### ⏭-NOW(이력). 2026-09-10 23:20 기준 **실측** 상태 (ps·nvidia-smi·git log 로 받침)
 
 **▶ 지금 돌고 있는 것 (둘)**
 - **gabia 탄성 26잡** — `tmux el` · `/data/work/runs/elastic_{modelc_2x,b2o3}` · pw.x 30.9 GB.
