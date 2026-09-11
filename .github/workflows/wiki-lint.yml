@@ -1,0 +1,30 @@
+name: checks
+# 위키 lint · webapp smoke · 셀 모듈 테스트를 각각의 게이트로 건다.
+# webapp/smoke.py 와 tests/ 는 위키·config 를 읽으므로 그것들이 바뀌어도 돌린다 (paths 가 겹치는 이유).
+on:
+  push:
+    paths: ["wiki/**", "webapp/**", "tools/**", "tests/**", "config/**", "data/registry/**", ".github/workflows/**"]
+  pull_request:
+    paths: ["wiki/**", "webapp/**", "tools/**", "tests/**", "config/**", "data/registry/**", ".github/workflows/**"]
+jobs:
+  lint:
+    name: wiki lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 wiki/tools/lint.py
+
+  webapp:
+    name: webapp smoke + cell tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r webapp/requirements.txt
+      - run: python3 webapp/smoke.py
+      - run: python3 -m unittest discover -s tests -v

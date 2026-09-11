@@ -1,0 +1,31 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# webapp 런타임 (midni.sh 가 .venv/.midni/ 아래에 pid·url·log 를 둔다)
+.venv/.midni/
+*.log
+
+# 셀 원 데이터 — 크고, 정본은 실험 노트·장비. 저장소에는 registry 와 import 요약만 둔다
+data/raw/*
+!data/raw/README.md
+
+# inbox 의 원본 PDF/docx 는 저장소에 넣지 않는다 (digest + 노트 + 크로핑 그림만 커밋)
+wiki/inbox/*
+!wiki/inbox/README.md
+
+# editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.swp
+
+# claude local
+.claude/settings.local.json
+
+# node (다른 브랜치의 Vite 앱 흔적이 섞이지 않게)
+node_modules
+dist
