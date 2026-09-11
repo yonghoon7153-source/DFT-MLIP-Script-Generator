@@ -376,6 +376,10 @@ def cmd_degeneracy(args):
         "state": args.state, "si_source": args.si_source,
         "half_cell": args.source, "w_dqdv": args.w_dqdv,
         "tol_percent_of_best": args.tol * 100,
+        # ⚠ 설정을 산출 **안에** 남긴다. 2026-09-11 자체 리뷰: 파우치 100·200·
+        #   300_0009 산출에 starts·seed 가 어디에도 없어서(meta 사이드카는 그
+        #   뒤에 생겼다) 나머지 행과 같은 설정이었다는 것을 증명할 수 없었다.
+        "n_starts": args.starts, "seed": args.seed,
         "n_accepted": len(keep),
         "best_obj": best_val,
         "best_p": [float(x) for x in best],

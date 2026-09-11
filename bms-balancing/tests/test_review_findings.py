@@ -1115,7 +1115,7 @@ def test_section_1_12_ranking_and_overlap_come_from_artifacts():
 
     # 배율 표 — §1-12 의 헤드라인이다 ("LLI 만 한 자릿수로 무너진다")
     sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-12")
-    rng = _table_rows(sec, MODES)
+    rng = _table_rows(sec, MODES, header_has="반폭 범위")   # 정규화 표와 행 키가 같다
     assert len(rng) == 3, f"§1-12 의 배율 표를 못 찾았다: {sorted(rng)}"
     pouch_rows = [r for lab, _, r in rows if lab in ("pouch", "fixedhc")]
     cyl_rows = [r for lab, _, r in rows if lab in ("c168", "c171")]
@@ -1285,3 +1285,45 @@ def test_section_1_12_and_5_2_ne_shape_tables_match_the_csv():
                  f"{min(fr):.1f} ~ {max(fr):.1f} %", " · ".join(f"{x:.3f}" for x in xs),
                  f"**{spread:.1f}**"):
         assert want in sec, f"§5-2 (c) 에 '{want}' 가 없다 — CSV 와 다르다"
+
+
+def test_section_1_12_obj_normalized_table_comes_from_artifacts():
+    """자체 리뷰(2026-09-11) 발견 ①: 1 % 띠는 best_obj 에 비례한다.
+
+    원통형의 best_obj 가 파우치의 ~1.5 배라 "10.5 배" 헤드라인은 그 교란을
+    안은 값이다. §1-12 가 반폭/best_obj 표를 같이 들고 있어야 하고, 그 표가
+    산출물에서 그대로 나와야 한다.
+    """
+    if not all((ROOT / v).is_dir() for v in DEG_ROOTS.values()):
+        pytest.skip("산출이 없다")
+    import json
+    cs = _load_script("compare_states")
+    def rows(sub):
+        return [(e["j"]["best_obj"], {k: e["j"][f"{k}_percent"]["span"] / 2 for k in MODES})
+                for e in cs.load_degeneracy(ROOT / sub).values()]
+    P = rows("out") + rows("out/cells_pouch_fixedhc")
+    C = rows("out/cells_c168") + rows("out/cells_c171")
+    assert len(P) == 7 and len(C) == 6
+
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-12")
+    t = _table_rows(sec, MODES, header_has="반폭 / best_obj")
+    assert len(t) == 3, f"§1-12 의 정규화 표를 못 찾았다: {sorted(t)}"
+    for k, cells in t.items():
+        pn = sorted(hw[k] / b for b, hw in P); cn = sorted(hw[k] / b for b, hw in C)
+        for i, v in enumerate((pn, cn)):
+            lo, hi = (float(x) for x in cells[i].split("~"))
+            assert abs(lo - v[0]) < 0.005 and abs(hi - v[-1]) < 0.005, \
+                f"정규화 표 {k} {'파우치' if i == 0 else '원통형'}: 문서 {lo}~{hi} vs 산출 {v[0]:.2f}~{v[-1]:.2f}"
+        assert abs(float(cells[2].rstrip("x")) - cn[-1] / pn[-1]) < 0.05, \
+            f"정규화 표 {k} 배율: 문서 {cells[2]} vs 산출 {cn[-1]/pn[-1]:.1f}x"
+    # 교란이 "격차의 일부만" 설명한다는 문장의 근거 — 정규화해도 LLI 는 3 배 이상
+    pn = sorted(hw["LLI"] / b for b, hw in P); cn = sorted(hw["LLI"] / b for b, hw in C)
+    assert cn[-1] / pn[-1] > 3, "정규화하면 LLI 격차가 사라진다 — §1-12 의 결론이 뒤집힌다"
+
+
+def test_degeneracy_json_records_its_settings():
+    """자체 리뷰 발견 ②의 재발 방지: 새 산출은 starts·seed 를 JSON 안에 들고 있어야."""
+    import inspect
+    src = inspect.getsource(verify.cmd_degeneracy)
+    assert '"n_starts": args.starts' in src and '"seed": args.seed' in src, \
+        "cmd_degeneracy 가 starts/seed 를 산출에 안 남긴다"
