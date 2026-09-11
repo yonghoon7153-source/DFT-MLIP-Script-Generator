@@ -2,7 +2,7 @@
 """Scaffold a new wiki page with correct frontmatter (SCHEMA.md).
 
 Usage:
-  python3 tools/new-page.py <type> <slug> [--title "Display Title"]
+  python3 tools/new-page.py <type> <slug> [--title "Display Title"] [--effort low|medium|high|max]
 
   type: concept | entity | comparison | query | guide | research-question | synthesis
   slug: lowercase-hyphens (becomes the filename and [[wikilink]] target)
@@ -43,7 +43,6 @@ def main():
     ap.add_argument('type', choices=FOLDER)
     ap.add_argument('slug')
     ap.add_argument('--title', default=None)
-    ap.add_argument('--model', default='', help='작성 에이전트 모델 ID (사람 작성이면 생략)')
     ap.add_argument('--effort', default='', help='low|medium|high|max')
     args = ap.parse_args()
 
@@ -56,9 +55,9 @@ def main():
 
     title = args.title or args.slug.replace('-', ' ').title()
     today = datetime.date.today().isoformat()
-    prov = ''
-    if args.model:
-        prov = f'model: {args.model}\neffort: {args.effort or "medium"}\n'
+    # 모델 식별자는 페이지에 적지 않는다 (루트 CLAUDE.md 하드룰 6 · lint no-model-identifier).
+    # `--model` 플래그는 2026-09-11 제거했다 — 하드룰이 금지한 자리에 도구가 길을 내고 있었다.
+    prov = f'effort: {args.effort}\n' if args.effort else ''
     fm = f"""---
 title: {title}
 created: {today}

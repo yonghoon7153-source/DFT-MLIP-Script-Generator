@@ -35,3 +35,13 @@
 
 ## [2026-09-11] update | 작업 브랜치 이전 — `main` → 루트 CLAUDE.md 하드룰 1 의 브랜치
 - 사용자 요청: main 에서 작업하지 않는다. 오늘의 커밋 5개를 새 브랜치로 옮기고 main 은 Initial commit 으로 되돌렸다. 킥오프 기록(raw, 불변)의 "main 을 mothership 으로" 결정은 이 항목으로 정정한다. 브랜치 이름은 위키에 적지 않는다.
+
+## [2026-09-11] lint | 브랜치 전수조사 — 드리프트 게이트 3종 신설, 깨진 도구 제거
+- 전수조사(실행 증명): lint 0 errors(고의 파손 시 3 errors 로 죽는 것까지 확인) · 라우트 22개 200 · 그림 19장·정적자산 11개 서빙 · hook 2종 차단/통과 · shell 7 + python 7 문법 · CI green · sha256 봉인 · `figures.json` 19 ↔ 디스크 19.
+- **발견 1 (하드룰 위반)**: `tools/new-page.py --model` 이 페이지 frontmatter 에 모델 식별자를 쓰고 있었다 — 루트 CLAUDE.md 하드룰 6 이 금지한 바로 그 자리다. 플래그 제거 + lint `no-model-identifier` 검사 신설. API 호출용 모델 문자열은 `webapp/chat.py` env 기본값 한 줄로 자리를 고정하는 예외를 하드룰에 명시했다.
+- **발견 2 (provenance 손실)**: `raw/figures/_sources.json` 이 `figures: 8 · pdfs: [main.pdf]` 로 멈춰 있었다 — SI 11장의 출처(.docx)가 통째로 빠진 상태. PDF 원본을 저장소에 넣지 않으므로 이 파일이 유일한 출처 기록이다. 19장·2소스로 재생성.
+- **발견 3 (사본 drift 위험)**: 복합양극 조성·목표 용량이 webapp 템플릿·index 로 복사되어 있는데 정본([[li2s-assb-reference-cell]])과 묶어주는 것이 없었다 — 브랜치 이름 drift(검사 15)와 같은 구조. lint `canonical-copy` 검사 신설 (`raw/` 면제).
+- **발견 4 (없는 게이트를 주장)**: `CLAUDE.md`/`AGENTS.md` 가 "lint 로 parity 를 확인한다" 고 적어 놓았으나 그런 검사가 없었다. `parity` 검사 신설 — 이제 Essential Rules 가 갈리면 죽는다.
+- **발견 5 (깨진 도구)**: `tools/init-wiki.sh` 는 이 저장소에서 `$SRC/.claude/*` 를 복사하는데 그 경로가 없어(여기선 repo root) 27행에서 죽는다. 생성하는 커맨드 이름도 킷의 옛 이름이었다. 참조처가 없어 삭제했다. (킷 출처 기록 `raw/transcripts/kit-provenance-260730.md` 는 불변 — 그대로 둔다.)
+- **발견 6 (webapp 무검사)**: CI 가 `paths: ["wiki/**"]` 뿐이라 webapp 은 자동 검사가 0 이었다. `webapp/smoke.py` 신설(84건: 등록부 전 페이지·전 그림·정적자산·읽기전용 게이트·경로탈출·보안헤더·XSS) + CI 에 webapp job 추가 + `li2s smoke`. 게이트 검사는 처음에 status 405 만 봐서 게이트를 열어도 통과했다 — Flask 자체 405 와 구분되도록 응답 본문까지 보게 고쳤다(그 실패를 재현해 확인).
+- 기타: 죽은 커맨드 이름(`/inbox` `/ingest` `/verify`) 정정 · CLAUDE.md 의 "digest 6만 자" → 실측 29,143자 · pptx 산출물을 index 에 등록(시각 QA 미결 명시).

@@ -1,11 +1,15 @@
 name: wiki-lint
+# 2026-09-11: paths 가 ["wiki/**"] 뿐이라 webapp/ 는 자동 검사가 0 이었다.
+# 위키와 webapp 을 각각의 게이트로 나눠 건다 (webapp/smoke.py 는 위키를 읽으므로
+# 위키가 바뀌어도 돌려야 한다 — 그래서 두 job 의 paths 가 겹친다).
 on:
   push:
-    paths: ["wiki/**"]
+    paths: ["wiki/**", "webapp/**", ".github/workflows/**"]
   pull_request:
-    paths: ["wiki/**"]
+    paths: ["wiki/**", "webapp/**", ".github/workflows/**"]
 jobs:
   lint:
+    name: wiki lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,3 +17,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 wiki/tools/lint.py
+
+  webapp:
+    name: webapp smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r webapp/requirements.txt
+      - run: python3 webapp/smoke.py

@@ -27,17 +27,23 @@ webapp 은 `webapp/README.md`, 브랜치 지도는 `BRANCHES.md`.
 4. **정본**: 실험 수치의 정본은 **실험 노트·원 데이터**. 위키·webapp·대화에 적힌 우리 수치는 사본이며
    인용 근거가 아니다. 논문 수치의 정본은 digest 의 `[인쇄]` 항목 → 원문.
 5. **단위**: 비용량은 `mAh g⁻¹(S)` / `(Li2S)` / `(composite)`, 전압은 `vs Li/Li⁺` / `vs Li–In` 을 항상 적는다.
-6. **모델 식별자 금지**: 위키 페이지·코드·커밋 본문에 넣지 않는다 (세션 하네스가 자동으로 붙이는 `Co-Authored-By` 트레일러는 예외).
+6. **모델 식별자 금지**: 위키 페이지·코드·커밋 본문에 넣지 않는다. 예외는 둘뿐이다 —
+   (a) 세션 하네스가 자동으로 붙이는 `Co-Authored-By` 트레일러, (b) **API 호출에 쓰는 모델
+   문자열**. (b)는 클라이언트가 모델을 지명하지 않으면 호출 자체가 불가능해서 생긴 예외이므로
+   **`webapp/chat.py` 의 `LI2S_CHAT_MODEL` env 기본값 한 줄**로 자리를 고정한다 (그 문서화인
+   `webapp/README.md` 포함). 그 밖의 자리는 `wiki/tools/lint.py` 의 `no-model-identifier`
+   검사가 막는다 — 2026-09-11 전수조사에서 `new-page.py --model` 이 하드룰이 금지한 자리
+   (페이지 frontmatter)에 길을 내고 있었고, 그 플래그는 제거했다.
 
 ## 작업 규율
 
 - **검증 없는 완료 선언 금지** — "됐다" 는 **방금 실행한 출력**으로만. 이 저장소의 증명 명령:
-  `python3 wiki/tools/lint.py` (0 errors) · `webapp/li2s.sh status` / `curl` 라우트 점검 · 논문 에이전트는
-  그림을 **실제로 Read** 한 뒤 쓴다.
+  `python3 wiki/tools/lint.py` (0 errors) · `python3 webapp/smoke.py` (라우트 전수 점검) ·
+  `webapp/li2s.sh status` · 논문 에이전트는 그림을 **실제로 Read** 한 뒤 쓴다.
 - **논문은 `/paper` 로.** 요약 한 장이 아니라 절별 전문 digest + 공백표 + `compare:` + 그림. 액체계 논문은
   "고체계에 옮길 수 없는 것" 을 반드시 적는다.
 - **질문 카드가 축이다.** 새 자료가 들어오면 `wiki/questions/` 의 열린 카드에 어느 가설의 근거인지 적는다.
-- **컨텍스트**: 큰 파일은 `offset/limit` 로, 위치는 Grep 으로. digest 는 6만 자가 넘는다.
+- **컨텍스트**: 큰 파일은 `offset/limit` 로, 위치는 Grep 으로. digest 는 3만 자 안팎이다 (Kim 2023: 29,143자 / 43 KB — 한 번에 읽지 말 것).
 
 ## 커맨드
 

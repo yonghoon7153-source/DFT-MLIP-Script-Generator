@@ -59,7 +59,11 @@ python3 webapp/app.py     # 직접 — http://127.0.0.1:5100
 
 ```
 webapp/
-  li2s.sh              한 단어 런처 (start/open/status/stop/restart/update/share/fg/log/paper/lint/wiki)
+  li2s.sh              한 단어 런처 (start/open/status/stop/restart/update/share/fg/log/paper/lint/wiki/smoke)
+  smoke.py             라우트 전수 점검 — 등록부의 모든 페이지·모든 그림·정적자산·읽기전용
+                       게이트·경로탈출·보안헤더·XSS 이스케이프. 서버를 띄우지 않는다
+                       (Flask test_client). `python3 webapp/smoke.py` 또는 `li2s smoke`.
+                       CI(.github/workflows/wiki-lint.yml) 의 webapp job 이 이걸 돌린다.
   app.py               라우트 + 읽기 전용 guard + 보안 헤더 + chat SSE
   chat.py              위키 근거 대화 (Anthropic SDK, 스트리밍, refusal fallback, FAKE 모드)
   content.py           frontmatter · 마크다운/wikilink · 4구분 표기 · 목차 · 그림 색인 · compare 표 · 검색 · chat 근거 선택

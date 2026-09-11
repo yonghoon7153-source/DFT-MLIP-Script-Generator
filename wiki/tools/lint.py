@@ -20,6 +20,10 @@ Checks (SCHEMA.md conventions):
  14. verified pages with verifiedAt older than STALE_DAYS (warning — re-verify)
  15. no wiki page hardcodes a git branch name — the branch rule lives in the
      root CLAUDE.md only (2026-08-20: 5 wiki files had drifted to a dead branch)
+ 16. no model identifier in wiki pages or tools (root CLAUDE.md hard rule 6)
+ 17. Parity Contract — CLAUDE.md and AGENTS.md carry the same Essential Rules
+ 18. canonical-copy — research constants (cathode ratio, target capacity) copied
+     into webapp templates/index must match the reference-cell entity page
 
 The kit's study-path coverage check was dropped on 2026-08-20: it only ran when
 `guides/llm-wiki-study-path.md` existed, and this is a project wiki, not a
@@ -182,6 +186,75 @@ for f in [BASE / n for n in ('SCHEMA.md', 'CLAUDE.md', 'AGENTS.md', 'README.md',
         errors.append(f'{f.name}: hardcoded branch name `{hit}` — '
                       f'루트 CLAUDE.md 의 브랜치 하드룰을 참조하라 (drift 방지)')
 
+# 16. no-model-identifier — 루트 CLAUDE.md 하드룰 6. 모델 식별자는 위키 페이지·도구에
+#     적지 않는다. 2026-09-11 전수조사 발견: `tools/new-page.py --model` 이 하드룰이
+#     금지한 바로 그 자리(페이지 frontmatter)에 길을 내주고 있었다 — 플래그를 뺐고
+#     이 검사로 재발을 막는다.
+#     `raw/` 는 면제 (불변 스냅샷이 당시 기록을 legitimately 담는다).
+#     예외 하나: API 클라이언트가 호출에 쓰는 모델 문자열은 `webapp/chat.py` 의 env
+#     기본값 **한 곳**에만 둔다 (하드룰 6 에 명시). 이 검사는 위키만 보므로 닿지 않는다.
+MODEL_RE = re.compile(
+    r'(?<![\w-])(?:claude-(?:opus|sonnet|haiku|fable|instant)[\w.-]*'
+    r'|gpt-[0-9][\w.-]*|gemini-[0-9][\w.-]*)', re.I)
+for f in [BASE / n for n in ('SCHEMA.md', 'CLAUDE.md', 'AGENTS.md', 'README.md',
+                             'index.md')] + sorted(pages.values()) + [BASE / 'tools' / 'new-page.py']:
+    if not f.exists():
+        continue
+    for hit in sorted(set(MODEL_RE.findall(f.read_text(encoding='utf-8')))):
+        errors.append(f'{f.name}: model identifier `{hit}` — '
+                      f'루트 CLAUDE.md 하드룰 6 (위키 페이지·코드에 적지 않는다)')
+
+# 17. Parity Contract — CLAUDE.md 와 AGENTS.md 의 "## Essential Rules" 절은 같은 규칙의
+#     미러다. 두 파일 모두 "lint 로 parity 를 확인한다" 고 적어 놓았지만 2026-09-11
+#     전수조사 시점까지 그런 검사가 없었다 — 문서가 있지도 않은 게이트를 주장하고 있었다.
+#     이제 실제로 센다.
+def _essential(path):
+    if not path.exists():
+        return None
+    txt = path.read_text(encoding='utf-8')
+    m = re.search(r'^## Essential Rules.*?\n(.*?)(?=^## )', txt, re.S | re.M)
+    return re.sub(r'\s+', ' ', m.group(1)).strip() if m else None
+
+_c, _a = _essential(BASE / 'CLAUDE.md'), _essential(BASE / 'AGENTS.md')
+if _c is None or _a is None:
+    errors.append('parity: CLAUDE.md/AGENTS.md 의 `## Essential Rules` 절을 찾지 못했다')
+elif _c != _a:
+    errors.append('parity: CLAUDE.md 와 AGENTS.md 의 Essential Rules 가 다르다 — '
+                  'Parity Contract 위반 (두 파일을 함께 고친다)')
+
+# 18. canonical-copy — 연구 상수(복합양극 조성·목표 용량)의 정본은 reference cell
+#     entity 페이지 하나다. 그 값이 webapp 템플릿·index 로 복사되어 있고 2026-09-11
+#     전수조사 시점에 이를 묶어주는 것이 아무것도 없었다 — 브랜치 이름 drift(검사 15)와
+#     정확히 같은 구조다. 사본이 정본과 어긋나면 여기서 죽는다.
+#     `raw/` 는 면제 (논문 수치·세션 원문이 다른 값을 legitimately 담는다).
+CANON_PAGE = BASE / 'entities' / 'li2s-assb-reference-cell.md'
+COMP_RE = re.compile(r'(?<![\d.:])(\d{1,3})\s*:\s*(\d{1,3})\s*:\s*(\d{1,3})(?![\d.:])')
+CAP_RE = re.compile(r'(\d{3,4})\s*[\u2013-]\s*(\d{3,4})\s*mAh')
+
+def _consts(txt):
+    return ({':'.join(m) for m in COMP_RE.findall(txt)},
+            {'-'.join(m) for m in CAP_RE.findall(txt)})
+
+if not CANON_PAGE.exists():
+    errors.append(f'canonical-copy: 정본 페이지가 없다: {CANON_PAGE.name}')
+else:
+    canon_comp, canon_cap = _consts(CANON_PAGE.read_text(encoding='utf-8'))
+    copies = [BASE / 'index.md', BASE / 'README.md', BASE / 'SCHEMA.md']
+    copies += sorted(pages.values())
+    copies += sorted((BASE.parent / 'webapp').rglob('*.html'))
+    copies += [BASE.parent / 'webapp' / 'app.py', BASE.parent / 'webapp' / 'README.md',
+               BASE.parent / 'README.md']
+    for f in copies:
+        if not f.exists() or f == CANON_PAGE:
+            continue
+        comp, cap = _consts(f.read_text(encoding='utf-8'))
+        for hit in sorted(comp - canon_comp):
+            errors.append(f'{f.name}: 복합양극 조성 `{hit}` 가 정본과 다르다 — '
+                          f'정본 {sorted(canon_comp)} ({CANON_PAGE.name})')
+        for hit in sorted(cap - canon_cap):
+            errors.append(f'{f.name}: 목표 용량 `{hit} mAh` 가 정본과 다르다 — '
+                          f'정본 {sorted(canon_cap)} ({CANON_PAGE.name})')
+
 # 8. orphans — no inbound links from any other page
 inbound = {s: 0 for s in pages}
 for src, targets in outbound.items():
@@ -208,7 +281,7 @@ for stem, fm in fm_by_page.items():
     try:
         va = datetime.date.fromisoformat(str(fm.get('verifiedAt', '')))
         if (today - va).days > STALE_DAYS:
-            warnings.append(f'{stem}: verification stale (verifiedAt {va}) — /verify 재실행 권장')
+            warnings.append(f'{stem}: verification stale (verifiedAt {va}) — /wiki-verify 재실행 권장')
     except ValueError:
         pass  # missing/bad verifiedAt already an error above
 

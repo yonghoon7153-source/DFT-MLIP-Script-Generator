@@ -16,6 +16,7 @@
 #   li2s log          서버 로그 tail
 #   li2s paper <pdf> [<si.pdf> …]   PDF 를 wiki/inbox/ 로 복사 (그다음 Claude 에서 /paper)
 #   li2s lint         위키 lint     ·  li2s wiki   위키 status
+#   li2s smoke        webapp 라우트 전수 점검 (서버 없이)
 #   li2s --port 5123  포트 지정 (기본: 5100 부터 빈 포트)
 #
 # 설계 메모
@@ -33,7 +34,7 @@ mkdir -p "$RUN" 2>/dev/null || true
 PIDF="$RUN/pid"; URLF="$RUN/url"; LOGF="$RUN/server.log"
 PORT=""; BIND="127.0.0.1"; CMD=""
 
-usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 # ── 인자 ──────────────────────────────────────────────────────────────────
 ARGS=()
@@ -193,6 +194,7 @@ case "$CMD" in
     echo "· 다음: Claude Code 에서  /paper   (또는 \"논문 에이전트 해줘\")"
     ;;
   lint) exec python3 "$ROOT/wiki/tools/lint.py" ;;
+  smoke) ensure_venv; exec "$VENV/bin/python" "$ROOT/webapp/smoke.py" ;;
   wiki) exec python3 "$ROOT/wiki/tools/status.py" ;;
   *) echo "모르는 명령: $CMD" >&2; usage; exit 2 ;;
 esac
