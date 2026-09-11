@@ -652,13 +652,22 @@ def contrast_from_forces(ref, pred, symbols, exclude=("Li",)):
     # ⛔ 2026-09-11 — dv 는 **프레임을 이어붙인** 배열이고 m2 는 한 프레임짜리 마스크다.
     #   프레임이 2개 이상이면 길이가 안 맞아 IndexError 로 죽었다 (실측: 20점 판정 직전).
     #   selftest 가 전부 1프레임이라 한 번도 안 걸렸다 — 아래 다중프레임 시험을 같이 넣는다.
+    # ⚠ 2026-09-11 — 원소별 dF 는 **절대값**이라 그 원소의 힘 크기를 모르면 못 읽는다
+    #   (B·O 가 작게 나온 것이 '잘 맞아서' 인지 '원래 힘이 작아서' 인지 안 갈린다).
+    #   그래서 같은 마스크로 |F_DFT| rms 와 그 비를 **같이** 낸다. 판정식(R)은 안 바뀐다 —
+    #   이건 카드 §2 의 보조 보고량이다.
+    per_el_ref, per_el_rel = {}, {}
     for el in sorted(set(np.asarray(symbols)[mask])):
         m2 = np.tile(np.array([sy == el for sy in symbols])[mask], len(ref))
         per_el[el] = float(np.linalg.norm(dv[m2], axis=1).mean())
+        fr = float(np.sqrt((np.asarray(R[m2]) ** 2).sum(1).mean()))
+        per_el_ref[el] = fr
+        per_el_rel[el] = per_el[el] / fr if fr else None
     return {"dF_frame_eVA": dF, "n_atoms_frame": int(mask.sum()),
             "F_ref_rms_eVA": st["rms_ref_eVA"],
             "dF_over_Fref": dF / st["rms_ref_eVA"] if st["rms_ref_eVA"] else None,
             "cos_theta_frame": cos, "dF_by_element": per_el,
+            "F_ref_rms_by_element": per_el_ref, "dF_over_Fref_by_element": per_el_rel,
             "component_stats": st}
 
 
@@ -794,6 +803,15 @@ def cmd_selftest(a=None):
     chk(abs(g2["dF_frame_eVA"] - 0.1) < 1e-12, "골격 3원자 중 하나가 0.3 → 평균 0.1")
     chk(abs(g2["dF_by_element"]["P"] - 0.3) < 1e-12 and g2["dF_by_element"]["S"] == 0.0,
         "원소별 분해가 맞는 원자에만 붙는다")
+    # 원소별 |F_DFT| rms 와 상대화 — 절대 dF 만 보면 '힘이 작아서 오차가 작은' 경우를 못 가른다
+    chk(abs(g2["F_ref_rms_by_element"]["P"] - 1.0) < 1e-12
+        and abs(g2["F_ref_rms_by_element"]["S"] - np.sqrt(((r1[3] ** 2).sum() + (r1[4] ** 2).sum()) / 2)) < 1e-12,
+        "원소별 |F_DFT| rms 가 그 원소 원자에서만 나온다")
+    chk(abs(g2["dF_over_Fref_by_element"]["P"] - 0.3) < 1e-12,
+        "원소별 상대 오차 = dF/|F_DFT| (P: 0.3/1.0)")
+    _z = contrast_from_forces([np.array([[0., 0, 0]] * 5)], [r1], sym)
+    chk(_z["dF_over_Fref_by_element"]["P"] is None,
+        "⛔음성: 기준 힘이 0 인 원소는 상대값을 지어내지 않고 None")
     p2 = r1.copy(); p2[0] += np.array([9., 0, 0])           # Li 만 크게 틀리게
     g3 = contrast_from_forces([r1], [p2], sym)
     chk(g3["dF_frame_eVA"] == 0.0,
