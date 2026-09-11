@@ -749,7 +749,9 @@ def main():
     p.add_argument('--kpoints', default='2 2 1')
     p.add_argument('--mixing_mode', default='plain',
                   choices=('plain', 'TF', 'local-TF'),
-                  help="큰 무질서 셀의 charge sloshing 에는 local-TF (2026-09-08 실측)")
+                  help="기본 plain. ⛔ 황화물 MD 스냅샷에 local-TF 를 쓰지 마라 — "
+                       "2026-09-08 실측에서 1회부터 48,000 Ry 발산 + negative rho 5.9E+02 "
+                       "(철회됨). sloshing 처방은 --mixing_ndim 12~16 + --occupations smearing")
     p.add_argument('--mixing_beta', type=float, default=0.2)
     p.add_argument('--electron_maxstep', type=int, default=100)
     p.add_argument('--mixing_ndim', type=int, default=8,
