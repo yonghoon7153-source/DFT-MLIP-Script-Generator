@@ -26,13 +26,11 @@
   ⚠ 화면의 `Total force` 는 **노름**이고 QE 의 수렴 판정은 **성분 최댓값**이다 — 실제 남은
   거리는 26배가 아니라 4~7배쯤이다. ⚠ V0 하나에 11.2 h 를 썼는데 strain 이 12점 남았다.
   V0 끝나면 **첫 strain 점의 스텝당 시간을 재서 12점을 외삽**한다.
-- **kgy lpsocl MD** — `~/work/runs/lpsocl_box331_400ps` **9/9 완주**. 게이트 실측: C2 MTO **8/9**
-  (s4/600 11 % > 10 %) · C6 β 경보 **3칸**(s2/800 · s4/800 · s4/1000, O β 0.40–0.53) · framework_com 9/9 static.
-  **Codex 회신 BL = NO-GO(추가 MD·C3 실행) · 감사 GO.** 대응 커밋 `4759272b0`: 개정안
-  `lpsocl_box331_closure_amendment_2026_09_11.json`(**proposed · post-hoc**) · C3 도구 2판 · C6 는 판정 원장에
-  `not_assessed`. **1저자 결정 4건 대기**(개정안 §6). 지금 도는 것: **C2b 궤적 홉 계수** tmux `c2b`
-  (`aimd_jump_stats.py`, `$R/jump/`, CPU) — 결과는 개정안 A5 규칙(inter-cage/이온 ≥ 3.0)으로만 읽는다.
-  ⛔ C3 실데이터 실행은 비준 → C2b → C6 census 뒤.
+- **kgy lpsocl MD — ✅ 마감 (값).** 9/9 완주 → 게이트 전부 충족 → `lpsocl_box331_closed_2026_09_11.json`.
+  **Ea(3×3×1 cell-conditioned) = 0.180 ± 0.002 eV** (gen2 첫 등록, `MD_Ea_eV/lpsocl_box331_cell_conditioned`).
+  C2 8/9 (600 K = s2·s3, R1) · C2b inter-cage 20/55/94 홉/이온 · C6 census 9/9 rigid(β 경보 3칸은 '이탈 없는 저β') ·
+  C3 compatible (ΔEa −0.024, CI [−0.039, −0.008] ⊂ ±0.050 — 구간이 0 을 벗어나 다르니 '완전 직선' 은 금지) · C4·C5 충족.
+  ⚠ 관측 후 개정(BL) 뒤의 마감 · ③ STO Ea 는 1저자가 봤을 가능성(tail -40 기록) — 결과 파일에 명시. 외부 리뷰 아직 없음.
 - **kgy 힘 대조 20점 v2** — tmux `fc20`(14:43 기동) `force_check_700K_v2`, 통일키 `762e7661`, hpcx MPI, ~9–15 h.
   대조 잡은 통과(modelc_s2_t10ps fixed vs gaussian Total force 0.353129/0.353134, −TS 0.000 —
   `b2o3_force_control_modelc_2026_09_11.json`). 아침에 `--collect` + `mlip_committee.py force_contrast --card …`.
@@ -45,6 +43,9 @@
   (step 40 · |F| 0.032609 · E −14652.33022106 · `.bfgs` sha 3feb4c36).
 
 **✅ 오늘(09-11) 닫힌 것**
+- **LPSOCl 3×3×1 캠페인 마감 (값)** — 위 '지금 돌고 있는 것' 항목 참조. 회신 BL 의 GO 항목 전부 이행(개정안 비준 · 도구 2판 · C2b 계수 · C6 census · C3).
+- **Li₂S 카드 1층 개정(b)** — 타깃 a-Li₃PS₄·LiCl / a-Li₃PS₄+LiCl, a-Li₇PS₆ 대조잡. 조성 **3:5:2 (2 = VGCF)** 1저자 확인. 1저자: "논문처럼 Li₃PS₄ 쪽을 파자".
+- **탄성 modelc_2x V0_relax 정체** — `forc_conv_thr 1e-4` 에 21 BFGS·800+ SCF, |F| 2.5–3.2e-3 진동(12 h). 재점검 2번 갈래 만료. 제안: 박제·정지 → 1층(UMA) → 두 계 모두 1e-3 으로 개정(관측 후·비준) 재시작. ⚠ 탄성 사전등록 무효조건 'pw.x·UMA 동시' 라 1층은 정지 뒤에만.
 - **SDCP C-12 v41 발송 (1저자, 17:00 경) — v40 교체·폐기 통지.** v40 은 census/n_total 이 러너 작업폴더
   `_hostpool/` 을 잡 폴더로 세어 **첫 VASP 전에 멈췄다**(수정 `f90e82e63`·`fd16f0c52`, e2e selftest 에 재현 추가).
   v41: 잡 19개 지문 `8a7ae28f` 동일 · **잡 폴더 바이트 동일**(v40 zip 과 diff 0) · zip sha256
