@@ -1,14 +1,14 @@
 {
-  "artifact": "matrix_300_0147.csv",
-  "state": "300_0147",
-  "half_cell_source": "step_005C",
+  "artifact": "profile_gamma_100_Li.csv",
+  "state": "100",
+  "half_cell_source": "GITT",
   "si_source": "Li",
   "starts": 24,
   "seed": 0,
   "w_dqdv_note": "명령별",
   "data_root": "/mnt/d/가형 관련/degradation mode",
-  "run_id": "760807dcafda4ae0bae6660d649e056d",
-  "sha256": "a01ccdbcd0cde5bb6e4de8dd5ee7aa61a5dbc7797685102cd06473e1819acce0",
+  "run_id": "eafd1ebec57b434e89eafddc9fa05c4d",
+  "sha256": "0bdb8822622a73d2fe16961e5f3a1038856541a183a96c3441e55d01c023d07f",
   "git_commit": "61fcf4ba051bc0a1f5bc5f62e082916727edb462",
   "git_dirty": false,
   "git_modified_outputs": [],
@@ -17,7 +17,7 @@
   "git_dirty_at_start": false,
   "git_modified_code_at_start": [],
   "git_state_changed_during_run": false,
-  "started_utc": "2026-09-11T23:18:16.004319+00:00",
+  "started_utc": "2026-09-11T21:50:00.232337+00:00",
   "env": {
     "python": "3.12.3",
     "numpy": "2.5.3",
@@ -25,5 +25,5 @@
     "pandas": "3.0.5",
     "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39"
   },
-  "created_utc": "2026-09-11T23:36:55.965937+00:00"
+  "created_utc": "2026-09-11T21:53:15.052039+00:00"
 }
