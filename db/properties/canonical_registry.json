@@ -89,7 +89,7 @@
    "unit": "eV",
    "source_path": "db/properties/electronic.json",
    "source_key": "/eigenvalue_gaps_v100_2026_06_16/modelc/gap_eV",
-   "method_id": "qe-uspp__fixed-occ-nscf-eigenvalue",
+   "method_id": "qe-uspp__fixed-occ-nscf-eigenvalue__k882",
    "comparison_group": "gap-fixedocc-eigenvalue-v1",
    "status": "canonical",
    "prohibitions": [
@@ -97,17 +97,26 @@
    ],
    "updated": "2026-06-16",
    "note": null,
-   "provenance_open": "⚠ **네 계통의 실제 실행 입력·출력이 repo 에 없다.** 값은 정본 파일이 기록하고 있지만, 정본 규칙(fixed-occupations nscf 고유값)을 만족한 그 실행을 파일로 재현할 수 없다. ★ generic 템플릿 `tools/electronic/standard_dos/nscf_gap.in` 은 존재하고 `occupations='fixed'` 다 — 즉 방법 자체는 repo 에 있다. 없는 건 **계통별 실행본**이다. 계통별로 남은 `*_nscf.in` 은 전부 `occupations='tetrahedra_opt'`(DOS 용)이라 fixed-occ 근거로 쓰면 안 된다. 2026-08-07 Codex 6라운드. → kb/open_items.md 의 별도 데이터 감사 항목. ⚠ 5라운드에 method_id 를 k882 로 '정정' 했는데 근거였던 modelc_nscf.in 이 tetrahedra_opt 였다 — **정정하면서 같은 종류의 오류를 반복했다.** 철회했다. ★ 게다가 템플릿 주석은 modelc(rhombo) 에 **6 6 2** 를 제시한다 — DOS 용 8 8 2 와 다르다. electronic.json 은 kpts='68 irr' 만 적어 k-mesh 를 단정할 수 없다.  ⛔ **2026-08-20 3중 수색 실패**: 오프라인 백업 2벌 + kgy(~/work·~/repo) + gabia(/data/work·/root) 전수에서 이 계의 fixed-occ nscf 출력이 **없다**. 같은 조사에서 b2o3(백업)·lpsocl(kgy ~/work/lpsocl_v0)은 찾았으므로 수색 자체는 유효했다. ⚠ gabia `/root/comp1_cdd_phx/nscf.out` 이 gap 2.0654 를 찍지만 정본 2.066 과 4자리에서 갈리고 **CDD/phonon 용 별개 계산**이라 정본 근거로 쓸 수 없다 (b2o3 의 nscf_eps 와 같은 유형). `runs/{comp1,modelc}_eps/nscf.in` 도 **유전율용**이다. ⇒ KISTI 원본이 없으므로 이 2건은 **영구 미해소로 본다.** 값 자체는 정본 파일과 일치하나 그 실행을 재현할 파일이 어디에도 없다.",
+   "provenance_open": "✅ **해소됨 (2026-09-11)** — 실행본이 gabia `/data/work/runs/gap_nscf/modelc/` 에 있다. 원본(2026-06-16 KISTI 실행)은 여전히 없지만, **같은 방법·같은 k 로 값이 재현되므로** comp1 과 동일한 방식으로 닫는다. 이전 원문은 `method_integrity_flag.원문_2026_08_20` 에 있다.",
    "method_integrity_flag": {
-    "severity": "⛔ 방법 불일치 의심 (재현 불가보다 심각)",
-    "date": "2026-08-20",
-    "finding": "백업 A `repo_dos/tools/electronic/standard_dos/{comp1,modelc}/` 의 nscf 입력이 **occupations='tetrahedra_opt'** 다 (comp1 nbnd=180 · modelc nbnd=210). 짝 출력은 **0 바이트**(comp1_nscf.out · comp1_dos.out)이거나 **아예 없다**(modelc).",
-    "why_it_matters": "CLAUDE.md 규율은 **fixed-occupations nscf 의 VBM/CBM 고유값만** 인정한다. QE 는 tetrahedra/smearing 에서 'highest occupied, lowest unoccupied' 를 찍지 않고 Fermi 만 찍는다 — 그래서 이 값들이 **어떤 경로로 VBM/CBM 이 됐는지 불명확**하다.",
-    "corroborating": "같은 폴더의 extract_gap.py 가 스스로 적고 있다: \"you used smearing; rerun with occupations='fixed'\". 그리고 nscf_gap.in 템플릿은 occupations='fixed' 에 'comp1 160 / modelc 190' 주석까지 달려 있으나 **실제 입력은 그것이 아니다**.",
-    "signal": "electronic.json 에서 comp1·modelc 만 EF_eV 를 갖고 b2o3(fixed-occ 확인)는 갖지 않는다 — smearing/tetrahedra 계열의 지문이다.",
-    "not_yet_proven": "⚠ tetrahedra_opt 에서도 밴드 고유값으로 VBM/CBM 을 얻는 것 자체는 가능하다. **출력이 0 바이트라 어느 쪽인지 확인할 수 없다** — 그래서 '확정' 이 아니라 '의심' 이다.",
-    "only_resolution": "**fixed-occ nscf 재계산.** 구조(comp1_V0_k444.cif · modelC_DFT_EOS_V0.cif)와 레시피(nscf_gap.in)가 repo 에 있고, 같은 레시피로 b2o3·lpsocl 이 이미 통과했다. 재계산하면 provenance 와 방법 일치가 **한 번에** 닫힌다.",
-    "until_then": "네 계 gap 을 한 표에 나란히 쓸 때 **b2o3·lpsocl 만 fixed-occ 확인됨**을 밝힐 것."
+    "severity": "✅ **해소됨 (2026-09-11)** — 아래 원문은 기록용으로 남긴다",
+    "resolution": "fixed-occ nscf 재계산본을 gabia `/data/work/runs/gap_nscf/modelc/nscf_gap.{in,out}` 에서 확인했다. 정본을 **소수 넷째 자리까지 재현**한다: VBM 2.4447 (정본 2.445) · CBM 4.5436 (4.544) · gap 2.0989 (2.099). `number of k points= 68` 이 정본 레코드의 `68 irr` 과 정확히 일치해 계보도 닫힌다.",
+    "증거_왜_방법_증명인가": "`.out` 이 `highest occupied, lowest unoccupied level (ev)` 를 찍는다 — QE 는 이 줄을 `occupations='fixed'` 일 때만 찍고, tetrahedra/smearing 에서는 Fermi 만 찍는다. 입력도 `occupations = 'fixed'` · `nbnd = 190` 으로 직접 확인된다.",
+    "k_mesh": "`K_POINTS automatic 8 8 2` → 68 irr. ⚠ 템플릿 `nscf_gap.in` 주석의 'modelc 6 6 2' 는 쓰이지 않았다 — 러너(`run_gap_nscf_gabia.sh`)가 그 주석을 '근거 없는 추정' 으로 기각하고 8 8 2 를 겨냥한 것이 맞았다.",
+    "⚠_k882_라벨_복원에_대하여": "`method_id` 꼬리 `k882` 는 2026-08 5라운드에 한 번 붙였다가 **철회된 적이 있다** — 그때 근거였던 `modelc_nscf.in` 이 `tetrahedra_opt` 였기 때문이다(정정하면서 같은 종류의 오류를 반복했다). 지금 복원하는 것은 **다른 증거** 위에서다: 실제 실행된 `nscf_gap.in`(occupations='fixed', 8 8 2)과 그 `.out`(68 irr, highest occupied 줄). 같은 라벨이지만 같은 근거가 아니다.",
+    "실행_사실": "QE 7.4.1 · `Parallel version (MPI & OpenMP), running on 10 processor cores` · 2026-08-31 16:51:30 시작 · 출력 최종 갱신 2026-09-03 02:57 · `JOB DONE`. kb/open_items N 항목이 적어둔 08-31 16:51 CPU 재시작본이 그대로 완주한 것이다.",
+    "ecut": "ecutwfc 60 / ecutrho 480 Ry · PBE (SLA PW PBX PBC) · nbnd 190",
+    "원문_2026_08_20": {
+     "severity": "⛔ 방법 불일치 의심 (재현 불가보다 심각)",
+     "date": "2026-08-20",
+     "finding": "백업 A `repo_dos/tools/electronic/standard_dos/{comp1,modelc}/` 의 nscf 입력이 **occupations='tetrahedra_opt'** 다 (comp1 nbnd=180 · modelc nbnd=210). 짝 출력은 **0 바이트**(comp1_nscf.out · comp1_dos.out)이거나 **아예 없다**(modelc).",
+     "why_it_matters": "CLAUDE.md 규율은 **fixed-occupations nscf 의 VBM/CBM 고유값만** 인정한다. QE 는 tetrahedra/smearing 에서 'highest occupied, lowest unoccupied' 를 찍지 않고 Fermi 만 찍는다 — 그래서 이 값들이 **어떤 경로로 VBM/CBM 이 됐는지 불명확**하다.",
+     "corroborating": "같은 폴더의 extract_gap.py 가 스스로 적고 있다: \"you used smearing; rerun with occupations='fixed'\". 그리고 nscf_gap.in 템플릿은 occupations='fixed' 에 'comp1 160 / modelc 190' 주석까지 달려 있으나 **실제 입력은 그것이 아니다**.",
+     "signal": "electronic.json 에서 comp1·modelc 만 EF_eV 를 갖고 b2o3(fixed-occ 확인)는 갖지 않는다 — smearing/tetrahedra 계열의 지문이다.",
+     "not_yet_proven": "⚠ tetrahedra_opt 에서도 밴드 고유값으로 VBM/CBM 을 얻는 것 자체는 가능하다. **출력이 0 바이트라 어느 쪽인지 확인할 수 없다** — 그래서 '확정' 이 아니라 '의심' 이다.",
+     "only_resolution": "**fixed-occ nscf 재계산.** 구조(comp1_V0_k444.cif · modelC_DFT_EOS_V0.cif)와 레시피(nscf_gap.in)가 repo 에 있고, 같은 레시피로 b2o3·lpsocl 이 이미 통과했다. 재계산하면 provenance 와 방법 일치가 **한 번에** 닫힌다.",
+     "until_then": "네 계 gap 을 한 표에 나란히 쓸 때 **b2o3·lpsocl 만 fixed-occ 확인됨**을 밝힐 것."
+    }
    }
   },
   {

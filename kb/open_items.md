@@ -708,14 +708,31 @@ Sb₂O₅→Sb⁵⁺ −0.167 · TiO₂→Ti⁴⁺ −0.304 · ZrO₂ −0.459 �
   ⚠ **유리 vs 결정 아지로다이트**라 *"실험이 검증했다"* 는 금지 — *"같은 자리, clamped 배제"* 까지만.
 
 
-### N. 🟡 **gap 정본 fixed-occ 실행본** — **3/4 해소, modelc 하나 남음** (2026-08-07 신규 · 2026-08-31 갱신)
+### N. ✅ **gap 정본 fixed-occ 실행본** — **4/4 해소 · 닫힘** (2026-08-07 신규 · 2026-09-11 닫음)
+
+> ✅ **2026-09-11 — modelc 확인, 이 항목 닫는다.**
+> gabia `/data/work/runs/gap_nscf/modelc/nscf_gap.{in,out}`:
+> `occupations='fixed'` · `K_POINTS 8 8 2` → **68 irr**(정본 `68 irr` 일치) · nbnd 190 ·
+> **VBM 2.4447 / CBM 4.5436 / gap 2.0989**(정본 2.099, 소수 넷째 자리 재현) · `JOB DONE`.
+> ⛔ **계산이 아니라 기록이 밀린 것이었다** — 08-31 16:51 시작본이 09-03 02:57 에 완주했는데
+> 그 사실이 8일간 원장에 안 올라왔다. 오늘 같은 날 `fcgap`(힘 대조 파일럿)도 같은 이유로
+> 다시 돌렸다. **던지기 전에 서버를 본다** 가 이 항목이 남기는 교훈이다.
+> → `canonical_registry` modelc `method_integrity_flag` 해소 · `method_id` 에 `__k882` 복원
+>   (⚠ 같은 라벨을 2026-08 에 한 번 잘못된 근거로 붙였다 철회한 적이 있다 — 이번엔 실제
+>   실행본이 근거다) · `artifacts.json` `A-comp1-modelc-gap-run` → canonical.
+> ⚠ 사본이 gabia 한 곳뿐이다(`needs_duplication`). 3중 수색 실패는 **2026-06-16 원본**에
+> 대한 것이고 그건 지금도 없다 — 닫는 근거는 원본 발견이 아니라 **재계산 재현**이다.
+> ⇒ 네 계(comp1·modelc·b2o3·lpsocl)가 이제 같은 `gap-fixedocc-eigenvalue-v1` 등급이다.
+> 한 표에 나란히 쓸 때 더 이상 단서를 달지 않아도 된다.
+> ⛔ 단 comp2(2.04)는 여전히 `legacy-dos-threshold__unverified` — 다른 줄이다.
 
 > ✅ **2026-08-31 갱신** — 제목의 "4종 미확보" 는 낡았다.
 > · b2o3 ✅ 2026-08-20d (백업 A, `occupations='fixed'`, VBM 2.4717 / CBM 4.4388 — 정본 일치)
 > · lpsocl ✅ 2026-08-20g (kgy `03b_nscf_gap`, VBM 2.3870 / CBM 4.6179)
 > · comp1 ✅ 2026-08-24 재계산 (VBM 2.1281 / CBM 4.1937 / gap **2.0656** / 170 irr).
 >   2026-08-31 재실행도 `JOB DONE` 으로 같은 값.
-> · **modelc ⏳ 진행 중** — 2026-08-31 16:51 nscf 재시작 (`--mca btl self,vader`, np 10 -nk 10).
+> · **modelc ✅ 2026-09-03 완주** — 08-31 16:51 재시작(`--mca btl self,vader`, np 10 -nk 10)이
+>   그대로 끝났다. 확인은 2026-09-11 (위 참조).
 > 근거: `db/governance/artifacts.json` 의 `A-{b2o3,lpsocl,comp1-modelc}-gap-run` ·
 > `canonical_registry.json` `_history` 2026-08-20d/g · `kb/methodology/offline_archive_index_2026_08_20.md`
 > ⚠ 아래 표의 "(파일 없음)" 은 그 시점 기록이다.
