@@ -195,9 +195,6 @@
   "pdfs": [
    "104. Bai2026_A_highly_utilized_and_practical_LiS_cathode_enabled_in_ASSBs.pdf",
    "104. Sup) Bai2026_A_highly_utilized_and_practical_LiS_cathode_enabled_in_ASSBs.pdf"
-  ],
-  "derived": [
-   "source_data_derived.csv"
   ]
  },
  "cronk2026_lis_positive_electrode_geometry_fem": {
@@ -1569,10 +1566,11 @@
   ]
  },
  "zuo2022_chlorination_cathode_interface": {
-  "figures": 7,
-  "generated": "2026-08-05",
+  "figures": 20,
+  "generated": "2026-09-11",
   "pdfs": [
-   "DFT 먹인 논문/16. Impact of the Chlorination of Lithium Argyrodites on the ElectrolyteCathode Interface in Solid-State Batteries.pdf"
+   "105. Impact_of_the_Chlorination_of_Lithium_Argyrodites_on_the_ElectrolyteCathode_Interface_in_SolidState_Batteries.pdf",
+   "105. Sup) Impact_of_the_Chlorination_of_Lithium_Argyrodites_on_the_ElectrolyteCathode_Interface_in_SolidState_Batteries.pdf"
   ]
  }
 }
