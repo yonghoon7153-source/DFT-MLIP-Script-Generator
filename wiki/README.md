@@ -1,4 +1,4 @@
-# LLM Wiki — Li2S ASSB mothership (Yonghoon-DEM-DFT `main`)
+# LLM Wiki — Li2S ASSB mothership (Yonghoon-DEM-DFT)
 
 Karpathy LLM Wiki 패턴 킷(`llm-wiki-kit_260730`)을 이 저장소 root `wiki/` 로 이식·적응한
 위키. **규칙 원본은 `SCHEMA.md`** — 콘텐츠를 만들거나 고치기 전에 반드시 읽는다.

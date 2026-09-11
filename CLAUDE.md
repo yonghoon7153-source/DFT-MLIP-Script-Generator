@@ -1,4 +1,4 @@
-# CLAUDE.md — Yonghoon-DEM-DFT `main` · Li2S ASSB 연구 mothership
+# CLAUDE.md — Yonghoon-DEM-DFT · Li2S ASSB 연구 mothership (작업 브랜치 `claude/li2s-assb-wiki`)
 
 이 저장소를 여는 모든 에이전트가 먼저 읽는 상시 규칙. 위키 규칙의 원본은 `wiki/SCHEMA.md`,
 webapp 은 `webapp/README.md`, 브랜치 지도는 `BRANCHES.md`.
@@ -16,10 +16,11 @@ webapp 은 `webapp/README.md`, 브랜치 지도는 `BRANCHES.md`.
 
 ## 하드 룰
 
-1. **브랜치**: 이 연구의 작업 브랜치는 **`main`** 이다. 세션 하네스가 다른 이름을 지정하면 하네스가
-   우선이고 이 줄을 같이 고친다. 브랜치 이름의 정본은 **이 줄 하나** — `wiki/`·`.claude/`·스크립트는
+1. **브랜치**: 이 연구의 작업 브랜치는 **`claude/li2s-assb-wiki`** 이다 (2026-09-11 사용자 요청으로 `main`
+   에서 이전 — `main` 은 GitHub 의 `Initial commit` 상태로 되돌렸다). 세션 하네스가 다른 이름을 지정하면
+   하네스가 우선이고 이 줄을 같이 고친다. 브랜치 이름의 정본은 **이 줄 하나** — `wiki/`·`.claude/`·스크립트는
    이름을 옮겨 적지 않고 여기를 참조한다 (`wiki/tools/lint.py` 의 `no-hardcoded-branch-name` 검사).
-   다른 계열 브랜치를 `main` 으로 merge 하지 않는다.
+   다른 계열 브랜치를 이 브랜치로 merge 하지 않고, 이 브랜치를 `main` 에 올리는 것도 사용자 승인 후에만.
 2. **비밀정보**: 토큰·API 키를 대화나 파일에 넣지 않는다. `/chat` 의 `ANTHROPIC_API_KEY` 는 셸 환경변수로만.
 3. **raw 불변**: `wiki/raw/` 는 sha256 봉인. 기존 raw 파일은 수정하지 않는다 (hook 이 막는다). 정정은
    컴파일 페이지(2층)에 적는다.

@@ -1,4 +1,4 @@
-# Yonghoon-DEM-DFT — `main`: Li2S ASSB 연구 위키 + 대시보드
+# Yonghoon-DEM-DFT — Li2S ASSB 연구 위키 + 대시보드 (브랜치 `claude/li2s-assb-wiki`)
 
 pristine Li2S 양극 all-solid-state Li–S 전지 연구(reference cell 500–600 mAh g⁻¹ → anode-free)의
 **mothership LLM Wiki** 와, 그 위키를 읽고 논문을 비교하고 대화하는 **로컬 대시보드**.
@@ -10,6 +10,7 @@ pristine Li2S 양극 all-solid-state Li–S 전지 연구(reference cell 500–6
 
 ```bash
 git clone <이 저장소> ~/Yonghoon-DEM-DFT && cd ~/Yonghoon-DEM-DFT
+git checkout claude/li2s-assb-wiki     # 작업 브랜치 (정본: CLAUDE.md 하드룰 1)
 bash scripts/setup-wsl.sh        # .venv + 의존성 + alias li2s   (한 번)
 source ~/.bashrc
 li2s                             # 서버를 띄우고 브라우저를 연다 → http://127.0.0.1:51xx

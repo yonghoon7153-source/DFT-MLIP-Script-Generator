@@ -1,7 +1,7 @@
 # Wiki Schema
 
 ## Domain
-Yonghoon-DEM-DFT 저장소 `main` 브랜치의 mothership LLM Wiki. **Li2S 양극 all-solid-state
+Yonghoon-DEM-DFT 저장소의 mothership LLM Wiki (작업 브랜치는 루트 `CLAUDE.md` 하드룰 1). **Li2S 양극 all-solid-state
 Li–S 전지** 연구 — pristine Li2S reference cell(목표 500–600 mAh g⁻¹, 단위 기준 명시 필수),
 복합양극 Li2S:LPSCl:C 혼합 공정(one-step / two-step / 탄화 / 용액 경로), Li2S 활성화,
 Li–In → anode-free 전환 — 에 관한 **논문 digest, 개념, 열린 질문, 논문 간 비교, 세미나

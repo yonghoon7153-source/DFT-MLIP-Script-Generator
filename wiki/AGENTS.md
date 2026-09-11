@@ -22,7 +22,7 @@ CLI (에이전트 무관, repo root 에서): `python3 wiki/tools/lint.py` · `py
 
 ## Mothership 특칙
 
-이 위키는 **Yonghoon-DEM-DFT `main` 의 mothership**이다 (위치: repo root `wiki/`). 실험 프로젝트(reference cell · anode-free 등)는 `entities/` 1페이지로 등록하고 상태 변화 시 갱신한다 (절차: `guides/new-project-kickoff.md`). Cross-vault 참조는 `[[wikilink]]` 대신 **repo-root 상대 경로**, 내용 복사 금지(living reference). 사용자의 연구 설명·설계 세션 결정은 `raw/transcripts/` 세션 기록으로 남겨 source로 삼는다. **실험 수치의 정본은 실험 노트·원 데이터**이고 위키는 지도다.
+이 위키는 **Yonghoon-DEM-DFT 의 Li2S ASSB mothership**이다 (위치: repo root `wiki/`). 실험 프로젝트(reference cell · anode-free 등)는 `entities/` 1페이지로 등록하고 상태 변화 시 갱신한다 (절차: `guides/new-project-kickoff.md`). Cross-vault 참조는 `[[wikilink]]` 대신 **repo-root 상대 경로**, 내용 복사 금지(living reference). 사용자의 연구 설명·설계 세션 결정은 `raw/transcripts/` 세션 기록으로 남겨 source로 삼는다. **실험 수치의 정본은 실험 노트·원 데이터**이고 위키는 지도다.
 
 ## Agent-specific Notes
 

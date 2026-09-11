@@ -24,7 +24,7 @@ evidenceScope: user-original
 ### 1. 저장소 받기 (한 번)
 ```bash
 cd ~ && git clone <이 저장소 URL> Yonghoon-DEM-DFT && cd Yonghoon-DEM-DFT
-git checkout main
+git checkout <작업 브랜치>      # 이름은 루트 CLAUDE.md 하드룰 1 (여기 적지 않는다)
 ```
 
 ### 2. 세팅 스크립트 (한 번 — apt·venv·의존성·alias)
