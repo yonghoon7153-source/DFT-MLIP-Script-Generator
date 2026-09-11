@@ -78,6 +78,24 @@ def atomic_write_csv(path, rows, fieldnames):
         raise
 
 
+def atomic_write_json(path, obj):
+    """`atomic_write_csv` 의 JSON 판 (R6 내부 F01): degeneracy 는 전 판에 stdout 리다이렉트로 고정 이름 `.part` 에
+    쓰고 shell 이 `flock mv` 했다 — producer 의 stdout fd 가 rename 을 넘어 살아남아, 빠른 다른 시도가 게시·meta·
+    검사를 전부 끝낸 뒤 느린 시도가 그 inode 에 잠금 밖에서 썼다 (JSON=B, meta=A). 게시는 여기서, 잠금 안에서."""
+    import json
+    out = Path(path)
+    fh = tempfile.NamedTemporaryFile("w", dir=out.parent, prefix=out.name + ".", suffix=".part",
+                                     delete=False, encoding="utf-8")
+    try:
+        with fh:
+            fh.write(json.dumps(obj, ensure_ascii=False, indent=2, default=float) + "\n")
+        with publish_lock(out):
+            os.replace(fh.name, out)
+    except BaseException:
+        Path(fh.name).unlink(missing_ok=True)
+        raise
+
+
 def build(root: Path, source: str, state: str, si_source: str,
           w_dqdv: float = 0.0, use_peak_weight: bool = True,
           scale_seed: int = 0) -> Objective:
@@ -472,6 +490,10 @@ def cmd_degeneracy(args):
         "근최적 집합 {obj ≤ best·(1+tol)} 위에서 (a) mode 등식 제약 프로파일과 "
         "(b) 직접 제약 최적화를 둘 다 돌려 **합집합**을 취한다. 둘 다 국소 "
         "해법이므로 결과는 여전히 **하한**이다 — 정확한 폭도, 신뢰구간도 아니다.")
+    if getattr(args, "out", None):                   # R6 내부 F01: 게시는 잠금 안 원자적 교체로, stdout 은 로그
+        atomic_write_json(args.out, out)
+        print(f"wrote {args.out}  (run_id {out['run_id']})")
+        return 0
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 

@@ -91,15 +91,20 @@ def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
     `matrix_<state>*.csv` 를 역순으로 고르므로 untracked `_v2` 도 실제 입력이 된다 — git 출처(추적 파일)만으로는
     그 사실이 남지 않아 두 실행의 meta 가 같았다. 소비한 파일은 tracked 여부와 무관하게 여기서 적는다.
     """
-    import hashlib
+    import hashlib, io
+    from provenance import verify_unit
     for f in sorted(out_dir.glob(f"matrix_{state}*.csv"), reverse=True):
-        for idx, r in enumerate(csv.DictReader(f.open(encoding="utf-8"))):
+        ok, why = verify_unit(f)          # R6 내부 F07: 섞인 묶음(CSV≠meta)은 소비하지 않는다
+        if ok is False:
+            raise RuntimeError(f"{f.name}: 묶음 불일치 ({why}) — 섞인 산출을 소비하지 않는다 (R6 내부 F07)")
+        data = f.read_bytes()             # R6 내부 F03: 한 번 읽은 bytes 를 파싱하고 **그 bytes** 를 해시한다
+        for idx, r in enumerate(csv.DictReader(io.StringIO(data.decode("utf-8")))):
             if (r.get("half_cell") == src and r.get("si") == si
                     and float(r.get("w_dqdv", 1)) == 0):
                 if not r.get("ref_gamma_Si"):
                     return None          # 옛 판 산출 — ref_* 열이 없다
                 return {"gamma_target": float(r["gamma_Si"]), "gamma_ref": float(r["ref_gamma_Si"]),
-                        "file": str(f), "sha256": hashlib.sha256(f.read_bytes()).hexdigest(),
+                        "file": str(f), "sha256": hashlib.sha256(data).hexdigest(),
                         "row": {"index": idx, "half_cell": r.get("half_cell"), "si": r.get("si"),
                                 "w_dqdv": r.get("w_dqdv"), "run_id": r.get("run_id")}}
     return None
@@ -130,10 +135,18 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
     값이라 용량이 크게 변한 상태에서는 순수한 OCP 모양 변화로 읽으면 안 된다.
     그 한정어가 CSV 에서 떨어지면 숫자만 인용된다.
     """
-    import datetime, json
+    import datetime, json, os, tempfile, uuid
+    from bms_balancing.verify import publish_lock
+    from provenance import sha256_file
     d.mkdir(parents=True, exist_ok=True)
     art = d / f"ne_shape_{a.source}_{a.si_source}.csv"
-    with art.open("w", newline="", encoding="utf-8") as f:
+    # ⚠ R6 내부 F02: 전 판은 최종 경로에 `open("w")` 로 직접 쓰고(비원자) git 조회 뒤 meta 를 따로 썼다 — 잠금·
+    #   run_id·sha256 이 없어 두 시도가 끼어들면 CSV=B · meta(consumed_inputs)=A 가 남고 verify_unit 은 '옛 meta'.
+    #   run_states 의 게시 규약과 같게: 시도별 임시 → 잠금 안 교체 → 같은 잠금 안에서 sha256 을 meta 에.
+    rid = os.environ.get("BMS_RUN_ID") or uuid.uuid4().hex
+    fh = tempfile.NamedTemporaryFile("w", dir=d, prefix=art.name + ".", suffix=".part", delete=False,
+                                     newline="", encoding="utf-8")
+    with fh as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["state", "cap_delta_pct", "gamma_target", "gamma_ref",
                     "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
@@ -141,7 +154,7 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
                     "max_at_x", "frac_over_50mV", "pe_shape_max_mV", "pe_shape_rms_mV",
                     # (d) γ 여유 (R3-03) — witness 가 빈 칸이면 '격자에서 (a) 를 내는 합법 γ 없음'
                     "legal_dgamma_neg", "legal_dgamma_pos", "gamma_family_max_mV",
-                    "gamma_at_family_max", "gamma_witness", "gamma_witness_delta"])
+                    "gamma_at_family_max", "gamma_witness", "gamma_witness_delta", "run_id"])
         for s_, da, db, ratio, cmax, crms, g, gr, *rest in rows:
             pe_max, pe_rms = (list(rest) + [float("nan"), float("nan")])[:2]
             c = cwhere.get(s_)
@@ -157,11 +170,11 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
                         f"{h['dneg']:.6f}" if h else "", f"{h['dpos']:.6f}" if h else "",
                         f"{h['fam_max']:.6f}" if h else "", f"{h['g_at_max']:.4f}" if h else "",
                         f"{h['witness']:.4f}" if h and h["witness"] is not None else "",
-                        f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else ""])
+                        f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else "", rid])
     from provenance import git_provenance     # scripts/ 가 sys.path 에 있다
     pv = git_provenance(artifact=str(art))    # 산출물 자신의 재작성은 dirty 가 아니다; 코드/산출 분리 (R4-07)
     sha, dirty = pv["git_commit"], pv["git_dirty"]
-    (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
+    meta = {
         "artifact": art.name, "half_cell_source": a.source,
         "si_source": a.si_source, "grid_n": int(GRID.size),
         "grid_range": [float(GRID[0]), float(GRID[-1])],
@@ -175,9 +188,20 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
         # ⚠ Codex R5-05: "코드가 commit 과 같다" 와 "이 입력에서 이 결과가 나왔다" 는 다른 물음이다 —
         #   실제 소비한 matrix 파일(경로·sha256·행)·반쪽전지·문헌 입력의 identity 를 tracked 여부와 무관하게 남긴다.
         "consumed_inputs": consumed or {},
-        "created_utc": __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc).isoformat(),
-    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        "run_id": rid,
+        "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    try:
+        with publish_lock(art):                   # 게시와 meta 가 같은 잠금 안 (R5-04 규약)
+            os.replace(fh.name, art)
+            meta["sha256"] = sha256_file(art)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=art.name + ".meta.", suffix=".part")
+            with os.fdopen(fd, "w", encoding="utf-8") as mf:
+                mf.write(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
+            os.replace(tmp, art.parent / (art.name + ".meta.json"))
+    except BaseException:
+        pathlib.Path(fh.name).unlink(missing_ok=True)
+        raise
     return art
 
 

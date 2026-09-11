@@ -304,3 +304,193 @@ def test_i6d_10_intro_6_3_does_not_keep_the_retracted_n_equals_1_sentence():
     live = _live(_doc("INTRO.md"))
     assert "분산을 추정할 수 없다" not in live and "산수라서 진짜 못 한다" not in live
     assert "고차 차분" in live
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# T · 순서/TOCTOU 렌즈 (F01…F08; 검증 판정 `reviews/r6_repros/toctou/VERDICT.md`)
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+import hashlib, os, subprocess, time                                     # noqa: E402
+from test_review_findings import (_fixture_repo, _shell_helpers, _load_script,   # noqa: E402
+                                  _r5_matrix, _r5_ne_shape_real_pairs)
+
+
+def _degeneracy_block() -> str:
+    """run_states.sh 의 degeneracy 게시 블록 **원문** (matrix 블록 직전까지)."""
+    sh = (ROOT / "scripts" / "run_states.sh").read_text(encoding="utf-8")
+    start_key = 'tmp="$OUT/.degeneracy_' if 'tmp="$OUT/.degeneracy_' in sh else 'run "degeneracy $st"'
+    start = sh.rfind("\n", 0, sh.index(start_key)) + 1
+    end = sh.rfind("\n", 0, sh.index('run "matrix $st"')) + 1
+    return sh[start:end]
+
+
+_DEG_STUB = r'''
+import json, os, sys, time, pathlib
+args = sys.argv[1:]
+def opt(name, default=None):
+    return args[args.index(name) + 1] if name in args else default
+if os.environ.get("STUB_STARTED"):
+    pathlib.Path(os.environ["STUB_STARTED"]).write_text("x")
+if os.environ.get("STUB_WAIT"):
+    t = time.monotonic() + 60
+    while not pathlib.Path(os.environ["STUB_WAIT"]).exists():
+        assert time.monotonic() < t, "wait timeout"
+        time.sleep(0.02)
+obj = {"run_id": os.environ["BMS_RUN_ID"], "role": os.environ["ROLE"], "state": opt("--state"),
+       "n_starts": int(opt("--starts", "0")), "LLI_percent": {"is_lower_bound": True}, "pad": "x" * int(os.environ.get("STUB_PAD", "0"))}
+out = opt("--out")
+if out:
+    sys.path.insert(0, os.environ["ROOTDIR"])
+    from bms_balancing.verify import atomic_write_json
+    atomic_write_json(out, obj); print(f"wrote {out}")
+else:
+    print(json.dumps(obj))
+'''
+
+
+def _python_wrapper(tmp_path, stub):
+    """PATH 맨 앞의 `python3`: `-m bms_balancing.verify degeneracy …` 만 stub 으로 보내고 나머지는 진짜 python."""
+    b = tmp_path / "bin"; b.mkdir(exist_ok=True)
+    w = b / "python3"
+    w.write_text(f'''#!/usr/bin/env bash
+if [ "$1" = "-m" ] && [ "$2" = "bms_balancing.verify" ] && [ "$3" = "degeneracy" ]; then shift 3; exec "$REAL_PY" "{stub}" "$@"; fi
+exec "$REAL_PY" "$@"
+''', encoding="utf-8"); w.chmod(0o755)
+    return b
+
+
+def test_i6t_01_degeneracy_publish_survives_a_slow_earlier_attempt(tmp_path):
+    """[R6 내부 F01] degeneracy 의 `.part` 는 시도마다 **같은 이름**이고 producer 의 **stdout fd** 였다. 느린 B 가 계산
+    중일 때 빠른 A 가 검사→`flock mv`→write_meta→verify-unit 을 전부 통과한 뒤 B 가 JSON 을 찍으면, B 의 fd 는
+    rename 된 inode = 이미 게시된 JSON 이라 잠금·검사 밖에서 게시 파일이 B 의 bytes 로 바뀐다: JSON=B · meta=A ·
+    A "전부 통과" · B FAIL (R5-04 의 "마지막 온전한 묶음만 남는다" 가 이 경로에서 거짓). 이제 degeneracy 도 `--out`
+    으로 잠금 안에서 원자적으로 게시하고 stdout 은 로그다 — 마지막 게시자(B)의 묶음이 온전하게 남는다."""
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=())
+    stub = tmp_path / "deg_stub.py"; stub.write_text(_DEG_STUB, encoding="utf-8")
+    body = ('\nst=100; SI=Li; SRC=GITT; fail=0\n' + _degeneracy_block() + '\necho "FAIL_COUNT $fail"\n')
+    def env(role, **extra):
+        return dict(os.environ, PATH=f"{_python_wrapper(tmp_path, stub)}:{os.environ['PATH']}", REAL_PY=sys.executable,
+                    ROLE=role, ROOTDIR=str(ROOT), OUT=str(root / "out"), SI="Li", BMS_DATA_ROOT="synthetic", **extra)
+    cmd = ["bash", "-c", _shell_helpers() + body, "t01"]
+    b = subprocess.Popen(cmd, cwd=root, env=env("B", STARTS="24", STUB_WAIT=str(tmp_path / "B.go"), STUB_STARTED=str(tmp_path / "B.started")),
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    t = time.monotonic() + 30
+    while not (tmp_path / "B.started").exists():
+        assert time.monotonic() < t and b.poll() is None, b.communicate()
+        time.sleep(0.02)
+    a = subprocess.run(cmd, cwd=root, env=env("A", STARTS="4"), capture_output=True, text=True, timeout=120)
+    (tmp_path / "B.go").write_text("go")
+    bo, be = b.communicate(timeout=120)
+    art = root / "out" / "degeneracy_100_Li.json"
+    prov = _prov(); ok, why = prov.verify_unit(art)
+    j = json.loads(art.read_text(encoding="utf-8")); meta = json.loads((root / "out" / "degeneracy_100_Li.json.meta.json").read_text(encoding="utf-8"))
+    assert ok is True and j["run_id"] == meta["run_id"], (ok, why, j.get("role"), j.get("run_id"), meta["run_id"], a.stderr[-400:], be[-400:])
+    assert j["role"] == "B" and meta["starts"] == 24, (j["role"], meta["starts"])       # 마지막 게시자의 묶음
+    assert a.returncode == 0 and "FAIL_COUNT 0" in a.stdout, (a.stdout, a.stderr[-500:])
+    assert b.returncode == 0 and "FAIL_COUNT 0" in bo, (bo, be[-500:])
+    assert not list((root / "out").glob(".degeneracy_*")), list((root / "out").iterdir())   # 고정 이름 .part 없음
+
+
+def test_i6t_02_ne_shape_publishes_csv_and_meta_as_one_locked_attempt(tmp_path, monkeypatch):
+    """[R6 내부 F02] `ne_shape._write_csv` 는 최종 경로를 `open("w")` 로 직접 쓰고(비원자) git 조회 뒤 meta 를 따로
+    썼다 — 잠금·run_id·sha256 셋 다 없어 두 시도가 끼어들면 CSV=B · meta(consumed_inputs)=A 가 남고 `verify_unit`
+    은 '옛 meta' 로 검출 불가였다. 이제 run_states 의 게시 규약과 같다: 행마다 run_id, meta 에 sha256, 같은 잠금 안."""
+    cwd = tmp_path / "repo"; _fixture_repo(cwd, outputs=())
+    _r5_matrix(cwd / "out" / "matrix_100.csv", 0.16)
+    row, meta = _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd)
+    art = cwd / "out" / "ne_shape_GITT_Li.csv"
+    assert _prov().verify_unit(art) == (True, "일치"), (_prov().verify_unit(art), meta)
+    rows = list(csv.DictReader(art.open(encoding="utf-8")))
+    assert rows and all(r["run_id"] == meta["run_id"] for r in rows), (rows[0], meta.get("run_id"))
+    assert meta["sha256"] == hashlib.sha256(art.read_bytes()).hexdigest()
+
+
+def test_i6t_03_fitted_pair_info_hashes_the_bytes_it_parsed(tmp_path, monkeypatch):
+    """[R6 내부 F03] `fitted_pair_info` 는 `f.open()` 으로 행을 고른 **뒤** `f.read_bytes()` 로 다시 열어 해시했다 —
+    그 사이 matrix 가 다시 게시되면 행은 옛 파일, sha256 은 새 파일. bytes 를 한 번 읽어 그것을 파싱하고 해시한다."""
+    m = _load_script("ne_shape")
+    out = tmp_path / "out"; out.mkdir()
+    _r5_matrix(out / "matrix_100.csv", 0.16)
+    old = (out / "matrix_100.csv").read_bytes()
+    new = old.replace(b"0.160000", b"0.450000").replace(b"0.16,", b"0.45,")
+    assert new != old
+    real = pathlib.Path.read_bytes
+    monkeypatch.setattr(pathlib.Path, "read_bytes", lambda self: new if self.name == "matrix_100.csv" else real(self))
+    info = m.fitted_pair_info(out, "100", "GITT", "Li")
+    src = new if info["gamma_target"] == 0.45 else old
+    assert info["sha256"] == hashlib.sha256(src).hexdigest(), (info["gamma_target"], info["sha256"][:12])
+
+
+def test_i6t_04_meta_records_the_git_state_at_start_and_flags_a_change_during_the_run(tmp_path):
+    """[R6 내부 F04] meta 의 `git_commit`/`git_dirty` 는 계산 **뒤** write_meta 에서 한 번 샘플됐다 — 10 시간 실행 중
+    트리를 정리하거나 커밋하면 "돌린 코드가 commit 과 같았나" 에 거짓 답이 가능. `run` 이 명령 **전** 상태와 시작
+    시각을 찍고 write_meta 가 둘을 비교해 `git_state_changed_during_run` 을 남긴다."""
+    root = tmp_path / "repo"; git = _fixture_repo(root, outputs=())
+    art = root / "out" / "matrix_100.csv"
+    worker = tmp_path / "worker.py"
+    worker.write_text('''import os, sys, subprocess, pathlib
+out = pathlib.Path(sys.argv[1]); out.write_text("a,run_id\\n1," + os.environ["BMS_RUN_ID"] + "\\n", encoding="utf-8")
+pathlib.Path("code.py").write_text("value = 2\\n", encoding="utf-8")           # 실행 중 코드가 바뀌고 커밋된다
+subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "during"], check=True)
+''', encoding="utf-8")
+    body = '\nrun "matrix 100" "$1" - "$2" "$REAL_PY" "$WORKER" "$1" && write_meta "$1" 100 GITT && echo WRITER_OK\n'
+    env = dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic", OUT=str(root / "out"),
+               REAL_PY=sys.executable, WORKER=str(worker))
+    sha_before = git("rev-parse", "HEAD").strip()
+    r = subprocess.run(["bash", "-c", _shell_helpers() + body, "t04", str(art), str(tmp_path / "t04.log")],
+                       cwd=root, env=env, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "WRITER_OK" in r.stdout, (r.stdout, r.stderr[-500:])
+    meta = json.loads((root / "out" / "matrix_100.csv.meta.json").read_text(encoding="utf-8"))
+    assert meta["git_commit_at_start"] == sha_before and meta["git_commit"] != sha_before, meta
+    assert meta["git_state_changed_during_run"] is True and meta["started_utc"] <= meta["created_utc"], meta
+
+
+def test_i6t_05a_verify_unit_can_require_this_attempts_run_id(tmp_path):
+    """[R6 내부 F05a] `--verify-unit` 은 디스크 meta ↔ 디스크 bytes 만 봤다 — 이 시도의 id 를 받지 않아, A 의 write_meta
+    뒤 B 가 CSV+meta 를 다 게시하면 A 의 verify-unit 이 B/B 를 보고 통과해 A 가 "OK [run_id A] · 전부 통과" 를 찍었다."""
+    prov = _prov(); art = tmp_path / "x.csv"; art.write_text("a,run_id\n1,bbbb\n", encoding="utf-8")
+    (tmp_path / "x.csv.meta.json").write_text(json.dumps({"artifact": "x.csv", "run_id": "bbbb", "sha256": prov.sha256_file(art)}), encoding="utf-8")
+    assert prov.verify_unit(art) == (True, "일치")
+    ok, why = prov.verify_unit(art, "aaaa")
+    assert ok is False and "aaaa" in why, (ok, why)
+    r = subprocess.run([sys.executable, str(ROOT / "scripts" / "provenance.py"), "--verify-unit", str(art), "aaaa"], capture_output=True, text=True)
+    assert r.returncode == 1 and "aaaa" in r.stdout, (r.returncode, r.stdout, r.stderr[-300:])
+
+
+def test_i6t_05b_shell_reports_why_the_unit_check_failed(tmp_path):
+    """[R6 내부 F05b] wrapper 는 verify-unit 의 이유를 `>/dev/null` 로 버려 stderr 에 한 줄도 없었고 요약이 가리킨 `.log` 는
+    다른 시도가 덮어쓴 것이었다. `verify_unit_or_say` 가 이유를 stderr 로 말한다."""
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=())
+    art = root / "out" / "x.csv"; art.write_text("a,run_id\n1,bbbb\n", encoding="utf-8")
+    (root / "out" / "x.csv.meta.json").write_text(json.dumps({"artifact": "x.csv", "run_id": "bbbb", "sha256": "0" * 64}), encoding="utf-8")
+    r = subprocess.run(["bash", "-c", _shell_helpers() + '\nverify_unit_or_say "$1" bbbb\n', "t05b", str(art)],
+                       cwd=root, env=dict(os.environ, OUT=str(root / "out")), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 1 and "sha256" in r.stderr, (r.returncode, r.stdout, r.stderr[-400:])
+
+
+def test_i6t_06_lock_and_temp_names_are_ignored_by_git():
+    """[R6 내부 F06] `<산출>.lock` 과 `atomic_write_csv`/write_meta 의 임시 이름은 `.gitignore` 밖이라 `??` 로 남고
+    `git clean -fd` 대상이었다 — 잠금 파일이 지워지면 다음 시도가 새 inode 를 잠가 배타가 사라진다."""
+    for rel in ("out/matrix_100.csv.lock", "out/matrix_100.csv.ab12cd.part", "out/matrix_100.csv.meta.ab12cd.part",
+                "out/recompare/x.csv.lock"):
+        r = subprocess.run(["git", "check-ignore", "-q", rel], cwd=ROOT, capture_output=True, text=True)
+        assert r.returncode == 0, (rel, r.stdout, r.stderr)
+
+
+def test_i6t_07_readers_refuse_a_mixed_artifact_meta_pair(tmp_path):
+    """[R6 내부 F07] `compare_states.py` 는 meta 를 `starts` 만 보려고 읽고 run_id·sha256 을 안 봤다 (ne_shape 도) —
+    게시와 write_meta 사이에서 시도가 죽으면 남는 CSV=B · meta=A 묶음이 §1-10 표에 경고 없이 들어갔다. Codex R5-04
+    최소 조건의 reader 절: 불일치를 성공으로 소비하지 않는다."""
+    out = tmp_path / "out"; out.mkdir(); prov = _prov()
+    j = json.loads((OUT / "degeneracy_100_Li.json").read_text(encoding="utf-8")); j["run_id"] = "bbbb"
+    art = out / "degeneracy_100_Li.json"; art.write_text(json.dumps(j), encoding="utf-8")
+    (out / "degeneracy_100_Li.json.meta.json").write_text(json.dumps({"artifact": art.name, "run_id": "aaaa", "sha256": prov.sha256_file(art), "starts": 24}), encoding="utf-8")
+    assert prov.verify_unit(art)[0] is False
+    r = subprocess.run([sys.executable, str(ROOT / "scripts" / "compare_states.py"), str(out)], capture_output=True, text=True, timeout=60)
+    assert "묶음 불일치" in r.stderr and "degeneracy_100_Li.json" in r.stderr, (r.returncode, r.stdout[-300:], r.stderr[-300:])
+    assert not re.search(r"^\s*100\s", r.stdout, re.M), r.stdout
+    # ne_shape 의 소비 입력도 같은 검사: 섞인 matrix 묶음은 조용히 소비되지 않는다
+    _r5_matrix(out / "matrix_100.csv", 0.16)
+    mart = out / "matrix_100.csv"
+    (out / "matrix_100.csv.meta.json").write_text(json.dumps({"artifact": mart.name, "run_id": "zzzz", "sha256": prov.sha256_file(mart)}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="묶음 불일치"):
+        _load_script("ne_shape").fitted_pair_info(out, "100", "GITT", "Li")

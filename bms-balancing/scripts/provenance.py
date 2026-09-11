@@ -118,9 +118,11 @@ def check_run_id(path, rid: str):
         return False, f"읽기 실패: {e}"
 
 
-def verify_unit(path):
+def verify_unit(path, rid: str | None = None):
     """산출물과 그 `.meta.json` 이 **같은 시도의 한 묶음**인가 (Codex R5-04): meta 의 run_id 가 산출물의
-    필드와 같고 meta 의 sha256 이 지금 bytes 와 같아야 한다. → (ok, 설명). meta 가 없으면 (None, …)."""
+    필드와 같고 meta 의 sha256 이 지금 bytes 와 같아야 한다. → (ok, 설명). meta 가 없으면 (None, …).
+    `rid` 를 주면 그 묶음이 **이 시도**의 것이어야 한다 (R6 내부 F05a: wrapper 의 "OK [run_id A]" 가 B/B 묶음을
+    보고 통과하던 창)."""
     import json, pathlib
     p = pathlib.Path(path); meta = p.with_name(p.name + ".meta.json")
     if not meta.is_file():
@@ -129,12 +131,14 @@ def verify_unit(path):
         m = json.loads(meta.read_text(encoding="utf-8"))
     except Exception as e:                           # noqa: BLE001
         return False, f"meta 읽기 실패: {e}"
-    rid, digest = m.get("run_id"), m.get("sha256")
-    if not rid or not digest:
+    m_rid, digest = m.get("run_id"), m.get("sha256")
+    if not m_rid or not digest:
         return None, "옛 meta (run_id/sha256 없음)"
     if m.get("artifact") and m["artifact"] != p.name:  # R6 내부 V6-05: 묶음이 맞는 이름 아래 있는가
         return False, f"meta 의 artifact({m['artifact']!r}) 가 파일 이름({p.name!r}) 과 다르다"
-    ok_id, why = check_run_id(p, rid)
+    if rid and rid != m_rid:
+        return False, f"meta 의 run_id({m_rid}) 가 이 시도({rid}) 의 것이 아니다 — 다른 시도가 뒤에 게시했다"
+    ok_id, why = check_run_id(p, m_rid)
     if not ok_id:
         return False, f"meta 의 run_id 가 산출물과 다르다: {why}"
     if sha256_file(p) != digest:
@@ -152,6 +156,6 @@ if __name__ == "__main__":
     import json, sys
     if len(sys.argv) >= 4 and sys.argv[1] == "--check-run-id":     # run_states.sh 가 쓴다 (R5-08)
         ok, why = check_run_id(sys.argv[2], sys.argv[3]); print(why); sys.exit(0 if ok else 1)
-    if len(sys.argv) >= 3 and sys.argv[1] == "--verify-unit":      # run_states.sh 가 쓴다 (R5-04)
-        ok, why = verify_unit(sys.argv[2]); print(why); sys.exit(0 if ok else 1)
+    if len(sys.argv) >= 3 and sys.argv[1] == "--verify-unit":      # run_states.sh 가 쓴다 (R5-04 · R6 F05a: [run id])
+        ok, why = verify_unit(sys.argv[2], sys.argv[3] if len(sys.argv) >= 4 else None); print(why); sys.exit(0 if ok else 1)
     print(json.dumps(git_provenance(artifact=sys.argv[1] if len(sys.argv) > 1 else None)))

@@ -48,9 +48,14 @@ write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 �
     say '   %s: run id (%s) 가 산출물의 필드에 없다 — 이번 시도의 산출이 아니므로 meta 를 쓰지 않는다\n' "$art" "${rid:-없음}"
     return 1
   fi
-  if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" <<'PYMETA'
+  if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" \
+        "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" <<'PYMETA'
 import fcntl, json, os, sys, datetime, pathlib, tempfile
-art, st, src, starts, si, root, rid, out_dir = sys.argv[1:9]
+art, st, src, starts, si, root, rid, out_dir, pre_json, started = sys.argv[1:11]
+try:
+    pre = json.loads(pre_json) if pre_json else {}
+except json.JSONDecodeError:
+    pre = {}
 sys.path.insert(0, "scripts")
 from provenance import git_provenance, check_run_id, sha256_file   # R4-07 · R5-08 · R5-04
 with open(art + ".lock", "a+") as lock:
@@ -65,6 +70,14 @@ with open(art + ".lock", "a+") as lock:
         "data_root": root, "run_id": rid, "sha256": sha256_file(art),
         "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
         "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
+        # R6 내부 F04: 계산 **전** 상태도 적고 둘이 다르면 표시한다 — 뒤에서 한 번 샘플한 값은 "돌린 코드가
+        #   commit 과 같았나" 에 거짓 답을 줄 수 있다 (실행 중 checkout/커밋).
+        "git_commit_at_start": pre.get("git_commit"), "git_dirty_at_start": pre.get("git_dirty"),
+        "git_modified_code_at_start": pre.get("git_modified_code"),
+        "git_state_changed_during_run": bool(pre) and (
+            pre.get("git_commit") != pv["git_commit"] or pre.get("git_dirty") != pv["git_dirty"]
+            or pre.get("git_modified_code") != pv["git_modified_code"]),
+        "started_utc": started or None,
         "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(art)), prefix=os.path.basename(art) + ".meta.", suffix=".part")
@@ -77,11 +90,19 @@ PYMETA
     return 1
   fi
 }
+# R6 내부 F05a·F05b: 게시 뒤 묶음 검사는 **이 시도의 id** 로 하고, 실패 이유는 버리지 않고 말한다
+verify_unit_or_say () {  # verify_unit_or_say <산출파일> <run id>
+  local why
+  if why="$(python3 scripts/provenance.py --verify-unit "$1" "$2" 2>&1)"; then return 0; fi
+  say '   %s: 묶음 검사 실패 — %s\n' "$1" "$why"
+  return 1
+}
 mkdir -p "$OUT"
 
-# ⚠ 진행 표시는 **전부 stderr 로**. degeneracy 는 JSON 을 stdout 으로만 내므로
-#   stdout 에 한 줄이라도 찍으면 그 줄이 **JSON 안에 섞인다** (2026-09-10 실측:
+# ⚠ 진행 표시는 **전부 stderr 로**. degeneracy 는 전 판에 JSON 을 stdout 으로 냈고
+#   stdout 에 한 줄이라도 찍으면 그 줄이 **JSON 안에 섞였다** (2026-09-10 실측:
 #   첫 판이 그랬고, exit code 가 0 이라 스크립트는 "전부 통과" 라고 말했다).
+#   R6 내부 F01 부터 degeneracy 도 `--out` 으로 잠금 안 원자적 게시 — stdout 은 로그다.
 say () { printf "$@" >&2; }
 
 # R5-08: run id 는 산출물의 **필드**로 확인한다 (CSV 의 run_id 열 전 행 / JSON 의 run_id) — grep 은 다른 칸의 문자열도 통과시켰다
@@ -125,6 +146,9 @@ run () {
   local t0=$SECONDS rc=0
   local rid; rid="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
   LAST_RUN_ID="$rid"                                # write_meta 가 같은 id 를 확인·기록한다
+  # R6 내부 F04: 명령 **전** 의 git 상태·시작 시각 — write_meta 가 계산 뒤 상태와 비교한다
+  LAST_PRE_PV="$(python3 scripts/provenance.py "$art" 2>/dev/null || echo '{}')"
+  LAST_STARTED_UTC="$(python3 -c 'import datetime; print(datetime.datetime.now(datetime.timezone.utc).isoformat())')"
   if [ "$redir" = "-" ]; then
     BMS_RUN_ID="$rid" "$@" > "$log" 2>&1 || rc=1
   else
@@ -171,26 +195,23 @@ for st in $STATES; do
   fi
   USED="$USED $st=$SRC"
   say '\n\033[1m-- %s : 반쪽전지 소스 %s --\033[0m\n' "$st" "$SRC"
-  # 검사 대상은 **명령이 실제로 쓴 파일**(임시)이다. 최종 경로를 보게 두면
-  # mv 전이라 늘 "없다" 가 나오고 mv 가 영영 안 된다 (2026-09-10 실측).
-  tmp="$OUT/.degeneracy_${st}_${SI}.part"
-  if run "degeneracy $st" "$tmp" "$tmp" "$OUT/degeneracy_${st}_${SI}.json.log" \
-      env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify degeneracy \
-        --state "$st" --si-source "$SI" --source "$SRC" --w-dqdv 0 \
-        --tol 0.01 --starts "$STARTS" --seed 0 --grid 21 --samples 400; then
-    flock "$OUT/degeneracy_${st}_${SI}.json.lock" mv "$tmp" "$OUT/degeneracy_${st}_${SI}.json"   # R5-04
-    write_meta "$OUT/degeneracy_${st}_${SI}.json" "$st" "$SRC" \
-      && python3 scripts/provenance.py --verify-unit "$OUT/degeneracy_${st}_${SI}.json" >/dev/null \
+  # R6 내부 F01: 전 판은 stdout 을 고정 이름 `.part` 로 받아 shell 이 `flock mv` 했다 — producer 의 stdout fd 가
+  #   rename 을 넘어 살아남아, 빠른 다른 시도가 게시·meta·검사를 끝낸 뒤 느린 시도가 게시된 inode 에 잠금 밖에서
+  #   썼다 (JSON=B, meta=A, 두 wrapper 는 "통과"). 이제 matrix·profile 과 같이 `--out` 으로 잠금 안 원자적 게시.
+  run "degeneracy $st" "$OUT/degeneracy_${st}_${SI}.json" - "$OUT/degeneracy_${st}_${SI}.json.log" \
+    env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify degeneracy \
+      --state "$st" --si-source "$SI" --source "$SRC" --w-dqdv 0 \
+      --tol 0.01 --starts "$STARTS" --seed 0 --grid 21 --samples 400 \
+      --out "$OUT/degeneracy_${st}_${SI}.json" \
+      && write_meta "$OUT/degeneracy_${st}_${SI}.json" "$st" "$SRC" \
+      && verify_unit_or_say "$OUT/degeneracy_${st}_${SI}.json" "$LAST_RUN_ID" \
       || fail=$((fail+1))
-  else
-    fail=$((fail+1)); rm -f "$tmp"
-  fi
 
   run "matrix $st" "$OUT/matrix_${st}.csv" - "$OUT/matrix_${st}.csv.log" \
     env PYTHONUNBUFFERED=1 python3 -m bms_balancing.verify matrix \
       --state "$st" --starts "$STARTS" --seed 0 \
       --out "$OUT/matrix_${st}.csv" && write_meta "$OUT/matrix_${st}.csv" "$st" "$SRC" \
-      && python3 scripts/provenance.py --verify-unit "$OUT/matrix_${st}.csv" >/dev/null \
+      && verify_unit_or_say "$OUT/matrix_${st}.csv" "$LAST_RUN_ID" \
       || fail=$((fail+1))
 
   run "profile $st" "$OUT/profile_gamma_${st}_${SI}.csv" - \
@@ -200,7 +221,7 @@ for st in $STATES; do
       --starts "$STARTS" --seed 0 --grid 21 \
       --out "$OUT/profile_gamma_${st}_${SI}.csv" \
       && write_meta "$OUT/profile_gamma_${st}_${SI}.csv" "$st" "$SRC" \
-      && python3 scripts/provenance.py --verify-unit "$OUT/profile_gamma_${st}_${SI}.csv" >/dev/null \
+      && verify_unit_or_say "$OUT/profile_gamma_${st}_${SI}.csv" "$LAST_RUN_ID" \
       || fail=$((fail+1))
 done
 

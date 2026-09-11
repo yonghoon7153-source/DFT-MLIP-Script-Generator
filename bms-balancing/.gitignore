@@ -2,6 +2,10 @@
 out/*.log
 out/*.err
 out/.*.part
+# R6 내부 F06: 잠금 파일과 시도별 임시 이름 — `git clean -fd` 가 보유 중인 잠금 파일을 지우면 다음 시도가
+#   새 inode 를 잠가 배타가 사라진다. 추적하지도 지우지도 않는다.
+out/**/*.lock
+out/**/*.part
 
 # 셀 자료 루트 — `prepare_cell.py` · `fixed_hc.py` 가 만드는 트리에는
 # **규진팀 원자료 xlsx 사본**이 들어간다. 저장소는 public 이다.

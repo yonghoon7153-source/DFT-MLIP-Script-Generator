@@ -41,6 +41,17 @@ def _keep_latest(cands: dict) -> dict:
     return {k: v for k, (_, v) in best.items()}
 
 
+def _unit_ok(f: pathlib.Path):
+    """R6 내부 F07 (Codex R5-04 의 reader 절): 산출물과 meta 가 한 시도의 묶음이 아니면 표에 넣지 않는다.
+    meta 가 없거나 옛 meta(run_id/sha256 없음)면 None — 전과 같이 읽는다."""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from provenance import verify_unit
+    ok, why = verify_unit(f)
+    if ok is False:
+        print(f"  ! {f.name}: 묶음 불일치 ({why}) — 표에서 뺀다 (R6 내부 F07)", file=sys.stderr)
+    return ok
+
+
 def load_degeneracy(d: pathlib.Path) -> dict:
     cands = {}
     for f in sorted(d.glob("degeneracy_*.json")):
@@ -53,6 +64,8 @@ def load_degeneracy(d: pathlib.Path) -> dict:
         except json.JSONDecodeError:
             print(f"  ! {f.name} 이 JSON 이 아니다 — 중간에 죽은 산출인가?",
                   file=sys.stderr)
+            continue
+        if _unit_ok(f) is False:
             continue
         meta = pathlib.Path(str(f) + ".meta.json")
         cands[(m.group(1), ver)] = {
@@ -68,6 +81,8 @@ def load_matrix_axis(d: pathlib.Path) -> dict:
     for f in sorted(d.glob("matrix_*.csv")):
         stem, ver = _split_version(f.stem)
         st = stem[len("matrix_"):]
+        if _unit_ok(f) is False:
+            continue
         rows = [r for r in csv.DictReader(f.open(encoding="utf-8"))
                 if r.get("w_dqdv") and float(r["w_dqdv"]) == 0]
         if not rows:
