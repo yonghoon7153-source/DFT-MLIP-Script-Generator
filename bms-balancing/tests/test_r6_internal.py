@@ -494,3 +494,135 @@ def test_i6t_07_readers_refuse_a_mixed_artifact_meta_pair(tmp_path):
     (out / "matrix_100.csv.meta.json").write_text(json.dumps({"artifact": mart.name, "run_id": "zzzz", "sha256": prov.sha256_file(mart)}), encoding="utf-8")
     with pytest.raises(RuntimeError, match="묶음 불일치"):
         _load_script("ne_shape").fitted_pair_info(out, "100", "GITT", "Li")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# P · sig-완전성 · archive-이식성 렌즈 (F1…F11; 검증 판정 `reviews/r6_repros/sig_port/VERDICT.md`)
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+import urllib.parse                                                       # noqa: E402
+from types import SimpleNamespace                                         # noqa: E402
+
+
+def _synth_root(tmp_path):
+    src = tmp_path / "src"
+    subprocess.run([sys.executable, str(ROOT / "matlab/tests/gen_synth_xlsx.py"), str(src)], check=True, capture_output=True)
+    return src
+
+
+def test_i6p_01_scale_audit_line_root_label_survives_spaces_and_names_the_inputs(tmp_path):
+    """[R6 내부 F1] `root=<basename>` 은 `degradation mode` 처럼 공백이 있으면 사본 파서(`\\S+`)가 `degradation` 만
+    잡고, `cells/c168`·`cells_v2/c168` 은 같은 라벨이며 `--data-root .` 은 `.` 이었다 — 식별자가 아니었다. 라벨은
+    URL 인코딩으로 공백을 살리고, 진짜 identity 는 소비한 입력의 digest(`inputs=`) 가 준다."""
+    root = tmp_path / "degradation mode"; root.mkdir()
+    audit = {"pocv": {"n": 50, "n_finite": 50, "n_inf": 0, "n_nan": 0, "n_exception": 0, "eps_rel": 1e-15,
+                      "equivalent_within_rel": True}}
+    a = SimpleNamespace(state="pristine", source="GITT", si_source="Li", seed=0)
+    line = verify.scale_audit_line(root, a, audit, inputs_sha="abc123def456")
+    m = re.search(r"root=(\S+) state=(\S+) source=(\S+) si=(\S+) seed=(\d+) n=(\d+)", line)
+    assert m and urllib.parse.unquote(m.group(1)) == "degradation mode" and m.group(2) == "pristine", line
+    assert re.search(r"\binputs=abc123def456\b", line), line
+    assert line.startswith("# scale_audit,") and "pocv:n=50/finite=50/inf=0/nan=0/exc=0/eps_rel=1e-15/equiv=1" in line, line
+
+
+def test_i6p_03_environment_signature_is_recorded_in_meta(tmp_path):
+    """[R6 내부 F3] 라이브러리 버전이 어디에도 없었다 — scipy 1.11.4↔1.17.1 에서 savgol 13/500 ULP → L-BFGS-B 최적점이
+    갈리는데(nit 25↔27, a_NE 1.5e-5) 다른 기계의 숫자가 왜 다른지 알 길이 없었다. `env_signature` 가 meta·JSON 에."""
+    import numpy, scipy
+    prov = _prov(); env = prov.env_signature()
+    assert env["numpy"] == numpy.__version__ and env["scipy"] == scipy.__version__ and env["platform"], env
+    assert env["python"].startswith(f"{sys.version_info[0]}.{sys.version_info[1]}."), env
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=())
+    art = root / "out" / "matrix_100.csv"; art.write_text("a,run_id\n1,rid1\n", encoding="utf-8")
+    r = subprocess.run(["bash", "-c", _shell_helpers() + '\nLAST_RUN_ID=rid1; write_meta "$1" 100 GITT\n', "t", str(art)],
+                       cwd=root, env=dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic", OUT=str(root / "out")),
+                       capture_output=True, text=True, timeout=60)
+    meta = json.loads((root / "out" / "matrix_100.csv.meta.json").read_text(encoding="utf-8"))
+    assert meta.get("env", {}).get("numpy") == numpy.__version__ and meta["env"]["scipy"] == scipy.__version__, (meta.get("env"), r.stderr[-300:])
+
+
+def test_i6p_04_build_records_the_inputs_it_consumed(tmp_path):
+    """[R6 내부 F4] `build` 가 읽는 풀셀 워크북은 폴더의 이름순 첫 xlsx 이고 이름·sha256 이 JSON·행·meta 어디에도 없었다
+    — `fullcell_states - 복사본.xlsx` 하나로 scale 이 바뀌어도 `data_root`·run_id·commit 은 그대로였다 (R5-05 는
+    ne_shape 만 닫았다). 이제 `Objective.consumed_inputs` 에 반쪽전지·풀셀·문헌 입력의 경로와 sha256 이 남는다."""
+    src = _synth_root(tmp_path); prov = _prov()
+    wb = src / "data/full_cell/large_cell_033C/fullcell_states.xlsx"
+    ci = verify.build(src, "GITT", "pristine", "Li").consumed_inputs
+    assert ci["full_cell"]["path"].endswith("fullcell_states.xlsx") and ci["full_cell"]["sha256"] == prov.sha256_file(wb), ci
+    assert ci["half_cell"]["sha256"] == prov.sha256_file(src / "data/half_cell/GITT/pristine.xlsx")
+    assert ci["literature"]["si"]["sha256"] == prov.sha256_file(src / "data/literature/Si_OCP_sources/Li.csv")
+    assert ci["literature"]["gr"]["sha256"] == prov.sha256_file(src / "data/literature/Si_Gr_literature_OCP.xlsx")
+    d1 = verify.inputs_digest(ci)
+    shutil.copy(wb, wb.with_name("fullcell_states - 복사본.xlsx"))          # 이름순 앞 (' ' < '.')
+    ci2 = verify.build(src, "GITT", "pristine", "Li").consumed_inputs
+    assert ci2["full_cell"]["path"].endswith("복사본.xlsx"), ci2["full_cell"]       # 무엇을 읽었는지 남는다
+    assert len(d1) == 12 and d1 == verify.inputs_digest(ci2)                    # 같은 bytes 면 같은 digest
+
+
+def test_i6p_05_profile_rows_and_degeneracy_json_carry_their_arguments(tmp_path):
+    """[R6 내부 F5] `profile --profile-scale` 은 행 스키마·run_id·meta 가 같고 숫자만 달랐다(`profile_scale` 은 stdout
+    SUMMARY 에만); `degeneracy --samples/--grid` 는 JSON 어디에도 없었다. 산출이 자기 인자를 말한다."""
+    src = _synth_root(tmp_path); out = tmp_path / "out"; out.mkdir()
+    base = ["--data-root", str(src), "--state", "100", "--si-source", "Li", "--source", "GITT", "--w-dqdv", "0",
+            "--starts", "1", "--seed", "0"]
+    import io, contextlib
+    with contextlib.redirect_stdout(io.StringIO()):
+        rc = verify.main(["profile", *base, "--grid", "2", "--profile-scale", "per-gamma", "--out", str(out / "p.csv")])
+    assert rc in (0, None), rc
+    rows = list(csv.DictReader((out / "p.csv").open(encoding="utf-8")))
+    assert rows and all(r["profile_scale"] == "per-gamma" for r in rows), rows[0]
+    assert all(len(r["inputs_sha"]) == 12 for r in rows), rows[0]
+    with contextlib.redirect_stdout(io.StringIO()):
+        rc = verify.main(["degeneracy", *base, "--tol", "0.01", "--grid", "3", "--samples", "5", "--out", str(out / "d.json")])
+    j = json.loads((out / "d.json").read_text(encoding="utf-8"))
+    assert j["n_grid"] == 3 and j["n_samples"] == 5, {k: j.get(k) for k in ("n_grid", "n_samples")}
+    assert j["env"]["numpy"] and j["consumed_inputs"]["full_cell"]["sha256"] and len(j["inputs_sha"]) == 12, j.get("env")
+    # eval 의 `--out` 헤더도 같은 서명을 싣고, 비교기는 그 줄들을 meta 로 넘긴다 (invalid 가 되지 않는다)
+    with contextlib.redirect_stdout(io.StringIO()):
+        rc = verify.main(["eval", *base, "--out", str(out / "e.csv")])
+    head = (out / "e.csv").read_text(encoding="utf-8").splitlines()[:8]
+    assert any(l.startswith("# env,") and "numpy=" in l for l in head) and any(l.startswith("# inputs,sha=") for l in head), head
+    assert verify.dd_eval_csv_audit(out / "e.csv", spec=verify.parse_precision_spec("%.17g")) == []
+
+
+def test_i6p_07_git_provenance_does_not_depend_on_the_callers_cwd(tmp_path):
+    """[R6 내부 F7] `git_provenance` 가 cwd 기준이라 같은 수정 산출이 `bms-balancing/` 에서 False · 저장소 루트에서 True
+    (코드로 분류) · `/tmp` 에서 None 이었다. 기본 base 는 이 스크립트가 속한 `bms-balancing/` 이다."""
+    prov = _prov()
+    here = prov.git_provenance(cwd=str(ROOT))
+    old = os.getcwd(); os.chdir(tmp_path)
+    try:
+        elsewhere = prov.git_provenance()
+    finally:
+        os.chdir(old)
+    assert here["git_commit"] and elsewhere["git_commit"] == here["git_commit"], (here["git_commit"], elsewhere)
+    assert elsewhere["git_dirty"] == here["git_dirty"] and elsewhere["git_modified_code"] == here["git_modified_code"]
+
+
+def test_i6p_09_provenance_cli_and_check_artifact_survive_a_non_utf8_default(tmp_path):
+    """[R6 내부 F9] 비-UTF-8 기본 인코딩에서 `check_artifact` 의 `open()` 이 한글 JSON 을 못 읽고, `--check-run-id` 는
+    `print("일치")` 에서 죽어 bound=0 이었다 (WSL 기본 UTF-8 에서는 안 남 — 사본이 다른 기계로 갈 때의 축)."""
+    env = dict(os.environ, PYTHONUTF8="0", PYTHONCOERCECLOCALE="0", LC_ALL="C", LANG="C", PYTHONIOENCODING="ascii:strict")
+    art = tmp_path / "x.csv"; art.write_text("a,run_id\n1,rid\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, str(ROOT / "scripts/provenance.py"), "--check-run-id", str(art), "rid"],
+                       env=env, capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, r.stderr[-300:])
+    j = tmp_path / "k.json"; j.write_text(json.dumps({"run_id": "rid", "note": "한글"}, ensure_ascii=False), encoding="utf-8")
+    r2 = subprocess.run(["bash", "-c", _shell_helpers() + '\ncheck_artifact "$1"\n', "t", str(j)],
+                        cwd=ROOT, env=dict(env, OUT=str(tmp_path)), capture_output=True, text=True)
+    assert r2.returncode == 0, (r2.returncode, r2.stderr[-300:])
+
+
+def test_i6p_10_atomic_writers_keep_the_computed_rows_when_the_lock_fails(tmp_path, monkeypatch):
+    """[R6 내부 F10] ENOLCK(잠금을 못 거는 파일시스템) 면 `atomic_write_csv` 가 `.part` 를 지우고 예외 → 계산된 행 전부
+    소실. 잠금 실패에는 `.part` 를 보존하고 그 경로를 예외에 적는다 (재계산 대신 손으로 게시할 수 있게)."""
+    import errno, fcntl
+    def boom(*a, **k): raise OSError(errno.ENOLCK, "No locks available")
+    monkeypatch.setattr(fcntl, "flock", boom)
+    with pytest.raises(OSError) as ei:
+        verify.atomic_write_csv(tmp_path / "p.csv", [{"a": 1}], ["a"])
+    parts = list(tmp_path.glob("p.csv.*.part"))
+    assert parts and parts[0].read_text(encoding="utf-8").startswith("a\n1") and parts[0].name in str(ei.value), (parts, str(ei.value))
+    with pytest.raises(OSError) as ej:
+        verify.atomic_write_json(tmp_path / "d.json", {"x": 1})
+    jparts = list(tmp_path.glob("d.json.*.part"))
+    assert jparts and jparts[0].name in str(ej.value), (jparts, str(ej.value))

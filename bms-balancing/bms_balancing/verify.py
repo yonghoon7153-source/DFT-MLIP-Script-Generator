@@ -44,6 +44,47 @@ def run_id_of(args) -> str:
     return rid or uuid.uuid4().hex
 
 
+_PROV = None
+
+
+def _provenance():
+    """`scripts/provenance.py` 를 경로로 적재한다 (패키지가 아니다) — sha256·env 서명·git 상태의 정본은 거기 하나."""
+    global _PROV
+    if _PROV is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "bms_provenance", Path(__file__).resolve().parents[1] / "scripts" / "provenance.py")
+        _PROV = importlib.util.module_from_spec(spec); spec.loader.exec_module(_PROV)
+    return _PROV
+
+
+def inputs_digest(consumed: dict) -> str:
+    """소비한 입력 파일들의 sha256 을 정렬해 이어 붙인 것의 sha256 앞 12 자리 (R6 내부 F1·F4: 라벨이 아니라 identity)."""
+    import hashlib
+    shas = []
+    for v in consumed.values():
+        if isinstance(v, dict) and "sha256" in v:
+            shas.append(v["sha256"])
+        elif isinstance(v, dict):
+            shas.extend(w["sha256"] for w in v.values() if isinstance(w, dict) and "sha256" in w)
+    return hashlib.sha256("".join(sorted(shas)).encode()).hexdigest()[:12]
+
+
+def scale_audit_line(root, args, audit: dict, inputs_sha: str | None = None) -> str:
+    """eval 의 `# scale_audit,…` 줄 (R5-09 식별자 · R5-06 eps_rel/equiv · U13 root). R6 내부 F1: root 라벨은 URL
+    인코딩으로 공백을 살리고(사본 파서 `\S+`), 진짜 identity 는 `inputs=<소비 입력 digest>` 가 준다."""
+    import urllib.parse
+    root_label = urllib.parse.quote(Path(str(root)).name or str(root), safe="")
+    head = (f"root={root_label} state={args.state} source={args.source} si={args.si_source} "
+            f"seed={args.seed} n={next(iter(audit.values()))['n']}")
+    if inputs_sha:
+        head += f" inputs={inputs_sha}"
+    return "# scale_audit," + head + "; " + "; ".join(
+        f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}"
+        f"/exc={v.get('n_exception', 0)}/eps_rel={v.get('eps_rel', float('nan')):.3g}"
+        f"/equiv={int(bool(v.get('equivalent_within_rel', False)))}" for k, v in audit.items())
+
+
 class publish_lock:
     """`<산출>.lock` 의 flock (R5-04). 산출 게시와 meta 게시가 **같은 잠금** 안에서 일어나야 두 시도가 섞인
     묶음(CSV 는 B, meta 는 A)이 남지 않는다. run_states.sh 의 `flock`·write_meta 도 같은 파일을 잡는다."""
@@ -71,11 +112,10 @@ def atomic_write_csv(path, rows, fieldnames):
         with fh:
             w_ = csv.DictWriter(fh, fieldnames=fieldnames)
             w_.writeheader(); w_.writerows(rows)
-        with publish_lock(out):
-            os.replace(fh.name, out)
     except BaseException:
         Path(fh.name).unlink(missing_ok=True)
         raise
+    _publish_or_keep(fh.name, out)
 
 
 def atomic_write_json(path, obj):
@@ -89,11 +129,21 @@ def atomic_write_json(path, obj):
     try:
         with fh:
             fh.write(json.dumps(obj, ensure_ascii=False, indent=2, default=float) + "\n")
-        with publish_lock(out):
-            os.replace(fh.name, out)
     except BaseException:
         Path(fh.name).unlink(missing_ok=True)
         raise
+    _publish_or_keep(fh.name, out)
+
+
+def _publish_or_keep(tmp_name, out):
+    """잠금 안 교체. 잠금 자체가 실패하면(ENOLCK 등 — flock 없는 파일시스템) 계산 결과 `.part` 는 **지우지 않고**
+    예외에 그 경로를 적는다 (R6 내부 F10: 전 판은 행 전부를 버렸다)."""
+    try:
+        with publish_lock(out):
+            os.replace(tmp_name, out)
+    except OSError as e:
+        raise OSError(e.errno, f"{e.strerror}: 게시 잠금 실패 — 계산 결과는 {Path(tmp_name).name} 에 남아 있다 "
+                               f"({tmp_name}); flock 을 지원하는 파일시스템에서 손으로 게시할 것") from e
 
 
 def build(root: Path, source: str, state: str, si_source: str,
@@ -117,10 +167,25 @@ def build(root: Path, source: str, state: str, si_source: str,
     half = HalfCell(hc, window=11, poly_order=3)
     si_c, si_v, gr_c, gr_v = D.load_literature(root, si_source)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
-    c, v = D.load_full_cell(root, state)
-    return Objective(half, blend, c, v, window=11, poly_order=3,
-                     w_pocv=1.0, w_dvdq=1.0, w_dqdv=w_dqdv,
-                     use_peak_weight=use_peak_weight, scale_seed=scale_seed)
+    wb = D.full_cell_workbook(root)
+    c, v = D.load_full_cell(root, state, workbook=wb)
+    obj = Objective(half, blend, c, v, window=11, poly_order=3,
+                    w_pocv=1.0, w_dvdq=1.0, w_dqdv=w_dqdv,
+                    use_peak_weight=use_peak_weight, scale_seed=scale_seed)
+    # ⚠ R6 내부 F4: 풀셀 워크북은 폴더의 이름순 첫 xlsx 라 사본 하나로 조용히 바뀌는데 이름·sha256 이 어디에도
+    #   없었다 (R5-05 는 ne_shape 만). 소비한 입력 셋의 identity 를 Objective 가 들고 다니고 산출마다 적는다.
+    sha = _provenance().sha256_file
+    lit = root / "data" / "literature"
+    obj.consumed_inputs = {
+        "half_cell": {"path": str(hc), "sha256": sha(hc)},
+        "full_cell": {"path": str(wb), "sha256": sha(wb)},
+        "literature": {"si": {"path": str(lit / "Si_OCP_sources" / f"{si_source}.csv"),
+                              "sha256": sha(lit / "Si_OCP_sources" / f"{si_source}.csv")},
+                       "gr": {"path": str(lit / "Si_Gr_literature_OCP.xlsx"),
+                              "sha256": sha(lit / "Si_Gr_literature_OCP.xlsx")}},
+    }
+    obj.inputs_sha = inputs_digest(obj.consumed_inputs)
+    return obj
 
 
 def multistart(obj: Objective, n_starts: int = 24, seed: int = 0,
@@ -448,7 +513,12 @@ def cmd_degeneracy(args):
         #   300_0009 산출에 starts·seed 가 어디에도 없어서(meta 사이드카는 그
         #   뒤에 생겼다) 나머지 행과 같은 설정이었다는 것을 증명할 수 없었다.
         "n_starts": args.starts, "seed": args.seed,
+        "n_grid": args.grid, "n_samples": args.samples,  # R6 내부 F5: 인자 전부가 산출 안에
         "run_id": run_id_of(args),                     # R4-06: 이 시도의 식별자
+        "env": _provenance().env_signature(),          # R6 내부 F3
+        "consumed_inputs": getattr(obj, "consumed_inputs", None),          # R6 내부 F4 (대상 상태)
+        "ref_consumed_inputs": getattr(ref_obj, "consumed_inputs", None),  # (기준 pristine)
+        "inputs_sha": getattr(obj, "inputs_sha", None),
         # R4-05: scale 표본의 비유한 개수 — 원본(NaN 만 제거)과의 동치는 Inf 표본이 0 인 영역에서만
         "scale_audit": getattr(obj, "scale_audit", None),
         "ref_scale_audit": getattr(ref_obj, "scale_audit", None),
@@ -949,18 +1019,21 @@ def cmd_eval(args):
     print(f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
           f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}")
     print(f"# {PRINTED_FORMAT_KEY},%.17g")          # R3-06: 형식은 선언한다, 추정시키지 않는다
+    # R6 내부 F3·F4: 어떤 인터프리터·라이브러리로, 어떤 입력 파일(sha256)로 찍은 값인지 파일이 스스로 말한다
+    #   (`# 이름,값` 의 값이 숫자가 아니라 audit 는 meta 로 넘기고 비교기는 무시한다).
+    env_line = "# env," + ";".join(f"{k}={v}" for k, v in _provenance().env_signature().items())
+    ci = getattr(obj, "consumed_inputs", {}) or {}
+    flat = [(k, v) for k, v in ci.items() if "sha256" in v] + [(f"literature_{k}", v) for k, v in ci.get("literature", {}).items()]
+    inputs_line = (f"# inputs,sha={getattr(obj, 'inputs_sha', '')} "
+                   + " ".join(f"{k}={Path(v['path']).name}:{v['sha256'][:12]}" for k, v in flat))
+    print(env_line); print(inputs_line)
     audit = getattr(obj, "scale_audit", None)
     audit_line = None
     if audit:                                        # R4-05: 이 자료에서 scale 표본에 비유한 값이 있었나
         # R5-09: 줄 자체에 식별자(상태·소스·Si·seed·표본 수)를 붙인다 — 붙여 넣은 사본만으로 구성 집합을 셀 수 있게.
         # R5-06: eps 상대 영향과 동치 flag 도 같이.
         # U13 사본에는 data root 식별자가 없어 루트 차원을 보고 순서로만 알았다 — 이제 root 이름도 붙인다.
-        root_label = Path(str(root)).name or str(root)
-        audit_line = ("# scale_audit," + f"root={root_label} state={args.state} source={args.source} si={args.si_source} "
-                      f"seed={args.seed} n={next(iter(audit.values()))['n']}; " + "; ".join(
-                          f"{k}:n={v['n']}/finite={v['n_finite']}/inf={v['n_inf']}/nan={v['n_nan']}"
-                          f"/exc={v.get('n_exception', 0)}/eps_rel={v.get('eps_rel', float('nan')):.3g}"
-                          f"/equiv={int(bool(v.get('equivalent_within_rel')))}" for k, v in audit.items()))
+        audit_line = scale_audit_line(root, args, audit, inputs_sha=getattr(obj, "inputs_sha", None))
         print(audit_line)
     for k, v in anchors:
         print(f"# {k},{v:.17g}")
@@ -981,7 +1054,7 @@ def cmd_eval(args):
     if args.out:
         head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
                 f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}",
-                f"# {PRINTED_FORMAT_KEY},%.17g"]
+                f"# {PRINTED_FORMAT_KEY},%.17g", env_line, inputs_line]
         if audit_line:                               # U12: 파일에도 남긴다 (stdout 사본에 기대지 않게)
             head.append(audit_line)
         head += [f"# {k},{v:.17g}" for k, v in anchors]
@@ -1307,6 +1380,7 @@ def cmd_matrix(args):
                 aud_t, aud_r = getattr(o, "scale_audit", None), getattr(ro, "scale_audit", None)
                 rows.append({
                     "half_cell": hc, "si": si, "w_dqdv": w, "run_id": run_id_of(args),
+                    "inputs_sha": getattr(o, "inputs_sha", None),   # R6 내부 F4: 소비 입력 identity
                     # ⚠ Codex R5-07: 이 조합이 scale 동치 영역 안인지는 행이 스스로 말해야 한다
                     "scale_seed": args.seed, "n_scale_samples": getattr(o, "n_scale_samples", None),
                     "scale_pocv_target": o.scales.get("pocv"), "scale_dvdq_target": o.scales.get("dvdq"),
@@ -1472,7 +1546,10 @@ def cmd_profile(args):
                      "LAM_PE_pct": m["LAM_PE"] * 100,
                      "LAM_NE_pct": m["LAM_NE"] * 100,
                      "LLI_pct": m["LLI"] * 100,
-                     "n_ok": n_ok, "n_tried": n_tried, "run_id": run_id_of(args)})
+                     "n_ok": n_ok, "n_tried": n_tried, "run_id": run_id_of(args),
+                     # R6 내부 F5: 같은 run_id·같은 스키마에 숫자만 달랐던 인자와 소비 입력 identity 를 행에
+                     "profile_scale": "per-gamma" if per_gamma_scale else "global",
+                     "inputs_sha": getattr(obj, "inputs_sha", None)})
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]

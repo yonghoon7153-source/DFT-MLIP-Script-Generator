@@ -48,6 +48,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))  # provenance
 import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+REPO_DIR = pathlib.Path(__file__).resolve().parents[1]   # git 출처는 이 스크립트가 속한 저장소 (R6 내부 F7: cwd 무관)
 from bms_balancing import data as D                      # noqa: E402
 from bms_balancing.model import LB5, UB5, Blend, HalfCell  # noqa: E402
 
@@ -172,7 +173,7 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
                         f"{h['witness']:.4f}" if h and h["witness"] is not None else "",
                         f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else "", rid])
     from provenance import git_provenance     # scripts/ 가 sys.path 에 있다
-    pv = git_provenance(artifact=str(art))    # 산출물 자신의 재작성은 dirty 가 아니다; 코드/산출 분리 (R4-07)
+    pv = git_provenance(cwd=str(REPO_DIR), artifact=str(art))   # 산출물 자신의 재작성은 dirty 가 아니다 (R4-07); 저장소는 cwd 무관 (R6 F7)
     sha, dirty = pv["git_commit"], pv["git_dirty"]
     meta = {
         "artifact": art.name, "half_cell_source": a.source,

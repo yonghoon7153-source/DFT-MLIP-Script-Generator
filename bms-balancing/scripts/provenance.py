@@ -41,13 +41,28 @@ def _git(cwd, *args):
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
 
+def env_signature() -> dict:
+    """계산에 쓰인 인터프리터·라이브러리·플랫폼 (R6 내부 F3: scipy 1.11↔1.17 에서 savgol 이 ULP 로 갈리고 L-BFGS-B
+    최적점이 달라지는데 산출 어디에도 버전이 없었다). meta·degeneracy JSON·eval 헤더에 같은 dict 를 적는다."""
+    import platform
+    def ver(name):
+        try:
+            return __import__(name).__version__
+        except Exception:                                # noqa: BLE001
+            return None
+    return {"python": platform.python_version(), "numpy": ver("numpy"), "scipy": ver("scipy"),
+            "pandas": ver("pandas"), "platform": platform.platform()}
+
+
 def git_provenance(cwd: str | None = None, artifact=None, output_roots=("out",)) -> dict:
-    """{git_commit, git_dirty(코드), git_modified_outputs[...], git_modified_code[...]}. git 이 없으면 None 들."""
+    """{git_commit, git_dirty(코드), git_modified_outputs[...], git_modified_code[...]}. git 이 없으면 None 들.
+    `cwd` 를 안 주면 **이 스크립트가 속한 `bms-balancing/`** 이 기준이다 (R6 내부 F7: 호출자의 cwd 에 따라 같은
+    산출이 False/True/None 으로 갈렸다)."""
     import pathlib
-    base = pathlib.Path(cwd or ".").resolve()
+    base = pathlib.Path(cwd).resolve() if cwd else pathlib.Path(__file__).resolve().parents[1]
     try:
-        sha = _git(cwd, "rev-parse", "HEAD").strip()
-        top = pathlib.Path(_git(cwd, "rev-parse", "--show-toplevel").strip()).resolve()
+        sha = _git(str(base), "rev-parse", "HEAD").strip()
+        top = pathlib.Path(_git(str(base), "rev-parse", "--show-toplevel").strip()).resolve()
         # ⚠ Codex R5-11: 기본 `--porcelain` 은 비ASCII 경로를 따옴표·8진수로 찍는다 ("out/\354\270\241…").
         #   `-z` 레코드는 경로를 그대로 준다; rename/copy 는 새 경로 뒤에 원 경로가 한 레코드 더 온다.
         raw = _git(top, "status", "--porcelain", "-z", "--untracked-files=no")
@@ -154,6 +169,8 @@ def git_state(cwd: str | None = None, exclude=()) -> tuple[str, bool | None]:
 
 if __name__ == "__main__":
     import json, sys
+    if hasattr(sys.stdout, "reconfigure"):               # R6 내부 F9: ASCII 기본 stdout 에서 한글 메시지로 죽지 않게
+        sys.stdout.reconfigure(errors="backslashreplace")
     if len(sys.argv) >= 4 and sys.argv[1] == "--check-run-id":     # run_states.sh 가 쓴다 (R5-08)
         ok, why = check_run_id(sys.argv[2], sys.argv[3]); print(why); sys.exit(0 if ok else 1)
     if len(sys.argv) >= 3 and sys.argv[1] == "--verify-unit":      # run_states.sh 가 쓴다 (R5-04 · R6 F05a: [run id])

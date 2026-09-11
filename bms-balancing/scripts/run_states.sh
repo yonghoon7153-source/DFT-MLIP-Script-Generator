@@ -57,7 +57,7 @@ try:
 except json.JSONDecodeError:
     pre = {}
 sys.path.insert(0, "scripts")
-from provenance import git_provenance, check_run_id, sha256_file   # R4-07 · R5-08 · R5-04
+from provenance import git_provenance, check_run_id, sha256_file, env_signature   # R4-07 · R5-08 · R5-04 · R6 F3
 with open(art + ".lock", "a+") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)                                  # verify.py 의 게시와 같은 잠금
     ok, why = check_run_id(art, rid)
@@ -78,6 +78,7 @@ with open(art + ".lock", "a+") as lock:
             pre.get("git_commit") != pv["git_commit"] or pre.get("git_dirty") != pv["git_dirty"]
             or pre.get("git_modified_code") != pv["git_modified_code"]),
         "started_utc": started or None,
+        "env": env_signature(),                                       # R6 내부 F3: 인터프리터·라이브러리·플랫폼
         "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(art)), prefix=os.path.basename(art) + ".meta.", suffix=".part")
@@ -117,12 +118,12 @@ check_artifact () {
   case "$f" in
     *.json|*.part)
       python3 -c 'import json,sys
-d = json.load(open(sys.argv[1]))
+d = json.load(open(sys.argv[1], encoding="utf-8"))
 sys.exit(0 if isinstance(d, dict) and d else 1)' "$f" 2>/dev/null \
         || { say '   %s: JSON 이 아니다 (stdout 오염?)\n' "$f"; return 1; } ;;
     *.csv)
       python3 -c 'import csv,sys
-r = list(csv.DictReader(open(sys.argv[1])))
+r = list(csv.DictReader(open(sys.argv[1], encoding="utf-8")))
 sys.exit(0 if r and r[0] else 1)' "$f" 2>/dev/null \
         || { say '   %s: CSV 에 행이 없다\n' "$f"; return 1; } ;;
   esac

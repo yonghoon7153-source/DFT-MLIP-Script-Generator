@@ -65,9 +65,10 @@ def full_cell_workbook(root: Path) -> Path:
     return cands[0]
 
 
-def load_full_cell(root: Path, state: str):
-    """2행 헤더(1행=상태명, 2행=단위) 워크북에서 그 상태의 (capacity, voltage)."""
-    df = pd.read_excel(full_cell_workbook(root), header=None, skiprows=2)
+def load_full_cell(root: Path, state: str, workbook: Path | None = None):
+    """2행 헤더(1행=상태명, 2행=단위) 워크북에서 그 상태의 (capacity, voltage).
+    `workbook` 을 주면 그 파일을 읽는다 (R6 내부 F4: `build` 가 무엇을 읽었는지 identity 로 남기려고)."""
+    df = pd.read_excel(workbook or full_cell_workbook(root), header=None, skiprows=2)
     col = FULL_COL[state]
     c = pd.to_numeric(df[2 * col], errors="coerce")
     v = pd.to_numeric(df[2 * col + 1], errors="coerce")

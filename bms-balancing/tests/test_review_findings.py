@@ -2096,6 +2096,7 @@ def test_ne_shape_meta_is_clean_when_only_the_artifact_changed(tmp_path, monkeyp
     m = _load_script("ne_shape")
     _git_repo_with_tracked(tmp_path)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(m, "REPO_DIR", tmp_path)   # R6 내부 F7 뒤 git 출처는 cwd 가 아니라 스크립트의 저장소 — 시험용 저장소를 그 자리에
     rows = [("100", 23.94, 0.64, 0.027, 136.0, 24.1, 0.2935, 0.2953)]
     cap = {"pristine": 1.0, "100": 0.9247}
     a = SimpleNamespace(source="GITT", si_source="Li", out_dir="out")

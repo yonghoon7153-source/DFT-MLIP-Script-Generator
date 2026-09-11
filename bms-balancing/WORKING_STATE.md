@@ -39,7 +39,7 @@ R4 에서 Codex 가 종결로 인정한 것: R4-01·03·S-02, R4-02/04/05/06/07 
 ```bash
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 115 passed 기대
+python3 -m pytest tests/ -q                       # 122 passed 기대
 # U13: 새 감사 줄(식별자·eps_rel·동치 flag 포함) — GITT·Li 16 build + Kunz·step_005C 조합. `# scale_audit` 줄만 붙여 주면 된다
 for st in pristine 100 200 300_0009; do python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done
 for c in c168 c171 pouch_fixedhc; do for st in pristine 100 200 300_0009; do BMS_DATA_ROOT=~/dd/cells/$c python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done; done
