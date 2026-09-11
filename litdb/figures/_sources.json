@@ -189,6 +189,17 @@
    "건식전극 논문/02. How to Measure a Reliable Ionic ConductivityThe Stack Pressure Dilemma ofMicrocrystalline Sulfide-Based SolidElectrolytes.pdf"
   ]
  },
+ "cronk2026_lis_cathode_interphase_chemistry": {
+  "figures": 50,
+  "generated": "2026-09-11",
+  "pdfs": [
+   "104. Bai2026_A_highly_utilized_and_practical_LiS_cathode_enabled_in_ASSBs.pdf",
+   "104. Sup) Bai2026_A_highly_utilized_and_practical_LiS_cathode_enabled_in_ASSBs.pdf"
+  ],
+  "derived": [
+   "source_data_derived.csv"
+  ]
+ },
  "cronk2026_lis_positive_electrode_geometry_fem": {
   "figures": 50,
   "generated": "2026-09-03",
@@ -423,7 +434,7 @@
   ]
  },
  "jang2025_thioarsenate_argyrodite_mlip_mechanism": {
-  "figures": 12,
+  "figures": 15,
   "generated": "2026-09-09",
   "pdfs": [
    "aab365ce-107._Mechanistic_insights_into_superionic_thioarsenate_argyrodite_solid_electrolytes_via_machine_learning_interatomic_potentials.pdf",
@@ -968,7 +979,7 @@
   ]
  },
  "muy2025_li7ps6_dopant_engineering_conductivity": {
-  "figures": 13,
+  "figures": 14,
   "generated": "2026-09-09",
   "pdfs": [
    "1ef700ac-104._Optimizing_Ionic_Conductivity_of_Lithium_in_Li_PS__Argyrodite_via_Dopant_Engineering.pdf",
@@ -1517,10 +1528,11 @@
   ]
  },
  "zhao2021_hecs_descriptors_argyrodite_activation_energy": {
-  "figures": 8,
+  "figures": 12,
   "generated": "2026-09-09",
   "pdfs": [
-   "5cc7c283-106._Machine_learning_prediction_of_activation_energy_in_cubic_Liargyrodites_with_hierarchically_encoding_crystal_structurebased_HECS_descriptors.pdf"
+   "5cc7c283-106._Machine_learning_prediction_of_activation_energy_in_cubic_Liargyrodites_with_hierarchically_encoding_crystal_structurebased_HECS_descriptors.pdf",
+   "e0f1efc4-106._Sup_Machine_learning_prediction_of_activation_energy_in_cubic_Liargyrodites_with_hierarchically_encoding_crystal_structurebased_HECS_descriptors.docx"
   ]
  },
  "zhou2026_high_entropy_lgps_multicationic": {
