@@ -76,12 +76,23 @@ case "$SYS" in
   *) echo "⛔ SYS 를 모른다: '$SYS' (아는 것: comp2 · b2o3 · modelc_2x) — 시작하지 않는다"; exit 2 ;;
 esac
 STRUCT=${STRUCT:-$STRUCT_D}; STRAIN=${STRAIN:-$STRAIN_D}; KLINE=${KLINE:-$KLINE_D}
+# ── 수렴 문턱 — **계에 묶는다** (2026-09-11 개정안 shear_b2o3_vs_lpscl16_2x_amendment) ──
+#   modelc_2x V0_relax 가 forc 1e-4 에서 21 BFGS·809 SCF·12 h 동안 |F| 2.5–3.2e-3 으로
+#   진동만 했다. 개정: b2o3·modelc_2x **두 계 모두** forc 1e-3 · etot 1e-5 (QE 기본값).
+#   ⛔ comp2 는 1e-4/1e-6 으로 이미 돌았으므로 **바꾸지 않는다** — 같은 계 안에서
+#     설정이 갈리면 그 계의 Cij 가 무효다. 그래서 기본값을 SYS 로 가른다.
+case "$SYS" in
+  b2o3|modelc_2x) FORC_CONV_D=1e-3; ETOT_CONV_D=1e-5 ;;
+  *)              FORC_CONV_D=1e-4; ETOT_CONV_D=1e-6 ;;
+esac
+FORC_CONV=${FORC_CONV:-$FORC_CONV_D}; ETOT_CONV=${ETOT_CONV:-$ETOT_CONV_D}
 WORK=${WORK:-/data/work/runs/elastic_${SYS}}
 MINFREE=${MINFREE_MIB:-$MINFREE}
 
 echo "════════ elastic relaxed-ion · SYS=$SYS ════════"
 printf "  구조      %s\n  작업방    %s\n" "$STRUCT" "$WORK"
-printf "  ecut      %s / %s Ry\n  k         %s\n  strain    ±%s\n" "$ECUTWFC" "$ECUTRHO" "$KLINE" "$STRAIN"
+printf "  ecut      %s / %s Ry\n  k         %s\n  strain    ±%s\n  conv      forc %s · etot %s (SYS 로 갈린다)\n" \
+       "$ECUTWFC" "$ECUTRHO" "$KLINE" "$STRAIN" "$FORC_CONV" "$ETOT_CONV"
 printf "  smearing  mv %s\n  conv_thr  %s\n  mixing    beta %s%s\n  nosym     %s\n" \
        "$DEGAUSS" "$CONV_THR" "$MIXBETA" "${MIXMODE:+ · $MIXMODE}" "${NOSYM:+.true.}"
 echo   "  pseudo    $PSEUDOS"
@@ -131,10 +142,11 @@ echo "[$(ts)] pseudo $(echo $NEED | wc -w)종 확보"
 if [ ! -f "$WORK/V0_relax.in" ]; then
   echo "[$(ts)] V0_relax.in 생성"
   python3 - "$STRUCT" "$PSE" "$WORK" "$PSEUDOS" "$ECUTWFC" "$ECUTRHO" "$DEGAUSS" \
-             "$CONV_THR" "$MIXBETA" "$MIXMODE" "$NOSYM" "$PREFIX" "$KLINE" << 'PY'
+             "$CONV_THR" "$MIXBETA" "$MIXMODE" "$NOSYM" "$PREFIX" "$KLINE" \
+             "$FORC_CONV" "$ETOT_CONV" << 'PY'
 import sys, json, numpy as np
 from ase.io import read, write
-(struct, pse, work, pj, ecw, ecr, dg, cth, mb, mm, ns, pfx, kline) = sys.argv[1:14]
+(struct, pse, work, pj, ecw, ecr, dg, cth, mb, mm, ns, pfx, kline, fcv, ecv) = sys.argv[1:16]
 a = read(struct)
 sysd = {"ecutwfc": float(ecw), "ecutrho": float(ecr), "occupations": "smearing",
         "smearing": "mv", "degauss": float(dg)}
@@ -142,14 +154,15 @@ if ns: sysd["nosym"] = True          # 변형셀은 대칭을 끈다 (strain 입
 el = {"conv_thr": float(cth), "mixing_beta": float(mb)}
 if mm: el["mixing_mode"] = mm
 inp = {"control": {"calculation": "relax", "restart_mode": "from_scratch",
-                   "tprnfor": True, "tstress": True, "etot_conv_thr": 1e-6,
-                   "forc_conv_thr": 1e-4, "pseudo_dir": pse, "outdir": "./tmp_v0",
+                   "tprnfor": True, "tstress": True, "etot_conv_thr": float(ecv),
+                   "forc_conv_thr": float(fcv), "pseudo_dir": pse, "outdir": "./tmp_v0",
                    "prefix": pfx},
        "system": sysd, "electrons": el, "ions": {"ion_dynamics": "bfgs"}}
 k = tuple(int(x) for x in kline.split()[:3])
 write(work + "/V0_relax.in", a, format="espresso-in", input_data=inp,
       pseudopotentials=json.loads(pj), kpts=k)
-print(f"  V0_relax.in: {len(a)} atoms, V={abs(np.linalg.det(a.cell)):.2f} A^3, k={k}")
+print(f"  V0_relax.in: {len(a)} atoms, V={abs(np.linalg.det(a.cell)):.2f} A^3, k={k}, "
+      f"forc_conv={fcv}, etot_conv={ecv}")
 PY
 fi
 

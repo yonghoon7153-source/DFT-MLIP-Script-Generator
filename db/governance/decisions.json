@@ -1589,6 +1589,39 @@
     "decision_digest": "sha256:499ab6949dbd738c6d7ddbd8d11be81084c8d6d3f947c2dc9350b2c17c4a37fc",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-11-elastic-conv-threshold",
+   "kind": "gate",
+   "decision_state": "active",
+   "statement": "relaxed-ion Cij 쌍(b2o3 · modelc_2x)의 이완 수렴 문턱을 **두 계 모두** forc_conv_thr 1e-3 Ry/Bohr · etot_conv_thr 1e-5 Ry 로 올린다. PAUSED_0911_1850 의 마지막 기하를 승계해 재시작한다. strain 점마다 60 BFGS 스텝 안에 수렴해야 하고, 하나라도 넘기면 그 계는 '이 설정에서 측정 불가' 로 닫고 12점 fit 을 하지 않는다. comp2 는 1e-4/1e-6 그대로 — 한 계 안에서 설정이 갈리면 그 Cij 가 무효다.",
+   "record": "db/properties/shear_b2o3_vs_lpscl16_2x_amendment_2026_09_11.json",
+   "card": "db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json",
+   "supersedes": [],
+   "enforcement": "`tools/elastic/run_elastic_relaxedion_gabia.sh` 가 문턱을 SYS 로 가른다(b2o3·modelc_2x → 1e-3/1e-5). 사전등록 §무효조건 '두 계의 설정이 다르다' 가 그대로 살아 있다 — 한쪽만 바꾸면 판정에 못 쓴다. ⚠ 관측 후 개정이다: modelc_2x V0 가 12 h 정체한 것을 보고 썼다.",
+   "status_history": [
+    {
+     "at": "2026-09-11",
+     "state": "proposed",
+     "by": "agent",
+     "note": "V0 정체 관측 후 개정. 1저자 지시 '영률 켜보자 · 이거 이어서 하자고' 를 근거로 비준 진행."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    }
+   ],
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-11T12:49:48Z",
+    "commit": "4a46b826151cd593067603dc3a771821d91a2ed1",
+    "decision_digest": "sha256:c2e91fbaf95a471ca55546655db719b356eca700e0414e3ee3af8aca3785b4b0",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }

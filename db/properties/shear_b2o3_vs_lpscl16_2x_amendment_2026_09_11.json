@@ -1,7 +1,7 @@
 {
  "schema": "campaign_prereg_amendment/v1",
  "date": "2026-09-11",
- "status": "proposed",
+ "status": "ratified",
  "⚠_관측_후_개정": true,
  "개정_대상": "db/properties/shear_b2o3_vs_lpscl16_2x_prereg_2026_09_10.json (relaxed-ion Cij 쌍 · 판정 네 갈래 봉인)",
  "제목": "V0_relax 가 forc_conv_thr 1e-4 에 닿지 못한다 — 두 계 모두 1e-3 으로 올려 재시작",
@@ -38,6 +38,23 @@
    "state": "proposed",
    "by": "agent",
    "note": "관측 후 개정 — V0 정체 12 h 관측 뒤 작성. 1저자 비준 전 재시작하지 않는다."
+  },
+  {
+   "at": "2026-09-11",
+   "state": "ratified",
+   "note": "1저자 지시 2026-09-11 ('영률 켜보자 안되면 안되는거고' · '이거 이어서 하자고'). 관측 후 개정임을 알고 비준 — forc 1e-4 로는 12 h 에 수렴 못 했고 그 문턱으로 재시작하면 같은 정체를 반복한다. 60 BFGS 게이트 포함."
   }
- ]
+ ],
+ "ratification": {
+  "state": "ratified",
+  "role": "scientific_owner",
+  "at": "2026-09-11",
+  "by": "1저자",
+  "content_digest": "ea2a4002031a60c40dc8d203c3e279c1d25504364b9c50adeaeeef5c175e626b",
+  "actor_id": "yonghoon7153@gmail.com",
+  "timestamp": "2026-09-11T12:49:48Z",
+  "commit": "4a46b826151cd593067603dc3a771821d91a2ed1",
+  "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다 — 비준을 받아 놓고 내용을 고치는 경로를 닫는다.",
+  "⚠_base_commit_이_아니다": "`commit` 은 기록일 뿐 앵커가 아니다. 앵커는 위 digest 다."
+ }
 }
