@@ -1710,6 +1710,40 @@
     "decision_digest": "sha256:87167b2aae5ad54c2605ac757d0a25ba421138dc4b39f2fa31a22fc98f56c857",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-12-cascade-design-roster",
+   "kind": "estimand",
+   "decision_state": "active",
+   "slot": "cascade_design_roster_identity",
+   "statement": "cascade 설계 목록은 **237** 이고 **229 는 기각**한다. 설계의 동일성 단위는 **조성**이며, 이름 문자열을 잘라서 세지 않는다 — `_x###` 를 지우면 실제 Cl 수가 5·6·6·7 로 다른 조성이 한 이름으로 합쳐진다(실측 4 이름키 × (3−1) = 8 = 237−229). ⇒ **이름 파싱으로 집계·중복제거·조인 금지.** 그리고 설계·별칭·대조군·배열·반복을 **한 열에 두지 않고 분리 기록**한다. ⚠ 237 은 분모이지 실행 범위가 아니다 — 무엇을 계산할지는 #7 에서 정한다.",
+   "record": "db/properties/cascade_design_roster_amendment_2026_09_12.json",
+   "card": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
+   "supersedes": [],
+   "enforcement": "집계·중복제거·조인은 조성(또는 조성 유도 해시)을 키로 한다. 이름 부분문자열을 키로 쓰는 경로는 금지다(`forbid` 목록). `x###`·`actual_x` 는 정의가 고쳐지기 전까지(#3) **농도로 인용하지 않는다** — 라벨로만 쓴다.",
+   "status_history": [
+    {
+     "at": "2026-09-12",
+     "state": "proposed",
+     "by": "agent",
+     "note": "BJ2 재심 조건 #4. 1저자 '237'. D_rel 측정 0건 시점."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    }
+   ],
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-11T22:13:53Z",
+    "commit": "b29755b0f72f9d2e88de39ffa43da9b3d3dca2dc",
+    "decision_digest": "sha256:f1d4b23b21cc792fea0ff4806986e2b08453b0009ef6b409c611d363f74fb362",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
