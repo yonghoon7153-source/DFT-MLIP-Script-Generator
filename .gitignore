@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# webapp 런타임 (li2s.sh 가 .venv/.li2s/ 아래에 pid·url·log 를 둔다 — .venv 가 이미 제외되지만 명시)
+.venv/.li2s/
+*.log
+
+# editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.swp
+
+# claude local
+.claude/settings.local.json
+
+# inbox 의 원본 PDF/docx 는 저장소에 넣지 않는다 (digest + 크로핑 그림만 커밋)
+wiki/inbox/*
+!wiki/inbox/README.md
+
+# node (다른 브랜치의 Vite 앱 흔적이 섞이지 않게)
+node_modules
+dist
