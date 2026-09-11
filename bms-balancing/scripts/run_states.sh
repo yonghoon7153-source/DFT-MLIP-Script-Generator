@@ -32,18 +32,29 @@ OUT="${OUT:-out}"  # 산출 디렉터리. 시험 실행은 여기를 바꿔서 o
 #   생겼는데, **파일 이름만으로는 진짜 산출과 구별이 안 됐다.** 정본이
 #   artifact 인 저장소에서 그건 치명적이다. 무엇으로 만든 값인지가 파일에
 #   붙어 있어야 한다.
-write_meta () {  # write_meta <산출파일> <state> <src>
-  local art="$1" st="$2" src="$3"
-  python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" <<'PYMETA'
+# ⚠ Codex R4-06: meta 는 **이번 시도**의 산출에만 붙는다. `run` 이 만든 run id(`LAST_RUN_ID`)가 파일
+#   안에 있어야 하고, 없으면 meta 를 쓰지 않는다 — 시각이 아니라 id 가 계산과 게시 bytes 를 잇는다.
+# ⚠ Codex R4-07: git_dirty 는 **코드**(산출 디렉터리 밖 추적 파일)만 본다. 산출 디렉터리 안에서 수정된
+#   다른 추적 파일은 `git_modified_outputs` 로 따로 적는다 (입력으로 쓰는 artifact 의 변경을 숨기지 않게).
+LAST_RUN_ID=""
+write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 직전 run 이 준다)
+  local art="$1" st="$2" src="$3" rid="${LAST_RUN_ID:-}"
+  if [ -z "$rid" ] || ! grep -qF -- "$rid" "$art"; then
+    say '   %s: run id (%s) 가 파일 안에 없다 — 이번 시도의 산출이 아니므로 meta 를 쓰지 않는다\n' "$art" "${rid:-없음}"
+    return 1
+  fi
+  python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" <<'PYMETA'
 import json, sys, datetime, pathlib
-art, st, src, starts, si, root = sys.argv[1:7]
+art, st, src, starts, si, root, rid, out_dir = sys.argv[1:9]
 sys.path.insert(0, "scripts")
-from provenance import git_state          # 추적 파일 수정만 본다 (untracked 산출물 무시)
-sha, dirty = git_state(exclude=[art, art + ".meta.json"])   # 지금 쓰는 산출물 자신은 뺀다
+from provenance import git_provenance     # 코드 dirty 와 수정된 산출물을 분리 (R4-07); 산출물 자신은 제외
+pv = git_provenance(artifact=art, output_roots=(out_dir, "out"))
 pathlib.Path(art + ".meta.json").write_text(json.dumps({
     "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
     "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
-    "data_root": root, "git_commit": sha, "git_dirty": dirty,
+    "data_root": root, "run_id": rid,
+    "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
+    "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
     "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
 }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PYMETA
@@ -80,30 +91,30 @@ sys.exit(0 if r and r[0] else 1)' "$f" 2>/dev/null \
 #
 # ⚠ 2026-09-11 Codex R3-08: 전 판은 rc 0 + '비어 있지 않은 파일' 만 봤다. profile 이 전부
 #   실패해 아무것도 안 쓰면 **이전 실행의 CSV** 가 그 검사를 통과해 "OK" 가 찍히고
-#   `write_meta` 가 옛 파일에 새 provenance 를 붙였다. 이제 명령 시작 시각의 도장(stamp)보다
-#   **새로 쓰인 파일**만 이번 실행의 산출로 인정한다. 옛 파일은 지우지 않는다 — 보존은 하되
-#   새 결과로 세지 않는다.
+#   `write_meta` 가 옛 파일에 새 provenance 를 붙였다.
+# ⚠ Codex R4-06 · Q4: 그 다음 판의 시각 도장(`find -newer`)은 옛 파일을 `touch` 만 해도 통과시켰다 —
+#   시각은 시도와 계산 bytes 를 잇는 증거가 아니다. 이제 `run` 이 시도마다 run id 를 만들어 명령에
+#   `BMS_RUN_ID` 로 주고(verify.py 의 세 명령이 산출물 안에 박는다), 게시된 파일이 **그 id 를 담고
+#   있어야** OK 다. 옛 파일은 지우지 않는다 — 보존은 하되 새 결과로 세지 않는다.
 run () {
   local label="$1" art="$2" redir="$3" log="$4"; shift 4
   say '\n\033[1m== %s\033[0m\n' "$label"
   local t0=$SECONDS rc=0
-  local stamp="${art}.stamp.$$"
-  : > "$stamp"                                   # 이 시각 이후에 쓰인 파일만 새 산출이다
+  local rid; rid="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+  LAST_RUN_ID="$rid"                                # write_meta 가 같은 id 를 확인·기록한다
   if [ "$redir" = "-" ]; then
-    "$@" > "$log" 2>&1 || rc=1
+    BMS_RUN_ID="$rid" "$@" > "$log" 2>&1 || rc=1
   else
-    "$@" > "$redir" 2> "$log" || rc=1
+    BMS_RUN_ID="$rid" "$@" > "$redir" 2> "$log" || rc=1
   fi
-  local fresh=0
-  # find -newer 는 ns 단위로 비교한다 (bash -nt 는 판에 따라 초 단위) — 같은 초 안의 실행도 가른다
-  [ -e "$art" ] && [ -n "$(find "$art" -maxdepth 0 -newer "$stamp" 2>/dev/null)" ] && fresh=1
-  rm -f "$stamp"
-  if [ "$rc" -eq 0 ] && [ "$fresh" -eq 1 ] && check_artifact "$art"; then
-    say '   OK   (%d 초)  → %s\n' "$((SECONDS - t0))" "$art"
+  local bound=0
+  [ -e "$art" ] && grep -qF -- "$rid" "$art" && bound=1
+  if [ "$rc" -eq 0 ] && [ "$bound" -eq 1 ] && check_artifact "$art"; then
+    say '   OK   (%d 초)  → %s  [run_id %s]\n' "$((SECONDS - t0))" "$art" "$rid"
     return 0
   fi
-  if [ "$rc" -eq 0 ] && [ "$fresh" -eq 0 ]; then
-    say '   %s: 이번 실행이 새로 쓴 파일이 아니다 (이전 산출이 남아 있을 뿐) — 새 결과로 세지 않는다\n' "$art"
+  if [ "$rc" -eq 0 ] && [ "$bound" -eq 0 ]; then
+    say '   %s: 이번 시도의 run id 가 파일 안에 없다 (이전 산출이 남아 있거나 touch 만 됐다) — 새 결과로 세지 않는다\n' "$art"
   fi
   say '   \033[31mFAIL\033[0m (%d 초) — 로그: %s\n' "$((SECONDS - t0))" "$log"
   return 1

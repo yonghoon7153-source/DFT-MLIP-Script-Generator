@@ -385,6 +385,14 @@ class Objective:
             w = w + (peak_weight - 1.0) * np.exp(-((vol - vol[k]) ** 2) / (2 * sigma ** 2))
         return w
 
+    #: ⚠ Codex R4-05: 원본 `lower_half_mean_local` 은 **NaN 만** 지운다 (`vals(~isnan(vals))`) — Inf 는 남아
+    #:   정렬 뒤 하위 절반에 들면 scale 이 Inf 가 된다. 이 포팅은 **NaN 과 ±Inf 를 전부** 지운다. 그러므로 두
+    #:   구현은 raw RMSE 표본이 전부 유한한 영역에서만 같다. 평탄부(dV/dQ=0)가 있는 forward 는 유한·연속이어도
+    #:   `rmse_dqdv` 에 Inf 를 만들 수 있고, `__call__` 의 1e6 가드는 여기 raw 호출을 감싸지 않는다.
+    #:   그래서 표본의 개수(n·유한·Inf·NaN)를 `scale_audit` 에 남긴다 — Inf 표본이 0 이면 그 실행에서 동치.
+    NONFINITE_SCALE_POLICY = ("Python: NaN 과 ±Inf 표본을 모두 제거한 뒤 정렬·하위 절반 평균 (+eps). "
+                              "원본 설명식: NaN 만 제거 — Inf 표본이 있으면 두 scale 이 다르다 (R4-05).")
+
     def _auto_scales(self, seed, n_samples, lb=None, ub=None):
         """목적함수 항의 scale. 원본은 `samples = lb + rand(n,5).*(ub-lb)`.
 
@@ -409,9 +417,11 @@ class Objective:
             except Exception:                          # noqa: BLE001 — 원본도 삼킨다
                 for k in vals:
                     vals[k].append(np.nan)
-        out = {}
+        out, audit = {}, {}
         for k, v in vals.items():
             a = np.array(v, dtype=float)
+            audit[k] = {"n": int(a.size), "n_finite": int(np.isfinite(a).sum()),
+                        "n_inf": int(np.isinf(a).sum()), "n_nan": int(np.isnan(a).sum())}
             a = a[np.isfinite(a)]
             if a.size == 0:
                 out[k] = np.finfo(float).eps
@@ -419,6 +429,7 @@ class Objective:
             a.sort()
             half = max(1, a.size // 2)
             out[k] = float(a[:half].mean()) + np.finfo(float).eps
+        self.scale_audit = audit                      # R4-05: 비유한 표본 개수 — 산출물이 들고 나간다
         return out
 
     # -- 합 -------------------------------------------------------------

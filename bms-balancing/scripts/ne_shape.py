@@ -134,9 +134,9 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -
                         f"{h['fam_max']:.6f}" if h else "", f"{h['g_at_max']:.4f}" if h else "",
                         f"{h['witness']:.4f}" if h and h["witness"] is not None else "",
                         f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else ""])
-    from provenance import git_state          # scripts/ 가 sys.path 에 있다
-    meta_path = art.parent / (art.name + ".meta.json")
-    sha, dirty = git_state(exclude=[str(art), str(meta_path)])   # 산출물 자신의 재작성은 dirty 가 아니다
+    from provenance import git_provenance     # scripts/ 가 sys.path 에 있다
+    pv = git_provenance(artifact=str(art))    # 산출물 자신의 재작성은 dirty 가 아니다; 코드/산출 분리 (R4-07)
+    sha, dirty = pv["git_commit"], pv["git_dirty"]
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
         "artifact": art.name, "half_cell_source": a.source,
         "si_source": a.si_source, "grid_n": int(GRID.size),
@@ -147,6 +147,7 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -
         "headroom_note": "gamma_witness 는 (a) 이상의 진폭을 내는 합법 γ 의 존재 증인(격자)이지 "
                          "모양 일치가 아니다; 빈 칸 = 격자에서 없음 (R3-03)",
         "git_commit": sha, "git_dirty": dirty,
+        "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
         "created_utc": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc).isoformat(),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -316,10 +317,14 @@ def main() -> int:
         spread = max(cs) / max(rmss) if max(rmss) > 0 else float("inf")
         worst_over = max(o for _, _, o in cwhere) if cwhere else 0.0
         print()
+        # ⚠ Codex R4-01: 전 판은 `>30 %` 갈래에서 "블렌드가 이 음극의 모양이 아니다 · γ 를 어떻게 고르든
+        #   남고 · a_NE·b_NE 가 흡수한다 = 계통 편향" 을 찍었다 — 정확히 `Blend(x, 0.5)` 인 곡선에 선택 쌍
+        #   0.15→0.0 을 주면 같은 갈래에 들고, 같은 실행의 (d) 는 γ=0.5 증인을 찾는다. (c) 는 **선택된 γ 에서의
+        #   잔차 기술**까지다. 다른 γ 에서 남는지, 어느 파라미터가 흡수하는지는 이 진단이 정하지 않는다.
         if worst_over > 30:
-            print("    → 격자의 30 % 넘게 50 mV 이상 벌어진다. **블렌드가 이 음극의")
-            print("      모양이 아니다.** γ 를 어떻게 고르든 남고, a_NE·b_NE 가")
-            print("      흡수한다 = LAM_NE·LLI 에 계통 편향.")
+            print(f"    → 선택된 γ 에서 격자의 {worst_over:.0f} % 가 50 mV 이상 벌어진다 (max {max(cs):.1f} ·")
+            print(f"      rms {max(rmss):.1f} mV). 이것은 **그 γ 에서의** 잔차 기술이다 — 다른 γ 에서도 남는지는")
+            print("      위 (d) 의 증인 열이, 어느 파라미터로 새는지는 별도 실험이 말한다 (R4-01).")
         elif spread > 3:
             print(f"    → max 가 rms 의 {spread:.1f} 배다. 어긋남이 **좁은 구간에**")
             print("      몰려 있다는 뜻이고, 곡선 대부분은 rms 수준으로 맞는다.")

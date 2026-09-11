@@ -26,7 +26,8 @@ PY_VALS = {c: [r[5 + j] for r in ROWS] for j, c in enumerate(COLS)}
 
 
 def write_csv(path, anchors, rows, cols=COLS):
-    out = ["# dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0"]
+    out = ["# dd_eval  state=pristine  halfcell=data/half_cell/GITT/  Si=Li  w_dqdv=0",
+           "# printed_format,%.10f"]                  # 아래 rmse 토큰과 같은 선언 (R4-02: 추정은 complete 가 아니다)
     out += [f"# {k},{v:.17g}" for k, v in anchors.items()]
     out.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
     out += [",".join([f"{x:.6f}" for x in r[:5]]

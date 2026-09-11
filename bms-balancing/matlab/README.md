@@ -173,9 +173,13 @@ python -m bms_balancing.verify eval --state pristine --si-source Li \
 앵커 16개 + rmse 32개(8행 × 4열)를 대조하고, **갈린 첫 앵커의 단계 이름**을
 말한다. process 종료 코드가 판정이다 — 0 complete · 1 갈림(앵커/목적함수) · 2 미완
 (행 누락·격자 불일치·NaN) · 3 부분(옛 스키마: 앵커·열 누락; `--allow-partial` 을 주면
-0). CSV 의 정밀도는 `dd_eval.m` 이 적는 `# printed_format,%.17g` 선언을 읽고, 선언이
-없는 옛 파일은 `--precision g17` 로 명시하거나 "추정" 이라는 표시를 안고 본다 (Codex
-R3-05~07).
+0). CSV 의 정밀도는 **옵션 → 선언 → 추정** 순이다: `--precision g17|fixed:N|sig:N` 이
+있으면 그것, 없으면 `dd_eval.m` 이 적는 `# printed_format,%.17g` 선언, 둘 다 없으면 값의
+자리수에서 추정한다. 추정은 탐색이라 결과가 맞아도 complete 가 아니라 partial(종료 3)이고
+`--allow-partial` 로도 0 이 되지 않는다 — 선언이 없는 옛 파일은 형식을 알면 `--precision`
+으로 명시할 것. 반올림 구간은 토큰의 반 단위(`%.10f` 면 5e-11)이고 그 초과분만 수치 차이로
+센다. 옵션이 선언보다 느슨하면 partial, 해석 못 하는 선언과 같은 이름의 열·앵커는 invalid
+(Codex R3-05~07 · R4-02~04).
 (예: "`E_NE_0p5_0p25` 에서 처음 갈린다 → 범인 단계는 「문헌 적재 +
 build_blend_functions」"). 그 앞 앵커가 맞았으면 그 앞 단계는 용의선상에서 빠진다.
 

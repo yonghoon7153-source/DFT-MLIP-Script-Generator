@@ -29,25 +29,55 @@ from __future__ import annotations
 import subprocess
 
 
-def git_state(cwd: str | None = None, exclude=()) -> tuple[str, bool | None]:
-    """(HEAD sha, 추적 파일이 수정됐는가). git 이 없으면 ("", None).
+# ── 코드 dirty 와 수정된 산출물을 **분리**한다 (Codex R4-07) ────────────────────────────────
+# 산출물 하나만 빼면, 앞 단계에서 다시 쓴 **다른** 산출물이 코드 변경으로 읽혀 두 번째 meta 가
+# 다시 dirty 였다. 그렇다고 `out/` 을 통째로 숨기면 계산 **입력**으로 쓰는 artifact(`matrix_*.csv`
+# 등)의 변경까지 숨는다. 그래서 둘을 따로 적는다:
+#   git_dirty            — 산출 디렉터리 밖의 추적 파일이 수정됐는가 (= 코드가 commit 과 같았나)
+#   git_modified_outputs — 산출 디렉터리 안에서 수정된 추적 파일 목록 (지금 쓰는 산출물·meta 제외)
 
-    `exclude`: 수정 여부에서 뺄 경로들 — 지금 쓰고 있는 산출물과 그 meta."""
+
+def _git(cwd, *args):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
+
+
+def git_provenance(cwd: str | None = None, artifact=None, output_roots=("out",)) -> dict:
+    """{git_commit, git_dirty(코드), git_modified_outputs[...], git_modified_code[...]}. git 이 없으면 None 들."""
+    import pathlib
+    base = pathlib.Path(cwd or ".").resolve()
     try:
-        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=cwd,
-                             capture_output=True, text=True, check=True
-                             ).stdout.strip()
-        spec = ["--", "."] + [f":(exclude){p}" for p in exclude] if exclude else []
-        mod = subprocess.run(["git", "status", "--porcelain",
-                              "--untracked-files=no", *spec], cwd=cwd,
-                             capture_output=True, text=True, check=True
-                             ).stdout.strip()
+        sha = _git(cwd, "rev-parse", "HEAD").strip()
+        top = pathlib.Path(_git(cwd, "rev-parse", "--show-toplevel").strip()).resolve()
+        lines = _git(top, "status", "--porcelain", "--untracked-files=no").splitlines()
     except Exception:
-        return "", None
-    return sha, bool(mod)
+        return {"git_commit": "", "git_dirty": None, "git_modified_outputs": None, "git_modified_code": None}
+    skip = set()
+    if artifact:
+        a = pathlib.Path(artifact)
+        a = (a if a.is_absolute() else base / a).resolve()
+        skip = {a, a.with_name(a.name + ".meta.json")}
+    roots = [(pathlib.Path(r) if pathlib.Path(r).is_absolute() else base / r).resolve()
+             for r in output_roots if r]                       # 빈 문자열(미설정 $OUT)은 루트가 아니다
+    outputs, code = [], []
+    for ln in lines:
+        rel = ln[3:].split(" -> ")[-1].strip()
+        path = (top / rel).resolve()
+        if path in skip:
+            continue
+        if any(root == path or root in path.parents for root in roots):
+            outputs.append(str(path.relative_to(base)) if base in path.parents else rel)
+        else:
+            code.append(rel)
+    return {"git_commit": sha, "git_dirty": bool(code),
+            "git_modified_outputs": sorted(outputs), "git_modified_code": sorted(code)}
+
+
+def git_state(cwd: str | None = None, exclude=()) -> tuple[str, bool | None]:
+    """(HEAD sha, **코드**가 수정됐는가). git 이 없으면 ("", None). `exclude[0]` 은 지금 쓰는 산출물."""
+    pv = git_provenance(cwd, artifact=(list(exclude) or [None])[0])
+    return pv["git_commit"], pv["git_dirty"]
 
 
 if __name__ == "__main__":
-    import json
-    sha, dirty = git_state()
-    print(json.dumps({"git_commit": sha, "git_dirty": dirty}))
+    import json, sys
+    print(json.dumps(git_provenance(artifact=sys.argv[1] if len(sys.argv) > 1 else None)))

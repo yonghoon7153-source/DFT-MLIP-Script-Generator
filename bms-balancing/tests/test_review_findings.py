@@ -1342,11 +1342,16 @@ def test_degeneracy_json_records_its_settings():
 
 # ═══ R2 (Codex 2차, NO-GO) 반례 — reviews/R2_LEDGER.md 의 C3·C4·C5·C10·C12·C18 ═══
 
-def _r2_csv(tmp, anchors, cols, rows, fmt=".17g", name="r2.csv", head=()):
-    """dd_eval.m 모양의 CSV. `head` 는 앵커 앞에 넣을 `# 이름,값` 줄 (예: 형식 선언, R3-06)."""
+_DECLARED_G17 = ("# printed_format,%.17g",)
+
+
+def _r2_csv(tmp, anchors, cols, rows, fmt=".17g", name="r2.csv", head=_DECLARED_G17):
+    """dd_eval.m 모양의 CSV. `head` 는 앵커 앞에 넣을 `# 이름,값` 줄 — 기본은 `%.17g` 형식 선언
+    (R4-02 뒤 선언 없는 파일은 '추정' 이라 complete 가 될 수 없다; 추정을 시험할 때는 `head=()`)."""
     lines = list(head) + [f"# {k},{v:.17g}" for k, v in anchors.items()]
     lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
-    lines.extend(",".join(format(x, fmt) for x in r) for r in rows)
+    # 파라미터 다섯은 dd_eval.m 처럼 항상 %.6f — `fmt` 는 rmse 열에만 (R4-03 의 %.1f 시험이 격자를 깨지 않게)
+    lines.extend(",".join([format(x, ".6f") for x in r[:5]] + [format(x, fmt) for x in r[5:]]) for r in rows)
     p = pathlib.Path(tmp) / name; p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return p
 
@@ -1761,7 +1766,7 @@ def test_r3_06_declared_or_requested_precision_is_not_inferred_from_token_length
     for r in rows:
         r[5] = 0.125
     py["rmse_pocv"] = [0.125] * len(P); py["rmse_pocv"][3] += 1.0 / 1024
-    plain = _r2_csv(tmp_path, anchors, cols, rows, name="plain.csv")
+    plain = _r2_csv(tmp_path, anchors, cols, rows, name="plain.csv", head=())
     # ① 옵션: 값 길이와 무관하게 전정밀도
     res, txt = _r2_run(anchors, P, py, plain, precision="g17")
     assert res["status"] == "model_mismatch" and res["precision_source"] == "option", (res, txt)
@@ -1771,9 +1776,10 @@ def test_r3_06_declared_or_requested_precision_is_not_inferred_from_token_length
                        head=("# printed_format,%.17g",))
     res, txt = _r2_run(anchors, P, py, declared)
     assert res["status"] == "model_mismatch" and res["precision_source"] == "declared", (res, txt)
-    # ③ 선언도 옵션도 없으면 추론이고, 추론이라고 말해야 한다
+    # ③ 선언도 옵션도 없으면 추론이고, 추론이라고 말해야 한다 (R4-02: 그리고 complete 가 아니다)
     res, txt = _r2_run(anchors, P, py, plain)
     assert res["precision_source"] == "inferred" and "추정" in txt, (res, txt)
+    assert res["status"] != "complete", res
     # ④ 고정 소수 선언(%.10f)은 그 자리수까지만 — 과교정이 아니다 (자리수 안 차이는 일치)
     anchors, cols, P, py, rows = _r2_base()
     fixed = _r2_csv(tmp_path, anchors, cols, rows, fmt=".10f", name="fixed.csv",
@@ -1833,6 +1839,8 @@ def test_r3_07_eval_compare_exit_code_follows_the_verdict(tmp_path):
     assert rc == 0 and "부분" in out, (rc, out[-1500:])
     rc, out = run(_r2_csv(tmp_path, anchors, cols, rows, name="ok2.csv"), "--precision", "bogus")
     assert rc == 2 and "precision" in out, (rc, out[-600:])      # 잘못된 옵션은 성공이 아니다
+    rc, out = run(_r2_csv(tmp_path, anchors, cols, rows, name="inferred.csv", head=()))
+    assert rc == 3 and "추정" in out, (rc, out[-600:])            # R4-02: 추정은 partial 이다
 
 
 def _r3_profile_mocks(tmp_path, monkeypatch):
@@ -1893,11 +1901,13 @@ def test_r3_08_run_states_helper_requires_a_fresh_artifact(tmp_path):
                            capture_output=True, text=True, encoding="utf-8")
     assert stale.returncode != 0 and "OK" not in stale.stderr, stale.stderr
     assert art.read_text(encoding="utf-8") == "gamma_Si,obj\n0,1\n", "옛 산출을 지웠다 — 보존해야 한다"
+    # R4-06 뒤: 새로 쓴 파일이라도 이번 시도의 run id 를 담아야 OK 다 (시각이 아니라 시도로 묶는다)
     fresh = subprocess.run(["bash", "-c", helpers + '\nrun "fresh" "$1" - "$2" python3 -c '
-                            '"import sys, pathlib; pathlib.Path(sys.argv[1]).write_text(\'a,b\\n1,2\\n\')" "$1"\n',
+                            '"import os, sys, pathlib; pathlib.Path(sys.argv[1]).write_text('
+                            '\'a,b,run_id\\n1,2,\' + os.environ[\'BMS_RUN_ID\'] + \'\\n\')" "$1"\n',
                             "r3", str(art), str(log)], capture_output=True, text=True, encoding="utf-8")
     assert fresh.returncode == 0 and "OK" in fresh.stderr, fresh.stderr
-    assert art.read_text(encoding="utf-8") == "a,b\n1,2\n"
+    assert art.read_text(encoding="utf-8").startswith("a,b,run_id\n1,2,")
 
 
 def _r3_shape_run(tmp_path, monkeypatch, reference, fitted, measured):
@@ -2069,7 +2079,9 @@ def test_git_state_can_exclude_the_artifact_being_rewritten(tmp_path):
     art.write_text("regenerated\n")
     sha, dirty = m.git_state(cwd=str(tmp_path), exclude=[str(art), str(art) + ".meta.json"])
     assert sha and dirty is False, "산출물 자신의 재작성이 dirty 로 잡혔다"
-    assert m.git_state(cwd=str(tmp_path))[1] is True          # 제외 없이면 여전히 잡힌다 (과교정 아님)
+    # R4-07 뒤: 제외하지 않아도 코드 dirty 는 아니지만 **숨기지도 않는다** — 수정된 산출물 목록에 남는다
+    pv = m.git_provenance(cwd=str(tmp_path))
+    assert pv["git_dirty"] is False and pv["git_modified_outputs"] == ["out/ne_shape_GITT_Li.csv"], pv
     (tmp_path / "code.py").write_text("x = 2\n")
     assert m.git_state(cwd=str(tmp_path), exclude=[str(art)])[1] is True, "코드 수정은 제외해도 잡혀야 한다"
 
@@ -2086,3 +2098,350 @@ def test_ne_shape_meta_is_clean_when_only_the_artifact_changed(tmp_path, monkeyp
     art = m._write_csv(tmp_path / "out", a, rows, cap, cap["pristine"], {})
     meta = json.loads((art.parent / (art.name + ".meta.json")).read_text(encoding="utf-8"))
     assert meta["git_commit"] and meta["git_dirty"] is False, meta
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Codex R4 (2026-09-11, 대상 39a5fe0, NO-GO · P1 6 · P2 1) — 반례를 회귀로 (reviews/R4_CODEX.md)
+# 재현 원본: reviews/r4_repros/harness_r4_*_repros.py. 우리 트리 재생 기록:
+# reviews/r4_repros/replay_ours_39a5fe0.json (12 단계 rc 전부 Codex 와 같음 — 일곱 건 재현).
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_r4_01_ne_shape_c_branch_reports_statistics_not_a_universal_verdict(tmp_path, monkeypatch):
+    """[Codex R4-01] 정확히 `Blend(x, 0.5)` 인 측정 곡선(기준 γ 0.15)에 선택 쌍 0.15→0.0 을 주면 선택된
+    적합의 잔차가 격자의 68 % 에서 50 mV 를 넘는다. (c) 의 `>30 %` 갈래가 "γ 를 어떻게 고르든 남고,
+    a_NE·b_NE 가 흡수한다 = LAM_NE·LLI 에 계통 편향" 을 찍었다 — 같은 실행의 (d) 가 γ=0.5 증인을 찾았는데도.
+
+    (c) 도 선택된 γ 에서의 max/rms/초과 비율까지만 말한다. 어느 파라미터가 흡수하는지도 이 진단이 정하지 않는다.
+    """
+    rc, out, row, blend, m = _r3_shape_run(tmp_path, monkeypatch, 0.15, 0.0, lambda b, x: b.E(x, 0.5))
+    assert rc == 0, out
+    assert float(row["frac_over_50mV"]) > 30, row                      # 이 갈래에 들어가는 fixture
+    assert row["gamma_witness"] and abs(float(row["gamma_witness"]) - 0.5) <= 0.002, row
+    for bad in ("어떻게 고르든", "계통 편향", "블렌드가 이 음극의", "모양이 아니다"):
+        assert bad not in out, f"(c) 가 아직 보편 판정 '{bad}' 을 찍는다\n{out}"
+    assert "50 mV" in out and "%" in out, out                          # 기술 통계는 남는다
+    src = (ROOT / "scripts" / "ne_shape.py").read_text(encoding="utf-8")
+    prints = [ln for ln in src.splitlines() if "print(" in ln]
+    assert not [ln for ln in prints if any(b in ln for b in ("어떻게 고르든", "계통 편향", "모양이 아니다"))]
+
+
+def test_r4_02_inferred_or_unsupported_precision_is_never_complete(tmp_path):
+    """[Codex R4-02] 선언·옵션이 없으면 "추정" 경고만 찍고 complete·종료 0 을 냈다. 실제 `%.14g` 파일의
+    선언은 버리고 추정했고, 미지원 선언도 추정으로 넘어갔다 — 셋 다 0.125 vs 0.1259765625 (상대 0.775 %) 를
+    일치로 인증했다.
+
+    정책: 추정은 탐색이다 → 결과가 맞아도 `partial`(사유 정밀도 추정, 종료 3) 이고 `--allow-partial` 로도 0 이
+    되지 않는다. `%.Ng` 는 그 유효자리의 반올림 구간으로 지원한다. 해석 불가 선언은 `invalid`(종료 2).
+    """
+    import json as _json, subprocess, sys as _s, textwrap
+    anchors, cols, P, py, rows = _r2_base()
+    for r in rows:
+        r[5] = 0.125
+    py["rmse_pocv"] = [0.125] * len(P); py["rmse_pocv"][3] += 1.0 / 1024
+    # ① 선언 없음 → 추정. 추정 반 단위(0.125 → 소수 3자리 → 5e-4) 안의 차이 3e-4 는 "일치" 로 보이지만
+    #    그 결과는 complete 가 아니라 partial 이고, 사유가 결과에 남는다
+    plain = _r2_csv(tmp_path, anchors, cols, rows, name="plain.csv", head=())
+    py_small = {c: list(v) for c, v in py.items()}; py_small["rmse_pocv"][3] = 0.125 + 3e-4
+    res, txt = _r2_run(anchors, P, py_small, plain)
+    assert res["status"] == "partial" and res["precision_source"] == "inferred", (res, txt)
+    assert any("정밀도" in r for r in res["partial_reasons"]), res
+    res, txt = _r2_run(anchors, P, py_small, plain, precision="g17")     # 같은 차이를 명시 전정밀도로 보면 갈림
+    assert res["status"] == "model_mismatch", (res, txt)
+    # ② 실제 %.14g 로 쓴 파일의 선언은 지원한다 → 반올림 구간 0.5e-14 → 1/1024 차이는 갈림
+    g14 = _r2_csv(tmp_path, anchors, cols, rows, fmt=".14g", name="g14.csv", head=("# printed_format,%.14g",))
+    res, txt = _r2_run(anchors, P, py, g14)
+    assert res["status"] == "model_mismatch" and res["precision_source"] == "declared", (res, txt)
+    # ③ 해석 불가 선언 → invalid (추정으로 넘어가지 않는다)
+    bad = _r2_csv(tmp_path, anchors, cols, rows, name="bad.csv", head=("# printed_format,unsupported-format",))
+    res, txt = _r2_run(anchors, P, py, bad)
+    assert res["status"] == "invalid" and "printed_format" in txt, (res, txt)
+    # ④ 명시 옵션이 선언보다 느슨하면 complete 가 아니다 — 충돌을 기록하고 partial
+    loose = _r2_csv(tmp_path, anchors, cols, rows, name="loose.csv")   # 기본 head = %.17g 선언
+    res, txt = _r2_run(anchors, P, py, loose, precision="fixed:1")
+    assert res["precision_conflict"] and res["status"] == "partial", (res, txt)
+    assert any("옵션" in r or "선언" in r for r in res["partial_reasons"]), res
+    # ⑤ 공개 경로: 추정은 --allow-partial 로도 0 이 아니다
+    driver = tmp_path / "driver.py"
+    driver.write_text(textwrap.dedent(f"""
+        import sys, json
+        sys.path.insert(0, {str(ROOT)!r})
+        from unittest.mock import patch
+        from bms_balancing import verify
+        an = json.loads(sys.argv[1]); py = json.loads(sys.argv[2]); P = {P!r}
+        class Obj:
+            def _at(self, p, col): return py[col][P.index([float(x) for x in p])]
+            def rmse_pocv(self, p): return self._at(p, "rmse_pocv")
+            def rmse_dvdq(self, p): return self._at(p, "rmse_dvdq")
+            def rmse_dqdv(self, p, weighted=False):
+                return self._at(p, "rmse_dqdv_w" if weighted else "rmse_dqdv")
+        with patch.object(verify.D, "data_root", return_value=None), \\
+             patch.object(verify, "build", return_value=Obj()), \\
+             patch.object(verify, "dd_eval_anchors", return_value=list(an.items())):
+            sys.exit(verify.main(["eval", "--compare", sys.argv[3]] + sys.argv[4:]))
+    """), encoding="utf-8")
+    anchors2, cols2, P2, py2, rows2 = _r2_base()
+    plain_ok = _r2_csv(tmp_path, anchors2, cols2, rows2, name="plain_ok.csv", head=())
+    for extra in ((), ("--allow-partial",)):
+        r = subprocess.run([_s.executable, str(driver), _json.dumps(anchors2), _json.dumps(py2), str(plain_ok), *extra],
+                           capture_output=True, text=True, encoding="utf-8")
+        assert r.returncode == 3 and "추정" in r.stdout, (extra, r.returncode, r.stdout[-800:])
+
+
+def test_r4_03_fixed_precision_uses_half_unit_plus_numeric_noise(tmp_path):
+    """[Codex R4-03] 선언 `%.10f` 에서 허용량이 10^-10 전체였다 — 실제 반올림 구간은 반 단위 0.5e-10 이다.
+    CSV 0.0123456789 vs Python 0.01234567899 (같은 형식으로 찍으면 0.0123456790 ≠) 차이 9e-11 이 complete 였고,
+    `%.1f` 의 0.1 vs 0.199 도 통과했다.
+
+    판정: |m − p| ≤ 반 단위 → 자리수 안; 그 초과분이 상대 1e-9 이하 → 수치 잡음; 그 이상 → 갈림.
+    """
+    for decimals, good, badv in ((10, 0.01234567894, 0.01234567899), (1, 0.149, 0.199)):
+        anchors, cols, P, py, rows = _r2_base()
+        base = 0.0123456789 if decimals == 10 else 0.1
+        for c in cols:
+            py[c] = [base] * len(P)
+        for r in rows:
+            r[5:] = [base] * 4
+        fmt, head = f".{decimals}f", (f"# printed_format,%.{decimals}f",)
+        for label, v, want in (("compatible", good, "complete"), ("incompatible", badv, "model_mismatch")):
+            pyv = {c: list(vs) for c, vs in py.items()}; pyv["rmse_pocv"][3] = v
+            path = _r2_csv(tmp_path, anchors, cols, rows, fmt=fmt, name=f"f{decimals}_{label}.csv", head=head)
+            res, txt = _r2_run(anchors, P, pyv, path)
+            assert res["status"] == want, (decimals, label, res, txt[-900:])
+            assert format(v, fmt) != format(base, fmt) or want == "complete", (decimals, label)
+
+
+def test_r4_04_duplicate_anchor_or_column_names_are_invalid(tmp_path):
+    """[Codex R4-04] 같은 이름의 열을 하나 더 붙이고(값 전부 NaN) 8 행이면 expected=40·compared=40·complete 였다 —
+    metric 은 `header.index` 로 첫 열만 다시 읽고, 같은 이름의 NaN 앵커 줄은 dict 덮어쓰기로 사라졌다.
+
+    이름의 유일성은 파싱 단계에서 강제한다: 중복 앵커·중복 열·헤더와 다른 열 수 → `invalid`(종료 2).
+    옛 스키마(`--allow-partial`)와 malformed 는 다르다.
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    dup_cols = cols + ["rmse_pocv"]
+    dup_rows = [r + [float("nan")] for r in rows]
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, dup_cols, dup_rows, name="dupcol.csv"))
+    assert res["status"] == "invalid" and res["compared"] == 0, (res, txt[-600:])
+    assert any("중복" in p and "rmse_pocv" in p for p in res["problems"]), res
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, rows, name="dupanchor.csv",
+                                                head=("# printed_format,%.17g", "# E_PE_0p5,nan")))
+    assert res["status"] == "invalid" and any("중복" in p and "E_PE_0p5" in p for p in res["problems"]), (res, txt[-600:])
+    short = [r.copy() for r in rows]; short[2] = short[2][:8]                 # 열 수 부족
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, short, name="short.csv"))
+    assert res["status"] == "invalid" and any("열 수" in p for p in res["problems"]), (res, txt[-600:])
+    ok, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, rows, name="ok.csv"))
+    assert ok["status"] == "complete", ok
+    assert verify.EXIT_BY_STATUS["invalid"] == 2
+
+
+class _FinitePlateau:
+    """Codex R4-05 의 합성 forward: 유한·연속·비감소인데 평탄부의 dV/dQ=0 이 역도함수에 Inf 를 만든다."""
+    def __init__(self):
+        self.x_model = np.linspace(0.0, 1.0, 101)
+        self.vol_dq_fit = np.linspace(0.0, 0.8, 41)
+        self.dq_fit_data = np.full(41, 2.0)
+        self.w_peak = np.ones(41)
+        self.window, self.poly_order = 5, 2
+        self.use_peak_weight = False
+        self.w_pocv = self.w_dvdq = self.w_dqdv = 1.0
+    def E_cell(self, p, x):
+        return np.maximum(0.0, np.asarray(x) - (p[0] - 1.1))
+    def rmse_pocv(self, p): return 1.0
+    def rmse_dvdq(self, p): return 1.0
+
+
+def test_r4_05_auto_scale_records_its_nonfinite_policy_and_findings_limits_u1(tmp_path):
+    """[Codex R4-05] §1-13 은 "rmse 는 1e6 감시값이라 Inf 는 안 나옴 · 남은 ≠MATLAB 은 빈-표본 가드 둘뿐" 이라
+    했다. 평탄부가 있는 유한 forward 에서 seed 0 표본 50 개 중 36 개의 raw `rmse_dqdv` 가 Inf 다. 원본 설명식
+    (`NaN 제거 → 정렬 → 하위 절반 평균`)은 Inf 를 남겨 scale 이 Inf 가 되고, Python 은 비유한 전부를 걸러
+    유한 scale 을 낸다 — 같은 정상 parameter 의 목적함수가 다르다. `__call__` 의 1e6 가드는 `_auto_scales` 의
+    raw 호출을 감싸지 않는다.
+
+    닫는 길: (i) Python 의 비유한 정책을 코드가 스스로 말하고 표본 개수(n·유한·Inf·NaN)를 `scale_audit` 에
+    남긴다 → 실제 실행에서 Inf 표본이 0 이면 그 영역에서 동치, 아니면 갈림이 기록된다. (ii) §1-13 의 동치
+    주장을 유한 RMSE 영역으로 한정한다.
+    """
+    import warnings
+    from bms_balancing.model import Objective, LB5 as _LB, UB5 as _UB
+    class Plateau(_FinitePlateau, Objective):
+        def __init__(self): _FinitePlateau.__init__(self)
+    obj = Plateau()
+    samples = _LB + np.random.default_rng(0).random((50, 5)) * (_UB - _LB)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        raw = np.array([obj.rmse_dqdv(p) for p in samples])
+        scales = obj._auto_scales(0, 50)
+    assert np.isinf(raw).sum() >= 1 and np.isfinite(scales["dqdv"]), (np.isinf(raw).sum(), scales)
+    audit = obj.scale_audit["dqdv"]
+    assert audit["n"] == 50 and audit["n_inf"] == int(np.isinf(raw).sum()) and audit["n_finite"] == int(np.isfinite(raw).sum())
+    assert audit["n_finite"] + audit["n_inf"] + audit["n_nan"] == 50
+    assert "Inf" in Objective.NONFINITE_SCALE_POLICY and "NaN" in Objective.NONFINITE_SCALE_POLICY
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-13")
+    live = NOT_A_CLAIM.sub("", sec)
+    assert "Inf 는 안 나옴" not in live and "빈-표본 가드 둘뿐" not in live, "§1-13 이 아직 옛 동치 주장을 한다"
+    assert "유한" in live and "Inf" in live and "R4-05" in sec, "§1-13 에 비유한 정책의 차이와 영역 한정이 없다"
+
+
+def _race_worker_source():
+    return '''
+import csv, json, os, sys, time
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+import numpy as np
+sys.path.insert(0, sys.argv[3])
+from bms_balancing import verify as v
+role, out = sys.argv[1], Path(sys.argv[2]); root = out.parent
+center = (v.LB5 + v.UB5) / 2
+selected = v.LB5[:4] + (0.25 if role == "A" else 0.75) * (v.UB5[:4] - v.LB5[:4])
+class Obj:
+    c_cell = 1.0; scales = {"pocv": 1.0, "dvdq": 1.0, "dqdv": 1.0}
+    def __call__(self, p): return float(1 + 1e-4 * np.square(np.asarray(p) - center).sum())
+    def rmse_pocv(self, p): return self(p)
+def ok(fun, start, **kw): return SimpleNamespace(x=selected.copy(), fun=fun(selected), success=True)
+def wait(p):
+    t = time.monotonic() + 20
+    while not p.exists():
+        assert time.monotonic() < t, p
+        time.sleep(0.01)
+orig = os.replace
+def scheduled(src, dst):
+    (root / f"{role}.ready").write_text("ready")
+    if role == "A":
+        wait(root / "B.ready"); orig(src, dst); (root / "A.published").write_text("ok")
+    else:
+        wait(root / "A.published")
+        rows = list(csv.DictReader(open(dst, encoding="utf-8")))
+        (root / "B.seen.json").write_text(json.dumps({"a_NE": [r["a_NE"] for r in rows],
+                                                      "run_id": [r.get("run_id") for r in rows]}))
+        orig(src, dst)
+os.environ["BMS_RUN_ID"] = f"run-{role}"
+with patch.object(v.D, "data_root", return_value=root), patch.object(v, "build", return_value=Obj()), \\
+     patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), \\
+     patch.object(v, "minimize", side_effect=ok), patch.object(v.os, "replace", side_effect=scheduled):
+    rc = v.main(["profile", "--data-root", str(root), "--starts", "1", "--grid", "2", "--out", str(out)])
+print(json.dumps({"role": role, "a_NE": float(selected[2]), "rc": rc}))
+sys.exit(rc)
+'''
+
+
+def test_r4_06_concurrent_profiles_publish_their_own_rows_with_run_ids(tmp_path):
+    """[Codex R4-06] 두 process 가 같은 `--out` 을 쓰면 `.part` 이름이 공유돼 A 가 B 의 계산값을 게시하고 rc 0,
+    B 는 자기 `.part` 가 없어 FileNotFoundError 였다 (원자적 rename 은 반쪽 파일만 막지 누가 계산했는지는 안
+    묶는다).
+
+    시도별 고유 임시 파일 + 행마다 `run_id`(`--run-id`/`BMS_RUN_ID`) 로 계산과 게시 bytes 를 묶는다. A 가 게시한
+    순간 B 가 읽은 내용은 A 의 값·A 의 run_id 여야 하고, 둘 다 rc 0, 최종 파일은 B 의 값·B 의 run_id 다.
+    """
+    import json as _json, subprocess, sys as _s, time
+    worker = tmp_path / "race_worker.py"; worker.write_text(_race_worker_source(), encoding="utf-8")
+    out = tmp_path / "profile.csv"
+    cmd = lambda role: [_s.executable, str(worker), role, str(out), str(ROOT)]          # noqa: E731
+    a = subprocess.Popen(cmd("A"), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    t = time.monotonic() + 20
+    while not (tmp_path / "A.ready").exists():
+        assert time.monotonic() < t and a.poll() is None, a.communicate()
+        time.sleep(0.01)
+    b = subprocess.Popen(cmd("B"), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    ao, ae = a.communicate(timeout=30); bo, be = b.communicate(timeout=30)
+    assert a.returncode == 0 and b.returncode == 0, (a.returncode, b.returncode, ae[-600:], be[-600:])
+    aj = _json.loads(ao.strip().splitlines()[-1]); bj = _json.loads(bo.strip().splitlines()[-1])
+    seen = _json.loads((tmp_path / "B.seen.json").read_text(encoding="utf-8"))
+    assert [float(x) for x in seen["a_NE"]] == [aj["a_NE"]] * len(seen["a_NE"]), (seen, aj)   # A 는 자기 값을 게시했다
+    assert seen["run_id"] == ["run-A"] * len(seen["run_id"]), seen
+    final = list(csv.DictReader(out.open(encoding="utf-8")))
+    assert [float(r["a_NE"]) for r in final] == [bj["a_NE"]] * len(final) and {r["run_id"] for r in final} == {"run-B"}
+    assert not list(tmp_path.glob("*.part*")), "시도별 임시 파일이 남았다"
+
+
+def _shell_helpers():
+    sh = (ROOT / "scripts" / "run_states.sh").read_text(encoding="utf-8")
+    return (sh[sh.index("write_meta ()"):sh.index('\nmkdir -p "$OUT"')]
+            + "\n" + sh[sh.index("say ()"):sh.index("\nfail=0")])
+
+
+def _fixture_repo(root, outputs=("out/100.csv", "out/200.csv")):
+    import shutil, subprocess
+    (root / "scripts").mkdir(parents=True); (root / "out").mkdir(exist_ok=True)
+    shutil.copyfile(ROOT / "scripts" / "provenance.py", root / "scripts" / "provenance.py")
+    (root / "code.py").write_text("value = 1\n", encoding="utf-8")
+    for o in outputs:
+        (root / o).write_text("a,b\n1,2\n", encoding="utf-8")
+    def git(*a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=root,
+                              check=True, capture_output=True, text=True).stdout
+    git("init", "-q"); git("add", "."); git("commit", "-qm", "base")
+    return git
+
+
+def test_r4_06_run_helper_binds_the_artifact_to_the_attempt_not_to_mtime(tmp_path):
+    """[Codex R4-06 · Q4] `find -newer` 도장은 옛 CSV 를 `touch()` 만 해도 (bytes 그대로) OK 를 줬다. 시각은
+    시도와 계산 bytes 를 잇는 증거가 아니다.
+
+    `run` 은 시도마다 run id 를 만들어 명령에 `BMS_RUN_ID` 로 주고, 게시된 파일이 그 id 를 **담고 있어야** OK 다.
+    `write_meta` 는 같은 id 를 meta 에 적고 파일에 없으면 거부한다.
+    """
+    import json as _json, os, subprocess, time
+    root = tmp_path / "repo"; _fixture_repo(root, outputs=("out/old.csv",))
+    art, log = root / "out" / "old.csv", tmp_path / "run.log"
+    old = time.time() - 60; os.utime(art, (old, old))
+    env = dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic")
+    def sh(body):
+        return subprocess.run(["bash", "-c", _shell_helpers() + "\n" + body, "r4", str(art), str(log)],
+                              cwd=root, env=env, capture_output=True, text=True, encoding="utf-8")
+    touched = sh('run "touch" "$1" - "$2" python3 -c "import pathlib,sys; pathlib.Path(sys.argv[1]).touch()" "$1"')
+    assert touched.returncode != 0 and "OK" not in touched.stderr, touched.stderr
+    assert art.read_text(encoding="utf-8") == "a,b\n1,2\n"
+    bound = sh('run "id" "$1" - "$2" python3 -c "import os,sys,pathlib; '
+               'pathlib.Path(sys.argv[1]).write_text(\'a,b,run_id\\n3,4,\' + os.environ[\'BMS_RUN_ID\'] + \'\\n\')" "$1" '
+               '&& write_meta "$1" 100 GITT && echo "META_OK"')
+    assert bound.returncode == 0 and "OK" in bound.stderr and "META_OK" in bound.stdout, (bound.stdout, bound.stderr)
+    rid = art.read_text(encoding="utf-8").strip().splitlines()[-1].split(",")[-1]
+    meta = _json.loads((root / "out" / "old.csv.meta.json").read_text(encoding="utf-8"))
+    assert len(rid) >= 8 and meta["run_id"] == rid, (rid, meta)
+    (root / "out" / "old.csv.meta.json").unlink()
+    refused = sh('LAST_RUN_ID=not-in-file write_meta "$1" 100 GITT')
+    assert refused.returncode != 0 and not (root / "out" / "old.csv.meta.json").exists(), refused.stderr
+
+
+def test_r4_07_metadata_separates_code_dirty_from_modified_outputs(tmp_path):
+    """[Codex R4-07, P2] 코드는 같은 채로 산출 둘을 차례로 재생성하면 두 번째 meta 가 다시 dirty 였다 — 산출물
+    하나만 제외하니 앞 단계에서 다시 쓴 다른 산출이 코드 변경으로 읽혔다. 무작정 `out/` 전체를 숨기면 입력으로
+    쓰는 artifact 의 변경도 숨으므로, 코드 dirty 와 **수정된 산출물 목록**을 분리해 둘 다 적는다.
+    """
+    import json as _json, os, subprocess
+    root = tmp_path / "repo"; _fixture_repo(root)
+    env = dict(os.environ, STARTS="1", SI="Li", BMS_DATA_ROOT="synthetic")
+    def write_meta(rel, rid):
+        (root / rel).write_text(f"a,b,run_id\n3,4,{rid}\n", encoding="utf-8")
+        r = subprocess.run(["bash", "-c", _shell_helpers() + f'\nLAST_RUN_ID={rid} write_meta "$1" 100 GITT', "r4", rel],
+                           cwd=root, env=env, capture_output=True, text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr
+        return _json.loads((root / (rel + ".meta.json")).read_text(encoding="utf-8"))
+    m100 = write_meta("out/100.csv", "rid-100")
+    m200 = write_meta("out/200.csv", "rid-200")
+    assert m100["git_dirty"] is False and m200["git_dirty"] is False, (m100, m200)
+    assert m100["git_modified_outputs"] == [] and m200["git_modified_outputs"] == ["out/100.csv"], (m100, m200)
+    (root / "code.py").write_text("value = 2\n", encoding="utf-8")
+    m200b = write_meta("out/200.csv", "rid-200b")
+    assert m200b["git_dirty"] is True and m200b["git_modified_outputs"] == ["out/100.csv"], m200b
+
+
+def test_r4_docs_direction_sentence_precision_order_and_line_endings():
+    """R4 Q2·Q3 와 보류 S-02: §5-2 의 "100·200 모두 크기도 방향도 다르다" 는 200 에만 맞다 (100 은 적합 −0.0018 ·
+    증인 −0.0743 로 같은 방향). README 의 정밀도 순서는 실제 코드(옵션 → 선언 → 추정)와 같아야 하고 추정은
+    complete 가 아니다. shell 은 LF 로 고정한다 (리뷰어 Windows 사본에서 CRLF 로 구문 오류)."""
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    sec = NOT_A_CLAIM.sub("", _section(txt, "### 5-2"))
+    assert "크기도 방향도 다르" not in sec, "§5-2 가 100 에도 '방향도 다르다' 를 주장한다 (S-02)"
+    # 변이 감사(2026-09-11): "같은 방향" 은 §5-2 의 다른 문장에도 있어 느슨했다 — 100 에 대한 문장으로 못 박는다
+    assert "100 은 방향이 같" in sec, "§5-2 에 100 의 방향 정정('100 은 방향이 같고 …')이 없다"
+    retr = _section(txt, "## 0-2")
+    for tag in ("R4-01", "R4-05"):
+        assert tag in retr, f"§0-2 에 {tag} 철회 행이 없다"
+    for f in ("README.md", "matlab/README.md"):
+        body = (ROOT / f).read_text(encoding="utf-8")
+        assert "선언 → `--precision" not in body, f"{f}: 옛 순서(선언 → 옵션)가 남았다"
+        assert "옵션 → 선언 → 추정" in body and "complete" in body, f"{f}: 실제 순서와 '추정 ≠ complete' 가 없다"
+    ga = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "*.sh text eol=lf" in ga

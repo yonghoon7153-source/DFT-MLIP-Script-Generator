@@ -24,33 +24,38 @@
 
 ---
 
-## 지금 상태 — **Codex R3 = NO-GO (P1 9). `reviews/R3_LEDGER.md` 가 작업 원장이다**
+## 지금 상태 — **Codex R4 = NO-GO (P1 6 · P2 1). `reviews/R4_LEDGER.md` 가 작업 원장이다**
 
-2026-09-11 Codex 3차 리뷰(대상 `a432d23`, `reviews/R3_CODEX.md`) 아홉 건을 우리 트리에서
-**전부 재현**했다 (`reviews/r3_repros/replay_ours_a432d23.json` — 8 단계 rc 가 Codex 와 같다).
-반박 성립 없음. 코드 다섯(R3-05~09)·문서 넷(R3-01~04)은 RED 테스트 → 수정 → GREEN 으로
-닫았다 (`tests/test_review_findings.py` 끝의 R3 블록). 사용자 기계 실측(`ne_shape.py` 재실행,
-fb62342)도 들어와 §5-2 (d) 표를 채웠다 — 100·200 은 (a) 진폭을 내는 합법 γ 가 있고(줄이는 쪽),
-300_0009 는 합법 최대 86.01 mV < 119.34 mV 로 없다 (정규화·모양 한정어). 그 meta 의
-`git_dirty: true` 로 자체 발견 S-01(산출물 재작성이 플래그를 켬)을 잡아 닫았다. **65 passed.**
+2026-09-11 Codex 4차 리뷰(대상 `39a5fe0`, `reviews/R4_CODEX.md`) 일곱 건을 우리 트리에서 **전부
+재현**했다 (`reviews/r4_repros/replay_ours_39a5fe0.json` — 12 단계 rc 가 Codex 와 같다). 반박 성립
+없음. 코드 여섯(R4-02~04 정밀도·중복, R4-06 시도 식별자, R4-07 provenance 분리, R4-05 감사)·문서 셋
+(R4-01 (c) 판정문 철회, R4-05 U1 한정, S-02 방향 문장)을 RED → 수정 → GREEN 으로 닫았다. **74 passed.**
+R3 에서 Codex 가 종결로 인정한 것: R3-01·03(계산)·04·09, R3-05/07 원래 사례, R3-08 순차 사례.
 
-**R4 요청문 발송함** (2026-09-11, 대상 커밋 `39a5fe0`). 회신 대기 중.
-`degeneracy`/`profile` 를 다시 돌릴 때는 `run_states.sh` 가 이제 **이번 실행이 새로 쓴 파일**만
-OK 로 센다 (R3-08) — 옛 파일이 남아 있어도 새 provenance 가 붙지 않는다.
+보류 셋의 처분: **S-02 닫힘**(정정) · **S-03 기록 유지**(Codex Q2 가 한정어를 적절하다고 봄; 용량 축을 뺀
+(a) 는 요구서의 구분 시험 항목) · **S-04 열림**(개선 후보, 리뷰어 요구 아님).
 
-### 보류 — R4 회신을 받고 **한 번에** 판단한다 (사용자 결정, 2026-09-11)
+남은 것: **U12 — 사용자 기계** 실측 하나와 R5 요청문.
 
-발송 뒤 γ 여유((d)) 열을 자체 점검하다 셋을 찾았다. **지금 고치지 않는다** — 리뷰 대상 커밋
-`39a5fe0` 과 트리를 어긋나게 하지 않고, 회신이 같은 자리를 어떻게 보는지 본 뒤 묶어서 고친다.
-(형태 자체는 확인됨: 증인 탐색이 양방향이고 — 합성 가족에서 `+` 쪽 증인이 나오는 것을 확인 —
-합법 Δγ 가 `LB5`/`UB5` 와 세 행 다 일치, `gamma_witness_delta` = 증인 − 기준, 단위 mV 일관.)
+```bash
+cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
+source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
+python3 -m pytest tests/ -q                       # 74 passed 기대
+# U12: scale 표본에 비유한(Inf) 값이 있었나 — 네 루트 × 상태 (각 수 초). `# scale_audit` 줄만 붙여 주면 된다
+for st in pristine 100 200 300_0009; do python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done
+for c in c168 c171 pouch_fixedhc; do for st in pristine 100 200 300_0009; do BMS_DATA_ROOT=~/dd/cells/$c python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done; done
+```
+Inf 표본이 전부 0 이면 §1-13 의 "유한 RMSE 영역" 한정이 실제 자료에서 성립한다고 적을 수 있다. 하나라도
+있으면 그 실행의 scale 은 원본 설명식과 다른 값이다 — 그때는 그 사실을 §1-13 에 그대로 적는다.
+`degeneracy`/`profile`/`matrix` 를 다시 돌릴 때는 `run_states.sh` 가 이제 **시도 식별자(run_id)가 파일 안에
+있어야** OK 로 센다 (R4-06) — 시각이 아니라 id 로 계산과 게시를 묶는다.
 
-| # | 무엇 | 크기 |
-|---|---|---|
-| S-02 | **정본 오류**: `FINDINGS.md` §5-2 (d) 해설이 증인 방향을 "적합이 택한 것과 크기도 **방향도** 다르다" 고 쓴다. 100 은 방향이 **같다** (적합 −0.0018 · 증인 −0.0743, 크기만 40 배). "방향도 다르다" 는 200 에만 해당 (적합 +0.0171 · 증인 −0.1183) | 한 문장 |
-| S-03 | **전제가 약함**: (a) 와 `gamma_family_max_mV` 가 같은 종류의 양이 아니다. (a) 는 **측정** 곡선끼리의 차이이고 정규화 뒤라 용량 축이 섞이며(300_0009 는 −27.3 %), 가족 최대는 **모델** 곡선끼리의 순수 γ 축 변화다. "86.01 < 119.34 이므로 γ 로는 못 닿는다" 는 사실상 용량 축까지 γ 가 흡수하라는 요구가 된다. 한정어는 붙였으나 숫자는 남는다 — **R4 가 칠 만한 자리** | 문단 또는 측정 추가 |
-| S-04 | **형태 개선 후보**: 증인을 최근접 하나만 남겨 반대쪽 도달 여부가 CSV 에 없다; `gamma_family_max_mV` 는 γ_ref 가 셋 다 0.2953 이라 세 행이 같은 86.01 인데 열 이름은 상태별 값처럼 읽힌다 | 열 추가·이름 |
+## 직전 상태 — Codex R3 (닫힘, `reviews/R3_LEDGER.md`)
 
+2026-09-11 Codex 3차 리뷰(대상 `a432d23`) 아홉 건을 전부 재현·닫았다. 사용자 기계 실측(`ne_shape.py`
+재실행, fb62342)으로 §5-2 (d) 표를 채웠다 — 100·200 은 (a) 진폭을 내는 합법 γ 가 있고(줄이는 쪽),
+300_0009 는 합법 최대 86.01 mV < 119.34 mV 로 없다 (정규화·모양 한정어). 그 meta 의 `git_dirty: true`
+로 자체 발견 S-01(산출물 재작성이 플래그를 켬)을 잡아 닫았다.
 
 ## 직전 상태 — Codex R2 (닫힘, `reviews/R2_LEDGER.md`)
 

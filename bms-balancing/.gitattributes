@@ -1,0 +1,3 @@
+# shell 은 LF 로 고정 — 리뷰어의 Windows 작업사본(autocrlf)에서 CRLF 로 구문 오류가 났다 (R4)
+*.sh text eol=lf
+*.py text eol=lf
