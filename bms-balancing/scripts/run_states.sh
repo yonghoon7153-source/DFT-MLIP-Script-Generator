@@ -77,18 +77,33 @@ sys.exit(0 if r and r[0] else 1)' "$f" 2>/dev/null \
 # run <라벨> <검사할 산출> <stdout 받을 파일 | -> <로그> <명령...>
 #   리다이렉트를 **호출부가 아니라 여기서** 건다. 호출부에서 걸면 say 의
 #   stderr 까지 로그로 빨려 들어가 화면에 진행이 안 보인다.
+#
+# ⚠ 2026-09-11 Codex R3-08: 전 판은 rc 0 + '비어 있지 않은 파일' 만 봤다. profile 이 전부
+#   실패해 아무것도 안 쓰면 **이전 실행의 CSV** 가 그 검사를 통과해 "OK" 가 찍히고
+#   `write_meta` 가 옛 파일에 새 provenance 를 붙였다. 이제 명령 시작 시각의 도장(stamp)보다
+#   **새로 쓰인 파일**만 이번 실행의 산출로 인정한다. 옛 파일은 지우지 않는다 — 보존은 하되
+#   새 결과로 세지 않는다.
 run () {
   local label="$1" art="$2" redir="$3" log="$4"; shift 4
   say '\n\033[1m== %s\033[0m\n' "$label"
   local t0=$SECONDS rc=0
+  local stamp="${art}.stamp.$$"
+  : > "$stamp"                                   # 이 시각 이후에 쓰인 파일만 새 산출이다
   if [ "$redir" = "-" ]; then
     "$@" > "$log" 2>&1 || rc=1
   else
     "$@" > "$redir" 2> "$log" || rc=1
   fi
-  if [ "$rc" -eq 0 ] && check_artifact "$art"; then
+  local fresh=0
+  # find -newer 는 ns 단위로 비교한다 (bash -nt 는 판에 따라 초 단위) — 같은 초 안의 실행도 가른다
+  [ -e "$art" ] && [ -n "$(find "$art" -maxdepth 0 -newer "$stamp" 2>/dev/null)" ] && fresh=1
+  rm -f "$stamp"
+  if [ "$rc" -eq 0 ] && [ "$fresh" -eq 1 ] && check_artifact "$art"; then
     say '   OK   (%d 초)  → %s\n' "$((SECONDS - t0))" "$art"
     return 0
+  fi
+  if [ "$rc" -eq 0 ] && [ "$fresh" -eq 0 ]; then
+    say '   %s: 이번 실행이 새로 쓴 파일이 아니다 (이전 산출이 남아 있을 뿐) — 새 결과로 세지 않는다\n' "$art"
   fi
   say '   \033[31mFAIL\033[0m (%d 초) — 로그: %s\n' "$((SECONDS - t0))" "$log"
   return 1

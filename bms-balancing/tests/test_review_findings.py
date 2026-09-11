@@ -1249,7 +1249,12 @@ def _ne_shape_csv():
     f = ROOT / "out" / "ne_shape_GITT_Li.csv"
     if not f.is_file():
         pytest.skip("out/ne_shape_GITT_Li.csv 가 없다")
-    return {r["state"]: {k: float(v) for k, v in r.items() if k != "state"}
+    # 빈 칸(예: R3-03 의 `gamma_witness` 가 '없음')은 nan 으로 — 문자열 열은 그대로
+    def _v(k, v):
+        if k in ("gamma_witness",):
+            return v
+        return float(v) if v != "" else float("nan")
+    return {r["state"]: {k: _v(k, v) for k, v in r.items() if k != "state"}
             for r in csv.DictReader(f.open(encoding="utf-8"))}
 
 
@@ -1337,11 +1342,12 @@ def test_degeneracy_json_records_its_settings():
 
 # ═══ R2 (Codex 2차, NO-GO) 반례 — reviews/R2_LEDGER.md 의 C3·C4·C5·C10·C12·C18 ═══
 
-def _r2_csv(tmp, anchors, cols, rows, fmt=".17g"):
-    lines = [f"# {k},{v:.17g}" for k, v in anchors.items()]
+def _r2_csv(tmp, anchors, cols, rows, fmt=".17g", name="r2.csv", head=()):
+    """dd_eval.m 모양의 CSV. `head` 는 앵커 앞에 넣을 `# 이름,값` 줄 (예: 형식 선언, R3-06)."""
+    lines = list(head) + [f"# {k},{v:.17g}" for k, v in anchors.items()]
     lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si," + ",".join(cols))
     lines.extend(",".join(format(x, fmt) for x in r) for r in rows)
-    p = pathlib.Path(tmp) / "r2.csv"; p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    p = pathlib.Path(tmp) / name; p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return p
 
 
@@ -1356,11 +1362,11 @@ def _r2_base():
     return anchors, cols, P, py, rows
 
 
-def _r2_run(anchors, P, py, path):
+def _r2_run(anchors, P, py, path, **kw):
     import io, contextlib
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        res = verify._compare_dd_eval(anchors, P, py, path)
+        res = verify._compare_dd_eval(anchors, P, py, path, **kw)
     return res, buf.getvalue()
 
 
@@ -1484,8 +1490,12 @@ def test_r2_09_audit97_reports_per_row_thresholds_not_a_single_cutoff():
 def test_section_1_8_192_values_are_backed_by_committed_recompare_artifacts():
     """R2 재대조에서 §1-8 의 CSV 가 미보존이라는 것이 드러났다 (C21). 툴박스 `dd_eval` 을
     네 조합에 다시 돌려 `out/recompare/` 에 CSV 와 고친 비교기의 판정을 넣었다.
-    이 테스트는 그 산출물이 §1-8 의 문장(앵커 16 · rmse 32 · 최대 상대차 4.04e-12,
-    "실제 수치 차이" 띠)을 실제로 받치는지 본다. 판정 텍스트에 미완/부분이 있으면 실패.
+
+    [Codex R3-09] 이 테스트의 첫 판은 CSV 의 개수·행 수·헤더를 보고 **상대차는 TXT 판정문의 숫자**를
+    읽었다 — pristine Li CSV 의 첫 RMSE 를 9.0 으로 바꿔도 통과했다 (실제 상대차 769.8).
+    이제 TXT 앞부분에 보존된 Python 원시값(앵커 16 + 8 행, 전정밀도)과 CSV 의 MATLAB 값을 **직접**
+    대조해 최대 상대차를 다시 계산하고, 같은 원시값으로 비교기를 실제로 돌려(전정밀도 선언) complete 인지
+    본 다음에야 판정문·§1-8 의 숫자가 그 재계산과 같은지 본다. 원자료 없이 닫힌다.
     """
     import re
     d = ROOT / "out" / "recompare"
@@ -1493,21 +1503,32 @@ def test_section_1_8_192_values_are_backed_by_committed_recompare_artifacts():
     if not files:
         pytest.skip("out/recompare 없음")
     assert len(files) == 4, [f.name for f in files]
-    worst = 0.0
+    per_file, worst = {}, 0.0
     for f in files:
-        anchors, rows, hdr = verify.read_dd_eval_csv(f)
-        assert len(anchors) == 16 and len(rows) == 8, (f.name, len(anchors), len(rows))
-        assert hdr[5:] == ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"], hdr
+        ma, mr, mh = verify.read_dd_eval_csv(f)
+        pa, pr, ph = verify.read_dd_eval_csv(f.with_suffix(".txt"))     # TXT 앞부분 = Python 원시값
+        assert len(ma) == len(pa) == 16 and len(mr) == len(pr) == 8 and mh == ph, f.name
+        assert mh[5:] == ["rmse_pocv", "rmse_dvdq", "rmse_dqdv", "rmse_dqdv_w"], mh
+        M, Pv = np.array(mr, dtype=float), np.array(pr, dtype=float)
+        assert np.isfinite(M).all() and np.isfinite(Pv).all(), f.name
+        assert np.array_equal(M[:, :5], Pv[:, :5]), f.name
+        rel_m = np.abs(M[:, 5:] - Pv[:, 5:]) / np.maximum(np.abs(Pv[:, 5:]), 1e-30)
+        rel_a = max(abs(ma[k] - pa[k]) / max(abs(pa[k]), 1e-30) for k in pa)
+        assert rel_a <= 1e-9 and rel_m.max() <= 1e-9, (f.name, rel_a, rel_m.max())
+        # 같은 원시값으로 비교기를 실제로 돌린다 — 판정문은 이 결과의 사본이어야 한다
+        py_vals = {c: [float(x) for x in Pv[:, 5 + j]] for j, c in enumerate(mh[5:])}
+        res, _txt = _r2_run(pa, [list(map(float, r[:5])) for r in pr], py_vals, f, precision="g17")
+        assert res["status"] == "complete" and res["compared"] == 32 and res["anchors_compared"] == 16, (f.name, res)
+        assert abs(res["worst_rel"] - rel_m.max()) <= 1e-3 * rel_m.max(), (f.name, res["worst_rel"], rel_m.max())
         t = f.with_suffix(".txt").read_text(encoding="utf-8")
-        assert "앵커 16개가 전부 맞고" in t and "rmse 32개" in t, f.name
-        for bad in ("미완", "부분", "처음 갈린다", "목적함수 산술"):
-            assert bad not in t, (f.name, bad)
         m = re.search(r"최대 상대차 ([0-9.]+e-[0-9]+)", t); assert m, f.name
-        v = float(m.group(1)); assert 0 < v < 1e-9, (f.name, v)
-        worst = max(worst, v)
-    assert abs(worst - 4.04e-12) < 0.01e-12, f"§1-8 의 최대 4.04e-12 와 다르다: {worst:.2e}"
-    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
-    assert "4.04e-12" in _section(txt, "### 1-8"), "§1-8 에 최대 상대차가 없다"
+        assert abs(float(m.group(1)) - rel_m.max()) <= 0.01e-12 + 5e-3 * rel_m.max(), \
+            (f.name, m.group(1), rel_m.max())
+        per_file[f.name] = float(rel_m.max()); worst = max(worst, float(rel_m.max()))
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-8")
+    assert f"{worst:.2e}" in sec, f"§1-8 의 최대 상대차가 재계산값 {worst:.2e} 와 다르다"
+    for name, v in per_file.items():
+        assert f"{v:.2e}" in sec, f"§1-8 에 {name} 의 {v:.2e} 가 없다"
 
 
 # ── §1-12 R2 정정판의 새 표 네 개 — 산출물에서 칸별로 (2026-09-11) ─────────
@@ -1548,16 +1569,26 @@ def test_section_1_12_three_mode_share_table_matches_artifacts():
 
 
 def test_section_1_12_physical_normalization_and_misfit_tables_match_artifacts():
+    """§1-12 물리 정규화 표·잔차 표를 산출물에서 칸별로.
+
+    [Codex R3-04] 첫 판은 숫자만 맞추고 **분모의 역할·집합의 이름**을 검사하지 않았다: 본문은 "pristine
+    적합의 rmse" 라 했지만 계산은 대상 적합의 rmse(`[0]`)였고, 머리글 "7 적합" 은 실제 6 (GITT 만;
+    300_0147 은 step_005C 라 제외). 이제 (i) 행 이름이 분모의 역할을 말하고 (ii) 머리글의 개수가 실제
+    집합 크기와 같아야 하며 (iii) pristine 분모 행이 따로 있어야 한다 (선언대로 계산하면 겹치지 않는다).
+    """
     B, objs, rmse, sec, S = _r2_tables_ctx()
     P = [("pouch", st) for st in ("100", "200", "300_0009")] + [("fixedhc", st) for st in ("100", "200", "300_0009")]
     C = [(c, st) for c in ("c168", "c171") for st in ("100", "200", "300_0009")]
-    R = {x: rmse(*x) for x in P + C}
+    R = {x: rmse(*x) for x in P + C}                    # (대상 적합 rmse, pristine 기준 적합 rmse) mV
     fns = {"raw": lambda x: B[x[0]][x[1]]["LLI"][1],
            "/best_obj": lambda x: B[x[0]][x[1]]["LLI"][1] / objs[x[0]][x[1]],
-           "/rmse_pocv": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0],
-           "/√rmse_pocv": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0] ** 0.5}
+           "/rmse_pocv (대상 적합)": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0],
+           "/ref_rmse_pocv (pristine 기준 적합)": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][1],
+           "/√rmse_pocv (대상 적합)": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0] ** 0.5}
+    head = next(ln for ln in sec.splitlines() if "LLI 반폭 정규화" in ln)
+    assert f"{len(P)} 적합" in head and "7 적합" not in head and "GITT" in head, head   # R3-04 집합
     t = _table_rows(sec, tuple(fns), header_has="LLI 반폭 정규화")
-    assert len(t) == 4, sorted(t)
+    assert set(t) == set(fns), (sorted(t), sorted(fns))
     for name, fn in fns.items():
         pv = sorted(map(fn, P)); cv = sorted(map(fn, C)); c = t[name]
         lo, hi = (float(x) for x in c[0].split("~")); assert abs(lo - pv[0]) < 6e-5 and abs(hi - pv[-1]) < 6e-5, (name, c)
@@ -1565,8 +1596,10 @@ def test_section_1_12_physical_normalization_and_misfit_tables_match_artifacts()
         for i, want in ((2, cv[-1] / pv[-1]), (3, cv[0] / pv[0]), (4, S.median(cv) / S.median(pv))):
             assert abs(float(c[i].rstrip("x")) - want) < 0.006, (name, i, c[i], want)
         assert c[5] == ("예" if cv[0] < pv[-1] else "아니오"), (name, c)
-    # /rmse 에서는 겹친다 — §1-12 의 문장
-    assert t["/rmse_pocv"][5] == "예"
+    # 대상 분모에서는 겹치고 pristine 분모에서는 안 겹친다 — 두 이름이 다른 숫자라는 것이 R3-04 의 요점
+    assert t["/rmse_pocv (대상 적합)"][5] == "예" and t["/ref_rmse_pocv (pristine 기준 적합)"][5] == "아니오"
+    body = sec.replace("~~", "")
+    assert "pristine 적합의 `rmse_pocv`" not in body, "본문이 대상 분모를 pristine 이라 부른다 (R3-04)"
     m = _table_rows(sec, tuple(DEG_ROOTS), header_has="pristine 기준 적합")
     assert len(m) == 4, sorted(m)
     for lab, c in m.items():
@@ -1575,7 +1608,7 @@ def test_section_1_12_physical_normalization_and_misfit_tables_match_artifacts()
         for i in range(3):
             assert abs(float(c[1 + i]) - v[i][0]) < 0.006, (lab, i, c)
         assert abs(float(c[4]) - v[2][0] / v[0][0]) < 0.006, (lab, c)
-    # 원통형 부적합은 사이클과 함께 커지고 파우치는 줄어든다 — 문장의 근거
+    # 원통형 잔차는 사이클과 함께 커지고 파우치는 줄어든다 — **관측**의 근거 (원인은 아니다, R3-01)
     assert float(m["c168"][4]) > 1.4 and float(m["c171"][4]) > 1.4 and float(m["pouch"][4]) < 1.0
 
 
@@ -1682,3 +1715,308 @@ def test_section_1_12_pe_axis_strength_table_matches_the_csv():
         assert abs(_num(c[1]) - R[st]["pe_shape_rms_mV"]) < 0.005, (st, c)
     # 100 에서만 강한 개입 — 문장의 근거
     assert R["100"]["pe_shape_rms_mV"] > 5 * max(R["200"]["pe_shape_rms_mV"], R["300_0009"]["pe_shape_rms_mV"])
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Codex R3 (2026-09-11, 대상 a432d23, NO-GO · P1 9) — 반례를 회귀로 (reviews/R3_CODEX.md)
+# 재현 원본: reviews/r3_repros/harness_r3_*_repros.py. 우리 트리 재생 기록:
+# reviews/r3_repros/replay_ours_a432d23.json (8 단계 전부 Codex 와 같은 rc — 아홉 건 재현).
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_r3_05_comparator_rejects_missing_or_nan_anchors_and_nan_parameters(tmp_path):
+    """[Codex R3-05] 앵커 누락·NaN, 파라미터 NaN 이 `complete` 였다 (`harness_r3_port_repros.py::comparator_probes`).
+
+    a432d23: `E_PE_0p5` 삭제 → complete "앵커 15개 … 전부 일치" · 같은 앵커 NaN → complete ·
+    `a_PE` NaN → complete(rmse 32/32 비교). 기대 개수·유한성 검사가 metric 에만 있었다.
+    정책: 누락 앵커는 옛 스키마로 **partial**(성공 아님), 비유한 값은 어디서든 **incomplete**.
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    ok, ok_txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, rows))
+    assert ok["status"] == "complete" and ok["anchors_compared"] == ok["anchors_expected"] == 16, (ok, ok_txt)
+    # ① 앵커 누락 → partial. complete 가 아니고, 문구에 '부분' 과 빠진 앵커 이름
+    man = dict(anchors); del man["E_PE_0p5"]
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, man, cols, rows))
+    assert res["status"] == "partial" and res["anchors_compared"] == 15, (res, txt)
+    assert "부분" in txt and "E_PE_0p5" in txt, txt
+    # ② 앵커 NaN → 비유한은 성공이 아니다
+    man = dict(anchors); man["E_PE_0p5"] = float("nan")
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, man, cols, rows))
+    assert res["status"] == "incomplete" and "전부 일치" not in txt, (res, txt)
+    assert any("E_PE_0p5" in p for p in res["problems"]), res
+    # ③ 파라미터 좌표 NaN → 그 행은 비교 불가 → incomplete
+    r = [x.copy() for x in rows]; r[3][0] = float("nan")
+    res, txt = _r2_run(anchors, P, py, _r2_csv(tmp_path, anchors, cols, r))
+    assert res["status"] == "incomplete" and res["compared"] < res["expected"], (res, txt)
+    assert "전부 일치" not in txt, txt
+
+
+def test_r3_06_declared_or_requested_precision_is_not_inferred_from_token_length(tmp_path):
+    """[Codex R3-06] `%.17g` 열의 값이 전부 짧으면(정확한 0.125) 추론 atol 0.001 이 1/1024 차이를 지웠다.
+
+    a432d23 (`all_short_g17_column`): 실제 상대차 0.775 % 인데 complete · worst_rel 0 · "전부 일치".
+    긴 토큰이 없다고 저정밀 producer 인 것은 아니다. 형식은 **선언**(파일 `# printed_format,…`)
+    하거나 **옵션**(`--precision g17`)으로 주고, 둘 다 없을 때만 추론하되 추론이라고 말한다.
+    """
+    anchors, cols, P, py, rows = _r2_base()
+    for r in rows:
+        r[5] = 0.125
+    py["rmse_pocv"] = [0.125] * len(P); py["rmse_pocv"][3] += 1.0 / 1024
+    plain = _r2_csv(tmp_path, anchors, cols, rows, name="plain.csv")
+    # ① 옵션: 값 길이와 무관하게 전정밀도
+    res, txt = _r2_run(anchors, P, py, plain, precision="g17")
+    assert res["status"] == "model_mismatch" and res["precision_source"] == "option", (res, txt)
+    assert "전부 일치" not in txt, txt
+    # ② 파일이 형식을 선언하면 옵션 없이도 같다 (dd_eval.m 이 이제 적는 줄)
+    declared = _r2_csv(tmp_path, anchors, cols, rows, name="declared.csv",
+                       head=("# printed_format,%.17g",))
+    res, txt = _r2_run(anchors, P, py, declared)
+    assert res["status"] == "model_mismatch" and res["precision_source"] == "declared", (res, txt)
+    # ③ 선언도 옵션도 없으면 추론이고, 추론이라고 말해야 한다
+    res, txt = _r2_run(anchors, P, py, plain)
+    assert res["precision_source"] == "inferred" and "추정" in txt, (res, txt)
+    # ④ 고정 소수 선언(%.10f)은 그 자리수까지만 — 과교정이 아니다 (자리수 안 차이는 일치)
+    anchors, cols, P, py, rows = _r2_base()
+    fixed = _r2_csv(tmp_path, anchors, cols, rows, fmt=".10f", name="fixed.csv",
+                    head=("# printed_format,%.10f",))
+    py2 = {c: [v + 4e-11 for v in vs] for c, vs in py.items()}
+    res, txt = _r2_run(anchors, P, py2, fixed)
+    assert res["status"] == "complete" and res["precision_source"] == "declared", (res, txt)
+    assert "전부 일치" in txt, txt
+    # ⑤ producer 둘(dd_eval.m · Python 전사본)이 실제로 선언을 적는다 — 앞으로의 산출은 추정이 아니다
+    for f in ("matlab/dd_eval.m", "matlab/tests/mirror_dd_eval.py"):
+        assert "# printed_format," in (ROOT / f).read_text(encoding="utf-8"), f
+
+
+def test_r3_07_eval_compare_exit_code_follows_the_verdict(tmp_path):
+    """[Codex R3-07] `--compare` 가 "rmse 가 갈린다" 를 찍고도 process 종료 코드가 0 이었다 (`comparison_cli`).
+
+    a432d23: `cmd_eval` 이 `_compare_dd_eval` 의 dict 를 버리고 None 을 올려 `sys.exit(None)` = 0.
+    정책: complete → 0 · anchor/model mismatch → 1 · incomplete/empty → 2 · partial(옛 스키마) → 3,
+    `--allow-partial` 을 주면 partial 만 0. 별도 process 에서 `verify.main` 을 실제로 돈다.
+    """
+    import json as _json, subprocess, sys as _s, textwrap
+    anchors, cols, P, py, rows = _r2_base()
+    driver = tmp_path / "driver.py"
+    driver.write_text(textwrap.dedent(f"""
+        import sys, json
+        sys.path.insert(0, {str(ROOT)!r})
+        from unittest.mock import patch
+        from bms_balancing import verify
+        an = json.loads(sys.argv[1]); py = json.loads(sys.argv[2]); P = {P!r}
+        class Obj:
+            def _at(self, p, col): return py[col][P.index([float(x) for x in p])]
+            def rmse_pocv(self, p): return self._at(p, "rmse_pocv")
+            def rmse_dvdq(self, p): return self._at(p, "rmse_dvdq")
+            def rmse_dqdv(self, p, weighted=False):
+                return self._at(p, "rmse_dqdv_w" if weighted else "rmse_dqdv")
+        with patch.object(verify.D, "data_root", return_value=None), \\
+             patch.object(verify, "build", return_value=Obj()), \\
+             patch.object(verify, "dd_eval_anchors", return_value=list(an.items())):
+            sys.exit(verify.main(["eval", "--compare", sys.argv[3]] + sys.argv[4:]))
+    """), encoding="utf-8")
+
+    def run(path, *extra):
+        r = subprocess.run([_s.executable, str(driver), _json.dumps(anchors), _json.dumps(py),
+                            str(path), *extra], capture_output=True, text=True, encoding="utf-8")
+        return r.returncode, r.stdout + r.stderr
+    rc, out = run(_r2_csv(tmp_path, anchors, cols, rows, name="ok.csv"))
+    assert rc == 0 and "전부 일치" in out, (rc, out[-1500:])
+    r2 = [x.copy() for x in rows]; r2[3][5] = 9.0
+    rc, out = run(_r2_csv(tmp_path, anchors, cols, r2, name="bad.csv"))
+    assert rc == 1 and "rmse 가 갈린다" in out, (rc, out[-1500:])
+    rc, out = run(_r2_csv(tmp_path, anchors, cols, rows[:-1], name="short.csv"))
+    assert rc == 2 and "성공 아님" in out, (rc, out[-1500:])
+    old = _r2_csv(tmp_path, anchors, cols[:2], [r[:7] for r in rows], name="old.csv")
+    rc, out = run(old)
+    assert rc == 3 and "부분" in out, (rc, out[-1500:])
+    rc, out = run(old, "--allow-partial")
+    assert rc == 0 and "부분" in out, (rc, out[-1500:])
+
+
+def _r3_profile_mocks(tmp_path, monkeypatch):
+    """R2-03 반례의 환경: 참조·자유 적합은 성공, 고정 γ 프로파일의 optimizer 만 전부 실패."""
+    center = np.array([1.2, -0.25, 1.2, -0.15, 0.25])
+
+    class Obj:
+        c_cell = 1.0; scales = {"pocv": 1.0, "dvdq": 1.0, "dqdv": 1.0}; n_scale_samples = 1
+        def __call__(self, p): return float(1.0 + 1e-4 * np.square(np.asarray(p) - center).sum())
+        def rmse_pocv(self, p): return float(self(p))
+        def _auto_scales(self, *a, **k): return dict(self.scales)
+    def nonconverged(fun, start, **kw):
+        x = np.array([1.2, -0.25, 1.4, -0.15])
+        return SimpleNamespace(x=x, fun=float(fun(x)), success=False, status=1, message="ITERATIONS LIMIT")
+    monkeypatch.setattr(verify.D, "data_root", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(verify, "build", lambda *a, **k: Obj())
+    monkeypatch.setattr(verify, "multistart", lambda *a, **k: (center.copy(), 1.0, []))
+    monkeypatch.setattr(verify, "minimize", nonconverged)
+
+
+def test_r3_08_profile_all_failed_exits_nonzero_and_leaves_the_old_csv_alone(tmp_path, monkeypatch):
+    """[Codex R3-08] 전부 실패한 profile 이 파일을 안 쓰고 **정상 반환**했다 (`stale_profile`).
+
+    a432d23: "저장할 행이 없다" 를 찍고 None → 종료 0; 같은 경로의 옛 CSV 는 그대로 남아
+    wrapper 가 그것을 새 성공으로 읽었다. 이제 all-failed 는 nonzero 로 끝나고, 옛 파일은
+    보존은 하되(지우지 않는다) 새 실행의 결과가 아니다 — 실제 명령 경로(`verify.main`)로 본다.
+    """
+    import io, contextlib
+    _r3_profile_mocks(tmp_path, monkeypatch)
+    out = tmp_path / "profile.csv"
+    stale = "gamma_Si,obj,LAM_NE_pct,n_ok,n_tried\n0,1,42,1,1\n"
+    out.write_text(stale, encoding="utf-8")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", "2",
+                          "--out", str(out)])
+    assert rc not in (None, 0), f"전부 실패했는데 종료 코드가 {rc!r} 다\n{buf.getvalue()[-800:]}"
+    assert out.read_text(encoding="utf-8") == stale, "옛 CSV 를 건드렸다 (보존해야 한다)"
+    assert not list(tmp_path.glob("*.part")), "임시 산출이 남았다"
+    assert "실패" in buf.getvalue()
+
+
+def test_r3_08_run_states_helper_requires_a_fresh_artifact(tmp_path):
+    """[Codex R3-08] `run_states.sh` 의 `run` 은 rc 0 + '비어 있지 않은 파일' 만 봤다 — 이번 시도가
+    만든 파일인지 보지 않아 옛 CSV 로 "OK" 를 찍고 `write_meta` 까지 갔다.
+
+    원본 shell 에서 helper 를 그대로 잘라 실행한다 (Codex 재현과 같은 방식). 아무것도
+    안 쓰는 성공 명령(`true`)은 FAIL 이어야 하고, 실제로 산출을 새로 쓰는 명령은 OK 여야 한다.
+    """
+    import os, subprocess, time
+    sh = (ROOT / "scripts" / "run_states.sh").read_text(encoding="utf-8")
+    helpers = sh[sh.index("say ()"):sh.index("\nfail=0")]
+    art, log = tmp_path / "profile.csv", tmp_path / "profile.log"
+    art.write_text("gamma_Si,obj\n0,1\n", encoding="utf-8")
+    old = time.time() - 30
+    os.utime(art, (old, old))                                   # 명백히 이전 실행의 파일
+    stale = subprocess.run(["bash", "-c", helpers + '\nrun "stale" "$1" - "$2" true\n', "r3", str(art), str(log)],
+                           capture_output=True, text=True, encoding="utf-8")
+    assert stale.returncode != 0 and "OK" not in stale.stderr, stale.stderr
+    assert art.read_text(encoding="utf-8") == "gamma_Si,obj\n0,1\n", "옛 산출을 지웠다 — 보존해야 한다"
+    fresh = subprocess.run(["bash", "-c", helpers + '\nrun "fresh" "$1" - "$2" python3 -c '
+                            '"import sys, pathlib; pathlib.Path(sys.argv[1]).write_text(\'a,b\\n1,2\\n\')" "$1"\n',
+                            "r3", str(art), str(log)], capture_output=True, text=True, encoding="utf-8")
+    assert fresh.returncode == 0 and "OK" in fresh.stderr, fresh.stderr
+    assert art.read_text(encoding="utf-8") == "a,b\n1,2\n"
+
+
+def _r3_shape_run(tmp_path, monkeypatch, reference, fitted, measured):
+    """합성 Blend 로 `ne_shape.main` 을 실제로 돈다 (Codex `harness_r3_shape_repros.py::execute_shape`).
+
+    `measured(blend, x)` 가 상태 100 의 측정 NE 를 준다. PE·용량은 상태 간 동일."""
+    import io, contextlib, sys as _s
+    from bms_balancing.model import Blend
+    m = _load_script("ne_shape")
+    u = np.linspace(0, 1, 301); arrays = ((1 - u) ** 2, 0.1 + 0.7 * u, 1 - u, 0.1 + 0.7 * u)
+    blend = Blend(*arrays, window=11, poly_order=3)
+    class P:
+        def __init__(self, st): self.state = st
+        def is_file(self): return True
+    class HC:
+        def __init__(self, path, **kw): self.st = path.state
+        def E_PE(self, x): return 4.2 - 0.7 * np.asarray(x)
+        def E_NE(self, x): return blend.E(x, reference) if self.st == "pristine" else measured(blend, x)
+    monkeypatch.setattr(m.D, "STATES", ["pristine", "100"])
+    monkeypatch.setattr(m.D, "data_root", lambda *a, **k: tmp_path)
+    monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
+    monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    monkeypatch.setattr(m, "HalfCell", HC)
+    monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
+    monkeypatch.setattr(m, "fitted_pair", lambda *a, **k: (fitted, reference))
+    monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--write", str(tmp_path)])
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = m.main()
+    row = next(csv.DictReader((tmp_path / "ne_shape_GITT_Li.csv").open(encoding="utf-8")))
+    return rc, buf.getvalue(), row, blend, m
+
+
+def test_r3_02_ne_shape_does_not_call_a_representable_curve_model_mismatch(tmp_path, monkeypatch):
+    """[Codex R3-02] 정확히 `Blend(x, 0.45)` 인 측정 곡선(pristine γ 0.15)에 적합이 고른 쌍 0.15→0.16 을
+    주면 (b)/(a)=0.033 이고, a432d23 은 "블렌드 모양이 아니라는(모델 부적합) 쪽" 을 출력했다.
+
+    (b)/(a) 는 적합이 γ 를 얼마나 움직였나이지 함수족의 표현 가능성이 아니다. 진단은 비율까지만
+    말하고 원인 판정을 출력하지 않는다.
+    """
+    rc, out, row, blend, m = _r3_shape_run(tmp_path, monkeypatch, 0.15, 0.16,
+                                           lambda b, x: b.E(x, 0.45))
+    assert rc == 0, out
+    assert float(row["ratio_b_over_a"]) < 0.34, row
+    for bad in ("모델 부적합", "블렌드 모양이 아니라는", "상자 안"):
+        assert bad not in out, f"표현 가능한 곡선에 원인 판정 '{bad}' 을 출력했다\n{out}"
+    assert "표현력" in out and ("판정이 아니다" in out or "판정하지 않는다" in out), out
+    src = (ROOT / "scripts" / "ne_shape.py").read_text(encoding="utf-8")
+    prints = [ln for ln in src.splitlines() if "print(" in ln]
+    assert not [ln for ln in prints if "모델 부적합" in ln or "상자 안" in ln], "판정문에 원인 문장이 남았다"
+
+
+def test_r3_03_ne_shape_reports_legal_gamma_headroom_and_a_witness_or_none(tmp_path, monkeypatch):
+    """[Codex R3-03] "같은 크기를 낼 Δγ 는 상자 안" 은 기준점의 양방향 여유도, 실제 도달 가능한 진폭도
+    검사하지 않은 문장이었다 (secant 외삽). 300_0009: γ_ref 0.2953 → 합법 Δγ [−0.295, +0.205],
+    외삽 ±0.365 는 양쪽 다 밖. 합성: γ_ref 0.25 에서 측정 변화 100 mV 인데 합법 γ 전체의 최대
+    변화는 45.2 mV 뿐이어도 "상자 안" 이 찍혔다.
+
+    이제 스크립트가 (i) 합법 Δγ 구간, (ii) 합법 γ 전체가 낼 수 있는 최대 변화(격자), (iii) (a) 이상을
+    내는 **가장 가까운 합법 γ 증인**(없으면 없음)을 출력·CSV 에 남긴다. 증인은 진폭의 존재이지
+    모양 일치가 아니다.
+    """
+    # ① 표현 가능한 경우: γ=0.45 가 (a) 를 정확히 낸다 → 증인 ≈ 0.45
+    rc, out, row, blend, m = _r3_shape_run(tmp_path, monkeypatch, 0.15, 0.16,
+                                           lambda b, x: b.E(x, 0.45))
+    assert rc == 0, out
+    assert abs(float(row["legal_dgamma_neg"]) - (LB5[4] - 0.15)) < 1e-9, row
+    assert abs(float(row["legal_dgamma_pos"]) - (UB5[4] - 0.15)) < 1e-9, row
+    assert float(row["gamma_family_max_mV"]) >= float(row["measured_shape_mV"]) - 1e-6, row
+    assert row["gamma_witness"] and abs(float(row["gamma_witness"]) - 0.45) <= 0.002, row
+    assert "0.450" in out or "0.45" in out, out
+    # ② 진폭이 가족 밖: 100 mV 오프셋 — 어떤 합법 γ 도 못 낸다 → 증인 없음, 문구도 '없'
+    rc, out, row, blend, m = _r3_shape_run(tmp_path, monkeypatch, 0.25, 0.26,
+                                           lambda b, x: b.E(x, 0.25) + 0.10)
+    assert rc == 0, out
+    assert float(row["measured_shape_mV"]) > 99.0 and float(row["gamma_family_max_mV"]) < 60.0, row
+    assert row["gamma_witness"] == "", row
+    assert "없" in out and "상자 안" not in out, out
+
+
+def test_r3_03_committed_ne_shape_csv_and_section_5_2_carry_the_headroom_not_the_box_claim():
+    """§5-2 는 "Δγ +0.07~+0.37 로 상자 안" 을 지운다. CSV 가 새 열을 갖고 있으면(사용자 기계
+    재실행 뒤) 합법 Δγ 구간이 γ_ref 에서 정확해야 하고, 문서의 구간 수치와 맞아야 한다."""
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    sec = _section(txt, "### 5-2")
+    live = NOT_A_CLAIM.sub("", sec)                      # 취소선·인용 안은 지금 하는 주장이 아니다
+    assert not _asserting_lines(live, "상자", "안"), "§5-2 가 아직 '상자 안' 을 주장한다"
+    assert "+0.07~+0.37" not in live, "취소선 밖에 옛 수치가 남았다"
+    assert "합법 Δγ" in sec and "0.205" in sec and "0.295" in sec, "§5-2 에 R3-03 여유 산술이 없다"
+    R = _ne_shape_csv()
+    for st, r in R.items():
+        if "legal_dgamma_neg" not in r:
+            pytest.skip("구판 CSV — 여유 열 없음 (사용자 기계에서 `scripts/ne_shape.py` 재실행 대기)")
+        assert abs(r["legal_dgamma_neg"] - (LB5[4] - r["gamma_ref"])) < 1e-5, (st, r)
+        assert abs(r["legal_dgamma_pos"] - (UB5[4] - r["gamma_ref"])) < 1e-5, (st, r)
+
+
+def test_r3_01_findings_keeps_the_residual_growth_as_observation_not_as_cause():
+    """[Codex R3-01] 정확한 모델(`V=3.25+0.85x`)에 상태별 잡음 크기만 산출의 RMSE 에 맞추면 12 개 값
+    (pouch 9.80→7.59 · c168 24.47→39.22 · c171 30.94→47.16 mV) 이 그대로 재현된다
+    (`harness_r3_inference_repros.py --case noise`). 잔차 크기는 모델 표현 오차·측정 조건·잡음 분산을
+    분리하지 않는다. 그러므로 "잡음 가설과 맞지 않는다" · "U3 를 한 칸 좁힌다" · "제3의 답이 지지된다"
+    는 철회하고, 잔차 증가는 **관측**으로, 모델 부적합은 **후보 가설**로만 남긴다.
+    """
+    docs = {n: NOT_A_CLAIM.sub("", (ROOT / n).read_text(encoding="utf-8"))   # 취소선·인용 제외
+            for n in SCOPE_DOCS if (ROOT / n).is_file()}
+    findings = docs["FINDINGS.md"]
+    for bad in (("잡음 가설과 맞지 않는다",), ("한 칸 좁힌다",), ("제3의 답", "지지"),
+                ("블렌드 모양이 아니라는",), ("상자 안에 있다",)):
+        hits = _asserting_lines(findings, *bad)
+        assert not hits, f"FINDINGS 가 아직 {bad} 를 주장한다: {hits[:2]}"
+    for name, txt in docs.items():
+        if name in ("FOR_BMS_TEAM.md", "CODEX_REVIEW_REQUEST.md"):
+            continue                                   # 동결·배너 문서
+        hits = [ln for ln in _asserting_lines(txt, "제3의 답") if "후보" not in ln and "가설" not in ln]
+        assert not hits, f"{name} 가 '제3의 답' 을 확정처럼 쓴다: {hits[:2]}"
+    sec = _section(findings, "### 1-12")
+    assert "R3-01" in sec and "후보 가설" in sec, "§1-12 에 잔차 증가의 한정(R3-01)이 없다"
+    assert "잡음 가설과 맞지 않는다" not in sec
+    m = _table_rows(sec, tuple(DEG_ROOTS), header_has="pristine 기준 적합")
+    assert len(m) == 4, "잔차 표(관측)는 남아 있어야 한다"
+    retr = _section(findings, "## 0-2")
+    for tag in ("R3-01", "R3-02", "R3-03", "R3-04"):
+        assert tag in retr, f"§0-2 에 {tag} 철회 행이 없다"

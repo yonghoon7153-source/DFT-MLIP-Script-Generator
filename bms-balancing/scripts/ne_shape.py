@@ -22,8 +22,19 @@ pristine 대비 각 상태에서
   (a) **측정** E_NE(x) 의 변화량   — 실제로 일어난 일
   (b) **모델** Blend.E(x, γ_적합) 의 변화량 — γ 가 만들어 낸 변화
 
-(b) 가 (a) 보다 훨씬 크면, γ 는 음극 모양 변화를 따라가는 것이 아니라 다른
-것을 흡수하고 있다는 뜻이다.
+(b) 가 (a) 보다 훨씬 크면, γ 가 측정된 모양 변화 밖의 것을 흡수했을 가능성이
+있다. (b) 가 (a) 보다 훨씬 작으면 적합이 γ 를 그만큼만 움직였다는 뜻이다.
+
+⚠ (b)/(a) 는 **적합이 γ 를 얼마나 움직였나**이지 γ 의 표현력도, 측정 음극이
+  블렌드 모양인지의 판정도 아니다 (Codex R2-08 · R3-02: 정확히 `Blend(x, γ)` 인
+  합성 곡선에 적합이 고른 쌍을 주면 같은 비가 나온다). 원인(모델 부적합·잡음·
+  다른 파라미터의 보상)은 이 스크립트가 가르지 않는다.
+
+  (d) **γ 여유** (Codex R3-03): 기준 γ_ref 에서 합법 상자 [0, 0.5] 까지의 양방향
+  Δγ, 합법 γ 전체가 낼 수 있는 최대 변화(격자), (a) 이상을 내는 **가장 가까운
+  합법 γ 증인**(없으면 없음). 두 점 secant 를 외삽한 "필요 Δγ" 는 쓰지 않는다 —
+  비선형이고, 300_0009 에서 그렇게 구한 ±0.365 는 양쪽 다 상자 밖이었다.
+  증인은 진폭의 존재이지 모양 일치가 아니다.
 
 ⚠ 둘은 다른 물건이다 (측정본은 실제 음극, 블렌드는 대용품). 그래서 **절대
   값이 아니라 pristine 대비 변화량**을 견준다.
@@ -38,9 +49,26 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from bms_balancing import data as D                      # noqa: E402
-from bms_balancing.model import Blend, HalfCell          # noqa: E402
+from bms_balancing.model import LB5, UB5, Blend, HalfCell  # noqa: E402
 
 GRID = np.linspace(0.02, 0.98, 400)     # 양 끝은 외삽이라 뺀다
+GAMMA_GRID = np.linspace(LB5[4], UB5[4], 501)   # (d) 합법 γ 격자 — 0.001 간격
+
+
+def gamma_headroom(blend: Blend, g_ref: float, da_mV: float) -> dict:
+    """(d) 기준 γ_ref 에서 합법 γ 가 낼 수 있는 변화 — 양방향 여유·격자 최대·(a) 증인.
+
+    `witness` 는 |Blend(x,γ) − Blend(x,γ_ref)| 의 최대가 (a) 이상인 합법 γ 중 γ_ref 에
+    **가장 가까운** 것 (격자 기준). 없으면 None. 진폭의 존재 증인이지 모양 일치가 아니다.
+    """
+    base = blend.E(GRID, g_ref)
+    amp = np.array([float(np.max(np.abs(blend.E(GRID, g) - base))) * 1e3 for g in GAMMA_GRID])
+    i = int(np.argmax(amp))
+    reach = np.flatnonzero(amp >= da_mV - 1e-9)
+    witness = float(GAMMA_GRID[reach[np.argmin(np.abs(GAMMA_GRID[reach] - g_ref))]]) if reach.size else None
+    return {"dneg": float(LB5[4] - g_ref), "dpos": float(UB5[4] - g_ref),
+            "fam_max": float(amp[i]), "g_at_max": float(GAMMA_GRID[i]),
+            "witness": witness, "wdelta": None if witness is None else witness - g_ref}
 
 
 def fitted_pair(out_dir: pathlib.Path, state: str, src: str,
@@ -71,7 +99,7 @@ def raw_ne_capacity(path: pathlib.Path) -> float:
     return float(c.max()) if c.size else float("nan")
 
 
-def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
+def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None) -> pathlib.Path:
     """표를 그대로 CSV 로. 옆에 `.meta.json` 을 같이 둔다 (run_states.sh 와 같은 규약).
 
     `cap_delta_pct` 를 **반드시 같이** 남긴다 — `(a) 측정변화` 는 정규화 뒤
@@ -86,10 +114,14 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
         w.writerow(["state", "cap_delta_pct", "gamma_target", "gamma_ref",
                     "measured_shape_mV", "gamma_shape_mV", "ratio_b_over_a",
                     "blend_vs_meas_max_mV", "blend_vs_meas_rms_mV",
-                    "max_at_x", "frac_over_50mV", "pe_shape_max_mV", "pe_shape_rms_mV"])
+                    "max_at_x", "frac_over_50mV", "pe_shape_max_mV", "pe_shape_rms_mV",
+                    # (d) γ 여유 (R3-03) — witness 가 빈 칸이면 '격자에서 (a) 를 내는 합법 γ 없음'
+                    "legal_dgamma_neg", "legal_dgamma_pos", "gamma_family_max_mV",
+                    "gamma_at_family_max", "gamma_witness", "gamma_witness_delta"])
         for s_, da, db, ratio, cmax, crms, g, gr, *rest in rows:
             pe_max, pe_rms = (list(rest) + [float("nan"), float("nan")])[:2]
             c = cwhere.get(s_)
+            h = (headroom or {}).get(s_)
             # ⚠ Codex R2-10: 전 판은 `gamma_ref` 열에 **대상** γ 를 썼다. 두 역할을 따로.
             w.writerow([s_, f"{100*(cap[s_]/base_cap-1):.4f}",
                         f"{g:.6f}" if g is not None else "",
@@ -97,7 +129,11 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
                         f"{da:.6f}", f"{db:.6f}", f"{ratio:.6f}",
                         f"{cmax:.6f}", f"{crms:.6f}",
                         f"{c[1]:.4f}" if c else "", f"{c[2]:.4f}" if c else "",
-                        f"{pe_max:.6f}", f"{pe_rms:.6f}"])
+                        f"{pe_max:.6f}", f"{pe_rms:.6f}",
+                        f"{h['dneg']:.6f}" if h else "", f"{h['dpos']:.6f}" if h else "",
+                        f"{h['fam_max']:.6f}" if h else "", f"{h['g_at_max']:.4f}" if h else "",
+                        f"{h['witness']:.4f}" if h and h["witness"] is not None else "",
+                        f"{h['wdelta']:+.4f}" if h and h["witness"] is not None else ""])
     from provenance import git_state          # scripts/ 가 sys.path 에 있다
     sha, dirty = git_state()
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps({
@@ -106,6 +142,9 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere) -> pathlib.Path:
         "grid_range": [float(GRID[0]), float(GRID[-1])],
         "gamma_from": f"{a.out_dir}/matrix_<state>.csv 의 gamma_Si(대상)·ref_gamma_Si(기준)",
         "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
+        "gamma_grid": [float(GAMMA_GRID[0]), float(GAMMA_GRID[-1]), int(GAMMA_GRID.size)],
+        "headroom_note": "gamma_witness 는 (a) 이상의 진폭을 내는 합법 γ 의 존재 증인(격자)이지 "
+                         "모양 일치가 아니다; 빈 칸 = 격자에서 없음 (R3-03)",
         "git_commit": sha, "git_dirty": dirty,
         "created_utc": __import__("datetime").datetime.now(
             __import__("datetime").timezone.utc).isoformat(),
@@ -208,9 +247,27 @@ def main() -> int:
     print("\n(PE 축 — 목적함수가 실제로 소비하는 반쪽전지 곡선) E_PE(state) − E_PE(pristine):")
     for r in rows:
         print(f"    {r[0]:10} max {r[8]:7.2f} mV   rms {r[9]:6.2f} mV")
+
+    # (d) γ 여유 — Codex R3-03. "같은 크기를 낼 Δγ 는 상자 안" 은 여기서 실제로 검사한다.
+    headroom = {r[0]: gamma_headroom(blend, r[7], r[1]) for r in rows if r[7] is not None}
+    if headroom:
+        print(f"\n(d) γ 여유 — 기준 γ_ref 에서 합법 [{LB5[4]:.2f}, {UB5[4]:.2f}] 까지 "
+              f"(γ 격자 {GAMMA_GRID.size} 점 · x 격자 {GRID.size} 점):")
+        print(f"    {'state':10}{'γ_ref':>7}{'합법 Δγ':>20}{'(a) mV':>9}"
+              f"{'합법 γ 최대변화 mV (γ)':>24}{'(a) 를 내는 가장 가까운 합법 γ':>32}")
+        for r in rows:
+            h = headroom.get(r[0])
+            if h is None:
+                continue
+            legal = f"[{h['dneg']:+.3f}, {h['dpos']:+.3f}]"
+            fam = f"{h['fam_max']:.2f} ({h['g_at_max']:.3f})"
+            wit = (f"{h['witness']:.3f} (Δ {h['wdelta']:+.3f})" if h["witness"] is not None
+                   else "없음 (격자 기준)")
+            print(f"    {r[0]:10}{r[7]:>7.4f}{legal:>20}{r[1]:>9.2f}{fam:>24}{wit:>32}")
+        print("    ⚠ 증인은 진폭 크기의 존재이지 모양 일치가 아니다. secant 외삽으로 '필요 Δγ' 를 구하지 않는다.")
     if a.write:
         art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
-                         {c[0]: c for c in cwhere})
+                         {c[0]: c for c in cwhere}, headroom)
         print(f"\n→ {art}")
 
     print()
@@ -222,20 +279,22 @@ def main() -> int:
     worst = max(ok, key=lambda r: r[3])
     print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in ok):.2f} mV,")
     print(f"γ 가 만들어 낸 모델 변화 최대 {max(r[2] for r in ok):.2f} mV.")
+    # ⚠ 아래는 **크기의 기술**이다. 원인 판정(모델 부적합·잡음·보상)은 출력하지 않는다 —
+    #   Codex R3-02: 정확히 표현 가능한 곡선에도 같은 비가 나오므로 비로는 가를 수 없다.
     if worst[3] > 3:
-        print(f"\n→ 모델 변화가 측정 변화의 **{worst[3]:.1f} 배** ({worst[0]}). γ 는 음극")
-        print("  모양 변화를 따라가는 것이 아니라 **다른 것을 흡수하고 있다.**")
+        print(f"\n→ 적합이 고른 γ 쌍이 만든 변화가 측정 변화의 **{worst[3]:.1f} 배** ({worst[0]}).")
+        print("  γ 가 측정된 모양 변화 밖의 것을 흡수했을 가능성이 있다 — 무엇인지는 이 비로")
+        print("  판정하지 않는다.")
     elif worst[3] < 0.34:
-        print(f"\n→ **적합이 고른 γ 쌍**이 만든 변화가 측정 변화의 {worst[3]:.2f} 배다.")
-        print("  ⚠ 이것은 γ 의 표현력 한계가 아니다 (Codex R2-08 · L5-F3): (b) 는 적합이")
-        print("    γ 를 그만큼만 움직였다는 뜻이고, 같은 크기를 낼 Δγ 는 상자 안에 있다.")
-        print("    표현력은 측정 곡선에 γ 를 직접 적합한 잔차로 재야 한다 — 미구현.")
-        print("    풀셀 목적함수가 그 방향으로 γ 를 안 움직였다는 것은 측정 NE 의 변화가")
-        print("    블렌드 모양이 아니라는(모델 부적합) 쪽을 가리키며, 보상은 a_NE 만이")
-        print("    아니라 a_PE·b_PE 로도 샌다 (profile 300_0009: LAM_PE 6.4 %p).")
+        print(f"\n→ **적합이 고른 γ 쌍**이 만든 변화가 측정 변화의 {worst[3]:.2f} 배다 ({worst[0]}).")
+        print("  이 비는 적합이 γ 를 얼마나 움직였나이지, γ 의 표현력이나 측정 음극이 블렌드")
+        print("  모양인지의 판정이 아니다 (Codex R2-08 · R3-02: 정확히 표현 가능한 곡선에서도")
+        print("  같은 비가 나온다). 표현력은 측정 곡선에 γ 를 직접 제약 적합한 잔차로 재야")
+        print("  한다 — 미구현. 원인은 이 스크립트가 판정하지 않는다. (a) 크기를 내는 합법 γ 가")
+        print("  있는지는 위 (d) 의 증인 열이 말한다.")
     else:
-        print(f"\n→ 두 변화가 같은 규모다 (최대 {worst[3]:.1f} 배). γ 가 측정된 모양")
-        print("  변화를 대략 따라간다 — 자유 파라미터로 둘 근거가 있다.")
+        print(f"\n→ 두 변화가 같은 규모다 (최대 {worst[3]:.1f} 배). 크기만의 비교다 — 방향과")
+        print("  모양이 같은지는 따로 봐야 한다.")
     if flips:
         print(f"\n⚠ **방향 규약이 반대다.** {len(flips)} 개 상태에서 측정 곡선을")
         print("   뒤집어야 블렌드와 가까워진다:")

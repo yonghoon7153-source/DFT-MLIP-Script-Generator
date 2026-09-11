@@ -44,7 +44,9 @@ function dd_eval(varargin)
 % 산출 CSV
 %   앞머리에 `# 이름,값` 으로 **이분 앵커 16개**를 적고, 그 뒤에 파라미터
 %   행이 온다. 갈렸을 때 어느 단계가 범인인지 좁히는 값들이라 화면뿐 아니라
-%   파일에도 남긴다.
+%   파일에도 남긴다. 앵커 앞에 `# printed_format,%.17g` — rmse 열의 출력
+%   형식 **선언**이 온다 (Codex R3-06: 비교기가 값의 길이로 정밀도를 추정하지
+%   않게). 이 줄이 없는 옛 CSV 는 비교기가 "추정" 이라고 말한다.
 %     c_cell · dv_lo/hi · dv_n · dq_lo/hi           — 적재와 분위수 창
 %     dq_n · n_peaks · w_peak_sum · w_peak_max      — dQ/dV 창과 피크 가중
 %     dq_nuniq_p1 · dq_nin_p1                       — 첫 행 p 에서 조용히
@@ -171,6 +173,7 @@ function dd_eval(varargin)
 
     rows = {};
     hdr = 'a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq,rmse_dqdv,rmse_dqdv_w';
+    RMSE_FMT = '%.17g';   % rmse 네 열의 출력 형식 — CSV 앞머리 `# printed_format` 에 그대로 적힌다
     fprintf('%s\n', hdr);
     for k = 1:size(P, 1)
         q = P(k, :);
@@ -186,7 +189,7 @@ function dd_eval(varargin)
         %   양자화가 ±0.5e-10 이라 rmse≈0.0117 에서 그것만으로 상대 4.3e-9 다.
         %   그 자리수로 적힌 파일을 상대 1e-9 로 재면 **없는 불일치**가 나온다
         %   (2026-09-10 실측). 전정밀도로 적어야 대조가 그 아래로 내려간다.
-        rows{end+1} = sprintf('%.6f,%.6f,%.6f,%.6f,%.6f,%.17g,%.17g,%.17g,%.17g', ...
+        rows{end+1} = sprintf(['%.6f,%.6f,%.6f,%.6f,%.6f,' RMSE_FMT ',' RMSE_FMT ',' RMSE_FMT ',' RMSE_FMT], ...
             q(1), q(2), q(3), q(4), q(5), r_pocv, r_dvdq, r_dqdv, r_dqdv_w); %#ok<AGROW>
         fprintf('%s\n', rows{end});
     end
@@ -195,6 +198,9 @@ function dd_eval(varargin)
         fid = fopen(o.Out, 'w');
         fprintf(fid, '# dd_eval  state=%s  halfcell=%s  Si=%s  w_dqdv=%g\n', ...
                 o.State, o.HalfCellDir, o.SiSource, o.WDqdv);
+        % ⚠ 형식 선언 (Codex R3-06): 비교기가 값의 길이로 정밀도를 **추정**하지 않게
+        %   rmse 열의 출력 형식을 파일이 직접 말한다. 아래 rows 의 sprintf 와 같아야 한다.
+        fprintf(fid, '# printed_format,%s\n', RMSE_FMT);
         fprintf(fid, '# impl_sgolayfilt,%s\n', impl('sgolayfilt'));
         fprintf(fid, '# impl_quantile,%s\n', impl('quantile'));
         fprintf(fid, '# impl_findpeaks,%s\n', impl('findpeaks'));

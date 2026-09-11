@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -583,6 +585,85 @@ def printed_abs_tol(path, default_decimals: int = 10) -> float:
     return min(tols.values()) if tols else 10.0 ** (-default_decimals)
 
 
+#: `# printed_format,%.17g` — dd_eval.m 과 `eval --out` 이 CSV 앞머리에 적는 **형식 선언**.
+PRINTED_FORMAT_KEY = "printed_format"
+
+
+def read_dd_eval_meta(path) -> dict:
+    """앞머리 `# 이름,값` 중 **숫자가 아닌** 것 (`impl_*`, `printed_format` …). 앵커와 분리해 읽는다."""
+    meta = {}
+    try:
+        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if line.startswith("#") and "," in line:
+                k, _, v = line.lstrip("# ").partition(",")
+                try:
+                    float(v)
+                except ValueError:
+                    meta[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return meta
+
+
+def _precision_spec_to_tols(path, spec: str) -> dict:
+    """`g17`/`full` → 모든 열 전정밀도(0), `fixed:N` → 모든 열 10^-N. 열 이름은 파일 헤더에서."""
+    cols = []
+    try:
+        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+            if line.strip().startswith("a_PE"):
+                cols = [c.strip() for c in line.strip().split(",")][5:]
+                break
+    except OSError:
+        pass
+    cols = cols or ["rmse_pocv", "rmse_dvdq"]
+    spec = spec.strip().lower()
+    if spec in ("g17", "full"):
+        return {c: 0.0 for c in cols}
+    m = re.fullmatch(r"fixed:(\d+)", spec)
+    if not m:
+        raise ValueError(f"--precision 은 auto | g17 | full | fixed:N 중 하나다: {spec!r}")
+    return {c: 10.0 ** (-int(m.group(1))) for c in cols}
+
+
+def declared_precision(path):
+    """파일의 `# printed_format,…` 선언 → 'g17' | 'fixed:N' | None (선언 없음/해석 불가).
+
+    `%.Ng` 는 N ≥ 15 일 때만 전정밀도로 본다. 그보다 짧은 `%g` 는 절대 한계가 값의 크기에
+    따라 달라 열별 추정으로 넘긴다 (선언 자체는 `precision_label` 에 남는다).
+    """
+    fmt = read_dd_eval_meta(path).get(PRINTED_FORMAT_KEY)
+    if not fmt:
+        return None
+    m = re.fullmatch(r"%\.(\d+)([fg])", fmt.strip())
+    if not m:
+        return None
+    n, kind = int(m.group(1)), m.group(2)
+    if kind == "g":
+        return "g17" if n >= 15 else None
+    return f"fixed:{n}"
+
+
+def resolve_precision(path, precision=None):
+    """대조에 쓸 열별 절대 한계와 **그 출처** → (tols, source, label).
+
+    ⚠ 2026-09-11 Codex R3-06: 값의 길이로 producer 형식을 추정하는 것은 증거가 아니라 추정이다 —
+      `%.17g` 열의 값이 전부 짧으면(정확한 0.125) 추정 한계 1e-3 이 1/1024 의 실제 차이를 지웠다.
+      우선순위: ① 명시 옵션(`--precision g17|full|fixed:N`) ② 파일의 `# printed_format` 선언
+      ③ 추정 — 그리고 ③ 일 때는 **추정이라고 말한다**.
+    """
+    if precision and str(precision).lower() != "auto":
+        return _precision_spec_to_tols(path, str(precision)), "option", f"--precision {precision}"
+    dec = declared_precision(path)
+    if dec:
+        return (_precision_spec_to_tols(path, dec), "declared",
+                f"# {PRINTED_FORMAT_KEY},{read_dd_eval_meta(path)[PRINTED_FORMAT_KEY]}")
+    raw = read_dd_eval_meta(path).get(PRINTED_FORMAT_KEY)
+    label = "값의 자리수에서 **추정** (파일에 형식 선언 없음)" if not raw else \
+        f"값의 자리수에서 **추정** (선언 `{raw}` 은 열별 절대 한계로 못 옮긴다)"
+    return printed_abs_tols(path), "inferred", label
+
+
 def cmd_eval(args):
     """적합 없이 주어진 p 에서 rmse 를 찍고, 원하면 MATLAB 산출과 대조한다.
 
@@ -598,6 +679,7 @@ def cmd_eval(args):
     anchors = dd_eval_anchors(obj, P[0])
     print(f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
           f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}")
+    print(f"# {PRINTED_FORMAT_KEY},%.17g")          # R3-06: 형식은 선언한다, 추정시키지 않는다
     for k, v in anchors:
         print(f"# {k},{v:.17g}")
 
@@ -616,33 +698,65 @@ def cmd_eval(args):
 
     if args.out:
         head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
-                f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}"]
+                f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}",
+                f"# {PRINTED_FORMAT_KEY},%.17g"]
         head += [f"# {k},{v:.17g}" for k, v in anchors]
         Path(args.out).write_text("\n".join(head + lines) + "\n", encoding="utf-8")
         print(f"\nwrote {args.out}")
 
     if args.compare:
-        _compare_dd_eval(dict(anchors), P, vals, args.compare)
+        # ⚠ 2026-09-11 Codex R3-07: 전 판은 여기서 dict 를 버리고 None 을 올려 `sys.exit(None)` = 0 —
+        #   "rmse 가 갈린다" 를 찍고도 명령은 성공이었다. 판정이 곧 종료 코드다.
+        result = _compare_dd_eval(dict(anchors), P, vals, args.compare,
+                                  precision=getattr(args, "precision", None))
+        rc = EXIT_BY_STATUS.get(result["status"], 2)
+        note = ""
+        if rc == 3 and getattr(args, "allow_partial", False):
+            rc, note = 0, " — `--allow-partial` 로 옛 스키마의 부분 대조를 허용했다"
+        print(f"종료 코드 {rc} ({result['status']}{note})")
+        return rc
+    return 0
 
 
-def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
+#: 대조 판정 → process 종료 코드 (R3-07). 완전한 지원 범위의 일치만 0 이다.
+#:   1 = 갈렸다(앵커/목적함수)  2 = 대조 미완·빈 파일(성공 아님)  3 = 부분(옛 스키마: 앵커·열 누락) —
+#:   3 은 `--allow-partial` 을 **명시**했을 때만 0 이 된다.
+EXIT_BY_STATUS = {"complete": 0, "anchor_mismatch": 1, "model_mismatch": 1,
+                  "incomplete": 2, "empty": 2, "partial": 3}
+
+
+def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
     """MATLAB 산출과 대조하고, **갈린 첫 단계**를 이름으로 말한다.
 
     `py_vals` 는 열이름 → 값 목록. MATLAB CSV 의 **헤더에 있는 열만** 댄다
-    (옛 산출은 rmse 두 열뿐이다).
+    (옛 산출은 rmse 두 열뿐이다). 반환 dict 의 `status`:
+      complete        앵커 16 · 행 8 · 열 4 전부 비교했고 전부 일치 (유일한 성공)
+      partial         비교한 것은 전부 일치하지만 옛 스키마라 앵커/열이 빠졌다 (성공 아님)
+      incomplete      비교 못 한 값이 있다 — 행 누락·격자 불일치·비유한(NaN) 앵커/파라미터/metric
+      anchor_mismatch 앵커가 갈린다 (단계 이름을 말한다) / model_mismatch 목적함수가 갈린다
+    `precision` 은 `--precision` (R3-06): None/'auto' 면 파일 선언 → 추정 순.
     """
     m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
-    atols = printed_abs_tols(matlab_csv)
+    atols, prec_source, prec_label = resolve_precision(matlab_csv, precision)
     atol = min(atols.values()) if atols else 1e-10
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
+    print(f"  (정밀도: {prec_label})")
     print("  (열별로 적힌 자리수가 허용하는 절대 한계: "
           + ", ".join(f"{k} {v:.0e}" if v else f"{k} 전정밀도" for k, v in atols.items())
           + " — 그 안의 차이는 두 구현의 차이가 아니라 출력 반올림이다)")
+    if prec_source == "inferred":
+        print("  ⚠ 한계는 **추정**이다 — 값의 길이는 producer 형식의 증거가 아니다 (Codex R3-06)."
+              " dd_eval.m 의 `# printed_format` 선언이 있는 파일을 쓰거나 `--precision g17` 로 명시할 것.")
     # ⚠ 2026-09-11 Codex R2-01: 전 판은 비교하지 **않은** 셀(행 누락·격자 불일치·
     #   NaN)도 "전부 일치" 로 인증했다. 이제 기대 셀 수와 실제 비교한 셀 수를 세고,
     #   하나라도 못 비교했으면 성공 문장을 내지 않는다.
+    # ⚠ 2026-09-11 Codex R3-05: 그 개수·유한성 검사가 metric 에만 있었다 — 누락 앵커는 `continue`,
+    #   NaN 앵커는 `r > 1e-9` 가 거짓, NaN 파라미터는 `max(...) > tol` 이 거짓이라 셋 다 complete.
+    #   앵커도 기대 16 개를 세고, 비유한 값은 어디서든 성공이 아니다.
     result = {"status": "complete", "expected": 0, "compared": 0, "problems": [],
-              "worst_rel": 0.0, "first_bad": None}
+              "worst_rel": 0.0, "first_bad": None,
+              "anchors_expected": len(ANCHOR_STAGE), "anchors_compared": 0, "missing_anchors": [],
+              "partial": False, "precision_source": prec_source, "precision_label": prec_label}
     if not m_anchors and not m_rows:
         print("  ! 읽을 내용이 없다 — 경로가 맞나?")
         result.update(status="empty"); return result
@@ -650,13 +764,20 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
     def rel(a, b):
         return abs(a - b) / max(abs(b), 1e-30)
 
+    hard = result["problems"]
     print(f"  {'앵커':<16} {'MATLAB':>22} {'Python':>22} {'상대차':>10}   단계")
     first_bad = None
     for k, stage in ANCHOR_STAGE:
         if k not in m_anchors:
             print(f"  {k:<16} {'(없음)':>22} — 옛 dd_eval.m 산출인가?")
+            result["missing_anchors"].append(k)
             continue
-        a, b = m_anchors[k], py_anchors[k]
+        a, b = m_anchors[k], py_anchors.get(k, float("nan"))
+        if not (np.isfinite(a) and np.isfinite(b)):
+            print(f"  {k:<16} {a!s:>22} {b!s:>22} {'비유한':>10}   {stage}")
+            hard.append(f"앵커 {k} 비유한 (MATLAB {a!r}, Python {b!r})")
+            continue
+        result["anchors_compared"] += 1
         if k == "dv_n":
             mark = "" if a == b else "  ← 다르다"
             print(f"  {k:<16} {a:>22.0f} {b:>22.0f} {'':>10}{mark}   {stage}")
@@ -676,12 +797,15 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
         shared = ["rmse_pocv", "rmse_dvdq"]        # 헤더 없는 아주 옛 산출
         print("  (헤더가 없다 — 앞 두 열만 rmse 로 본다)")
     missing = [c for c in py_vals if c not in shared]
-    schema_partial = bool(missing)
     if missing:
         print(f"  (MATLAB 산출에 없는 열은 건너뛴다: {', '.join(missing)}"
               f" — 옛 dd_eval.m 산출이다 → **부분 대조**)")
+    if result["missing_anchors"]:
+        print(f"  (MATLAB 산출에 없는 앵커 {len(result['missing_anchors'])} 개: "
+              f"{', '.join(result['missing_anchors'])} → **부분 대조**)")
+    schema_partial = bool(missing) or bool(result["missing_anchors"])
+    result["partial"] = schema_partial
     result["expected"] = len(py_P) * len(shared)
-    hard = result["problems"]
     if len(m_rows) != len(py_P):
         print(f"  ! 행 수가 다르다: MATLAB {len(m_rows)} vs Python {len(py_P)} — 대조 미완")
         hard.append(f"행 수 {len(m_rows)} vs {len(py_P)}")
@@ -690,14 +814,20 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
         head = "  " + f"{'p 행':<5}" + "".join(f"{c + ' 상대차':>22}" for c in shared) + "   판정"
         print(head)
         for i, mr in enumerate(m_rows[:n_rows]):
-            if max(abs(mr[j] - py_P[i][j]) for j in range(5)) > 1e-6:
+            pp = [float(x) for x in py_P[i][:5]]
+            if len(mr) < 5 or not all(np.isfinite(mr[:5])) or not all(np.isfinite(pp)):
+                print(f"  {i:<5} ! 파라미터에 비유한 값이 있다 — 이 행은 비교하지 않았다")
+                hard.append(f"행 {i} 파라미터 비유한")
+                continue
+            if max(abs(mr[j] - pp[j]) for j in range(5)) > 1e-6:
                 print(f"  {i:<5} ! 파라미터가 다른 행이다 — 격자가 어긋났다 (이 행은 비교하지 않았다)")
                 hard.append(f"행 {i} 파라미터 불일치")
                 continue
             cells, eff = [], 0.0
             for c in shared:
                 j = m_header.index(c) if m_header else (5 + shared.index(c))
-                mv, pv = mr[j], py_vals[c][i]
+                mv = mr[j] if j < len(mr) else float("nan")
+                pv = py_vals[c][i] if i < len(py_vals[c]) else float("nan")
                 if not (np.isfinite(mv) and np.isfinite(pv)):
                     cells.append(f"{'비유한':>22}")
                     hard.append(f"행 {i} {c} 비유한")
@@ -720,42 +850,45 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv):
     print()
     result["worst_rel"] = worst_row
     result["first_bad"] = first_bad
-    tag = f"판정(부분 — 열 {len(shared)}/{len(py_vals)}):" if schema_partial else "판정:"
+    n_a, n_e = result["anchors_compared"], result["anchors_expected"]
+    tag = (f"판정(부분 — 앵커 {n_a}/{n_e} · 열 {len(shared)}/{len(py_vals)}):"
+           if schema_partial else "판정:")
     if first_bad:
         k, stage = first_bad
         print(f"판정: **{k}** 에서 처음 갈린다 → 범인 단계는 「{stage}」")
         print("      그 앞 앵커는 맞았으므로 그 앞 단계는 용의선상에서 빠진다.")
         result["status"] = "anchor_mismatch"
     elif hard:
-        print(f"판정: **대조 미완 — 성공 아님** (비교한 셀 {result['compared']}/{result['expected']}).")
+        print(f"판정: **대조 미완 — 성공 아님** (비교한 앵커 {n_a}/{n_e}, rmse {result['compared']}/{result['expected']}).")
         for pmsg in hard[:12]:
             print(f"      - {pmsg}")
-        print("      비교하지 못한 셀이 있으면 이 파일로는 '일치' 를 말할 수 없다.")
+        print("      비교하지 못한 값이 있으면 이 파일로는 '일치' 를 말할 수 없다.")
         result["status"] = "incomplete"
     elif worst_row > MODEL_REL:
         print(f"{tag} 앵커는 전부 맞는데 rmse 가 갈린다 (최대 상대차 {worst_row:.2e})")
         print("      → 곡선은 같고 **목적함수 산술**이 다르다는 뜻이다.")
-        result["status"] = "model_mismatch" + ("_partial" if schema_partial else "")
+        result["status"] = "model_mismatch"
     elif worst_row > 0.0:
         n_rmse = result["compared"]
-        print(f"{tag} 앵커 {len(m_anchors)}개가 전부 맞고, rmse {n_rmse}개는")
+        print(f"{tag} 앵커 {n_a}개가 전부 맞고, rmse {n_rmse}개는")
         print(f"      **적힌 자리수보다는 크고 {MODEL_REL:.0e} 보다는 작은**")
         print(f"      차이만 남는다 (최대 상대차 {worst_row:.2e}).")
         print(f"      이 파일은 {atol:.0e} 까지 담으므로 이건 출력 반올림이 아니라")
         print("      **실제 수치 차이**다 — 같은 식을 MATLAB 과 Python 으로 각각")
         print("      쓰면 남는 양(평활·보간·누산 순서)이고, 모델의 차이가 아니다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
-        if schema_partial:
-            result["status"] = "complete_partial_schema"
+        result["status"] = "partial" if schema_partial else "complete"
     else:
         n_rmse = result["compared"]
-        print(f"{tag} 앵커 {len(m_anchors)}개와 rmse {n_rmse}개가"
+        print(f"{tag} 앵커 {n_a}개와 rmse {n_rmse}개가"
               f" **적힌 자리수 안에서 전부 일치**.")
-        if schema_partial:
-            result["status"] = "complete_partial_schema"
+        result["status"] = "partial" if schema_partial else "complete"
         print(f"      남은 차이는 전부 CSV 출력 반올림({atol:.0e}) 안이다 —")
         print("      이 파일로는 그보다 정밀하게 비교할 수 없다.")
         print("      같은 p 에서 두 구현이 같은 목적함수를 낸다 = 포팅이 그들 모델이다.")
+    if schema_partial and result["status"] == "partial":
+        print("      ⚠ **부분 대조**다 — 빠진 앵커/열은 이 파일로 검증되지 않았다 (성공 아님).")
+    return result
 
 
 # ── D. scale 비결정성 ──────────────────────────────────────────────────
@@ -1009,14 +1142,26 @@ def cmd_profile(args):
             v = np.array([r[k] for r in inside], dtype=float)
             summary[k + "_span_inside_tol"] = float(v.max() - v.min())
     print("\nSUMMARY " + json.dumps(summary, ensure_ascii=False, default=float))
+    # ⚠ 2026-09-11 Codex R3-08: 전 판은 전부 실패하면 파일을 안 쓰고 **정상 반환**했다 — 같은
+    #   경로에 옛 CSV 가 있으면 wrapper 가 그것을 새 성공으로 읽었다. 이제 (i) 산출은 임시 파일에
+    #   쓴 뒤 한 번에 옮기고(반쯤 쓰인 파일이 남지 않는다), (ii) 저장할 행이 없으면 종료 코드 2 —
+    #   옛 파일은 지우지 않지만(보존) 이번 실행의 결과가 아니다.
     if args.out and rows:
         import csv
-        with open(args.out, "w", newline="", encoding="utf-8") as fh:
+        out = Path(args.out)
+        part = out.with_name(out.name + ".part")
+        with open(part, "w", newline="", encoding="utf-8") as fh:
             w_ = csv.DictWriter(fh, fieldnames=list(rows[0]))
             w_.writeheader(); w_.writerows(rows)
+        os.replace(part, out)
         print(f"wrote {args.out}")
-    elif args.out:
-        print(f"[profile] 저장할 행이 없다 (모든 γ 가 실패) — {args.out} 를 쓰지 않는다")
+        return 0
+    if not rows:
+        print(f"[profile] 저장할 행이 없다 (모든 γ 가 실패)"
+              + (f" — {args.out} 를 쓰지 않는다 (기존 파일이 있어도 이번 실행의 산출이 아니다)"
+                 if args.out else "") + " → 종료 코드 2")
+        return 2
+    return 0
 
 
 
@@ -1207,7 +1352,14 @@ def main(argv=None):
                             "절차가 아니라 dd_verify.m profile 모드의 부작용을 "
                             "재현하는 진단용이다 (행끼리 비교 불가)")
         p.add_argument("--compare", default=None,
-                       help="dd_eval.m 이 낸 CSV 와 대조한다 (eval 전용)")
+                       help="dd_eval.m 이 낸 CSV 와 대조한다 (eval 전용). 종료 코드: 0 complete · "
+                            "1 갈림 · 2 미완 · 3 부분(옛 스키마)")
+        p.add_argument("--precision", default="auto",
+                       help="eval --compare: CSV 의 출력 정밀도. auto(파일의 `# printed_format` "
+                            "선언 → 없으면 자리수 추정) | g17 | full | fixed:N")
+        p.add_argument("--allow-partial", action="store_true",
+                       help="eval --compare: 옛 스키마(앵커·열 누락)의 부분 대조를 종료 코드 0 으로 "
+                            "허용한다 — 판정문에는 그대로 '부분' 이 남는다")
         p.set_defaults(func=fn)
     args = ap.parse_args(argv)
     return args.func(args)

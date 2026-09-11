@@ -182,7 +182,8 @@ def main(argv=None):
     print()
 
     lines = [f"# dd_eval  state={a.state}  halfcell={a.half_cell_dir}  "
-             f"Si={a.si_source}  w_dqdv={0:g}"]
+             f"Si={a.si_source}  w_dqdv={0:g}",
+             "# printed_format,%.17g"]           # dd_eval.m 과 같은 형식 선언 (R3-06)
     lines += [f"# {k},{g17(v)}" for k, v in anchors]
     lines.append("a_PE,b_PE,a_NE,b_NE,gamma_Si,rmse_pocv,rmse_dvdq,"
                  "rmse_dqdv,rmse_dqdv_w")

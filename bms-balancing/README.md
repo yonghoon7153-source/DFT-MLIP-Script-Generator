@@ -56,7 +56,7 @@ pip install -r requirements.txt
 | 명령 | 무엇을 묻나 |
 |---|---|
 | `port` | **포팅이 그들 모델인가** — 보고된 파라미터가 우리 목적함수의 최적점 근처인가 |
-| `eval` | 같은 질문의 **툴박스 없는 길** — 적합 없이 주어진 p 에서 rmse 만. `--compare` 로 `matlab/dd_eval.m` 산출과 대조하고 갈린 단계를 짚는다 |
+| `eval` | 같은 질문의 **툴박스 없는 길** — 적합 없이 주어진 p 에서 rmse 만. `--compare` 로 `matlab/dd_eval.m` 산출과 대조하고 갈린 단계를 짚는다. **종료 코드가 판정이다** (0 complete · 1 갈림 · 2 미완 · 3 부분/옛 스키마 — `--allow-partial` 로만 0). CSV 의 출력 정밀도는 파일의 `# printed_format` 선언 → `--precision g17|full|fixed:N` → 추정 순이고 추정이면 그렇게 말한다 (R3-06·07) |
 | `degeneracy` | 최적 목적함수의 (1+ε) 안에 드는 답들이 만드는 LAM/LLI 폭 |
 | `matrix` | 문헌 Si 소스 8 × 반쪽전지 소스 2 × dQ/dV 포함 2 — **모델 선택**이 답을 얼마나 움직이나 |
 | `profile` | γ_Si 를 고정하고 나머지 넷을 재적합 — γ ↔ α_NE 축퇴 |

@@ -171,7 +171,11 @@ python -m bms_balancing.verify eval --state pristine --si-source Li \
 ```
 
 앵커 16개 + rmse 32개(8행 × 4열)를 대조하고, **갈린 첫 앵커의 단계 이름**을
-말한다
+말한다. process 종료 코드가 판정이다 — 0 complete · 1 갈림(앵커/목적함수) · 2 미완
+(행 누락·격자 불일치·NaN) · 3 부분(옛 스키마: 앵커·열 누락; `--allow-partial` 을 주면
+0). CSV 의 정밀도는 `dd_eval.m` 이 적는 `# printed_format,%.17g` 선언을 읽고, 선언이
+없는 옛 파일은 `--precision g17` 로 명시하거나 "추정" 이라는 표시를 안고 본다 (Codex
+R3-05~07).
 (예: "`E_NE_0p5_0p25` 에서 처음 갈린다 → 범인 단계는 「문헌 적재 +
 build_blend_functions」"). 그 앞 앵커가 맞았으면 그 앞 단계는 용의선상에서 빠진다.
 
