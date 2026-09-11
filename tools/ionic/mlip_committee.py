@@ -722,9 +722,10 @@ def cmd_force_contrast(a):
 
 
 def cmd_selftest(a=None):
-    bad = []
+    bad, n_run = [], [0]
     def chk(c, msg):
         print(("  ✓ " if c else "  ✗ ") + msg)
+        n_run[0] += 1
         if not c:
             bad.append(msg)
 
@@ -836,7 +837,9 @@ def cmd_selftest(a=None):
     except ValueError:
         chk(True, "⛔음성: 골격 원자 0개면 거부")
 
-    print(f"selftest {'PASS' if not bad else 'FAIL'} — {8 + 3 + 8 + 3 + 6 - len(bad)} ok, {len(bad)} bad")
+    # ⛔ 2026-09-11 — 종전엔 `8+3+8+3+6` 으로 **손으로 센 수**를 찍었다. 검사를 늘려도 28 로 고정돼
+    #   실제 33개가 돌았는데 화면은 28 이라고 했다. 실행된 것을 센다.
+    print(f"selftest {'PASS' if not bad else 'FAIL'} — {n_run[0] - len(bad)} ok, {len(bad)} bad")
     return 1 if bad else 0
 
 
