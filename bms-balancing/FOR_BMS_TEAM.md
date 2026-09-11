@@ -1,3 +1,10 @@
+> ## ⚠ 보관 문서 — 보내지 않는다 (2026-09-11)
+>
+> 코드 제공자의 은퇴로 사용자가 전권을 받았고, 규진팀에 회신하지 않기로 했다.
+> 이 문서는 그 시점의 판으로 **동결**한다. 이후 정정(Codex R2 · 내부 L2/L5 —
+> `reviews/R2_LEDGER.md` C1·C2·C7·C15 등)은 여기 반영하지 않는다. 숫자를 인용하지
+> 마라 — 정본은 `FINDINGS.md` 와 `out/`.
+
 # 규진팀 `electrode_balancing_blend` 코드에 대한 검토 결과와 수정 제안
 
 2026-09-10. 대상: 주신 MATLAB 코드(`electrode_balancing_blend.m` ·
