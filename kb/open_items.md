@@ -11,7 +11,7 @@
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
 
-### ⏭-NOW. 2026-09-11 14:40 기준 **실측** 상태 (ps·nvidia-smi·tmux·git log 로 받침)
+### ⏭-NOW. 2026-09-11 17:30 기준 **실측** 상태 (ps·nvidia-smi·tmux·git log 로 받침 · 14:40 판을 갱신)
 
 > ⛔ **오늘의 교훈이 하나뿐이다 — 던지기 전에 서버를 본다.**
 > 같은 실수를 **두 번** 했다. ① 힘 대조 파일럿을 아침 내내 다시 돌렸는데 tmux `fcgap` 에
@@ -26,9 +26,16 @@
   ⚠ 화면의 `Total force` 는 **노름**이고 QE 의 수렴 판정은 **성분 최댓값**이다 — 실제 남은
   거리는 26배가 아니라 4~7배쯤이다. ⚠ V0 하나에 11.2 h 를 썼는데 strain 이 12점 남았다.
   V0 끝나면 **첫 strain 점의 스텝당 시간을 재서 12점을 외삽**한다.
-- **kgy lpsocl MD** — `~/work/runs/lpsocl_box331_400ps` **8/9 완주** · s4/1000 K **97 %**
-  (PID 1776487). 9/9 뜨면 `lpsocl_box331_closure_conditions_2026_09_07.json`(active)의
-  **C1–C6 게이트가 먼저**다. 결과는 셋 — 값 · HOLD · no_value. HOLD 는 실패가 아니다.
+- **kgy lpsocl MD** — `~/work/runs/lpsocl_box331_400ps` **9/9 완주**. 게이트 실측: C2 MTO **8/9**
+  (s4/600 11 % > 10 %) · C6 β 경보 **3칸**(s2/800 · s4/800 · s4/1000, O β 0.40–0.53) · framework_com 9/9 static.
+  **Codex 회신 BL = NO-GO(추가 MD·C3 실행) · 감사 GO.** 대응 커밋 `4759272b0`: 개정안
+  `lpsocl_box331_closure_amendment_2026_09_11.json`(**proposed · post-hoc**) · C3 도구 2판 · C6 는 판정 원장에
+  `not_assessed`. **1저자 결정 4건 대기**(개정안 §6). 지금 도는 것: **C2b 궤적 홉 계수** tmux `c2b`
+  (`aimd_jump_stats.py`, `$R/jump/`, CPU) — 결과는 개정안 A5 규칙(inter-cage/이온 ≥ 3.0)으로만 읽는다.
+  ⛔ C3 실데이터 실행은 비준 → C2b → C6 census 뒤.
+- **kgy 힘 대조 20점 v2** — tmux `fc20`(14:43 기동) `force_check_700K_v2`, 통일키 `762e7661`, hpcx MPI, ~9–15 h.
+  대조 잡은 통과(modelc_s2_t10ps fixed vs gaussian Total force 0.353129/0.353134, −TS 0.000 —
+  `b2o3_force_control_modelc_2026_09_11.json`). 아침에 `--collect` + `mlip_committee.py force_contrast --card …`.
 - **kgy Nd DOS** — PID 2400966 `run_gap_nscf_gabia.sh DOS=1 ndo_lpscl16_n5fu_O-distributed`.
 
 **⏸ 되살릴 것**
@@ -38,6 +45,16 @@
   (step 40 · |F| 0.032609 · E −14652.33022106 · `.bfgs` sha 3feb4c36).
 
 **✅ 오늘(09-11) 닫힌 것**
+- **SDCP C-12 v41 발송 (1저자, 17:00 경) — v40 교체·폐기 통지.** v40 은 census/n_total 이 러너 작업폴더
+  `_hostpool/` 을 잡 폴더로 세어 **첫 VASP 전에 멈췄다**(수정 `f90e82e63`·`fd16f0c52`, e2e selftest 에 재현 추가).
+  v41: 잡 19개 지문 `8a7ae28f` 동일 · **잡 폴더 바이트 동일**(v40 zip 과 diff 0) · zip sha256
+  `76d76d50e4da…` · 커밋 `521e18358`(IDENTITY/SEND_MAIL/zip). 차이 파일 = census.py · run_staged.sh ·
+  MANIFEST.json · README_REQUEST.md · SUBMIT_CONTRACT.md(시작 전 확인·회신 절, v40 엔 없었음 — 메일에 밝힘) ·
+  governance/decisions.json 사본(추가 결정뿐). 렌더러에 `--changes_md` 추가(분기 없는 교체판은 렌더 거부).
+  **보고자 회신 대기.** gabia 미추적 `db/properties/neb_*.{log,xyz}`·`prospective_basins_…json` 은 별건.
+- **litdb: Cronk 2026 Nat. Commun.** (파일명 'Bai2026' 은 오기) — 같은 DOI 의 두 번째 읽기축
+  `cronk2026_lis_cathode_interphase_chemistry` (`19caadd6b`). LPSCl@Li₂S 카드 함의: 결정 Li₇PS₆ 배제 ·
+  Li₂S 복합체 σ/Ea 는 문헌 공백 · 1층 조성 후보 2안(비정질 Li₃PS₄·xLiCl / Li₃PS₄+나노 LiCl) 은 1저자 판단 후.
 - **gap 원장 4/4 해소 · N 항목 닫음.** modelc 실행본이 gabia
   `/data/work/runs/gap_nscf/modelc/nscf_gap.{in,out}` 에 있었다 — `occupations='fixed'` ·
   `K_POINTS 8 8 2` → **68 irr**(정본 일치) · VBM 2.4447 / CBM 4.5436 / **gap 2.0989**
@@ -57,6 +74,7 @@
   (800·1000 K · 온도 2축)으로 3일간 남아 있었다. 카드 기준으로 맞췄다.
 
 **⏭ 바로 다음 (순서 있다)**
+(17:30: 1 대조 잡 ✅ 통과 · 2 v2 20점 ✅ 기동 — 남은 건 3 과 아침 `--collect`.)
 1. **대조 잡 판정** — `~/work/runs/fc_control_smear/modelc_2_t10ps` 실행 중(GPU, 회당 ~13 s).
    좌표해시 `bf6710fec368b7b8` 이 본배치와 **일치 확인됨**(§8 무효조건 1번 통과).
    `-TS` ~0 이면 대조군이 안 흔들린 것 → 2번으로. 크면 그 크기를 결과 파일에 적고 진행.
@@ -329,7 +347,7 @@ D_rel 이 들어오면 그 파일의 `성공기준_사전확정` **그대로** �
 
 ---
 
-### ⏭-6. 🔴 C-12 외주 VASP 번들 — **회신 AV P0 전건 이행, v19 재생성만 남음** (2026-08-31 신설)
+### ⏭-6. 🟡 C-12 외주 VASP 번들 — **v41 발송 2026-09-11 (v40 교체·폐기 통지) · 보고자 회신 대기** (2026-08-31 신설 · 2026-09-11 갱신)
 
 ⚠ **이 캠페인이 장부에 한 번도 없었다.** Stage A(v2→v13)가 회신 AJ 이후 **C-12 로 개명**
 되고 v14→v18 까지 갔는데, 리뷰 30라운드(N~AV)가 장부에 안 올라왔다. ⏭-4 가 적어 둔
@@ -337,7 +355,8 @@ D_rel 이 들어오면 그 파일의 `성공기준_사전확정` **그대로** �
 
 - **무엇을 재나**: LiNiO₂(104) 위 SDCP 단량체 vs perfluorodecane 조각의 **조각 간 대비 D**
   (사전 고정한 네 잡의 직접 대입). 개별 절대 흡착에너지는 보고하지 않는다.
-- **지금 상태**: `sdcp_c12_v18` 봉인 완료 · **VASP 한 잡도 안 돌았다.**
+- **지금 상태 (2026-09-11)**: **v41 발송** — v40 은 census `_hostpool` 버그로 보고자 쪽에서 시작 전에 멈췄고(잡 0개 실행), v41 은 같은 19잡·같은 입력(잡 폴더 바이트 동일)에 검사 스크립트만 고친 판. 상세는 ⏭-NOW '오늘 닫힌 것'. ⚠ 아래 v18 시점 서술은 이력이다.
+- **(이력 2026-08-31) 지금 상태**: `sdcp_c12_v18` 봉인 완료 · **VASP 한 잡도 안 돌았다.**
   회신 AV = NO-GO (P0 4건 · P1 1건).
 - **2026-08-31 이행 완료**: P0-1 `895af2ed` · P0-2 `1b3fbefc` · P0-3 `d29c322e` ·
   P0-4 `4aed52ff` · P1-5+해제조건⑦ `290513d3`,`ddc6d7ca`.
