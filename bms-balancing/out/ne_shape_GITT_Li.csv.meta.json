@@ -1,0 +1,15 @@
+{
+  "artifact": "ne_shape_GITT_Li.csv",
+  "half_cell_source": "GITT",
+  "si_source": "Li",
+  "grid_n": 400,
+  "grid_range": [
+    0.02,
+    0.98
+  ],
+  "gamma_from": "out/matrix_<state>.csv 의 ref_gamma_Si",
+  "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
+  "git_commit": "b57d3135529026fac3de9b03ee7632505767aaf7",
+  "git_dirty": true,
+  "created_utc": "2026-09-11T01:04:39.304982+00:00"
+}
