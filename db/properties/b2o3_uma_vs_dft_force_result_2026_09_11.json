@@ -10,7 +10,14 @@
   "표본": "카드 §4 결정적 규칙 그대로 — 계 2(b2o3·modelc) × 시드 2(s2·s3) × t = 10·20·30·40·50 ps = **20점**, 사람이 고르지 않았다. 700 K 궤적 `~/work/runs/arrhenius_6pt_traj/…` (MD 재계산 0).",
   "DFT": "QE 7.4.1 GPU 빌드 **전 점 동일** · PBE · 52/520 Ry · Γ-only · occupations='smearing' smearing='gaussian' degauss=0.01 · mixing plain β0.2 ndim8 · conv_thr 1e-8 · scf only · 20/20 수렴 (b2o3 45–76 it · modelc 17–22 it)",
   "UMA": "uma-s-1p1(omat) 단일점을 **두 계 모두 새로 계산** (한쪽만 저장된 힘을 쓰지 않는다)",
-  "회수": "`generate_dft_inputs.py --collect` 20/20 통과 — 좌표해시·scf.in↔frame.xyz 대조·수렴 플래그 전건. 실패 0 (카드 §8: 19점으로 판정하지 않는다)"
+  "회수": "`generate_dft_inputs.py --collect` 20/20 통과 — 좌표해시·scf.in↔frame.xyz 대조·수렴 플래그 전건. 실패 0 (카드 §8: 19점으로 판정하지 않는다)",
+  "⛔_회수물_단일실행_점검_2026_09_12": {
+   "왜_했나": "회신 BJ2 P0-3b — `parse_pw_out` 이 에너지는 파일의 **마지막**, 힘은 **첫 번째** 블록을 잡아서, 한 파일에 완결 SCF 가 둘 들어 있으면 **B 의 에너지와 A 의 힘**이 한 레코드로 나오고 converged·job_done 이 둘 다 참이었다. 이 결과의 20점이 바로 그 경로(`--collect`)로 회수됐다.",
+   "무엇을_쟀나": "20개 `scf.out` 각각에서 `JOB DONE` 개수와 `Forces acting on atoms` 블록 개수",
+   "결과": "**20/20 전부 1·1** — 이상 없는 점 0개 (kgy 2026-09-12).",
+   "⇒": "이 결과(R = 0.951)와 원소별 값은 P0-3b 결함과 **무관함이 확인됐다**. 판정은 그대로 유효하다.",
+   "⚠": "이 점검은 '섞이지 않았다' 만 확인한다 — DFT 자체의 타당성이나 UMA 재계산의 정확성은 보지 않는다."
+  }
  },
  "결과": {
   "test_b2o3": {

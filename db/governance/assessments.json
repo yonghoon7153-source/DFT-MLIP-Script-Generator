@@ -229,6 +229,13 @@
       "P": 0.189,
       "S": 0.43
      }
+    },
+    "collect_single_run_check": {
+     "date": "2026-09-12",
+     "files": 20,
+     "ok": 20,
+     "what": "scf.out 당 JOB DONE·힘 블록 각 1개",
+     "why": "BJ2 P0-3b 혼합 결함의 사후 점검"
     }
    },
    "measured_on": "kgy 2026-09-11 · QE 7.4.1 GPU 20/20 수렴 · UMA-s-1p1(omat) 재계산 · mlip_committee.py force_contrast",
