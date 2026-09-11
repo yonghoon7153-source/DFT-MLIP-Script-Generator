@@ -244,7 +244,7 @@ dd_verify('dump', 'State','300_0009', 'WDqdv',0, 'Out','dd_dump_gitt_w0.csv')
 > 최대 1.6 %p 다르다 (Wetjen 15.04 → 16.67, Jiang 6.11 → 5.79). v1 표를
 > 들고 대조하면 없는 불일치가 나온다.
 
-### 3. `profile` — γ_Si 프로파일, LAM_NE 의 실질 오차막대
+### 3. `profile` — γ_Si 프로파일 (결정론적 민감도 곡선 — 오차막대가 **아니다**, FINDINGS §0-2)
 
 ```matlab
 dd_verify('profile', 'State','300_0009', 'SiSource','Li', 'WDqdv',0, ...

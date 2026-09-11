@@ -1052,11 +1052,10 @@ def _bands(sub: str):
             for st, e in deg.items()}
 
 
-def test_section_1_12_control_rules_out_the_half_cell_substitution():
-    """§1-12 의 중심 주장: 반쪽전지를 고정해도 LLI 띠가 거의 안 움직인다.
-
-    이것이 "원통형의 넓은 띠는 우리 대체 탓이 아니다" 의 근거 전부다.
-    문서와 산출물이 갈리면 깨진다.
+def test_section_1_12_pouch_pe_fixing_did_not_reproduce_the_wide_lli_band():
+    """§1-12 (R2 정정판): 파우치의 PE 고정은 원통형 크기의 LLI 띠를 만들지 않았다 —
+    **그리고 LAM_PE 에서는 원통형 패턴을 재현했다.** 두 방향을 같이 고정한다 (L5-F1).
+    초판 이름 `..._control_rules_out_...` 은 철회된 주장("대체는 원인이 아니다")이었다.
     """
     have = {k: (ROOT / v).is_dir() for k, v in DEG_ROOTS.items()}
     if not all(have.values()):
@@ -1077,8 +1076,14 @@ def test_section_1_12_control_rules_out_the_half_cell_substitution():
             assert gap > 2.0, f"{st} {cell}: 격차가 {gap:.2f} %p 뿐이다"
             share = 100 * moved / gap
             assert share < 10, (
-                f"{st} {cell}: 대체가 격차의 {share:.1f} % 를 설명한다 — "
-                f"§1-12 의 '0.5~5 %' 가 안 맞는다")
+                f"{st} {cell}: LLI 이동이 격차의 {share:.1f} % — §1-12 의 '두 수의 비' 범위 밖")
+        # 반대 부호 — LAM_PE 에서는 같은 개입이 원통형 패턴을 재현한다 (100·200 에서 몫 > 50 %)
+        if st in ("100", "200"):
+            p_pe = B["pouch"][st]["LAM_PE"][1]; f_pe = B["fixedhc"][st]["LAM_PE"][1]
+            for cell in ("c168", "c171"):
+                gap_pe = B[cell][st]["LAM_PE"][1] - p_pe
+                assert gap_pe > 0 and 100 * (f_pe - p_pe) / gap_pe > 50, (
+                    f"{st} {cell}: LAM_PE 대체 몫이 50 % 아래 — §1-12 의 'LAM_PE 는 반대다' 가 무너진다")
     # 문서의 표를 **칸별로** 대조한다.
     # ⚠ `f"{v:.2f}" in txt` 로 하면 안 된다 — 그 숫자가 문서 어딘가에만 있으면
     #   통과해서, 표를 틀리게 고쳐도 안 잡힌다 (2026-09-11 변이 시험에서 실측).
@@ -1503,3 +1508,89 @@ def test_section_1_8_192_values_are_backed_by_committed_recompare_artifacts():
     assert abs(worst - 4.04e-12) < 0.01e-12, f"§1-8 의 최대 4.04e-12 와 다르다: {worst:.2e}"
     txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
     assert "4.04e-12" in _section(txt, "### 1-8"), "§1-8 에 최대 상대차가 없다"
+
+
+# ── §1-12 R2 정정판의 새 표 네 개 — 산출물에서 칸별로 (2026-09-11) ─────────
+
+def _r2_tables_ctx():
+    if not all((ROOT / v).is_dir() for v in DEG_ROOTS.values()):
+        pytest.skip("산출이 없다")
+    import statistics as S
+    B = {k: _bands(v) for k, v in DEG_ROOTS.items()}
+    cs = _load_script("compare_states")
+    objs = {k: {st: e["j"]["best_obj"] for st, e in cs.load_degeneracy(ROOT / v).items()}
+            for k, v in DEG_ROOTS.items()}
+    def rmse(lab, st):
+        f = sorted((ROOT / DEG_ROOTS[lab]).glob(f"matrix_{st}*.csv"))[-1]
+        r = [x for x in csv.DictReader(f.open(encoding="utf-8"))
+             if x.get("si") == "Li" and x.get("half_cell", "GITT") == "GITT" and float(x.get("w_dqdv", 0)) == 0][0]
+        return float(r["rmse_pocv"]) * 1e3, float(r["ref_rmse_pocv"]) * 1e3
+    sec = _section((ROOT / "FINDINGS.md").read_text(encoding="utf-8"), "### 1-12")
+    return B, objs, rmse, sec, S
+
+
+def test_section_1_12_three_mode_share_table_matches_artifacts():
+    B, objs, rmse, sec, S = _r2_tables_ctx()
+    rows = [ln for ln in sec.splitlines() if ln.startswith("| LAM_") or ln.startswith("| LLI |")]
+    got = {}
+    for ln in rows:
+        c = [x.strip() for x in ln.strip("|").split("|")]
+        if len(c) == 7 and c[1] in ("100", "200", "300_0009"):
+            got[(c[0], c[1])] = c
+    assert len(got) == 9, f"세 mode 몫 표 9 행을 못 찾았다: {len(got)}"
+    for (k, st), c in got.items():
+        p = B["pouch"][st][k][1]; f = B["fixedhc"][st][k][1]
+        assert abs(float(c[2]) - p) < 5e-4 and abs(float(c[3]) - f) < 5e-4, (k, st, c)
+        assert abs(float(c[4].replace("+", "")) - (f - p)) < 5e-4, (k, st, c)
+        for i, cell in ((5, "c168"), (6, "c171")):
+            want = 100 * (f - p) / (B[cell][st][k][1] - p)
+            assert abs(float(c[i].rstrip("%").strip()) - want) < 0.06, (k, st, cell, c[i], want)
+
+
+def test_section_1_12_physical_normalization_and_misfit_tables_match_artifacts():
+    B, objs, rmse, sec, S = _r2_tables_ctx()
+    P = [("pouch", st) for st in ("100", "200", "300_0009")] + [("fixedhc", st) for st in ("100", "200", "300_0009")]
+    C = [(c, st) for c in ("c168", "c171") for st in ("100", "200", "300_0009")]
+    R = {x: rmse(*x) for x in P + C}
+    fns = {"raw": lambda x: B[x[0]][x[1]]["LLI"][1],
+           "/best_obj": lambda x: B[x[0]][x[1]]["LLI"][1] / objs[x[0]][x[1]],
+           "/rmse_pocv": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0],
+           "/√rmse_pocv": lambda x: B[x[0]][x[1]]["LLI"][1] / R[x][0] ** 0.5}
+    t = _table_rows(sec, tuple(fns), header_has="LLI 반폭 정규화")
+    assert len(t) == 4, sorted(t)
+    for name, fn in fns.items():
+        pv = sorted(map(fn, P)); cv = sorted(map(fn, C)); c = t[name]
+        lo, hi = (float(x) for x in c[0].split("~")); assert abs(lo - pv[0]) < 6e-5 and abs(hi - pv[-1]) < 6e-5, (name, c)
+        lo, hi = (float(x) for x in c[1].split("~")); assert abs(lo - cv[0]) < 6e-5 and abs(hi - cv[-1]) < 6e-5, (name, c)
+        for i, want in ((2, cv[-1] / pv[-1]), (3, cv[0] / pv[0]), (4, S.median(cv) / S.median(pv))):
+            assert abs(float(c[i].rstrip("x")) - want) < 0.006, (name, i, c[i], want)
+        assert c[5] == ("예" if cv[0] < pv[-1] else "아니오"), (name, c)
+    # /rmse 에서는 겹친다 — §1-12 의 문장
+    assert t["/rmse_pocv"][5] == "예"
+    m = _table_rows(sec, tuple(DEG_ROOTS), header_has="pristine 기준 적합")
+    assert len(m) == 4, sorted(m)
+    for lab, c in m.items():
+        v = [R[(lab, st)] for st in ("100", "200", "300_0009")]
+        assert abs(float(c[0]) - v[0][1]) < 0.006
+        for i in range(3):
+            assert abs(float(c[1 + i]) - v[i][0]) < 0.006, (lab, i, c)
+        assert abs(float(c[4]) - v[2][0] / v[0][0]) < 0.006, (lab, c)
+    # 원통형 부적합은 사이클과 함께 커지고 파우치는 줄어든다 — 문장의 근거
+    assert float(m["c168"][4]) > 1.4 and float(m["c171"][4]) > 1.4 and float(m["pouch"][4]) < 1.0
+
+
+def test_section_1_10_table_prints_best_min_max_and_width():
+    """[Codex R2-04] §1-10 A축 표를 `best [min, max]` 와 폭(max−min)으로 바꿨다 — 칸별 대조."""
+    B, objs, rmse, sec, S = _r2_tables_ctx()
+    txt = (ROOT / "FINDINGS.md").read_text(encoding="utf-8")
+    t = _table_rows(_section(txt, "### 1-10"), ("100", "200", "300_0009", "300_0147"), header_has="best [min, max]")
+    assert len(t) == 4, sorted(t)
+    import re as _re
+    for st, c in t.items():
+        b = B["pouch"][st]
+        for i, k in enumerate(MODES):
+            m = _re.match(r"([−-]?[0-9.]+) \[([−-]?[0-9.]+), ([−-]?[0-9.]+)\]", c[1 + i].replace("−", "-"))
+            assert m, (st, c[1 + i])
+            best, lo, hi = (float(x) for x in m.groups())
+            assert abs(best - b[k][0]) < 5e-4 and abs(lo - b[k][2]) < 5e-4 and abs(hi - b[k][3]) < 5e-4, (st, k, c[1 + i])
+        assert "±" not in "".join(c)
