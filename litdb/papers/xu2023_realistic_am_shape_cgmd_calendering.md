@@ -486,6 +486,15 @@ particles**.  This would **unrealistically lead to a higher tortuosity factor**"
 
 ## 5. Figure set ★ (그림별 digitized 수치 포함)
 
+> **figure 크로핑** — `litdb/figures/xu2023_realistic_am_shape_cgmd_calendering/` 에 **Fig 1–5 + Table 1–2**.
+> ⚠ **Fig 2 · Fig 3 은 자동 추출이 건너뛰었다** (캡션이 **오른쪽 단**에 있고 그림 본체는 **왼쪽 단**이라
+> 캡션-앵커 크롭의 기하 검증에 걸렸다) → **수동으로 좌단 본체를 잘라 넣었다**(`note` 필드에 기록).
+> ★ **실제로 열어 본 것**: `fig_2.png`(박스 치수 전 라벨 확인) · `fig_3.png`(A/B 축·마커, D/G 두께축 끝,
+> E/H stated 라벨) · 원본 PDF 900 dpi 렌더로 Fig 1B · 3A · 3B · 5A · 5B, SI 이미지로 Fig S7.
+> ⛔ **열어 보지 않은 것**: Fig 4 의 PNM 색코딩 패널(A/B/E/F) 내부 · Fig S1·S2·S3·S5·S6 · **동영상 3 편**.
+> 그 항목들은 **캡션·본문 서술만** 옮겼다.
+
+
 | Fig | 내용 (무엇을 보여주나) | ★ digitized 수치 | 우리가 참고할 점 |
 |---|---|---|---|
 | **GA** | XCT 입자 → DB → 초기구조 → 압연 한 컷 | — | 계보의 "형상 파이프라인" 한 장 |

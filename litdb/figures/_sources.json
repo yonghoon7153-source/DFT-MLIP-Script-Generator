@@ -55,7 +55,7 @@
   ]
  },
  "aykol2014_cathode_coating_thermodynamics": {
-  "figures": 8,
+  "figures": 10,
   "generated": "2026-09-11",
   "pdfs": [
    "106. Aykol2014_Thermodynamic_Aspects_of_Cathode_Coatings_LIB.PDF",
@@ -1486,6 +1486,13 @@
    "DFT 먹인 논문/37. Computational Screening of Cathode Coatings for Solid-State Batteries.pdf",
    "DFT 먹인 논문/37. Sup1) Computational Screening of Cathode Coatings for Solid-State Batteries.pdf",
    "DFT 먹인 논문/37. Sup2) Computational Screening of Cathode Coatings for Solid-State Batteries.pdf"
+  ]
+ },
+ "xu2023_realistic_am_shape_cgmd_calendering": {
+  "figures": 5,
+  "generated": "2026-09-11",
+  "pdfs": [
+   "main.pdf"
   ]
  },
  "xu2026_ndo_codoping_argyrodite": {
