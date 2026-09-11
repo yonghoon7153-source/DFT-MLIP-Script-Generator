@@ -980,6 +980,15 @@ raw 호출을 감싸지 않는다. 포팅은 이제 표본의 개수(n · 유한
 (`equivalent_within_rel`, `SCALE_EQUIV_REL`). 감사 줄은 이제 식별자(state·source·si·seed·n)와 항별
 raw 평균·eps_rel·동치 flag 를 담고, `matrix` 행도 target/ref 의 scale·감사를 싣는다 (R5-07).
 
+**U15 실측 (2026-09-11, 사용자 기계 MATLAB)**: R5-01 의 구간 규칙은 "Python 의 `format` 이 MATLAB 의 `sprintf` 와
+같은 문자열을 낸다" 를 전제로 하는데 이 저장소에 MATLAB 이 없어 두 축을 못 재고 있었다. 둘 다 **일치**한다:
+반올림 타이 `sprintf('%.2f', 0.125)` → `'0.12'` (Python 과 같은 half-to-even; half-away 였다면 멀쩡한 산출을
+audit 이 "선언 형식으로 찍은 것과 다르다" 며 invalid 로 거절했을 것이다 — fail-closed 라 조용한 통과는 아니지만
+거짓 거절이다), 지수 자릿수 `sprintf('%.17g', 1e-5)` → `'1.0000000000000001e-05'` (2 자리; Windows 식 `e-005` 가
+아니다). `%.17g` 는 `exact` 라 재출력하지 않으므로 그쪽 전제는 "17 자리 토큰이 원래 double 로 되돌아온다" 이고
+그것도 성립한다. 기준선은 `tests/test_r6_internal.py` 의 `MATLAB_SPRINTF` 에 고정. **범위**: 표본 둘, MATLAB 판·
+플랫폼 하나 — 다른 기계의 산출을 댈 때는 다시 잰다.
+
 **U13 실측 (2026-09-11, 사용자 기계, `out/scale_audit_eval_u13.txt`, 코드 a78f0a5)**: 새 감사 줄 **18 개** —
 GITT · Li 의 네 상태 × 네 루트(파우치 원자료 · c168 · c171 · pouch_fixedhc; **루트 이름은 그 판의 줄에 없어 보고
 순서의 4 블록으로만 안다** — 다음 판부터 `root=` 가 붙는다) 16 줄 + 파우치 원자료의 pristine · **Kunz** 1 줄 +

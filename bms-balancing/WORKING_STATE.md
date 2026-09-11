@@ -34,7 +34,8 @@
 그 경로에서 거짓 → `--out` 잠금 게시), DF-01 (§3-4 "두 독립 방법이 수렴" 은 같은 격자점 반환 → 정정), V6-01~04 (헤더
 위치·옵션 형식·헤더 없음·부분 대조 하한으로 1 % 급 차이가 complete → 전부 invalid). 신뢰 경계로 남긴 것: F08 (run_id 는
 공개 열 — 복사한 producer 는 못 가린다), F2 (루트 차원은 사본으로 검증 불가), F6 (autocrlf 사본은 fresh clone 으로),
-V6-09 (음수 rmse 도달 불가), R5-01 의 MATLAB sprintf 전제 (사용자 기계 한 줄 실측 필요).
+V6-09 (음수 rmse 도달 불가). **R5-01 의 MATLAB sprintf 전제는 U15 로 닫혔다** (2026-09-11 실측 — 반올림 타이·지수
+자릿수 둘 다 Python 과 일치; 기준선 `MATLAB_SPRINTF`, 범위는 표본 둘·MATLAB 판 하나).
 
 **산출물 스키마가 바뀌었다** — 기존 `out/` 은 전부 pre-R5 meta 라 새 검사(run_id·sha256·env·inputs_sha·시작 시점 git)
 의 대상이 아니다. 다음 실측(U14): 사용자 기계에서 `scripts/run_states.sh` 재실행 → degeneracy 가 `--out` 으로
@@ -47,7 +48,7 @@ V6-09 (음수 rmse 도달 불가), R5-01 의 MATLAB sprintf 전제 (사용자 �
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 123 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 124 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh
@@ -70,11 +71,10 @@ python3 scripts/ne_shape.py                       # 소비 입력이 바뀌었�
 python3 scripts/compare_states.py out             # §1-10 표 재생 — '묶음 불일치' 경고가 없어야 한다
 git add out/ && git commit -m "U14 — 새 게시·서명 스키마로 네 상태 재실행 (숫자 동일)" && git push
 
-# ── 5. MATLAB 한 줄씩 (R5-01 전제 — 우리 트리에 MATLAB 이 없어 못 재는 것) ────────────────────────
-#    MATLAB 에서 실행하고 출력 두 줄을 그대로 붙여 줘:
-#      sprintf('%.2f', 0.125)      % Python 은 '0.12' (banker's rounding)
-#      sprintf('%.17g', 1e-5)      % 지수 자릿수 e-05 인가 e-005 인가
-#    갈리면 비교기가 **거짓 invalid** 를 낼 수 있다 (fail-closed 라 조용히 통과하지는 않는다).
+# ── 5. ~~MATLAB 한 줄씩~~ → **닫힘 (U15, 2026-09-11)**: 둘 다 Python 과 일치 ────────────────────
+#      sprintf('%.2f', 0.125)  → '0.12'                    (half-to-even, Python 과 같다)
+#      sprintf('%.17g', 1e-5)  → '1.0000000000000001e-05'  (2 자리 지수, 원래 double 로 복원)
+#    기준선은 tests/test_r6_internal.py 의 MATLAB_SPRINTF 에 고정. 다른 MATLAB 판·플랫폼의 산출을 댈 때는 다시 잰다.
 ```
 줄마다 `equiv=1` 이면 그 build 에서 scale 이 원본 설명식과 상대 1e-9 안에서 같다 (유한 · 예외 없음 · eps_rel ≤ 1e-9).
 `degeneracy`/`profile`/`matrix` 를 다시 돌릴 때는 `run_states.sh` 가 이제 id 를 **필드로** 확인하고 meta 를 잠금

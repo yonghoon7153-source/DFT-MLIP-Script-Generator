@@ -701,3 +701,43 @@ def test_i6u_14_check_script_separates_schema_from_moved_numbers(tmp_path):
             f.write_text(json.dumps(j), encoding="utf-8")
         r = _u14_run(o, n)
         assert r.returncode == 2 and drop in r.stdout, (fname, drop, r.returncode, r.stdout)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# U15 · MATLAB `sprintf` 기준선 — R6 내부 원장이 "검증 못 한 전제" 로 남겼던 것 (2026-09-11 실측)
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+#: 사용자 기계 MATLAB 이 찍은 것 그대로 (2026-09-11). R5-01 의 구간 규칙은 "Python 의 `format` 이 MATLAB 의
+#: `sprintf` 와 같은 문자열을 낸다" 를 전제로 하는데, 이 저장소에 MATLAB 이 없어 못 재고 있던 두 축이다:
+#: 반올림 타이(half-to-even 인가 half-away 인가)와 지수 자릿수(`e-05` 인가 Windows 식 `e-005` 인가).
+MATLAB_SPRINTF = {(".2f", 0.125): "0.12", (".17g", 1e-5): "1.0000000000000001e-05"}
+
+
+def test_i6u_15_matlab_sprintf_baseline_matches_our_formatter():
+    """[R6 내부 원장 '검증 못 한 전제' → 닫힘] 갈렸다면 비교기가 **거짓 invalid** 를 냈을 자리다 (fail-closed 라
+    조용한 통과는 아니지만 멀쩡한 산출을 malformed 로 거절했을 것이다).
+
+    이 테스트는 발견 수정이 아니라 **외부 기준선 고정**이라 처음부터 통과하는 것이 정상이다 — 지키는 것은
+    "우리 formatter 가 그 기준선에서 벗어나지 않는다" 이고, `token_format` 을 바꾸면 여기서 걸린다.
+    """
+    for (fmt, value), matlab in MATLAB_SPRINTF.items():
+        assert format(value, fmt) == matlab, (fmt, value, format(value, fmt), matlab)
+
+    # ① 반올림 타이 — 이 축은 비교기가 실제로 재출력하는 경로(`token_format`)에 걸려 있다.
+    #    0.125 를 `%.2f` 로 찍을 때 MATLAB 이 '0.13'(half-away) 이었다면, '0.12' 를 쓴 멀쩡한 산출을
+    #    audit 이 "선언 형식으로 찍은 것과 다르다" 며 invalid 로 거절했을 것이다.
+    f2 = verify.parse_precision_spec("%.2f")
+    assert format(0.125, verify.token_format(f2)) == MATLAB_SPRINTF[(".2f", 0.125)]
+    assert verify.dd_eval_csv_audit  # (audit 이 그 형식으로 토큰을 다시 찍는다 — `test_i6v_*` 가 경로를 덮는다)
+
+    # ② 지수 자릿수 — `%.17g` 는 `exact` 라 재출력하지 않는다(`token_format` → None). 대신 전제는
+    #    "MATLAB 이 찍은 17 자리 토큰이 원래 double 로 되돌아온다" 이고, Windows 식 3 자리 지수였다면
+    #    파싱은 됐겠지만 우리가 같은 토큰을 쓸 때 문자열이 갈렸을 것이다.
+    g17 = verify.parse_precision_spec("%.17g")
+    assert verify.token_format(g17) is None, g17
+    assert float(MATLAB_SPRINTF[(".17g", 1e-5)]) == 1e-5
+
+    # 그 기준선 위에서 R5-01 의 구간 판정: 같은 칸이면 차이 0, 칸 밖이면 초과분이 잡힌다
+    assert verify.token_excess(f2, 0.125, 0.1249) == 0.0
+    assert verify.token_excess(f2, 0.125, 0.13) > 0.0
+    assert verify.token_excess(g17, 1e-5, 1e-5) == 0.0

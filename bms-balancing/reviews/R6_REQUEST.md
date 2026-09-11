@@ -67,7 +67,7 @@ python3 reviews/r5_repros/harness_r5_execution_repros.py --target "$PWD"        
 
 | 렌즈 | 발견 → CONFIRMED | 결론급 | 신뢰 경계로 남긴 것 |
 |---|---|---|---|
-| validator 우회 | 9 → 8 | 헤더 위치·`--precision` 옵션·헤더 없음·부분 대조 하한으로 1 % 급 차이가 complete/`--allow-partial` 0 (V6-01~04) → 전부 invalid | V6-09 `%f` ±0 경계: rmse 가 sqrt(mean(r²)) 라 도달 불가. R5-01 의 "format = sprintf" 전제는 MATLAB 판 의존 — 미실측 |
+| validator 우회 | 9 → 8 | 헤더 위치·`--precision` 옵션·헤더 없음·부분 대조 하한으로 1 % 급 차이가 complete/`--allow-partial` 0 (V6-01~04) → 전부 invalid | V6-09 `%f` ±0 경계: rmse 가 sqrt(mean(r²)) 라 도달 불가. R5-01 의 "format = sprintf" 전제는 **U15 로 닫힘** (실측 `%.2f`/0.125 → `0.12`, `%.17g`/1e-5 → `1.0000000000000001e-05` — 둘 다 Python 과 같다; 표본 둘·MATLAB 판 하나) |
 | 순서/TOCTOU | 9 → 8 | F01 degeneracy 게시가 producer 의 stdout fd 로 잠금 밖에서 덮임 (R5-04 의 "마지막 온전한 묶음" 이 그 경로에서 거짓) → `--out` 잠금 게시; F07 reader 절 구현 | F08 run_id 는 공개 열 — 복사한 producer 는 못 가린다 (위협 모델 밖; 소유 증명은 주장한 적 없음) |
 | 파생 보고서·공정성 | 10 → 8 (+부분 2) | DF-01 §3-4 "두 독립 방법이 수렴" 은 힌트 격자가 제약 최적화의 끝점을 격자점으로 포함한 결과 → 정정; DF-02 HANDOFF·INTRO 의 철회 문장 잔존 | 공정성: seed 0 하나·1e-9 문턱은 verdict 에 무관(여유 5.8e5 배), 예산 차이(30 sqp vs 24 L-BFGS-B)는 밝혀져 있고 like-for-like 를 주장하지 않음 |
 | sig-완전성·이식성 | 11 → 8 (+부분 3) | F4 풀셀 워크북 identity 미기록 → `consumed_inputs`·`inputs_sha`; F3 라이브러리 버전 미기록 (scipy 1.11↔1.17 에서 최적점 끝자리) → `env` | F2 루트 차원은 사본으로 검증 불가 (U14 부터 identity 로); F6 autocrlf 사본은 fresh clone |
