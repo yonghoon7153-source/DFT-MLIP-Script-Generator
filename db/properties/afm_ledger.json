@@ -387,8 +387,8 @@
    "margin_A": 2.86
   }
  ],
- "source_qe": "/home/user/Yonghoon-DEM-DFT/db/inputs/sdcp_v2/slab_relax/relax.in",
- "source_slab": "/home/user/Yonghoon-DEM-DFT/db/structures/linio2_104_sym_1x4L4_relaxed.vasp",
+ "source_qe": "/data/work/repo/db/inputs/sdcp_v2/slab_relax/relax.in",
+ "source_slab": "/data/work/repo/db/structures/linio2_104_sym_1x4L4_relaxed.vasp",
  "qe_sublattice_order": [
   "Ni2",
   "Ni1",
