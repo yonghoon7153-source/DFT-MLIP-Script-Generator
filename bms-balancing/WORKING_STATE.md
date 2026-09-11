@@ -44,14 +44,37 @@ V6-09 (음수 rmse 도달 불가), R5-01 의 MATLAB sprintf 전제 (사용자 �
 요구서 초안 — 문헌 쪽 입력은 `docs/LIT_19_20_FOR_NEW_MODEL.md` (논문 19·20 의 관측·구분 시험 후보). 아래 명령은 실행 기록.
 
 ```bash
+# ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 122 passed 기대
-# U13: 새 감사 줄(식별자·eps_rel·동치 flag 포함) — GITT·Li 16 build + Kunz·step_005C 조합. `# scale_audit` 줄만 붙여 주면 된다
-for st in pristine 100 200 300_0009; do python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done
-for c in c168 c171 pouch_fixedhc; do for st in pristine 100 200 300_0009; do BMS_DATA_ROOT=~/dd/cells/$c python3 -m bms_balancing.verify eval --state $st --si-source Li | grep scale_audit; done; done
-python3 -m bms_balancing.verify eval --state pristine --si-source Kunz | grep scale_audit
-python3 -m bms_balancing.verify eval --state pristine --source step_005C --si-source Li | grep scale_audit
+python3 -m pytest tests/ -q                       # 123 passed 기대 (원자료 불필요)
+
+# ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
+STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh
+python3 scripts/check_u14.py --new out_u14_smoke --schema-only     # 0 이어야 한다
+# ↑ 0 이 아니면 여기서 멈추고 출력을 그대로 붙여 줘. 2 = 스키마 누락(옛 코드로 돈 것).
+rm -rf out_u14_smoke
+
+# ── 2. 본 실행 — 정본을 덮지 않고 **다른 디렉터리로** 받는다 (몇 시간) ────────────────────────────
+#    정본(out/)을 먼저 덮으면 "숫자가 움직였나" 를 댈 대상이 사라진다. 네 상태 × 세 명령 = 12 회.
+OUT=out_u14 STATES='100 200 300_0009 300_0147' ./scripts/run_states.sh 2>&1 | tee out_u14.log
+
+# ── 3. 대조 — 새 스키마 + 정본과 같은 숫자인가 ───────────────────────────────────────────────────
+python3 scripts/check_u14.py --new out_u14        # 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락
+#    ★ 1 이면 그것이 발견이다. 계산 경로는 안 고쳤으니 같아야 한다. 출력과 함께 이것도 붙여 줘:
+python3 -c "import json;print(json.load(open('out_u14/matrix_100.csv.meta.json'))['env'])"
+
+# ── 4. 0 이었을 때만 정본 교체 ───────────────────────────────────────────────────────────────────
+for f in out_u14/*; do mv "$f" out/; done && rmdir out_u14
+python3 scripts/ne_shape.py                       # 소비 입력이 바뀌었으니 (d) 표도 다시 (초 단위)
+python3 scripts/compare_states.py out             # §1-10 표 재생 — '묶음 불일치' 경고가 없어야 한다
+git add out/ && git commit -m "U14 — 새 게시·서명 스키마로 네 상태 재실행 (숫자 동일)" && git push
+
+# ── 5. MATLAB 한 줄씩 (R5-01 전제 — 우리 트리에 MATLAB 이 없어 못 재는 것) ────────────────────────
+#    MATLAB 에서 실행하고 출력 두 줄을 그대로 붙여 줘:
+#      sprintf('%.2f', 0.125)      % Python 은 '0.12' (banker's rounding)
+#      sprintf('%.17g', 1e-5)      % 지수 자릿수 e-05 인가 e-005 인가
+#    갈리면 비교기가 **거짓 invalid** 를 낼 수 있다 (fail-closed 라 조용히 통과하지는 않는다).
 ```
 줄마다 `equiv=1` 이면 그 build 에서 scale 이 원본 설명식과 상대 1e-9 안에서 같다 (유한 · 예외 없음 · eps_rel ≤ 1e-9).
 `degeneracy`/`profile`/`matrix` 를 다시 돌릴 때는 `run_states.sh` 가 이제 id 를 **필드로** 확인하고 meta 를 잠금

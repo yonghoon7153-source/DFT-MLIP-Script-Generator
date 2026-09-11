@@ -626,3 +626,78 @@ def test_i6p_10_atomic_writers_keep_the_computed_rows_when_the_lock_fails(tmp_pa
         verify.atomic_write_json(tmp_path / "d.json", {"x": 1})
     jparts = list(tmp_path.glob("d.json.*.part"))
     assert jparts and jparts[0].name in str(ej.value), (jparts, str(ej.value))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# U14 점검 스크립트 — 재실행이 새 스키마를 담았고 정본과 같은 숫자인가 (`scripts/check_u14.py`)
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+def _u14_dirs(tmp_path, *, schema=True, bump=None):
+    """정본(old)과 재실행(new) 한 쌍. `schema=False` 면 new 가 옛 스키마, `bump` 면 그만큼 숫자를 옮긴다."""
+    old, new = tmp_path / "out", tmp_path / "out_u14"
+    old.mkdir(parents=True); new.mkdir(parents=True)
+    for d, is_new in ((old, False), (new, True)):
+        j = {"state": "100", "n_accepted": 5, "best_obj": 1.5, "best_p": [1.0, 2.0],
+             "LLI_percent": {"min": 1.0, "max": 2.0 + (bump or 0.0) * is_new, "is_lower_bound": True}}
+        if is_new and schema:
+            j |= {"run_id": "rid", "n_grid": 21, "n_samples": 400, "inputs_sha": "abc123abc123",
+                  "env": {"numpy": "2.0"}, "consumed_inputs": {"full_cell": {"sha256": "x"}}}
+        (d / "degeneracy_100_Li.json").write_text(json.dumps(j), encoding="utf-8")
+        cols = ["half_cell", "si", "w_dqdv", "obj", "LLI_pct"]
+        row = ["GITT", "Li", "0", "1.5", str(3.0 + (bump or 0.0) * is_new)]
+        if is_new and schema:
+            cols += ["run_id", "inputs_sha", "scale_seed", "n_scale_samples"]; row += ["rid", "abc123abc123", "0", "50"]
+        (d / "matrix_100.csv").write_text(",".join(cols) + "\n" + ",".join(row) + "\n", encoding="utf-8")
+        if is_new and schema:
+            (d / "degeneracy_100_Li.json.meta.json").write_text(json.dumps(
+                {k: "v" for k in ("run_id", "sha256", "artifact", "env", "started_utc", "git_commit_at_start")}
+                | {"git_state_changed_during_run": False}), encoding="utf-8")
+            (d / "matrix_100.csv.meta.json").write_text((d / "degeneracy_100_Li.json.meta.json").read_text(encoding="utf-8"), encoding="utf-8")
+    return old, new
+
+
+def _u14_run(old, new, *extra):
+    return subprocess.run([sys.executable, str(ROOT / "scripts/check_u14.py"), "--new", str(new), "--old", str(old), *extra],
+                          capture_output=True, text=True, timeout=60)
+
+
+def test_i6u_14_check_script_separates_schema_from_moved_numbers(tmp_path):
+    """[R6 내부 후속] R6 는 게시·서명만 고치고 계산 경로는 안 건드렸다 — 그러니 U14 재실행의 숫자는 정본과 같아야
+    하고, 다르면 그것이 발견이다 (먼저 볼 축은 F3 의 라이브러리 버전). 손으로 15 개 산출을 대는 것은 못 믿으므로
+    `check_u14.py` 가 (a) 새 스키마 누락과 (b) 움직인 숫자를 **따로** 말하고 종료 코드로 가른다: 0 같음 · 1 숫자가
+    다름 · 2 스키마 누락."""
+    old, new = _u14_dirs(tmp_path)
+    ok = _u14_run(old, new)
+    assert ok.returncode == 0 and "전부 갖췄다" in ok.stdout and "전부 같다" in ok.stdout, (ok.returncode, ok.stdout)
+
+    old2, new2 = _u14_dirs(tmp_path / "b", bump=1e-9)          # 스키마는 맞고 숫자만 1e-9 움직였다
+    moved = _u14_run(old2, new2)
+    assert moved.returncode == 1 and "다른 숫자" in moved.stdout, (moved.returncode, moved.stdout)
+    assert "LLI_percent.max" in moved.stdout and "matrix_100.csv" in moved.stdout, moved.stdout
+    assert "env" in moved.stdout and "scipy" in moved.stdout, "숫자가 움직였을 때 먼저 볼 축(F3)을 말해야 한다"
+
+    old3, new3 = _u14_dirs(tmp_path / "c", schema=False)        # 옛 코드로 돈 재실행
+    stale = _u14_run(old3, new3)
+    assert stale.returncode == 2 and "새 스키마 누락" in stale.stdout, (stale.returncode, stale.stdout)
+    for k in ("inputs_sha", "n_samples", "env", "meta.json 없음"):
+        assert k in stale.stdout, (k, stale.stdout)
+    assert _u14_run(old3, new3, "--schema-only").returncode == 2      # 숫자 대조 없이도 스키마는 본다
+    assert _u14_run(old, tmp_path / "nope").returncode == 2           # 없는 디렉터리
+
+    # 필드를 **하나씩** 빼서 그 축을 정말 보는지 (전부 빠진 fixture 는 다른 필드가 가려 준다 — 변이 시험에서 샜다)
+    for i, (fname, drop) in enumerate([("degeneracy_100_Li.json", "inputs_sha"), ("degeneracy_100_Li.json", "n_samples"),
+                                       ("degeneracy_100_Li.json", "env"), ("matrix_100.csv", "scale_seed"),
+                                       ("degeneracy_100_Li.json.meta.json", "git_commit_at_start")]):
+        o, n = _u14_dirs(tmp_path / f"d{i}")
+        f = n / fname
+        if fname.endswith(".csv"):
+            hdr, row = f.read_text(encoding="utf-8").splitlines()
+            k = hdr.split(",").index(drop)
+            cols, vals = hdr.split(","), row.split(",")
+            del cols[k]; del vals[k]
+            f.write_text(",".join(cols) + "\n" + ",".join(vals) + "\n", encoding="utf-8")
+        else:
+            j = json.loads(f.read_text(encoding="utf-8")); j.pop(drop)
+            f.write_text(json.dumps(j), encoding="utf-8")
+        r = _u14_run(o, n)
+        assert r.returncode == 2 and drop in r.stdout, (fname, drop, r.returncode, r.stdout)
