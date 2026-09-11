@@ -1460,6 +1460,55 @@
     "decision_digest": "sha256:edc4194b8cdb5789b8d60dfa1b8634bf8811852e5e636ec7371c3c3b755282b3",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-11-lpscl-li2s-interphase",
+   "schema_version": 2,
+   "kind": "estimand",
+   "scope": "lpscl_li2s.ballmill_composite.interphase_conductivity",
+   "slot": "interphase_formation_and_transport",
+   "applies_to": {
+    "systems": [
+     "lpscl",
+     "li2s"
+    ],
+    "tasks": [
+     "reaction_energy",
+     "melt_quench",
+     "md_diffusion"
+    ],
+    "methods": [
+     "uma-s-1p1-omat",
+     "qe-7.4.1-pbe-uspp"
+    ],
+    "use_cases": [
+     "internal"
+    ]
+   },
+   "title": "볼밀 LPSCl@Li₂S 계면상 — Li-S 전지용 (보고량 카드 · 결과 보기 전 봉인)",
+   "statement": "3층 설계. **0층(지금)**: ΔE_rxn(x) = [E(생성물) − E((1−x)Li₆PS₅Cl + x·Li₂S)]/N_atoms 를 `convex_hull_ehull.py --mode uma`(UMA 내부 일관 hull)로 낸다. 문턱 ±25 meV/atom — A: ≤−25 새 상 생성 · B: |·|<25 무차별 · C: ≥+25 반응 안 함. 1층: melt-quench 비정질 계면상(NPT, 담금질 시드 N≥5, 중앙값+산포). 2층: Ea(계면상) vs Ea(bulk LPSCl) vs Ea(bulk Li₂S), 전부 UMA-s-1p1 · Langevin NVT · MSD 창 2–50 ps · 600/800/1000 K. ⛔ 절대 σ 인용 금지.",
+   "rationale": "Li₆PS₅Cl 은 원래 Li₂S + P₂S₅ + LiCl 볼밀 산물이라 Li₂S 와 같은 삼원계 안에 있다 — 새 상이 있다면 이 계 안이다. Li-S 전지에서 Li₂S 활물질은 그 자체로 이온전도가 거의 없어, 계면 전도상 여부가 복합체 수송을 가른다.",
+   "decision_state": "proposed",
+   "record_kind": "prospective",
+   "results_seen": false,
+   "card": "db/properties/lpscl_li2s_interphase_prereg_2026_09_11.json",
+   "evidence": [
+    "tools/doping/convex_hull_ehull.py",
+    "tools/doping/dft_decomp_check.py",
+    "db/properties/b2o3_uma_vs_dft_force_prereg_2026_09_08.json"
+   ],
+   "method_ref": "0층 UMA 단일점 → PhaseDiagram(내부 일관) → ΔE_rxn · 분해 생성물 목록",
+   "reopen_criteria": "0층이 C(반응 안 함)로 나와도 **비정질 계면층 가설은 기각되지 않는다** — 볼밀은 비평형이고 0층은 결정 평형만 답한다. 반대로 0층 음성을 '그래도 뭔가 있을 것' 으로 무한정 미루지도 않는다: 1층은 카드 §4-1층 관문을 통과해야 시작한다.",
+   "enforcement": "⛔ 던지기 전 두 칸을 채운다 — §1-b 의 `실제_조성_농도`(볼밀 몰비 x)와 `host`(modelc vs LPSCl1.6 중 어느 LPSCl 인가). 비면 보고량이 정의되지 않는다. 그리고 0층 대조 잡(UMA hull 이 Li₆PS₅Cl·Li₂S·LiCl·Li₃PS₄ 의 안정성을 재현하는가)을 **우리 조성을 보기 전에** 통과해야 한다.",
+   "proposed_by": "claude-session-2026-09-11",
+   "status": "proposed",
+   "status_history": [
+    {
+     "at": "2026-09-11",
+     "state": "proposed",
+     "note": "1저자 ratify 전에는 던지지 않는다. ⏳ §1-b 두 칸(조성 x · host)이 비어 있고, 채우는 것이 비준의 일부다."
+    }
+   ]
   }
  ]
 }
