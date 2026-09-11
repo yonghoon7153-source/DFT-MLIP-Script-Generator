@@ -633,10 +633,20 @@ SI Table S3 제목은 세 지표를 모두 *"Normalized"* 라고 적는다 ⇒ *
 
 ## 12. 미해결 / 다음에 할 것
 
-1. ⬜ **ref [28] Galvez-Aranda 2024 (*Adv. Energy Mater.* 2400376)** — **압연 단계의 DL 자매편**.
-   본문이 *"contact surface area, porosity, diffusivity, elastic recovery(springback) 를 훨씬 낮은
-   비용으로 예측"* 한다고 인용한다 ⇒ **우리 축(접촉면적·porosity·τ)과 직접 겹치는 것은 이 논문이
-   아니라 그쪽**이다.  → `_INDEX_proposals.md` 에 digest 후보로 등재 권장.
+1. ✅ **ref [28] Galvez-Aranda 2024 (*Adv. Energy Mater.* 14, 2400376) — DIGEST 완료 2026-09-11**
+   → 정본 카드 **`galvezaranda2024_time_dependent_dl_calendering_microstructure`**.
+   **압연 단계의 DL 자매편**이 맞았고, 우리 축(접촉면적·porosity·τ·springback)과 직접 겹친다.
+   ★★ **그러나 이 카드의 위 인용문은 전수 검증 결과 "방향은 맞고 정밀도는 틀렸다"** (그쪽 §3-A):
+   DL 이 예측하는 것은 **한 가지 — 다음 프레임의 복셀 격자**이고 네 양은 전부 그 후처리다.
+   **porosity ✅** (n=11 평균 3.45 %) · **접촉면적 ⚠** (평균 8.99/10.54/13.76 %, 최대 **16.76 %** =
+   네 양 중 **최악**이고 우리 Tabor/Stage-E A(δ)와 **같은 양이 아니다**) ·
+   **확산도 ⚠⚠ DL 이 예측하는 게 아니라** 예측격자 위에서 **GeoDict DiffuDict FV 솔브를 새로 돌려**
+   얻는다 (비용 미보고 · DEM 경로와 동일 ⇒ *"훨씬 낮은 비용"* 이 **이 양에는 불성립**) ·
+   **springback ⛔ 숫자 0건** (우리가 그림에서 뽑았다: CD 25/35/45 % → **4.8/7.6/10.1 %p**).
+   ⇒ **이 카드(§12-1)의 서술을 그대로 인용하지 말고 그쪽 §3-A 표를 인용할 것.**
+   ★ 대조되는 긍정 평가 하나: **가속 배수를 그쪽은 썼고(188×/step) 손익분기도 정직하다**
+   (`derived(ours)` 583 step = 3.4 전극-스윕 = 학습셋 자신 크기) — **이 논문의 1.1× 보다 훨씬 낫다.**
+   ⚠ 다만 그쪽은 **추론 프로토콜을 공개하지 않아 teacher-forcing 의혹**이 남는다 (그쪽 §10-⑤).
 2. ⬜ **Fréchet-RDF 게이트 구현** (§8-①) — `scripts/` 에 상별 RDF + FD 계산기.  의존성 없이 numpy 로 가능.
 3. ⬜ 우리 시간-surrogate 는 **플래튼 정지 프레임 트랙(SR track 2)** 이 닫힌 뒤에만 착수 (§7-3-1).
 

@@ -2157,10 +2157,55 @@
   - 이 논문은 상류 구멍 **위에 또 한 층(surrogate)** 을 얹은 것이고, 상류 물리 자체는 전부
     ref [36] `alabdali2023_cgmd_wet_manufacturing_ssb_cathode` / ref [35] `ngandjong2021_dem_calendering_digital_twin`
     소유다.  ⇒ 우리가 그 축으로 갈 이유가 생긴다면 **진입점은 [Alabdali23] 이지 이 논문이 아니다.**
-  - ⬜ **미digest 후보**: ref [28] Galvez-Aranda 2024 (*Adv. Energy Mater.* 2400376) —
-    **압연 단계의 DL 자매편**으로, 본문이 *"접촉면적 · porosity · 확산도 · 탄성회복(springback)"* 을
-    훨씬 낮은 비용으로 예측한다고 인용한다.  ⇒ **우리 축(접촉면적·porosity·τ·springback)과 직접
-    겹치는 것은 [Vijay25] 가 아니라 그쪽**이다.  (`hong2026_cbd_viscoelasticity_springback` 와도 인접.)
+  - ✅ **digest 완료 2026-09-11**: ref [28] Galvez-Aranda 2024 (*Adv. Energy Mater.* 14, 2400376)
+    → `papers/galvezaranda2024_time_dependent_dl_calendering_microstructure.md`.  지목은 옳았다 —
+    **그쪽은 압연(압밀) 단계 자체를 다루므로 우리 STEP1/STEP2 와 같은 칸**이다.  아래 **F-DL4** 로 분리 등재.
+
+- **★★ F-DL4 · 압밀의 *시간축* 을 배우는 surrogate 가 우리에게 없다 — [Galvez24] 가 그 자리를 점유,
+  단 우리 쪽 선결조건이 먼저다** (2026-09-11 신설,
+  `papers/galvezaranda2024_time_dependent_dl_calendering_microstructure.md`)
+  - **문헌이 하는 것**: 압연 DEM 궤적(35 런·855 프레임)을 0.4 µm 복셀 76×76×125 로 바꾸고
+    **직전 3 프레임 → 다음 프레임**을 1D-CNN 으로 배워 **압연 전 구간 + spring-back** 을 낸다.
+    **15 s/step vs DEM ≈47 min/step = 188×**, 손익분기 `derived(ours)` **583 step = 3.4 전극-스윕**.
+  - ★★ **[Vijay25] 인용문 검증 결과 (이 축의 핵심)**: *"접촉면적·porosity·확산도·springback 을 훨씬 싸게
+    예측"* 은 **방향만 맞다**.  DL 출력은 **복셀 격자 하나**뿐이고 — **porosity ✅ 3.45 %** ·
+    **접촉면적 ⚠ 최대 16.76 %(최악)** · **확산도 ⚠⚠ GeoDict FV 솔브를 따로 돌려야 함(비용 미보고)** ·
+    **springback ⛔ 숫자 0건**.
+  - ★★ **우리에게 가장 값진 구조적 결과 = 정확도의 *이원성*** (Table S1 산술로 복원):
+    flatten 512 → **dense 150** → dense 722,000 ⇒ **3D 미세구조 전체가 150 실수에서 복호(4,813:1)**.
+    그 결과 **벌크(porosity·τ) 3–5 % vs 계면(상-경계 접촉면적) 10–17 %**.
+    ⇒ ⚠⚠ **우리가 재는 양(Tabor/Stage-E 접촉면적 · coverage · Holm 협착)은 전부 계면 쪽**이므로
+    **같은 아키텍처를 우리 축에 쓰면 가장 크게 틀리는 자리에 정확히 맞는다.**
+  - ★ **우리에게 없는 축 하나를 정량화해 준다 — springback** (`derived(ours)`, Fig 5b/6a/6c 디지타이즈):
+    **CD 25/35/45 % → 4.8 / 7.6 / 10.1 %p**, 압축두께 대비 회복 **6.3 → 11.5 → 17.7 %** = **단조 증가**.
+    ⚠ 액체계 LIB·CBD 점탄성 지배(`hong2026_cbd_viscoelasticity_springback`) ⇒ **값 전이 금지, 부호·곡률만.**
+    우리 `--protocol hold` 는 정지 후 고정이라 이 축을 **원리적으로 못 낸다** → `--protocol release` 팔 필요.
+  - ⚠⚠ **우리 쪽 선결조건 (이것이 F-DL4 를 지금 못 여는 이유)**: 우리 MPM scaffold 의 **정착 porosity 가
+    플래튼 *정지 시점*의 함수**다 (`--sub` 40/80/160 → 14.38 / 12.76 / **11.08 %**, 미수렴;
+    sub=80 궤적 frame 15 가 정확히 앵커값 15.93 %).  `docs/mpm_platen_kinematic_stop_defect.md` rev6 §31 ·
+    `docs/reviews/fam_platen_prereg_20260812.md` §11-1 (CL-04, 준정적 ε_sphere **1.13 %** = 14.5 %p 과압축).
+    ⇒ ★ **그 축이 닫히기 전에 시간-surrogate 를 학습시키면 물리가 아니라 "우리 플래튼이 몇 번째 프레임에서
+    멈추나" 를 배운다 — 그리고 [Galvez24] 처럼 프레임별 지표로 검증하면 그 인공물이 완벽한 R² 로 재현되어
+    보이기까지 한다.**  (SR 트랙 2 종결 후 착수.)
+  - ⚠ **문헌 쪽 선결조건도 있다 — 추론 프로토콜 미공개(teacher-forcing 의혹)**: Fig 5c 의 R² 가 92.2 로
+    떨어졌다가 **프레임 9 에 정확히 100 으로 복귀**하고 Fig 6b 도 87.2 → 99.5 로 복귀한다.
+    **자기회귀 rollout 은 오차가 누적되어 이 모양을 못 만든다.**  teacher-forced 면 DEM 을 어차피 돌려야
+    하므로 **188× 는 surrogate 가속이 아니다.**  ⇒ 우리가 따라 할 때는 **rollout / teacher-forcing 을
+    명시하고 둘 다 보고**한다.
+  - ★ **trivial baseline 규율의 두 번째 실측 사례** (`derived(ours)`, micro IV 완전 hold-out n=7):
+    **porosity 는 "다른 전극들의 같은 CD 평균" 이라는 3 초짜리 기준선이 DL 을 이긴다 (4.01 vs 4.18 %)** —
+    DL 이 그 전극의 실제 프레임을 lag 로 **보고도** 진다.  ⚠ **반대 방향도 기록**: 확산도·τ 는 DL 압승
+    (7.17 vs 30.32 % · 5.85 vs 13.79 %) — CD 20→30 % 의 퍼콜레이션성 붕괴는 **미세구조를 봐야만** 맞힌다.
+    ⇒ **양을 명시하지 않고 "DL 이 잘한다/못한다" 를 말하면 둘 다 틀린다.**
+  - ★ **복셀 규약 지뢰의 외부 사례** (우리가 이미 두 번 밟은 것): 그들의 **복셀 라벨 porosity 가 자기
+    Table S2 와 프레임 0 에서 8.5 %p, 완화 상태에서 16.4 %p(7배) 어긋나고**, **AM 복셀이 −22.3 % 사라졌다
+    되돌아온다**(= ε_union 서명).  우리 `MPM관례 − ε_sphere = 1.251 %p` (CLAUDE.md 2026-08-12) ·
+    STEP3 SDCP **표현부피 18.1배 변동**(CL-25)의 **같은 병, 더 큰 크기**.
+    ⇒ ⬜ **매니페스트 키 `porosity_convention: {sphere_sum|union|voxel_label}` 강제** 제안.
+  - ⛔ **전이 금지**: 액체계 LIB(porosity 19–31 % = GOOD) · **압력 축 0건**(CD = 두께감소율 % ⇒ Heckel·P_y
+    와 원리적으로 안 겹침; 압력이 필요하면 진입점은 `ngandjong2021` 의 0–160 MPa) · **DEM 물성 0건**
+    (ref [36] Xu 2023 JPS 554, 232294 로 미룸) · **실험 신규 0건**(검증 전체가 DEM 대비) ·
+    σ 삼중항 0 · 소성 형상변화 0 · seed/오차막대 0 · 데이터·코드 비공개.
 
 - **★★★ F-P3 · PTFE 피브릴의 *계층(두 자릿수 분포)* 이 우리에게 없다 — [Matthews24] 가 그 구멍을 정량화**
   (2026-09-04 신설, `papers/matthews2024_ptfe_nanofibril_network.md`;
