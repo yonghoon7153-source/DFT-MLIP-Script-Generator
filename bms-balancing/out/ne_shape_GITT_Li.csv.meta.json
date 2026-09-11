@@ -9,7 +9,7 @@
   ],
   "gamma_from": "out/matrix_<state>.csv 의 gamma_Si(대상)·ref_gamma_Si(기준)",
   "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
-  "git_commit": "a985f54ae79010074e7ac035cf054bcac3057a7b",
+  "git_commit": "d383375ef6714b81301ff6faf31e9a4e663de491",
   "git_dirty": true,
-  "created_utc": "2026-09-11T05:41:48.751101+00:00"
+  "created_utc": "2026-09-11T06:11:53.843446+00:00"
 }
