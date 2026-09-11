@@ -346,10 +346,29 @@ def parse_pw_out(text):
     import re as _re
     conv = "convergence has been achieved" in text
     done = "JOB DONE" in text
+    # ⛔⛔ 2026-09-11 (회신 BJ2 P0-3b) — 옛 판은 에너지를 `findall[-1]`(**마지막**), 힘을
+    #   `search`(**첫 번째**) 로 잡았다. 완결 SCF 두 개가 한 파일에 이어 붙으면
+    #   **B 의 에너지와 A 의 힘이 한 레코드로** 나오고 converged·job_done 은 둘 다 True 였다.
+    #   (BJ2 재현: A −100 Ry/F 0.01 + B −200 Ry/F 0.09 → E=B, F=A, 플래그 전부 참.)
+    #   회수물이 실제로 오염됐다는 증거는 없다 — 결함은 **탐지 장치가 없다**는 것이다.
+    #   ⇒ 실행 경계를 세어 **둘 이상이면 멈춘다.** 조용히 섞지 않는다.
+    _starts = len(_re.findall(r"Program PWSCF .*? starts on", text)) or \
+              len(_re.findall(r"^\s*Program PWSCF", text, _re.M))
+    _dones = text.count("JOB DONE")
+    if _starts > 1 or _dones > 1:
+        raise ValueError(
+            f"한 파일에 pw.x 실행이 여러 번 들어 있다 (시작 {_starts}회 · JOB DONE {_dones}회) — "
+            "에너지와 힘이 서로 다른 실행에서 올 수 있어 **읽지 않는다**. "
+            "이어붙인 출력을 실행별로 가르거나 다시 돌려라 (회신 BJ2 P0-3b)")
     m = _re.findall(r"^!\s+total energy\s+=\s+([-\d.]+)\s+Ry", text, _re.M)
     if not m:
         raise ValueError("총에너지 줄(`!    total energy`)이 없다 — scf 가 안 끝났다")
     energy = float(m[-1]) * RY_TO_EV
+    _fbs = _re.findall(r"Forces acting on atoms.*?\n(.*?)\n\s*\n", text, _re.S)
+    if len(_fbs) > 1:
+        raise ValueError(
+            f"힘 블록이 {len(_fbs)}개다 — 한 SCF 의 출력이 아니다. 에너지(마지막)와 힘(첫째)이 "
+            "다른 곳에서 올 수 있어 읽지 않는다 (회신 BJ2 P0-3b)")
     fb = _re.search(r"Forces acting on atoms.*?\n(.*?)\n\s*\n", text, _re.S)
     if not fb:
         raise ValueError("힘 블록(`Forces acting on atoms`)이 없다 — tprnfor 를 확인하라")
@@ -545,6 +564,34 @@ def _selftest():
             chk(False, "\u26d4음성: 힘 없는 출력을 통과시키면 안 된다")
         except ValueError as _x:
             chk("힘 블록" in str(_x), "\u26d4음성: 힘 블록 없는 출력 거부 (tprnfor 안내)")
+
+        # ── ⛔음성: 이어붙인 두 실행 (회신 BJ2 P0-3b 재현 fixture) ──────────
+        #   A: −100 Ry · F 0.01   B: −200 Ry · F 0.09
+        #   옛 파서는 **E=B · F=A** 를 한 레코드로 내고 플래그가 둘 다 True 였다.
+        def _run(e_ry, f_ry):
+            return ("     Program PWSCF v.7.4.1 starts on 1Jan2026 at 0: 0: 0\n"
+                    f"!    total energy              =   {e_ry:.8f} Ry\n"
+                    "     convergence has been achieved in  9 iterations\n"
+                    "     Forces acting on atoms (cartesian axes, Ry/au):\n\n"
+                    f"     atom    1 type  1   force =     {f_ry:.8f}    0.00000000    0.00000000\n"
+                    f"     atom    2 type  1   force =    -{f_ry:.8f}    0.00000000    0.00000000\n"
+                    "\n     JOB DONE.\n")
+        _A, _B = _run(-100.0, 0.01), _run(-200.0, 0.09)
+        _eA, _FA, _ = parse_pw_out(_A); _eB, _FB, _ = parse_pw_out(_B)
+        chk(abs(_eA - (-100.0 * RY_TO_EV)) < 1e-9 and abs(_eB - (-200.0 * RY_TO_EV)) < 1e-9,
+            "단독 실행 둘은 각자 제 에너지를 준다 (fixture 가 유효하다)")
+        try:
+            parse_pw_out(_A + _B)
+            chk(False, "\u26d4음성: 이어붙인 두 실행을 한 레코드로 내면 안 된다 (E=B·F=A 혼합)")
+        except ValueError as _x:
+            chk("여러 번" in str(_x) or "힘 블록이" in str(_x),
+                "\u26d4음성: 실행이 둘이면 거부 — BJ2 P0-3b (탐지 장치 신설)")
+        try:
+            # JOB DONE 이 없는 앞 실행 + 완결 실행 → 힘 블록 2개로도 잡힌다
+            parse_pw_out(_A.replace("JOB DONE.", "") + _B)
+            chk(False, "\u26d4음성: 앞 실행이 미완이어도 섞으면 안 된다")
+        except ValueError as _x:
+            chk(True, "\u26d4음성: 앞 실행이 미완(JOB DONE 없음)이어도 거부")
         _pin = (d / "out" / "lbl_s2_t0ps" / "scf.in").read_text()
         _c, _s2, _cart = parse_pw_in_positions(_pin)
         import numpy as _np2
