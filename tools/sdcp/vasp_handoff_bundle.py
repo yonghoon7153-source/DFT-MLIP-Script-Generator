@@ -2241,7 +2241,10 @@ for jp in sorted(glob.glob("*/*/job.json")):
 
 # ⛔ 회신 AP #9 — 분류가 조용히 0개/일부만 내고 성공하는 것을 막는다.
 n_stage=$(grep -c . _stage_jobs.txt || true)
-n_total=$(ls -d */*/ 2>/dev/null | wc -l)
+# ⛔ 2026-09-11 — census 와 같은 버그가 여기에도 있었다: `ls -d */*/` 가 `_hostpool/{free,busy}` 를
+#   세어 "잡 폴더 18 ≠ 계획 16" 으로 죽는다. census 를 고쳐도 **이 줄에서 다시 죽는다.**
+#   `_` 최상위 폴더는 러너 작업공간이다 — census.py 의 규칙과 **같은 규칙**을 쓴다.
+n_total=$(ls -d */*/ 2>/dev/null | grep -v "^_" | wc -l)
 n_expect=$(python3 -c '
 import json,sys
 m=json.load(open("MANIFEST.json"))
@@ -21729,8 +21732,15 @@ def _runner_e2e(bundle: Path, chk) -> bool:
     chk("✓ census" in _oH and "계획 밖" not in _oH,
         "⭕양성 2026-09-11: `_hostpool/{free,busy}` 가 있어도 census 가 통과한다 "
         "(v40 을 멈춘 바로 그 상황) · rc=%s" % _rcH)
-    if "✓ census" not in _oH:
-        print("     [진단] rc=%s\n%s" % (_rcH, _oH[-900:]))
+    # ⛔ census 만 보면 부족하다 — 같은 버그가 러너의 n_total(`ls -d */*/`)에도 있었고,
+    #   census 를 통과한 뒤 "묶음이 온전하지 않다" 로 죽는다. 그 관문까지 지나야 양성이다.
+    chk("== 단계" in _oH and "묶음이 온전하지 않다" not in _oH,
+        "⭕양성 2026-09-11: `_hostpool` 이 있어도 러너의 **n_total 관문**(잡 폴더 ≠ 계획)을 지난다 "
+        "— census 뒤에 숨어 있던 두 번째 같은 버그 · rc=%s" % _rcH)
+    if "✓ census" not in _oH or "== 단계" not in _oH or "묶음이 온전하지 않다" in _oH:
+        print("     [진단] rc=%s\n%s" % (_rcH, _oH[-1200:]))
+    chk('grep -v "^_" | wc -l' in RUN_STAGED,
+        "소스잠금: run_staged 의 n_total 이 `_` 최상위 폴더를 census 와 같은 규칙으로 뺀다")
 
     _bog = _copy("plan_external_job")
     (_bog / "zzz_notplanned" / "job1").mkdir(parents=True, exist_ok=True)
