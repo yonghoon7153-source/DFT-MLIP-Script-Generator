@@ -211,10 +211,13 @@ def dinc_plateau(t, y, windows=DINC_WINDOWS, tol=DINC_PLATEAU_TOL):
 
 
 def hops_per_ion_msd(y, d_hop=D_HOP_A):
-    """MSD 최댓값에서 읽는 **이온당 홉 수 상한**. `MSD_max / d²`.
+    """MSD 최댓값에서 읽는 **이온당 유효(독립) 홉 수**. `MSD_max / d²` = f·n (f = 상관계수 ≤ 1).
 
-    ⛔ 상한이다 — 되돌아오는 홉(correlated back-hop)을 못 빼므로 실제 독립 홉은 이보다 적다.
-       `tools/ionic/hops_per_ion.py` 의 궤적 기반 계수가 있으면 그쪽이 낫다.
+    ⛔ 2026-09-11 정정 — 옛 판은 이것을 '상한' 이라 불렀는데 방향이 반대다. 되돌아오는 홉은 MSD 를
+       **줄이므로** MSD/d² 는 실제 이벤트 수 n 의 **하한**이고, '통계가 충분한가' 에 맞는 양은 바로 이
+       유효 홉 수다. 실측(LPSOCl 3×3×1 400 ps): 궤적 계수 20–94/이온 vs MSD/d² 15.5–68, f ≈ 0.67–0.75
+       (db/properties/lpsocl_box331_c2b_hops_2026_09_11.json). 실제 이벤트를 세는 것은
+       `tools/ionic/aimd_jump_stats.py` (inter-cage) 다 — C2b 판정은 그쪽 계수로 한다 (개정안 A5).
     """
     return (max(y) / d_hop ** 2) if y else None
 

@@ -27,8 +27,8 @@
   · MD 를 대신하지 못한다 — 게이트(추정기)를 검정할 뿐이다.
   · 진짜 sub-diffusion 을 만들지 못한다 — 귀무는 전부 Fickian+케이지다. 그래서
     "게이트가 잡음을 잰다" 는 말할 수 있어도 "실측 β 낮음 = 잡음" 은 단정 못 한다.
-  · --hop_sweep 의 n_hop 은 MSD/d_hop² 환산(상한 추정)이다 — 되돌아오는 홉을
-    세지 않으므로 실제 이벤트 수보다 낙관적이다 (hops_per_ion.py 와 같은 한계).
+  · --hop_sweep 의 n_hop 은 MSD/d_hop² 환산 = **유효(독립) 홉 수** f·n 이다 — 되돌아오는 홉이
+    MSD 를 줄이므로 실제 이벤트 수보다 **작다** (2026-09-11 정정, hops_per_ion.py 와 같은 정정).
 """
 import argparse
 import json
