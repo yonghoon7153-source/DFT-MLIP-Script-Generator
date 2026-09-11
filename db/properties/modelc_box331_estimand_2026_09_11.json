@@ -3,7 +3,7 @@
  "record_kind": "prereg",
  "sealed_on": "2026-09-11",
  "results_seen": false,
- "status": "proposed",
+ "status": "ratified",
  "제목": "modelc(LPSCl1.6) 3×3×1 400 ps — **lpsocl 과 맞춘 비교축**. 보고량 카드 (계산 전 봉인)",
  "⛔_봉인_선언": "첫 런을 던지기 전에 작성·커밋한다. §2 보고량 · §4 표본 · §5 게이트 · §6 판정문구는 결과를 본 뒤에 바꾸지 않는다. 1저자 ratify 전에는 던지지 않는다.",
  "1_무엇을_원하는가": "`Ea(modelc 3×3×1 cell-conditioned)` 를 **lpsocl 과 같은 세대·같은 셀·같은 게이트**로 내서, 두 계의 Ea 를 **한 표에 올릴 자격**을 만든다.",
@@ -116,6 +116,23 @@
    "state": "filled_pending_ratification",
    "by": "agent",
    "note": "§4 구조 칸을 실측으로 채웠다 — 558원자 Cl72Li243P45S198, lpsocl(558, Cl72Li243O9P45S189)과 원자수·Li수 동일, S9→O9 치환만 다르다. 던진 런 0."
+  },
+  {
+   "at": "2026-09-11",
+   "state": "ratified",
+   "note": "1저자 비준 2026-09-11 — 1저자가 kgy 에서 9런을 직접 기동했다(tmux mc331). ⚠ 정직성 기록: **기동이 형식 비준보다 몇 분 앞섰다.** 다만 카드의 보고량·표본·게이트·판정문구는 기동 전에 커밋돼 있었고(git log), 이 시점의 results_seen 은 false 다 — D 도 Ea 도 계산되지 않았다. 즉 '결과를 보기 전에 고정' 이라는 성질은 온전하다. ② comp1 미개방 · ③ 초격자 실측 기입도 같은 기동으로 승인된 것으로 본다."
   }
- ]
+ ],
+ "ratification": {
+  "state": "ratified",
+  "role": "scientific_owner",
+  "at": "2026-09-11",
+  "by": "1저자",
+  "content_digest": "221cef5bd1237c9dafcd96b3b589306edb4e2b1ed0a9f58b75226e39e64649f9",
+  "actor_id": "yonghoon7153@gmail.com",
+  "timestamp": "2026-09-11T15:55:07Z",
+  "commit": "5970c52da35922adfd839adcc04812d7d4b7e3ae",
+  "⛔_무엇에_대한_비준인가": "이 문서에서 `ratification` 을 뺀 내용의 sha256 이다. 한 글자라도 바뀌면 지문이 달라지고 게이트가 재승인을 요구한다 — 비준을 받아 놓고 내용을 고치는 경로를 닫는다.",
+  "⚠_base_commit_이_아니다": "`commit` 은 기록일 뿐 앵커가 아니다. 앵커는 위 digest 다."
+ }
 }

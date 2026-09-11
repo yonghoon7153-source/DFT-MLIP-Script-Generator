@@ -1620,6 +1620,11 @@
      "at": "2026-09-11",
      "state": "active",
      "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "slot 을 'elastic_relaxedion_convergence_threshold' 로 채우며 재봉인 — 내용 변경 없음. slot 이 비면 validate_canonical 이 모든 결정을 같은 'None' 칸으로 몰아 서로 충돌로 본다 (실측 2026-09-11)."
     }
    ],
    "status": "active",
@@ -1628,10 +1633,49 @@
     "role": "scientific_owner",
     "actor_id": "yonghoon7153@gmail.com",
     "timestamp": "2026-09-11T12:56:21Z",
-    "commit": "6cddcb6cb97c9c2ac5d7aff0f7c7dc23c0427efa",
-    "decision_digest": "sha256:2e1d425a45bfcb0c9bb16f88462b2f70242347b77e903c2b9b85d2a98aae0b2c",
+    "commit": "5970c52da35922adfd839adcc04812d7d4b7e3ae",
+    "decision_digest": "sha256:0ba600bc0b035b0cf6b812fcf36c0a8e5a27495be2d02bb6eb719b9c0bfdc93a",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
-   }
+   },
+   "slot": "elastic_relaxedion_convergence_threshold"
+  },
+  {
+   "id": "D-2026-09-11-modelc-box331-estimand",
+   "kind": "estimand",
+   "decision_state": "active",
+   "statement": "modelc(LPSCl1.6) 3×3×1 558원자를 lpsocl 과 **같은 프로토콜**(UMA-s-1p1 omat · Langevin NVT dt 2 fs friction 0.02 · 평형 5 ps · 생산 400 ps · 시드 {2,3,4} · 600/800/1000 K · MTO 창 2–50 ps)로 9런 돌려 `Ea(modelc 3×3×1 cell-conditioned)` 를 낸다. 게이트는 lpsocl C1–C6 를 그대로 승계한다(R1 온도별 2/3 · C2b 궤적 계수 · C3 δEa 0.050 · C5 0.050 · C6 census 전건). 결과는 셋뿐이다 — 값 · HOLD · no_value. 값이 나오면 lpsocl 0.1804 ± 0.0018 과 **같은 표에 올릴 자격**이 생긴다. 값이 안 나오면 비교하지 않는다 — 62원자 gen0(0.197)을 대신 끌어오는 것은 금지다(세대·셀이 둘 다 다르다). comp1 은 이번에 열지 않는다.",
+   "card": "db/properties/modelc_box331_estimand_2026_09_11.json",
+   "supersedes": [],
+   "enforcement": "9런의 구조·온도·시드·창·프로토콜·**실행모드**가 하나라도 다르면 그 묶음을 판정에 쓰지 않는다(카드 §8). 실행모드는 드라이버가 `run_meta.json`·`ensemble_results.json` 의 `uma_inference_mode` 에 기록하므로 기계로 확인한다. 문턱은 결과를 보고 고치지 않는다.",
+   "status_history": [
+    {
+     "at": "2026-09-11",
+     "state": "proposed",
+     "by": "agent",
+     "note": "카드와 함께 등록. 초격자 실측 기입 완료(558원자 · S9→O9)."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "slot 을 'modelc_box331_matched_estimand' 로 채우며 재봉인 — 내용 변경 없음. slot 이 비면 validate_canonical 이 모든 결정을 같은 'None' 칸으로 몰아 서로 충돌로 본다 (실측 2026-09-11)."
+    }
+   ],
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-11T15:55:07Z",
+    "commit": "5970c52da35922adfd839adcc04812d7d4b7e3ae",
+    "decision_digest": "sha256:3883541f4877727937b194eb8492243e9c92119fcd9fa91603522f8aacd5de1a",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   },
+   "slot": "modelc_box331_matched_estimand"
   }
  ]
 }
