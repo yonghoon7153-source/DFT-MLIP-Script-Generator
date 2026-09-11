@@ -1266,7 +1266,7 @@
     ]
    },
    "title": "b2o3 골격 creep — UMA vs DFT 스냅샷 힘 대조 (보고량 카드 · 결과 보기 전 봉인)",
-   "statement": "보고량은 `R = dF_frame(b2o3) / dF_frame(modelc)` 이다. dF_frame = 골격 원자(비-Li)의 |F_UMA − F_DFT| 평균. 기존 궤적(highT_reseed_traj) s2 의 800·1000 K 에서 2–50 ps 창 등간격 5프레임씩, 계 2 × 온도 2 × 5 = 20 점. R ≥ 2.0 → UMA 결함 지지 · R ≤ 1.25 → 실물리 쪽 · 그 사이는 판정하지 않는다. 절대 힘 오차가 아니라 **대조군 대비 비**를 쓰는 이유는 의사포텐셜·기저 계통오차를 상쇄하기 위함이다.",
+   "statement": "보고량은 `R = dF_frame(b2o3) / dF_frame(modelc)` 이다. dF_frame = 골격 원자(비-Li)의 |F_UMA − F_DFT| 평균. 표본은 **700 K · 시드 s2·s3**, 2–50 ps 창 등간격 5프레임씩 (t = 10·20·30·40·50 ps), 계 2 × 시드 2 × 5 = 20 점. DFT 참조는 QE 7.4.1 PBE · ecutwfc 52 / ecutrho 520 · Γ-only · **occupations='smearing' · smearing='gaussian' · degauss 0.01 Ry** · mixing plain/0.2/ndim 8 · conv_thr 1e-8 · scf 만 · 전 점 동일 바이너리. R ≥ 2.0 → UMA 결함 지지 · R ≤ 1.25 → 실물리 쪽 · 그 사이는 판정하지 않는다. 절대 힘 오차가 아니라 **대조군 대비 비**를 쓰는 이유는 의사포텐셜·기저 계통오차 상쇄다.",
    "rationale": "2026-08-25 마감 이후 남은 유일한 갈래 — 'UMA 가 황화물 속 B 를 못 다루는가 vs 진짜 물리인가' 는 non-UMA 참조 없이 못 가른다 (md_run_ledger ★_VERDICT.⚠_CONTRADICTS_OUR_DFT.not_resolved). 검사 ①(결합S/자유S)은 닫혔고 검사 ③(2×2×1)은 유한크기 축만 본다 — 셀을 키워도 포텐셜은 그대로다.",
    "decision_state": "active",
    "record_kind": "prospective",
@@ -1302,17 +1302,28 @@
      "at": "2026-09-08",
      "state": "active",
      "note": "§4 개정판 재비준 (2판). 표본 700 K · 시드 2축 · kgy CPU 빌드 · UMA 힘 양쪽 재계산."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    },
+    {
+     "at": "2026-09-11",
+     "state": "active",
+     "note": "카드 §4 3판 비준. ① occupations fixed → smearing/gaussian (b2o3 700 K 스냅샷의 갭이 닫혀 fixed 가 원리적으로 못 푼다 — 0 K -TS 0.000 vs 700 K -TS -0.00318 Ry matched 대조). ② modelc 대조 잡 신설. ③ 실행 바이너리 요구 정정. §2 보고량·§5 문턱·§6 판정문구 불변.",
+     "⛔_statement_드리프트_정정": "이 결정문의 `statement` 가 **1판 문안(800·1000 K · 온도 2축)** 으로 남아 있었다. 카드는 2026-09-08 2판에서 700 K · 시드 2축으로 바뀌었는데 결정문을 안 고쳐 **3일간 원장과 카드가 달랐다**. 지금 카드 기준으로 맞췄다 — 앞으로 카드 개정 시 결정문 statement 도 같이 본다."
     }
    ],
    "ratification": {
     "state": "ratified",
     "role": "scientific_owner",
     "actor_id": "yonghoon7153@gmail.com",
-    "timestamp": "2026-09-08T12:05:00Z",
-    "commit": "070ccab20320cf138f448515c843859f7075de27",
-    "decision_digest": "sha256:d5602447d3c80768b2e05320142d0b0aaf61a998f14dc6292c9925ae0925a14a",
-    "revision": "2판 (§4 개정)",
-    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+    "timestamp": "2026-09-11T01:12:05Z",
+    "commit": "fe6ca41d67ba3ecac50ab668d137db2714366051",
+    "decision_digest": "sha256:4e968842535e078ec7533a656fc6a3b900096d5596be38c5438cb42437273745",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다.",
+    "⚠_2026_09_11_재계산": "statement 를 카드 3판에 맞춘 뒤 지문을 다시 뽑았다 (이전 sha256:298afc081c91a864). 내용 변경이 먼저, 지문이 나중 — 순서가 뒤집히면 기록된 지문이 최종 내용과 어긋난다."
    }
   },
   {

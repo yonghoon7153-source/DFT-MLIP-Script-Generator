@@ -55,6 +55,21 @@ def decision_digest(d: dict) -> str:
                           .encode("utf-8")).hexdigest()
 
 
+def resolve_doc_field(tgt: dict, prereg_name: str):
+    """결정이 이 사전등록을 가리키는지 확인하고 (필드명, 값) 을 돌려준다. 아니면 None.
+
+    ⚠ 2026-09-11 실측 — decisions schema v2 의 `kind: "estimand"` 항목은 문서를 `card` 로
+      가리킨다(`record` 는 회고 기록 쪽 관례다). 이 도구는 `record` 만 봐서
+      D-2026-09-08-b2o3-uma-vs-dft-force 의 **비준 자체를 막았다**. 둘 다 본다.
+    ⛔ 부분일치가 아니라 **파일명 포함**으로만 인정한다 — 빈 값은 절대 통과시키지 않는다.
+    """
+    for k in ("record", "card"):
+        v = str(tgt.get(k) or "")
+        if v and prereg_name in v:
+            return k, v
+    return None
+
+
 def ratify_doc(doc: dict, today: str, now: str, head: str, note: str) -> dict:
     """문서를 비준 상태로 만든다. **지문은 맨 마지막에** 계산한다.
 
@@ -123,6 +138,17 @@ def _selftest() -> int:
         "재비준본도 자기 지문과 맞는다")
 
     chk(DEC.is_file(), "decisions.json 경로 해석이 맞다 (%s)" % DEC)
+
+    # ── 결정→문서 해석 (2026-09-11 실측 회귀) ─────────────────────────────
+    N = "x_prereg_2026_09_08.json"
+    chk(resolve_doc_field({"record": "db/properties/" + N}, N) == ("record", "db/properties/" + N),
+        "`record` 로 가리키는 결정을 받는다")
+    chk(resolve_doc_field({"card": "db/properties/" + N}, N) == ("card", "db/properties/" + N),
+        "`card` 로 가리키는 결정도 받는다 (estimand kind — 이게 비준을 막고 있었다)")
+    chk(resolve_doc_field({"record": "", "card": ""}, N) is None,
+        "⛔음성: 둘 다 비면 거부한다 (빈 값이 통과하면 아무 문서에나 도장이 찍힌다)")
+    chk(resolve_doc_field({"card": "db/properties/other_prereg.json"}, N) is None,
+        "⛔음성: 다른 문서를 가리키면 거부한다")
     print("selftest %d/%d · %s" % (n[1], n[0], "PASS" if n[1] == n[0] else "FAIL"))
     return 0 if n[1] == n[0] else 1
 
@@ -149,10 +175,15 @@ def main() -> int:
     if tgt is None:
         raise SystemExit("⛔ 결정 id 를 못 찾았다: %s" % a.decision)
     # ⛔ 결정이 이 사전등록을 가리키는지 **확인한다** — 엉뚱한 문서에 도장 찍는 경로를 닫는다.
-    rec = str(tgt.get("record") or "")
-    if pre_p.name not in rec:
-        raise SystemExit("⛔ 결정 %s 의 record 가 이 사전등록이 아니다:\n   record = %s\n   prereg = %s"
-                         % (a.decision, rec, pre_p.name))
+    #   ⚠ 2026-09-11 실측: decisions schema v2 의 `kind: "estimand"` 항목은 문서를 `card` 로
+    #     가리킨다(`record` 는 회고 기록용). 이 도구는 `record` 만 봐서 **비준 자체를 막았다**
+    #     (D-2026-09-08-b2o3-uma-vs-dft-force). 둘 다 본다 — 어느 쪽을 봤는지 화면에 적는다.
+    _hit = resolve_doc_field(tgt, pre_p.name)
+    if _hit is None:
+        raise SystemExit(
+            "⛔ 결정 %s 가 이 사전등록을 가리키지 않는다:\n   record = %s\n   card   = %s\n   prereg = %s"
+            % (a.decision, tgt.get("record") or "(없음)", tgt.get("card") or "(없음)", pre_p.name))
+    print("  결정→문서      : %s = %s" % _hit)
 
     old_dig = (pre.get("ratification") or {}).get("content_digest")
     now_dig = content_digest(pre)
