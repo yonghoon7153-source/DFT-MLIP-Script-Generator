@@ -9,7 +9,13 @@
   ],
   "gamma_from": "out/matrix_<state>.csv 의 gamma_Si(대상)·ref_gamma_Si(기준)",
   "note": "measured_shape_mV 는 정규화 뒤 값 — cap_delta_pct 와 함께 읽을 것",
-  "git_commit": "d383375ef6714b81301ff6faf31e9a4e663de491",
+  "gamma_grid": [
+    0.0,
+    0.5,
+    501
+  ],
+  "headroom_note": "gamma_witness 는 (a) 이상의 진폭을 내는 합법 γ 의 존재 증인(격자)이지 모양 일치가 아니다; 빈 칸 = 격자에서 없음 (R3-03)",
+  "git_commit": "82c7dc812711fa3ed86a24b4ea82a87f14f6f0dc",
   "git_dirty": true,
-  "created_utc": "2026-09-11T06:11:53.843446+00:00"
+  "created_utc": "2026-09-11T07:32:28.892913+00:00"
 }
