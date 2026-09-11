@@ -182,7 +182,12 @@ _dft_web_ready() {           # 0 = 띄울 수 있다, 1 = 전제가 빠졌다 (�
 # 건강검진. curl 이 없는 WSL 이 있어서 python 으로 되돌아간다.
 _dft_web_alive() {
   if command -v curl >/dev/null; then
-    curl -fsS "http://127.0.0.1:${DFT_PORT}/health" >/dev/null 2>&1
+    # ⛔⛔ 2026-09-11 — 옛 판은 타임아웃도 --noproxy 도 없었다. 실측 사고:
+    #   빈 포트에 `curl http://127.0.0.1:5001/` 가 **rc 28 로 매달렸다**(refused 가 아니라).
+    #   건강검진이 매달리면 `dft` 가 판정을 못 내리고, 사용자는 "쳐도 안 켜진다" 만 본다.
+    #   프록시 환경변수(http_proxy)가 걸린 셸에서는 localhost 요청까지 프록시로 나간다.
+    #   ⇒ 3초 상한 + 프록시 무시. 둘 다 **판정을 빨리 틀리게 만드는 대신 빨리 옳게** 만든다.
+    curl -fsS --max-time 3 --noproxy '*' "http://127.0.0.1:${DFT_PORT}/health" >/dev/null 2>&1
   else
     python3 -c "import urllib.request,sys
 try: urllib.request.urlopen('http://127.0.0.1:${DFT_PORT}/health',timeout=3)
@@ -215,6 +220,7 @@ dftwebbg() {                 # 백그라운드로 띄우고 살아있는지 확�
     sleep 2
   fi
   local log="${TMPDIR:-/tmp}/dftweb.log"
+  echo "· 로그: $log"        # ⛔ TMPDIR 이 잡혀 있으면 /tmp 가 아니다 — 어디 쓰는지 먼저 말한다
   PORT="$DFT_PORT" nohup "$(_dft_py)" "$DFT_REPO/webapp/app.py" > "$log" 2>&1 &
   local i
   for i in 1 2 3 4 5 6 7 8 9 10; do        # 느린 기계에서 3초는 모자랐다
