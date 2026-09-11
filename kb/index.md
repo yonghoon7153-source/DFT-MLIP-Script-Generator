@@ -1,12 +1,13 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-10 · managed-files: 389
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-11 · managed-files: 390
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 194건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 195건)
+- 2026-09-11 · `kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11 · 진행
 - 2026-09-09 · `kb/methodology/beta_gate_seed_policy.md` — 확산영역 게이트(β)와 시드 정책 — 문턱은 폐기, 시드 규율은 유효 · SUPERSEDED (문턱) / 유효 (시드·정지 규칙)
 - 2026-09-09 · `kb/methodology/name_vs_substance_2026_09_09.md` — 이름과 실체가 갈린다 — 하루에 여섯 번 (2026-09-09) · 진행
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
@@ -26,7 +27,6 @@
 - 2026-09-08 · `kb/reviews/codex_BI_prompt_webapp_claim_binding_2026_09_08.md` — 리뷰 요청 BI — 결속 이주를 끝냈습니다 (전 표면 미결속 0) + 부인 어휘 신설 + 남은 넷의 마감 조건 · 발송
 - 2026-09-08 · `kb/papers/self_doping_dft_paragraph_2026_09_08.md` — 원고 자가도핑 DFT 문단 — 스핀 하나로 좁힌 5문단 (2·3·6 계열) · 1저자 승인 — 삽입 위치 대기
 - 2026-09-07 · `kb/concepts/msd_reading.md` — MSD 그림을 읽는 법 — 창 · σ · Ea 는 서로 무엇인가 · 확정 (개념 카드)
-- 2026-09-07 · `kb/methodology/md_axis_status_2026_09_07.md` — MD 축 현황 — 무엇이 살아있고 무엇이 죽었나 (2026-09-07 정리) · 정본 색인
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -205,7 +205,7 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (114)
+## reviews/ (115)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
 - `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)  (2026-09-09 · 자동생성)
 - `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09  (2026-09-09 · 진행)
@@ -255,6 +255,7 @@
 - `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다)  (2026-09-09 · 회신됨-NO-GO)
 - `kb/reviews/codex_BK_prompt_doping_question_2026_09_09.md` — 리뷰 요청 BK — 우리가 묻는 것이 무엇인가: 격자 치환 / 별도 코팅상 / 첨가상 (BJ 재작성의 전제)  (2026-09-09 · 초안)
 - `kb/reviews/codex_BK_reply_2026_09_09.md` — 리뷰 BK 회신 — A 선택 수용 · 정정 다섯을 전부 재현했다 · 우리 규율 둘을 고친다  (2026-09-09 · 초안)
+- `kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11  (2026-09-11 · 진행)
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서)  (2026-08-20 · 리뷰대기)
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료)  (2026-08-20 · v2.1 — codex 2라운드 종료 (manifest 지적 철회 ·…)
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서)  (2026-08-25 · 리뷰완료-HOLD)
