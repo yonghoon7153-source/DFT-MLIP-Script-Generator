@@ -1,52 +1,25 @@
 # 진행 상태 — α·β 검증 하네스
 
-> **이 파일이 "지금 어디까지 왔나" 의 정본이다.** 대화 요약이나 기억이 아니라
-> 여기를 본다. 수치의 정본은 여전히 `FINDINGS.md` + `out/` 산출물이다.
->
+> **이 파일이 "지금 어디까지 왔나" 의 정본이다.** 수치의 정본은 `FINDINGS.md` + `out/`.
 > 갱신 규칙: 단계가 열리거나 닫히면 **그 커밋에서 같이** 고친다.
 
-최종 순서: **남은 것 끝내기 → Codex 적대 리뷰 → 규진팀에 `FOR_BMS_TEAM.md` 전달**
+최종 순서: 남은 것 끝내기 → Codex 적대 리뷰 → 규진팀에 `FOR_BMS_TEAM.md` 전달
 
 ---
 
-## 지금 할 것 — **Codex 2차 적대 리뷰 요청문**
+## 지금 상태 — **Codex R2 = NO-GO. `reviews/R2_LEDGER.md` 가 작업 원장이다**
 
-막고 있던 셀 일반화가 2026-09-11 에 닫혔다 (§1-12). 우리가 더 닫을 수 있는
-미결이 없다 — 남은 것은 전부 규진팀이나 계측 쪽에 있다. 그러므로 다음 단계는
-`CODEX_REVIEW_REQUEST.md` **2차 판을 새로 쓰는 것**이다 (1차 판은 배너로
-인용 금지를 박아 뒀고, 상한 자리마다 `→` 갱신을 달아 뒀다).
+2026-09-11 Codex 2차 리뷰(P1 9 · P2 1)와 내부 리뷰 L2·L5 를 합친 20 항목이
+`reviews/R2_LEDGER.md` 에 있고, **닫는 순서**가 거기 적혀 있다. 여기서는 되풀이하지
+않는다 — 그 파일의 "닫는 순서" 1~7 을 위에서부터 진행하고, 끝난 항목은 그 표의
+"상태" 열을 갱신한다.
 
-2차 요청문에서 제일 세게 맞아야 할 자리 (스스로 신고할 것):
+가장 아픈 셋: (C1) 대조 실험이 LAM_PE 쪽에서는 원통형 패턴을 **재현**한다 — "대체는
+원인이 아니다" 는 LLI 에만 성립 · (C2) 측정 음극은 목적함수가 **소비하지 않는다** —
+"35.77 mV 를 지웠는데도" 강도 논증 무효 · (C3·C4) MATLAB 대조기가 비교 안 한 값도
+"전부 일치" 로 찍는다 — 192 값 대조를 고친 비교기로 **다시 돌려야** 한다.
 
-1. **§1-12 의 대조가 충분히 강했나.** 파우치 상태별 반쪽전지가 서로 다른
-   파일이라는 것(해시)만 확인했고 **얼마나 다른지는 원장에 없다.**
-   `scripts/ne_shape.py` 를 한 번 돌려 mV 로 적으면 닫힌다 — 이게 우리가
-   리뷰 전에 할 수 있는 **유일하게 남은 실측**이다.
-2. **"셀 차이" 와 "그 셀 자료의 잡음·분해능" 을 못 갈랐다.** 결론 문장이
-   셀 쪽으로 읽히게 쓰여 있지 않은지.
-3. 원통형 13 행 중 3 행이 `a_NE=ub` 에 눌려 있다.
-4. dQ/dV 항의 로컬 함수 둘은 여전히 **전사**다.
-
-그 뒤 순서: Codex 리뷰 → 반영 → 규진팀에 `FOR_BMS_TEAM.md` 전달.
-
-### 재현 명령 (사용자 기계, `~/dd/bms-balancing`)
-
-```bash
-source .venv/bin/activate
-export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-
-# 네 갈래 비교 (§1-12 의 표가 여기서 나온다)
-python3 scripts/compare_states.py \
-    pouch=out fixedhc=out/cells_pouch_fixedhc \
-    c168=out/cells_c168 c171=out/cells_c171
-
-# 대조 루트가 정말 고정본인지 — 해시로. 둘 다 돌려야 판정기가 살아 있다는 증거
-python3 scripts/fixed_hc.py check --root ~/dd/cells/pouch_fixedhc --expect fixed
-python3 scripts/fixed_hc.py check --root "$BMS_DATA_ROOT"        --expect per-state
-
-# 남은 실측 하나 — 반쪽전지가 상태 사이에 얼마나 다른가 (위 1번)
-python3 scripts/ne_shape.py
-```
+Codex 반례 재생: `python3 reviews/r2_repros/harness_r2_replay.py --target $(pwd) --output /tmp/r.json`.
 
 ## 닫힌 것
 
