@@ -1,0 +1,2 @@
+cell_id,formation_cutoff_v_li,active_mass_mg,loading_mah_cm2,loading_mg_cm2,punch_diameter_mm,fab_pressure_mpa,anode_fab_pressure_mpa,op_pressure_mpa,status,raw_file,summary_file,notes
+Dcell14,4.0,,2,,10,462,277,100,cycling,Dcell14_mid_Ni___0.0189g_4.0V_....csv,,"파일명 질량 0.0189 g 는 전극 질량인지 활물질 질량인지 미확인 — 확인 후 active_mass_mg 기입"

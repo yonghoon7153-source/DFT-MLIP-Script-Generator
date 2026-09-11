@@ -1,0 +1,60 @@
+# config/cells.yaml — 셀 데이터 모듈 설정. **사용자가 직접 고치는 파일**이다.
+# 여기 값이 정본인 것: 전압 offset (절대 규칙 2), DOE 창, cut-off 별 그래프 색.
+# wiki/tools/lint.py 의 `canonical-offset` 검사가 위키·webapp 의 사본을 이 값과 대조한다.
+
+voltage:
+  in_to_li_offset_v: 0.62          # vs. Li/Li+ = vs. In/Li-In + 0.62 V  (방향 혼동 금지)
+  raw_reference: "vs. In/Li-In"    # raw CSV 의 voltage 열이 기록된 기준전극
+  target_reference: "vs. Li/Li+"   # 변환 후 기준전극
+
+doe:                                # 내 DOE 창 — /compare 의 "겹침" 판정에 쓴다
+  formation_cutoffs_v_li: [3.6, 3.8, 4.0, 4.2, 4.4, 4.6]   # vs. Li/Li+
+  formation_c_rate: "0.1C/0.1C"
+  formation_cycles: 2
+  main_window_v_li: [2.5, 4.4]     # vs. Li/Li+
+  main_c_rate: "0.5C"
+  main_temperature_c: 45
+  main_cycles: 200
+  overlap_tolerance_v: 0.05        # 이 안이면 "같은 창" 으로 본다
+
+cell:                               # 우리 셀 구성 — 사용자 진술의 사본 (정본은 실험 노트·registry). webapp /roadmap 이 읽는다
+  cathode: "NCA721 dry-processed composite cathode"
+  areal_capacity_mah_cm2: 2         # 설계 기준 면적용량
+  electrolyte: "argyrodite LPSCl (Li6PS5Cl)"
+  anode: "Li-In alloy (In foil 9Φ + Li foil 4Φ)"
+  mold_diameter_mm: 10
+  cathode_se_press_mpa: 462
+  cathode_se_press_min: 2.5
+  anode_press_mpa: 277
+  anode_press_min: 5
+  op_pressure_mpa: 100
+
+colors:                             # formation cut-off 조건별 그래프 색 — 키는 vs. Li/Li+ 값 문자열
+  "3.6": "#4e79a7"
+  "3.8": "#59a14f"
+  "4.0": "#f28e2b"
+  "4.2": "#e15759"
+  "4.4": "#b07aa1"
+  "4.6": "#9c755f"
+  default: "#7f7f7f"                # registry 에 cut-off 가 없는 셀
+
+mass:
+  registry_mass_is: "active_material"   # registry 의 active_mass_mg 는 **활물질** 질량 (mg)
+  active_fraction: null                 # 전극 질량밖에 모를 때 활물질 환산비 (모르면 null — 추측하지 않는다)
+
+csv:
+  encoding: "utf-8-sig"               # raw CSV 에 UTF-8 BOM 이 붙어 있다
+  raw_columns: [timestamp, test_time_s, step_time_s, cycle_time_s, channel, step_index, total_step,
+                cycle_index, run_status, running_status, cell_status, i_range_index, i_range,
+                voltage, current, charge_q, discharge_q, charge_e, discharge_e, aux_voltage,
+                temperature, ocp]
+  raw_units: {charge_q: Ah, discharge_q: Ah, charge_e: Wh, discharge_e: Wh, voltage: V, current: A}
+  summary_columns: [cycle, charge_capacity_mah_g, discharge_capacity_mah_g, charge_capacity_mah,
+                    discharge_capacity_mah, coulombic_efficiency, charge_energy_wh, discharge_energy_wh,
+                    energy_efficiency, mean_charge_voltage, mean_discharge_voltage, voltage_hysteresis,
+                    v_max, v_min, duration_s, points, complete]
+
+paths:
+  registry: data/registry/cells.csv   # 정본 (cell registry)
+  raw_dir: data/raw                   # 원 데이터 (gitignore — 저장소에 넣지 않는다)
+  cells_dir: data/cells               # import 산출물: data/cells/<cell_id>/summary.json · cycles.csv
