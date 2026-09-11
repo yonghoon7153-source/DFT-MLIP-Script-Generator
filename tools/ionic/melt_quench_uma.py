@@ -246,6 +246,7 @@ def run_melt_quench(atoms, calc, out, *, seed, T_melt, T_final, melt_ps, quench_
                 log(f"  [{phase}] {i}/{n_steps} T_set={T_set:.0f} K T={atoms.get_temperature():.0f} K "
                     f"ρ={sum(MASS[s] for s in atoms.get_chemical_symbols())/6.02214076e23/(atoms.get_volume()*1e-24):.3f} "
                     f"({(time.time()-t0)/60:.1f} min)")
+                sys.stdout.flush()   # ⛔ 로그 리다이렉트 시 블록 버퍼링 — 안 하면 진행 줄이 몇 시간 뒤에 뜬다
     record(T_final); tlog.close()
     FIRE(atoms, logfile=str(out / "final_relax.log")).run(fmax=0.05, steps=2000)
     write(str(out / "final.xyz"), atoms, format="extxyz")
@@ -387,13 +388,13 @@ def main():
     from ase.io import write
     at = Atoms(symbols=sym, positions=pos, cell=cell, pbc=True)
     write(str(out / "initial.xyz"), at, format="extxyz")
-    print(f"[{a.system} seed{a.seed}] {len(sym)} 원자 · 셀 {cell[0,0]:.2f} Å · 담금질 {quench_ps:.0f} ps ({n_q} 스텝) → {out}")
+    print(f"[{a.system} seed{a.seed}] {len(sym)} 원자 · 셀 {cell[0,0]:.2f} Å · 담금질 {quench_ps:.0f} ps ({n_q} 스텝) → {out}", flush=True)
     if a.dry_run:
         print("dry_run — 여기서 멈춘다"); return
     calc = make_calc(a.device, a.turbo)
     plan["uma_inference_mode"] = getattr(calc, "_mq_mode", "default")
     (out / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
-    print(f"UMA inference mode: {plan['uma_inference_mode']}")
+    print(f"UMA inference mode: {plan['uma_inference_mode']}", flush=True)
     info = run_melt_quench(at, calc, out, seed=a.seed, T_melt=a.T_melt, T_final=a.T_final, melt_ps=a.melt_ps,
                            quench_rate=a.quench_rate, hold_ps=a.hold_ps, dt_fs=a.dt_fs, save_ps=a.save_ps)
     ind = indicators(at.get_chemical_symbols(), at.get_positions(), np.asarray(at.get_cell()))
