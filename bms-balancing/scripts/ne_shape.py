@@ -89,17 +89,23 @@ def fitted_pair(out_dir: pathlib.Path, state: str, src: str,
 def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
     """`fitted_pair` 와 같은 선택 + **실제로 소비한 파일의 identity** (Codex R5-05): 경로·sha256·선택한 행.
 
-    `matrix_<state>*.csv` 를 역순으로 고르므로 untracked `_v2` 도 실제 입력이 된다 — git 출처(추적 파일)만으로는
-    그 사실이 남지 않아 두 실행의 meta 가 같았다. 소비한 파일은 tracked 여부와 무관하게 여기서 적는다.
+    소비하는 파일은 `matrix_<state>.csv` 하나(정본, Codex R6-04)이고 untracked 재게시도 그대로 입력이 된다 — git 출처
+    (추적 파일)만으로는 그 사실이 남지 않아 두 실행의 meta 가 같았다. 소비한 파일은 tracked 여부와 무관하게 여기서 적는다.
     """
     import hashlib, io
-    from provenance import verify_unit
-    for f in sorted(out_dir.glob(f"matrix_{state}*.csv"), reverse=True):
-        ok, why = verify_unit(f)          # R6 내부 F07: 섞인 묶음(CSV≠meta)은 소비하지 않는다
+    from provenance import read_unit
+    # ⚠ Codex R6-04: 정본은 unversioned 이름 하나. `_vN` 이 남아 있으면 말만 하고 쓰지 않는다 (archive 로).
+    stale = sorted(p.name for p in out_dir.glob(f"matrix_{state}_v[0-9]*.csv"))
+    if stale:
+        print(f"  ! {', '.join(stale)}: 판 번호가 붙은 옛 산출 — 정본은 matrix_{state}.csv 하나다; out/archive/ 로 (Codex R6-04)",
+              file=sys.stderr)
+    f = out_dir / f"matrix_{state}.csv"
+    if f.is_file():
+        # R6 내부 F03·F07 · Codex R6-01·02: bytes 와 meta 를 한 번씩 읽어 서로 대조한 snapshot 만 파싱·해시한다
+        ok, why, data, _meta = read_unit(f)
         if ok is False:
-            raise RuntimeError(f"{f.name}: 묶음 불일치 ({why}) — 섞인 산출을 소비하지 않는다 (R6 내부 F07)")
-        data = f.read_bytes()             # R6 내부 F03: 한 번 읽은 bytes 를 파싱하고 **그 bytes** 를 해시한다
-        for idx, r in enumerate(csv.DictReader(io.StringIO(data.decode("utf-8")))):
+            raise RuntimeError(f"{f.name}: 묶음 불일치/미완 ({why}) — 섞인 산출을 소비하지 않는다 (R6 내부 F07 · Codex R6-01·02)")
+        for idx, r in enumerate(csv.DictReader(io.StringIO(data.decode("utf-8-sig")))):
             if (r.get("half_cell") == src and r.get("si") == si
                     and float(r.get("w_dqdv", 1)) == 0):
                 if not r.get("ref_gamma_Si"):
@@ -109,16 +115,6 @@ def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
                         "row": {"index": idx, "half_cell": r.get("half_cell"), "si": r.get("si"),
                                 "w_dqdv": r.get("w_dqdv"), "run_id": r.get("run_id")}}
     return None
-
-
-def _input_identity(path) -> dict:
-    """입력 파일의 경로와 sha256 — 읽을 수 없으면(합성 fixture 등) sha256 은 None."""
-    import hashlib
-    p = pathlib.Path(str(path))
-    try:
-        return {"path": str(p), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
-    except (OSError, TypeError):
-        return {"path": str(path), "sha256": None}
 
 
 def raw_ne_capacity(path: pathlib.Path) -> float:
@@ -226,13 +222,17 @@ def main() -> int:
     if "pristine" not in states:
         raise SystemExit(f"`{a.source}` 에 pristine 이 없다 — 기준이 없으면 못 잰다")
 
-    hcs = {s: HalfCell(D.half_cell_path(root, a.source, s), window=11, poly_order=3) for s in states}
+    # ⚠ Codex R6-03: 반쪽전지 워크북은 상태마다 **한 번 읽은 bytes** 로 HalfCell·raw 용량·identity 를 다 한다.
+    #   전 판은 세 번 열었다 — 세 번째(identity) 직전에 재-export 되면 A 로 계산하고 B 의 서명을 적었다.
+    hb = {s: D.read_input(D.half_cell_path(root, a.source, s)) for s in states}
+    hcs = {s: HalfCell(hb[s].stream(), window=11, poly_order=3) for s in states}
     meas = {s: hcs[s].E_NE(GRID) for s in states}
     # ⚠ Codex R2-07 · L5-F2: 목적함수가 소비하는 반쪽전지 축은 **PE 뿐**이다. 대조 실험
     #   (반쪽전지 고정)의 강도를 말할 수 있는 유일한 양은 E_PE 의 상태별 변화다.
     pe = {s: np.asarray(hcs[s].E_PE(GRID), float) for s in states}
-    cap = {s: raw_ne_capacity(D.half_cell_path(root, a.source, s)) for s in states}
-    si_c, si_v, gr_c, gr_v = D.load_literature(root, a.si_source)
+    cap = {s: raw_ne_capacity(hb[s].stream()) for s in states}
+    lit_id: dict = {}
+    si_c, si_v, gr_c, gr_v = D.load_literature(root, a.si_source, identity=lit_id)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
 
     print(f"반쪽전지 {a.source} · 문헌 Si {a.si_source} · 상태 {len(states)}개")
@@ -246,12 +246,10 @@ def main() -> int:
           f"{'max mV':>13}{'rms mV':>6}")
     infos = {s: fitted_pair_info(out_dir, s, a.source, a.si_source) for s in states if s != "pristine"}
     consumed = {s: {"matrix": ({k: v for k, v in i.items() if k not in ("gamma_target", "gamma_ref")} if i else None),
-                    "half_cell": _input_identity(D.half_cell_path(root, a.source, s))}
+                    "half_cell": hb[s].identity()}
                 for s, i in infos.items()}
-    consumed["pristine"] = {"half_cell": _input_identity(D.half_cell_path(root, a.source, "pristine"))}
-    lit = root / "data" / "literature"
-    consumed["literature"] = {"gr": _input_identity(lit / "Si_Gr_literature_OCP.xlsx"),
-                              "si": _input_identity(lit / "Si_OCP_sources" / f"{a.si_source}.csv")}
+    consumed["pristine"] = {"half_cell": hb["pristine"].identity()}
+    consumed["literature"] = lit_id
     first = states[1] if len(states) > 1 else "100"
     pr = (lambda i: None if i is None else (i["gamma_target"], i["gamma_ref"]))(infos.get(first))
     if pr is not None:

@@ -14,7 +14,7 @@ R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`).
 from __future__ import annotations
 import argparse, csv, json, pathlib, re, sys
 
-VER = re.compile(r"_v(\d+)$")          # `matrix_300_0009_v2.csv` — compare_states._split_version 과 같은 규칙
+VER = re.compile(r"_v(\d+)$")          # `matrix_300_0009_v2.csv` — 옛 리비전의 out/ 에만 있는 판 번호 (현행 정본은 unversioned, Codex R6-04)
 
 # 산출 종류별 **새 스키마** 필수 필드 (R6 내부 F3·F4·F5 · R5-04·R5-07·R5-08)
 JSON_KEYS = ("run_id", "n_grid", "n_samples", "env", "consumed_inputs", "inputs_sha")
@@ -32,11 +32,12 @@ ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref"}
 
 
 def baseline_for(new_file: pathlib.Path, old: pathlib.Path) -> pathlib.Path | None:
-    """`new_file` 에 대응하는 **정본** — 같은 이름이 아니라 가장 높은 판이다 (`_v2` 가 있으면 그것).
+    """`new_file` 에 대응하는 **옛 정본** — `old` 가 옛 리비전(`--old-rev`) 이면 같은 이름이 아니라 가장 높은 판이다
+    (`_v2` 가 있으면 그것). 현행 out/ 은 unversioned 하나가 정본이고 `_vN` 은 `out/archive/` 로 간다 (Codex R6-04) —
+    이 규칙은 **옛 리비전을 읽을 때만** 뜻이 있다.
 
-    ⚠ U14-02: 전 판은 이름으로만 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자 이전)과 댔다. 정본은 `_v2` 고
-      (`compare_states._keep_latest` 가 표에 쓰는 것도 그쪽), 그래서 재실행이 v2 를 그대로 재현했는데도
-      span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
+    ⚠ U14-02: 전 판은 이름으로만 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자 이전)과 댔다. 그 리비전의 정본은
+      `_v2` 였고, 그래서 재실행이 v2 를 그대로 재현했는데도 span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
     """
     stem, suffix = new_file.stem, new_file.suffix
     base = VER.sub("", stem)

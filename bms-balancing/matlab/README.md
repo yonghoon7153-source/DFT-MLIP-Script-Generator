@@ -226,7 +226,7 @@ dd_eval('State','pristine','SiSource','Li','Out','dd_eval_pristine_Li_TB.csv')
 dd_verify('dump', 'State','300_0009', 'WDqdv',0, 'Out','dd_dump_gitt_w0.csv')
 ```
 
-우리 Python 이 같은 조건에서 낸 값 (**정본: `out/matrix_300_0009_v2.csv`**):
+우리 Python 이 같은 조건에서 낸 값 (**정본: `out/matrix_300_0009.csv`** — U14 재실행이 옛 `_v2` 를 비트 단위로 재현한 것):
 
 | Si 소스 | LAM_PE % | LAM_NE % | LLI % | 대상 경계 | **기준 경계** |
 |---|---|---|---|---|---|

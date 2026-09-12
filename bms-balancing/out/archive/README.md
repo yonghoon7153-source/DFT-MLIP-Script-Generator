@@ -6,6 +6,7 @@
 | 파일 | 무엇 | 누가 인용하나 |
 |---|---|---|
 | `matrix_300_0009_premultistart.csv` | `multistart` 가 **비정상 종료한 optimizer 결과를 성공으로 채택**하던 판의 `matrix_300_0009.csv` (커밋 `bfc4623^` 의 것) | `FINDINGS.md` §4-0 (수정이 답을 최대 5.9 %p 움직였다) · §3-3 각주 |
+| `degeneracy_300_0009_Li_v2.json` · `matrix_300_0009_v2.csv` | multistart 수정 **후** 첫 재실행 (2026-09-10, meta·run_id 없음). U14 재실행이 이 둘을 **비트 단위로 재현**해 정본은 unversioned `degeneracy_300_0009_Li.json`·`matrix_300_0009.csv` (meta·env·inputs_sha 포함) 로 넘어갔다 (Codex R6-04) | 역사 대조용. FINDINGS 의 인용은 unversioned 로 옮겼다 |
 
 ## 왜 여기로 왔나 (U14-05, 2026-09-12)
 

@@ -298,9 +298,8 @@ def test_quoted_spreads_match_artifact():
     적고 있었다. 즉 한 저장소 안에서 같은 조건의 같은 양이 두 값으로 돌아다녔다.
     """
     import csv
-    art = ROOT / "out" / "matrix_300_0009_v2.csv"
-    if not art.exists():                      # 산출이 없는 체크아웃에서는 건너뛴다
-        return
+    art = ROOT / "out" / "matrix_300_0009.csv"      # Codex R6-04: 정본은 unversioned 하나 (U14 가 `_v2` 를 비트 단위로 재현)
+    assert art.exists(), art                          # 산출은 커밋돼 있다 — 없으면 건너뛰지 않고 실패
     rows = [r for r in csv.DictReader(art.open())
             if "GITT" in r["half_cell"] and float(r["w_dqdv"]) == 0]
     assert len(rows) == 8, f"GITT · dQ/dV off 조합이 8개가 아니다: {len(rows)}"
@@ -333,9 +332,8 @@ def test_dump_table_in_matlab_readme_matches_artifact():
     앞의 `test_quoted_spreads_match_artifact` 는 폭만 봐서 이걸 못 잡았다.
     """
     import csv, re
-    art = ROOT / "out" / "matrix_300_0009_v2.csv"
-    if not art.exists():
-        return
+    art = ROOT / "out" / "matrix_300_0009.csv"      # Codex R6-04: 정본은 unversioned 하나
+    assert art.exists(), art
     want = {r["si"]: r for r in csv.DictReader(art.open())
             if "GITT" in r["half_cell"] and float(r["w_dqdv"]) == 0}
     txt = (ROOT / "matlab" / "README.md").read_text(encoding="utf-8")
@@ -678,17 +676,16 @@ def test_interp_ascending_path_is_untouched():
     assert np.array_equal(got, want), "오름차순 경로가 바뀌었다 — 기존 대조가 무효가 된다"
 
 
-# ── 판 번호가 붙은 산출은 **최신 판**을 읽어야 한다 (2026-09-10) ──────────
+# ── 판 번호가 붙은 산출은 정본이 **아니다** — 정본은 unversioned 이름 하나 (2026-09-10 → Codex R6-04 로 뒤집음) ──
 
-def test_compare_states_reads_the_latest_version():
-    """`_v2` 가 있으면 그걸 읽어야 한다.
+def test_compare_states_reads_the_unversioned_canon_and_never_a_versioned_sibling():
+    """정본은 `degeneracy_S_Li.json`·`matrix_S.csv` 하나다. `_vN` 이 옆에 남아 있으면 **읽지 않고** 시끄럽게 건너뛴다.
 
-    이 저장소에서 옛 판을 읽고 쓴 실수가 하루에 **세 번** 있었다:
-      · `README.md` 의 LAM_NE 폭 8.93 %p (v1) — 정본은 10.88 (v2)
-      · `matlab/README.md` 의 dump 대조표 8 행 전부 v1
-      · `compare_states.py` 첫 판이 `degeneracy_..._Li_v2.json` 을 못 잡고
-        v1 을 읽었다 (정규식이 `_v2` 접미사를 안 봤다)
-    도구가 조용히 옛 값을 읽으면 그 위의 모든 판단이 옛 값이 된다.
+    역사: 2026-09-10 에는 `_v2` 가 정본이었고 이 테스트는 "가장 높은 `_vN`" 을 읽으라고 했다 (그날 옛 판을 읽고 쓴
+    실수가 세 번 — README 의 8.93 %p · matlab/README 의 dump 표 · 이 스크립트 첫 판). U14 재실행이 `_v2` 를 비트
+    단위로 재현해 unversioned 이름(meta·env·inputs_sha 포함)이 정본이 됐는데, 그 규칙이 남아 독자는 meta 없는 옛
+    `_v2` 를 계속 골랐다 (Codex R6-04). 판 선택 규칙은 뒤집혔고 `_vN` 은 `out/archive/` 로 간다 —
+    `test_c6_04_*` 가 같은 규칙을 warning 문구까지 건다.
     """
     import importlib.util, json, tempfile
     spec = importlib.util.spec_from_file_location(
@@ -706,9 +703,9 @@ def test_compare_states_reads_the_latest_version():
     (d / "degeneracy_S_Li_v2.json").write_text(json.dumps(deg(222.0)))
     got = m.load_degeneracy(d)
     assert set(got) == {"S"}, f"상태가 하나여야 하는데 {sorted(got)} — 판을 상태로 셌다"
-    assert got["S"]["j"]["LLI_percent"]["span"] == 222.0, (
-        f"v1 을 읽었다 ({got['S']['file']}) — 최신 판을 읽어야 한다")
-    assert got["S"]["file"].endswith("_v2.json")
+    assert got["S"]["j"]["LLI_percent"]["span"] == 111.0, (
+        f"`_v2` 를 읽었다 ({got['S']['file']}) — 정본은 unversioned 하나다 (Codex R6-04)")
+    assert got["S"]["file"] == "degeneracy_S_Li.json"
 
     hdr = ("half_cell,si,w_dqdv,LAM_PE_pct,LAM_NE_pct,LLI_pct,bounds,ref_bounds\n")
     for name, lo in (("matrix_S.csv", 0.0), ("matrix_S_v2.csv", 50.0)):
@@ -716,7 +713,8 @@ def test_compare_states_reads_the_latest_version():
             f"GITT,Si{i},0,{lo+i},{lo+i},{lo+i},-,-\n" for i in range(3)))
     mx = m.load_matrix_axis(d)
     assert set(mx) == {"S"}, f"상태가 하나여야 하는데 {sorted(mx)}"
-    assert mx["S"]["file"].endswith("_v2.csv"), f"v1 을 읽었다: {mx['S']['file']}"
+    assert mx["S"]["file"] == "matrix_S.csv", f"`_v2` 를 읽었다: {mx['S']['file']}"
+    assert mx["S"]["per"]["GITT"]["LLI"] == 2.0                            # 0,1,2 → 폭 2 (v2 였다면 같은 폭이라 값으로 가른다)
 
 
 # ── §1-10 의 순위 주장은 산출에서 나와야 한다 (2026-09-10) ────────────────
@@ -732,7 +730,7 @@ def test_section_1_10_ranking_comes_from_artifacts():
     import json
     want = {"100": "out/degeneracy_100_Li.json",
             "200": "out/degeneracy_200_Li.json",
-            "300_0009": "out/degeneracy_300_0009_Li_v2.json",
+            "300_0009": "out/degeneracy_300_0009_Li.json",     # Codex R6-04: 정본은 unversioned
             "300_0147": "out/degeneracy_300_0147_Li.json"}
     got = {}
     for st, rel in want.items():
@@ -1039,10 +1037,10 @@ MODES = ("LAM_PE", "LAM_NE", "LLI")
 def _bands(sub: str):
     """{상태: {양: (최적, 반폭, 최소, 최대)}}.
 
-    ⚠ 판 선택은 **`compare_states.load_degeneracy` 를 재사용**한다. 직접
-    글롭하면 `degeneracy_300_0009_Li_v2.json` 을 건너뛰고 **옛 판**을 읽는다
-    — 이 저장소가 2026-09-10 에 세 번 당한 실패이고, 이 테스트 첫 판도
-    똑같이 당했다 (2026-09-11).
+    ⚠ 판 선택은 **`compare_states.load_degeneracy` 를 재사용**한다 — 정본은 unversioned 이름 하나이고
+    `_vN` 은 `out/archive/` 의 역사 자료다 (Codex R6-04). 2026-09-10 에는 반대로 직접 글롭이
+    `_v2` 를 건너뛰고 옛 판을 읽는 실패가 세 번 있었고 이 테스트 첫 판도 당했다 (2026-09-11) —
+    어느 쪽이든 판 선택은 한 곳(reader)에만 둔다.
     """
     deg = _load_script("compare_states").load_degeneracy(ROOT / sub)
     return {st: {k: (e["j"]["best_modes_percent"][k],
@@ -1701,6 +1699,11 @@ def test_ne_shape_measures_the_consumed_pe_axis_too(tmp_path, monkeypatch):
     monkeypatch.setattr(m.D, "data_root", lambda *a, **k: tmp_path)
     monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
     monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    class IB:                                                  # Codex R6-03 뒤 로더 규약: bytes snapshot 객체
+        def __init__(self, p): self.p, self.path, self.sha256, self.data = p, str(p.state), None, b""
+        def stream(self): return self.p
+        def identity(self): return {"path": self.path, "sha256": self.sha256}
+    monkeypatch.setattr(m.D, "read_input", lambda p: IB(p))
     monkeypatch.setattr(m, "HalfCell", HC)
     monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
     monkeypatch.setattr(m, "fitted_pair_info", lambda *a, **k: {"gamma_target": 0.26, "gamma_ref": 0.25,
@@ -1938,6 +1941,11 @@ def _r3_shape_run(tmp_path, monkeypatch, reference, fitted, measured):
     monkeypatch.setattr(m.D, "data_root", lambda *a, **k: tmp_path)
     monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
     monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    class IB:                                                  # Codex R6-03 뒤 로더 규약: bytes snapshot 객체
+        def __init__(self, p): self.p, self.path, self.sha256, self.data = p, str(p.state), None, b""
+        def stream(self): return self.p
+        def identity(self): return {"path": self.path, "sha256": self.sha256}
+    monkeypatch.setattr(m.D, "read_input", lambda p: IB(p))
     monkeypatch.setattr(m, "HalfCell", HC)
     monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
     monkeypatch.setattr(m, "fitted_pair_info", lambda *a, **k: {"gamma_target": fitted, "gamma_ref": reference,
@@ -2672,6 +2680,11 @@ def _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd, truth=0.45, reference=0.
     monkeypatch.setattr(m.D, "data_root", lambda *a, **k: cwd)
     monkeypatch.setattr(m.D, "half_cell_path", lambda r, s, st: P(st))
     monkeypatch.setattr(m.D, "load_literature", lambda *a, **k: arrays)
+    class IB:                                                  # Codex R6-03 뒤 로더 규약: bytes snapshot 객체
+        def __init__(self, p): self.p, self.path, self.sha256, self.data = p, str(p.state), None, b""
+        def stream(self): return self.p
+        def identity(self): return {"path": self.path, "sha256": self.sha256}
+    monkeypatch.setattr(m.D, "read_input", lambda p: IB(p))
     monkeypatch.setattr(m, "HalfCell", HC)
     monkeypatch.setattr(m, "raw_ne_capacity", lambda p: 1.0)
     monkeypatch.setattr(_s, "argv", ["ne_shape.py", "--out-dir", "out", "--write", "out"])
@@ -2693,9 +2706,10 @@ def _r5_matrix(path, gamma, reference=0.15):
 
 
 def test_r5_05_ne_shape_records_the_matrix_file_it_consumed(tmp_path, monkeypatch):
-    """[Codex R5-05] `fitted_pair` 는 `matrix_<state>*.csv` 를 역순으로 골라 untracked `matrix_100_v2.csv` 도 실제
-    입력이 되는데, meta 의 git 출처는 untracked 를 빼고 `gamma_from` 은 포괄 설명만 남겨 두 실행의 meta 가
-    **동일**했다 (γ_target 0.16 → 0.45, 비 0.033 → 1.0 인데도).
+    """[Codex R5-05] `fitted_pair` 가 실제로 소비한 파일이 untracked 였는데 meta 의 git 출처는 untracked 를 빼고
+    `gamma_from` 은 포괄 설명만 남겨 두 실행의 meta 가 **동일**했다 (γ_target 0.16 → 0.45, 비 0.033 → 1.0 인데도).
+    (R5 당시의 경로는 `matrix_<state>*.csv` 역순 선택으로 untracked `_v2` 가 입력이 되는 것이었다 — Codex R6-04 로
+    `_vN` 은 더 이상 소비되지 않고, 같은 이름의 untracked 재게시가 같은 자리다.)
 
     실제 소비한 파일의 경로·sha256·선택한 행을 tracked 여부와 무관하게 meta(`consumed_inputs`)에 남긴다.
     """
@@ -2703,12 +2717,15 @@ def test_r5_05_ne_shape_records_the_matrix_file_it_consumed(tmp_path, monkeypatc
     cwd = tmp_path / "repo"; _fixture_repo(cwd, outputs=())
     _r5_matrix(cwd / "out" / "matrix_100.csv", 0.16)
     row1, meta1 = _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd)
-    _r5_matrix(cwd / "out" / "matrix_100_v2.csv", 0.45)
+    # Codex R6-04 뒤: 정본은 unversioned 이름 하나 — 두 번째 실행은 **같은 이름을 untracked 로 다시 게시**한다.
+    # 옆에 둔 `_v2` 는 소비되지 않아야 한다 (그것이 소비되면 γ_target 이 0.99 로 나온다).
+    _r5_matrix(cwd / "out" / "matrix_100.csv", 0.45)
+    _r5_matrix(cwd / "out" / "matrix_100_v2.csv", 0.99)
     row2, meta2 = _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd)
     assert float(row1["gamma_target"]) == 0.16 and float(row2["gamma_target"]) == 0.45, (row1, row2)
     c1, c2 = meta1["consumed_inputs"]["100"]["matrix"], meta2["consumed_inputs"]["100"]["matrix"]
-    assert c1["file"].endswith("matrix_100.csv") and c2["file"].endswith("matrix_100_v2.csv"), (c1, c2)
-    assert c2["sha256"] == hashlib.sha256((cwd / "out" / "matrix_100_v2.csv").read_bytes()).hexdigest()
+    assert c1["file"].endswith("matrix_100.csv") and c2["file"].endswith("matrix_100.csv"), (c1, c2)
+    assert c2["sha256"] == hashlib.sha256((cwd / "out" / "matrix_100.csv").read_bytes()).hexdigest()
     assert c1["sha256"] != c2["sha256"] and c2["row"]["half_cell"] == "GITT" and c2["row"]["si"] == "Li"
     assert meta2["consumed_inputs"]["100"]["half_cell"]["path"], meta2       # 반쪽전지 입력의 identity 도 남긴다
 

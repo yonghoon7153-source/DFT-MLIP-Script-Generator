@@ -65,10 +65,32 @@ def full_cell_workbook(root: Path) -> Path:
     return cands[0]
 
 
-def load_full_cell(root: Path, state: str, workbook: Path | None = None):
+class InputBytes:
+    """입력 파일의 **한 번 읽은 bytes** 와 그 bytes 의 sha256 (Codex R6-03). 파싱도 해시도 이 bytes 로 한다 —
+    경로를 다시 열면 그 사이 재-export 된 다른 파일을 해시하게 된다 (A 로 계산하고 B 의 서명을 적는다)."""
+    __slots__ = ("path", "data", "sha256")
+    def __init__(self, path, data: bytes):
+        import hashlib
+        self.path, self.data, self.sha256 = str(path), data, hashlib.sha256(data).hexdigest()
+    def stream(self):
+        import io
+        return io.BytesIO(self.data)
+    def identity(self) -> dict:
+        return {"path": self.path, "sha256": self.sha256}
+
+
+def read_input(path) -> InputBytes:
+    return InputBytes(path, Path(path).read_bytes())
+
+
+def load_full_cell(root: Path, state: str, workbook: Path | None = None, identity: dict | None = None):
     """2행 헤더(1행=상태명, 2행=단위) 워크북에서 그 상태의 (capacity, voltage).
-    `workbook` 을 주면 그 파일을 읽는다 (R6 내부 F4: `build` 가 무엇을 읽었는지 identity 로 남기려고)."""
-    df = pd.read_excel(workbook or full_cell_workbook(root), header=None, skiprows=2)
+    `workbook` 을 주면 그 파일을 읽는다 (R6 내부 F4). `identity` dict 를 주면 **실제로 파싱한 bytes** 의 경로·sha256 을
+    채운다 (Codex R6-03)."""
+    src = read_input(workbook or full_cell_workbook(root))
+    if identity is not None:
+        identity.update(src.identity())
+    df = pd.read_excel(src.stream(), header=None, skiprows=2)
     col = FULL_COL[state]
     c = pd.to_numeric(df[2 * col], errors="coerce")
     v = pd.to_numeric(df[2 * col + 1], errors="coerce")
@@ -76,12 +98,17 @@ def load_full_cell(root: Path, state: str, workbook: Path | None = None):
     return c[ok].to_numpy(float), v[ok].to_numpy(float)
 
 
-def load_literature(root: Path, si_source: str = "Li"):
-    """Gr 은 항상 Si_Gr_literature_OCP.xlsx, Si 만 선택 소스로 교체."""
+def load_literature(root: Path, si_source: str = "Li", identity: dict | None = None):
+    """Gr 은 항상 Si_Gr_literature_OCP.xlsx, Si 만 선택 소스로 교체. `identity` 를 주면 파싱한 bytes 의 경로·sha256 을
+    `{"gr": …, "si": …}` 로 채운다 (Codex R6-03)."""
     lit = root / "data" / "literature"
-    gr = pd.read_excel(lit / "Si_Gr_literature_OCP.xlsx")
+    gr_in = read_input(lit / "Si_Gr_literature_OCP.xlsx")
+    si_in = read_input(lit / "Si_OCP_sources" / f"{si_source}.csv")
+    if identity is not None:
+        identity.update({"gr": gr_in.identity(), "si": si_in.identity()})
+    gr = pd.read_excel(gr_in.stream())
     gr_c = gr["Gr_capacity"].dropna().to_numpy(float)
     gr_v = gr["Gr_voltage"].dropna().to_numpy(float)
-    si = pd.read_csv(lit / "Si_OCP_sources" / f"{si_source}.csv")
+    si = pd.read_csv(si_in.stream())
     return (si["normalizedCapacity"].to_numpy(float),
             si["voltage"].to_numpy(float), gr_c, gr_v)

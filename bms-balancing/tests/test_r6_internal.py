@@ -183,7 +183,7 @@ def test_i6d_01_section_3_4_says_the_profile_grid_contains_the_constrained_endpo
     LLI 의 "정확히 일치 (15.1517 / 16.2350)" 는 두 방법이 독립적으로 같은 값에 닿은 것이 아니라 같은 격자점을
     되돌려 준 것이다 — 세 mode 모두 profile.max == ext.max 가 비트 단위로 같다. §3-4 는 힌트는 밝혔지만
     "끝점 = 격자점" 은 밝히지 않은 채 '독립 수렴' 이라고 적었다. 폭 1.0832 와 `is_lower_bound` 는 그대로다."""
-    j = json.loads((OUT / "degeneracy_300_0009_Li_v2.json").read_text(encoding="utf-8"))
+    j = json.loads((OUT / "degeneracy_300_0009_Li.json").read_text(encoding="utf-8"))     # Codex R6-04: 정본은 unversioned
     for k in ("LAM_PE", "LAM_NE", "LLI"):
         sp = j[f"{k}_percent"]; ext = sp["from_constrained_extrema"]; prof = sp["from_mode_profile"]
         g_lo, g_hi = prof["grid_range_pct"]; grid = np.linspace(g_lo, g_hi, 21)
@@ -255,7 +255,7 @@ def test_i6d_06_section_4_0_states_the_tolerance_behind_its_counts():
     # ⚠ U14-05: 수정 **전** 산출은 `out/archive/matrix_300_0009_premultistart.csv` 에 있다 — U14 재실행이
     #   `out/matrix_300_0009.csv` 를 덮으면서 그 자리의 v1 이 사라졌다 (재실행은 수정된 코드라 v2 를 재현한다).
     d1 = {k(r): float(r["obj"]) for r in _rows("out/archive/matrix_300_0009_premultistart.csv")}
-    d2 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009_v2.csv")}
+    d2 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009.csv")}          # = 옛 _v2 (U14 가 비트 단위 재현)
     def count(tol):
         w = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] > tol]; b = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] < -tol]
         return len(w), len(b), len(d2) - len(w) - len(b), all(kk[2] == 1.0 for kk in w)
@@ -281,7 +281,7 @@ def test_i6d_07_section_1_10_carries_the_lower_bound_qualifier():
 def test_i6d_08_section_4_1_free_reference_width_is_the_width_of_the_values():
     """[R6 내부 DF-08] 기준 자유 3 종(Jiang·Kunz·Li) 의 LAM_NE 폭은 원값으로 2.1016 — "2.11" 은 두 자리로 반올림한
     표값끼리의 차(7.90 − 5.79) 였다."""
-    g = [r for r in _rows("out/matrix_300_0009_v2.csv") if r["half_cell"] == "GITT" and float(r["w_dqdv"]) == 0 and r["ref_bounds"] == "-"]
+    g = [r for r in _rows("out/matrix_300_0009.csv") if r["half_cell"] == "GITT" and float(r["w_dqdv"]) == 0 and r["ref_bounds"] == "-"]
     v = [float(r["LAM_NE_pct"]) for r in g]
     assert len(v) == 3 and abs(max(v) - min(v) - 2.1016) < 5e-5, v
     sec = _live(_section(_doc("FINDINGS.md"), "### 4-1"))
@@ -289,15 +289,17 @@ def test_i6d_08_section_4_1_free_reference_width_is_the_width_of_the_values():
 
 
 def test_i6d_09_section_3_3_cites_the_matrix_row_that_actually_matches():
-    """[R6 내부 DF-09] `best` 의 LAM/LLI 가 "`out/matrix_300_0009.csv` 의 GITT/Li/w0 행과 일치" — 비트 단위로 같은
-    것은 `_v2` 행(Δ 0) 이고 v1 행은 Δ 5.5e-5 %p (§4-0 이 말하는 옛 multistart 산출 — U14-05 로 archive 에 옮겼다)."""
-    bm = json.loads((OUT / "degeneracy_300_0009_Li_v2.json").read_text(encoding="utf-8"))["best_modes_percent"]
+    """[R6 내부 DF-09] `best` 의 LAM/LLI 가 "`out/matrix_300_0009.csv` 의 GITT/Li/w0 행과 일치" — DF-09 당시 그 이름은
+    v1(수정 전) 이라 Δ 5.5e-5 %p 였고 비트 단위로 같은 것은 `_v2` 행이었다. U14-05 로 v1 은 archive 에, U14 재실행이
+    `_v2` 를 비트 단위로 재현해 지금은 unversioned 이름이 Δ 0 인 정본이다 (Codex R6-04) — 인용은 그 이름으로."""
+    bm = json.loads((OUT / "degeneracy_300_0009_Li.json").read_text(encoding="utf-8"))["best_modes_percent"]
     pick = lambda p: next(r for r in _rows(p) if r["half_cell"] == "GITT" and r["si"] == "Li" and float(r["w_dqdv"]) == 0)
     d1 = max(abs(bm[k] - float(pick("out/archive/matrix_300_0009_premultistart.csv")[k + "_pct"])) for k in bm)      # U14-05: 수정 전 판은 archive 에
-    d2 = max(abs(bm[k] - float(pick("out/matrix_300_0009_v2.csv")[k + "_pct"])) for k in bm)
+    d2 = max(abs(bm[k] - float(pick("out/matrix_300_0009.csv")[k + "_pct"])) for k in bm)
     assert d2 == 0.0 and d1 > 1e-6, (d1, d2)
     sec = _live(_section(_doc("FINDINGS.md"), "### 3-3"))
-    assert "`out/matrix_300_0009_v2.csv` 의 GITT/Li/w0 행과 일치" in sec, sec[-500:]
+    assert "`out/matrix_300_0009.csv` 의 GITT/Li/w0 행과 일치" in sec, sec[-500:]
+    assert "_v2.csv` 의 GITT/Li/w0 행과 일치" not in sec                    # Codex R6-04: 인용은 정본 이름으로
 
 
 def test_i6d_10_intro_6_3_does_not_keep_the_retracted_n_equals_1_sentence():
@@ -789,7 +791,8 @@ def test_i6w_02_verify_unit_says_line_endings_when_only_they_changed(tmp_path):
 
 def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(tmp_path):
     """[U14-02] `check_u14.py` 가 파일 **이름**으로만 정본을 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자
-    이전)과 댔다 — 정본은 `_v2` 다 (`compare_states._keep_latest` 가 쓰는 규칙). 그래서 재실행이 v2 를 그대로
+    이전)과 댔다 — 그 리비전의 정본은 `_v2` 였다 (옛 out/ 규칙; 현행 out/ 은 Codex R6-04 로 unversioned 하나).
+    그래서 재실행이 v2 를 그대로
     재현했는데도 span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
 
     또 정본에 **없던 필드**(`grid_pct` 등 스키마 추가분)가 `None → [값]` 으로 전부 diff 에 섞여 618 건을 만들었다 —
@@ -870,7 +873,7 @@ def test_i6w_06_baseline_can_be_read_from_a_git_revision(tmp_path):
     dest = tmp_path / "base"
     n = m.extract_rev("HEAD", dest, ROOT)
     assert n >= 10, n
-    for name in ("degeneracy_300_0147_Li.json", "matrix_300_0009_v2.csv"):
+    for name in ("degeneracy_300_0147_Li.json", "matrix_300_0009.csv"):
         assert (dest / name).is_file(), sorted(p.name for p in dest.iterdir())[:5]
     assert json.loads((dest / "degeneracy_300_0147_Li.json").read_text(encoding="utf-8"))["state"] == "300_0147"
     assert m.extract_rev("nonexistent-rev-xyz", tmp_path / "b2", ROOT) == 0     # 없는 리비전은 0
@@ -910,3 +913,254 @@ def test_i6w_08_committed_artifacts_carry_no_merge_conflict_markers():
             bad[f.name] = hits
     assert not bad, f"산출에 충돌 표식이 남았다 — 해결하고 다시 커밋할 것: {bad}"
     assert scan("a,b\n<<<<<<< HEAD\n1,2\n") == ["<<<<<<<"]      # 탐지기가 실제로 잡는다 (변이 대신 자체 증명)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# C · Codex R6 (2026-09-12, 대상 d431404, NO-GO: P1 3 · P2 3) — `reviews/R6_CODEX.md`
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+import builtins, io as _io                                                # noqa: E402
+
+
+def _cs():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("compare_states", ROOT / "scripts" / "compare_states.py")
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+
+
+def _c6_meta(art, rid, starts=24):
+    prov = _prov()
+    (art.parent / (art.name + ".meta.json")).write_text(json.dumps(
+        {"artifact": art.name, "state": "100", "run_id": rid, "sha256": prov.sha256_file(art), "starts": starts}),
+        encoding="utf-8")
+
+
+def _c6_deg(out, rid, span, meta=True):
+    obj = {"run_id": rid, "state": "100", "si_source": "Li", "half_cell": "GITT", "n_starts": 24,
+           "best_modes_percent": {"LAM_PE": 1.0, "LAM_NE": 1.0, "LLI": 1.0},
+           **{f"{k}_percent": {"min": 0.0, "max": span, "span": span, "is_lower_bound": True} for k in ("LAM_PE", "LAM_NE", "LLI")}}
+    f = out / "degeneracy_100_Li.json"; verify.atomic_write_json(f, obj)
+    if meta: _c6_meta(f, rid)
+    return f
+
+
+def _c6_matrix(out, rid, width, meta=True, name="matrix_100.csv"):
+    rows = [dict(half_cell="GITT", si=s, w_dqdv="0", LAM_PE_pct=str(i * width), LAM_NE_pct=str(i * width),
+                 LLI_pct=str(i * width), bounds="-", ref_bounds="-", gamma_Si="0.3", ref_gamma_Si="0.2", run_id=rid)
+            for i, s in enumerate(("Li", "Kunz"))]
+    f = out / name; verify.atomic_write_csv(f, rows, list(rows[0]))
+    if meta: _c6_meta(f, rid)
+    return f
+
+
+def _hook_open(monkeypatch, target_name, k, on_k):
+    """`target_name` 파일의 k 번째 **읽기** open 직전에 `on_k()` — 파일 읽기 경계에 다른 정상 게시가 끼는 순서.
+    pandas·zipfile·pathlib 이 각각 `builtins.open`/`io.open` 을 쓰므로 둘 다 건다."""
+    real = _io.open; n = {"v": 0}
+    def fake(file, mode="r", *a, **kw):
+        if pathlib.Path(str(file)).name == target_name and "r" in str(mode) and "+" not in str(mode):
+            n["v"] += 1
+            if n["v"] == k:
+                on_k()
+        return real(file, mode, *a, **kw)
+    monkeypatch.setattr(_io, "open", fake); monkeypatch.setattr(builtins, "open", fake)
+
+
+def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeypatch):
+    """[Codex R6-01 · P1] `load_degeneracy` 가 A 의 JSON bytes 를 읽은 뒤 다른 정상 시도 B 가 B/B 를 게시하면, 독자는
+    pathname 의 B/B 를 검증하고 **A 데이터에 B meta** 를 붙였다. matrix 는 반대 순서 — A/A 를 검증한 직후 B 의 CSV 만
+    게시되면 B 의 폭 79 를 읽어 표에 넣었다 (그 순간 디스크 묶음은 B/A 라 false). 검사는 "이 경로가 검사할 때
+    맞았는가" 만 말하고 따로 읽은 bytes 를 보증하지 않는다.
+
+    독자는 data bytes 와 meta 를 **한 번씩** 읽어 그 둘을 서로 대조하고 그것만 소비한다 — 게시가 어느 읽기 경계에
+    끼든 결과는 A/A · B/B · 명시적 미완 뿐이어야 한다 (A/B 나 검증 안 한 B 의 성공 소비 금지).
+    """
+    W_DEG = {"attempt-A": 1.0, "attempt-B": 20.0}; W_MAT = {"attempt-A": 3.0, "attempt-B": 79.0}
+    cases = []
+    for k in (1, 2, 3, 4):
+        cases += [("deg", "degeneracy_100_Li.json", k, "full"), ("mat", "matrix_100.csv", k, "csv-only"),
+                  ("mat", "matrix_100.csv", k, "full")]
+    cases += [("deg", "degeneracy_100_Li.json.meta.json", 1, "full"), ("mat", "matrix_100.csv.meta.json", 1, "full")]
+    seen = set()
+    for i, (kind, target, k, how) in enumerate(cases):
+        out = tmp_path / f"c{i}"; out.mkdir()
+        if kind == "deg":
+            _c6_deg(out, "attempt-A", W_DEG["attempt-A"])
+            pub_b = lambda o=out: _c6_deg(o, "attempt-B", W_DEG["attempt-B"], meta=True)
+        else:
+            _c6_matrix(out, "attempt-A", W_MAT["attempt-A"])
+            pub_b = lambda o=out, h=how: _c6_matrix(o, "attempt-B", W_MAT["attempt-B"], meta=(h == "full"))
+        with monkeypatch.context() as mp:
+            _hook_open(mp, target, k, pub_b)
+            m = _cs()
+            got = m.load_degeneracy(out) if kind == "deg" else m.load_matrix_axis(out)
+        if "100" not in got:
+            seen.add("미완"); continue                                   # 명시적 미완 — 허용
+        e = got["100"]
+        rid = e["j"]["run_id"] if kind == "deg" else e["run_id"]
+        width = e["j"]["LLI_percent"]["span"] if kind == "deg" else e["per"]["GITT"]["LLI"]
+        assert e.get("meta") and e["meta"]["run_id"] == rid, (kind, target, k, how, rid, e.get("meta"))
+        assert width == (W_DEG if kind == "deg" else W_MAT)[rid], (kind, target, k, how, rid, width)
+        seen.add(rid)
+    assert {"attempt-A", "attempt-B"} & seen, seen                        # 훅이 실제로 두 결과를 다 만들었다
+
+
+def test_c6_02_modern_artifact_without_meta_is_incomplete_not_legacy(tmp_path):
+    """[Codex R6-02 · P1] 빈 out/ 에 `run_id` 가 있는 **현행** 산출을 게시하고 첫 write_meta 전에 중단하면 `verify_unit`
+    이 `(None, "meta 없음")` 을 주고 세 독자가 전부 소비에 성공했다 — "옛 파일 허용" 예외가 현행 생산자의 미완을
+    못 가렸다. 현행 schema(run_id 있음)에는 현행 meta 가 필수고, legacy 호환은 진짜 legacy(run_id 없음)에만."""
+    prov = _prov(); m = _cs(); ne = _load_script("ne_shape")
+    out = tmp_path / "out"; out.mkdir()
+    fj = _c6_deg(out, "rid-x", 5.0, meta=False); fm = _c6_matrix(out, "rid-x", 4.0, meta=False)
+    for f in (fj, fm):
+        ok, why = prov.verify_unit(f)
+        assert ok is False and ("미완" in why or "현행" in why), (f.name, ok, why)
+    assert m.load_degeneracy(out) == {} and m.load_matrix_axis(out) == {}
+    with pytest.raises(RuntimeError):
+        ne.fitted_pair_info(out, "100", "GITT", "Li")
+    # 대조군 ① 진짜 legacy (run_id 없음) 는 호환 경로로 읽힌다
+    leg = tmp_path / "leg"; leg.mkdir()
+    (leg / "degeneracy_100_Li.json").write_text(json.dumps({"state": "100", "best_modes_percent": {},
+        **{f"{k}_percent": {"span": 1.0} for k in ("LAM_PE", "LAM_NE", "LLI")}}), encoding="utf-8")
+    _r5_matrix(leg / "matrix_100.csv", 0.16)                               # run_id 열 없는 옛 모양
+    assert prov.verify_unit(leg / "degeneracy_100_Li.json")[0] is None
+    assert "100" in m.load_degeneracy(leg) and ne.fitted_pair_info(leg, "100", "GITT", "Li") is not None
+    # 대조군 ② 현행 + 제대로 된 meta → 일치
+    _c6_meta(fj, "rid-x"); _c6_meta(fm, "rid-x")
+    assert prov.verify_unit(fj) == (True, "일치") and prov.verify_unit(fm) == (True, "일치")
+    assert "100" in m.load_degeneracy(out) and "100" in m.load_matrix_axis(out)
+
+
+def _bump_xlsx(path, delta=0.02, header=None):
+    """같은 경로에 전압을 +delta 한 유효한 xlsx 를 다시 내보낸다 (Codex R6-03 의 재-export)."""
+    import pandas as pd
+    if header is None:
+        df = pd.read_excel(path, header=None)
+        for c in range(1, df.shape[1], 2):
+            df.iloc[2:, c] = pd.to_numeric(df.iloc[2:, c], errors="coerce") + delta
+        df.to_excel(path, header=False, index=False)
+    else:
+        df = pd.read_excel(path)
+        for c in df.columns:
+            if "volt" in str(c).lower():
+                df[c] = df[c] + delta
+        df.to_excel(path, index=False)
+
+
+def test_c6_03_build_and_ne_shape_hash_the_bytes_they_computed_with(tmp_path, monkeypatch):
+    """[Codex R6-03 · P1] `build` 는 풀셀 워크북 A 를 읽고 **나중에** 경로를 다시 열어 해시했다 — 그 사이 같은 이름으로
+    +20 mV 인 B 가 재-export 되면 Objective 는 A 로 만들고 `consumed_inputs`·`inputs_sha` 는 B 를 적는다.
+    `ne_shape.main` 도 반쪽전지를 HalfCell·raw_ne_capacity·identity 로 세 번 열어 같은 자리가 있다. 입력마다 bytes
+    snapshot 을 한 번 잡고 그 bytes 로 파싱과 해시를 함께 한다 — A값/A서명 · B값/B서명 · 중단만 허용."""
+    import hashlib
+    src = _synth_root(tmp_path)
+    wb = src / "data/full_cell/large_cell_033C/fullcell_states.xlsx"
+    a_bytes = wb.read_bytes(); sha_a = hashlib.sha256(a_bytes).hexdigest()   # A 의 bytes 를 한 번 잡아 둔다 (합성 재생성은 byte-결정적이지 않다)
+    ref = verify.build(src, "GITT", "100", "Li")                          # 깨끗한 A 로 만든 기준
+    for k in (1, 2, 3):
+        # 훅이 실제로 B 를 쓰면 이후 반복은 B 를 읽으므로 매번 A 로 되돌린다
+        wb.write_bytes(a_bytes)
+        assert hashlib.sha256(wb.read_bytes()).hexdigest() == sha_a
+        with monkeypatch.context() as mp:
+            _hook_open(mp, wb.name, k, lambda: _bump_xlsx(wb))
+            obj = verify.build(src, "GITT", "100", "Li")
+        got = obj.consumed_inputs["full_cell"]["sha256"]; v_same = bool((obj.voltage == ref.voltage).all()) if obj.voltage.shape == ref.voltage.shape else False
+        sha_now = hashlib.sha256(wb.read_bytes()).hexdigest()
+        # 허용: (A값, A서명) 또는 (B값, B서명). 금지: A값에 B서명
+        assert (v_same and got == sha_a) or (not v_same and got == sha_now and got != sha_a), (k, v_same, got[:12], sha_a[:12], sha_now[:12])
+    # ne_shape: 반쪽전지 100.xlsx 의 세 번째 열기(옛 코드의 identity 읽기) 직전에 PE +20 mV 재-export
+    wb.write_bytes(a_bytes)
+    hc = src / "data/half_cell/GITT/100.xlsx"; hc_a = hashlib.sha256(hc.read_bytes()).hexdigest()
+    ne = _load_script("ne_shape")
+    import contextlib
+    def run_ne(outd, hook):
+        outd.mkdir()
+        with monkeypatch.context() as mp:
+            if hook:
+                _hook_open(mp, hc.name, hook, lambda: _bump_xlsx(hc, header=0))
+            mp.setattr(sys, "argv", ["ne_shape", "--data-root", str(src), "--out-dir", str(outd), "--write", str(outd)])
+            with contextlib.redirect_stdout(_io.StringIO()):
+                ne.main()
+        meta = json.loads((outd / "ne_shape_GITT_Li.csv.meta.json").read_text(encoding="utf-8"))
+        rows = {r["state"]: r for r in csv.DictReader((outd / "ne_shape_GITT_Li.csv").open(encoding="utf-8"))}
+        return meta["consumed_inputs"]["100"]["half_cell"]["sha256"], float(rows["100"]["pe_shape_max_mV"])
+    hc_a_bytes = hc.read_bytes()
+    rec_a, pe_a = run_ne(tmp_path / "ne_out_a", hook=False)              # 깨끗한 A 의 기준 (합성 100 은 자체 PE 편차가 있다)
+    assert rec_a == hc_a
+    # 두 번째·세 번째 open 직전에 재-export: 옛 코드는 세 번(HalfCell·raw_ne_capacity·identity), "파싱 뒤 다시 열어
+    # 해시" 류의 변이는 두 번 연다. 올바른 코드는 한 번만 열어 어느 훅도 안 맞는다.
+    for k in (2, 3):
+        hc.write_bytes(hc_a_bytes)
+        rec, pe = run_ne(tmp_path / f"ne_out_{k}", hook=k)
+        hc_now = hashlib.sha256(hc.read_bytes()).hexdigest()
+        # 허용: (A값, A서명) 또는 (B값 = +20 mV, B서명). 금지: A값에 B서명
+        assert (rec == hc_a and abs(pe - pe_a) < 1e-9) or (rec == hc_now and rec != hc_a and pe > pe_a + 15.0), \
+            (k, rec[:12], hc_a[:12], hc_now[:12], pe, pe_a)
+
+
+def test_c6_04_reader_uses_the_unversioned_canon_and_flags_versioned_siblings(tmp_path, capsys):
+    """[Codex R6-04 · P2] "가장 높은 `_vN`" 규칙 때문에 U14 가 정본을 다시 만든 뒤에도 독자는 옛 `_v2`(meta 없음)를
+    골랐다 — 새 서명·환경 필드가 소비 경로에 안 실린다. 정본은 **unversioned 이름 하나**이고 `_vN` 은 역사 자료라
+    `out/archive/` 에 있어야 한다; out/ 에 남은 `_vN` 은 시끄럽게 건너뛴다."""
+    m = _cs(); d = tmp_path / "out"; d.mkdir()
+    _c6_deg(d, "rid-new", 111.0)
+    (d / "degeneracy_100_Li_v2.json").write_text(json.dumps({"state": "100", "best_modes_percent": {},
+        **{f"{k}_percent": {"span": 222.0} for k in ("LAM_PE", "LAM_NE", "LLI")}}), encoding="utf-8")
+    _c6_matrix(d, "rid-new", 3.0)
+    _c6_matrix(d, "rid-old", 50.0, meta=False, name="matrix_100_v2.csv")
+    got = m.load_degeneracy(d); mx = m.load_matrix_axis(d); err = capsys.readouterr().err
+    assert got["100"]["file"] == "degeneracy_100_Li.json" and got["100"]["j"]["LLI_percent"]["span"] == 111.0, got["100"]["file"]
+    assert mx["100"]["file"] == "matrix_100.csv" and mx["100"]["per"]["GITT"]["LLI"] == 3.0, mx["100"]["file"]
+    assert "_v2" in err and "archive" in err, err
+    # 실제 out/ 에는 `_vN` 이 없어야 한다 (U14 가 v2 를 비트 단위로 재현했으므로 옛 판은 archive 로)
+    assert not [p.name for p in (ROOT / "out").glob("*_v[0-9]*")], [p.name for p in (ROOT / "out").glob("*_v[0-9]*")]
+    assert (ROOT / "out" / "archive" / "degeneracy_300_0009_Li_v2.json").is_file()
+
+
+def test_c6_05_git_provenance_keeps_a_path_containing_the_arrow_notation(tmp_path):
+    """[Codex R6-05 · P2] `-z` 레코드로 정확히 읽은 경로를 후단의 `.split(" -> ")[-1].strip()` 이 다시 훼손했다 —
+    rename 이 아닌 정상 파일명 `out/a -> b.csv` 의 수치 하나를 고치면 `git_modified_code=["b.csv"]`, dirty=True.
+    NUL 레코드의 path 필드를 그대로 쓴다 (사람용 rename 표기로 분해하거나 공백을 깎지 않는다)."""
+    root = tmp_path / "repo"; git = _fixture_repo(root, outputs=("out/a -> b.csv",))
+    (root / "out" / "a -> b.csv").write_text("a,b\n1,3\n", encoding="utf-8")
+    pv = _prov().git_provenance(cwd=str(root), output_roots=("out",))
+    assert pv["git_modified_outputs"] == ["out/a -> b.csv"], pv
+    assert pv["git_modified_code"] == [] and pv["git_dirty"] is False, pv
+
+
+def test_c6_06_profile_budget_is_stated_as_it_is_run():
+    """[Codex R6-06 · P2] U14 판정문이 "γ profile 은 적은 시작으로 풀어서" 움직였다고 설명했는데 실제 경로는
+    `best[:4] + 무작위 24` = **γ당 25 회** 4변수 L-BFGS-B 다 (SLSQP 등식 프로파일의 3 시작과 섞었다). 산출의
+    `n_tried` 와 코드가 그렇게 말하고, 문서는 그 예산을 적되 "적은 시작 때문" 을 말하지 않는다."""
+    import inspect
+    src = inspect.getsource(verify.cmd_profile)
+    assert "rng.random((args.starts, 4))" in src and "[best[:4]]" in src
+    n = 0
+    for f in (ROOT / "out").glob("profile_gamma_*.csv"):
+        for r in csv.DictReader(f.open(encoding="utf-8")):
+            if r.get("n_tried"):
+                assert int(r["n_tried"]) == 25 and int(r["n_ok"]) <= 25, (f.name, r["gamma_Si"], r["n_tried"]); n += 1
+    assert n >= 80, n                                                    # U14 네 상태 84 행
+    for name in ("reviews/R6_LEDGER.md", "reviews/R6_REQUEST.md", "WORKING_STATE.md", "FINDINGS.md"):
+        live = _live(_doc(name))
+        assert "적은 시작" not in live, name
+    assert "γ당 25" in _live(_doc("reviews/R6_LEDGER.md"))
+
+
+def test_c6_q3_precision_conflict_is_partial_only_when_the_option_absorbed_a_difference(tmp_path):
+    """[Codex R6 Q3] "충돌이면 항상 partial" 은 코드와 다르다. `%.17g` 선언 + `--precision fixed:1` 에서 `.125` 와 `.125`
+    는 conflict=true 지만 complete/0 이고, `.125` 와 `.126` 은 partial/3 이다 — partial 은 **옵션이 선언은 못 흡수하는
+    차이를 흡수한 셀이 있을 때만** 이다 (`precision_override_looser`). 문서(§1-8)는 그 실제 의미를 적는다."""
+    anchors, cols, P, py, rows = _r2_base()
+    for r in rows:
+        r[5] = 0.125
+    loose = _r2_csv(tmp_path, anchors, cols, rows, name="loose.csv")            # 기본 head = %.17g 선언
+    same = {c: list(v) for c, v in py.items()}; same["rmse_pocv"] = [0.125] * len(P)
+    res, txt = _r2_run(anchors, P, same, loose, precision="fixed:1")
+    assert res["precision_conflict"] and not res["precision_override_looser"], (res, txt)
+    assert res["status"] == "complete", (res["status"], txt)                   # 같은 값: 충돌은 기록되고 complete
+    diff = {c: list(v) for c, v in py.items()}; diff["rmse_pocv"] = [0.125] * len(P); diff["rmse_pocv"][3] = 0.126
+    res, txt = _r2_run(anchors, P, diff, loose, precision="fixed:1")
+    assert res["precision_conflict"] and res["precision_override_looser"], (res, txt)
+    assert res["status"] == "partial", (res["status"], txt)                    # 옵션이 흡수한 차이: partial
+    sec = _live(_section(_doc("FINDINGS.md"), "### 1-8"))
+    assert "못 흡수하는 차이를 흡수한 셀이 있을 때만" in sec and "충돌은 R4-02 Q3 대로 partial" not in sec

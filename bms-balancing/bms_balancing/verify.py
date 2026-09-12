@@ -167,26 +167,22 @@ def build(root: Path, source: str, state: str, si_source: str,
             f"  `{source}` 에 있는 상태: {', '.join(have) or '(없음)'}\n"
             + (f"  `{state}` 는 `--source {other[0]}` 에는 있다.\n" if other else "")
             + "  (상태마다 반쪽전지를 따로 재는 파이프라인이라 없는 상태는 못 돈다)")
-    half = HalfCell(hc, window=11, poly_order=3)
-    si_c, si_v, gr_c, gr_v = D.load_literature(root, si_source)
+    # ⚠ Codex R6-03: 입력은 **한 번 읽은 bytes** 로 파싱하고 그 bytes 를 해시한다. 전 판은 로더가 경로로 읽은 뒤
+    #   경로를 다시 열어 해시했다 — 그 사이 같은 이름으로 재-export 된 B 가 있으면 A 로 계산하고 B 의 서명을 적었다.
+    hb = D.read_input(hc)
+    half = HalfCell(hb.stream(), window=11, poly_order=3)
+    lit_id: dict = {}
+    si_c, si_v, gr_c, gr_v = D.load_literature(root, si_source, identity=lit_id)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
     wb = D.full_cell_workbook(root)
-    c, v = D.load_full_cell(root, state, workbook=wb)
+    fc_id: dict = {}
+    c, v = D.load_full_cell(root, state, workbook=wb, identity=fc_id)
     obj = Objective(half, blend, c, v, window=11, poly_order=3,
                     w_pocv=1.0, w_dvdq=1.0, w_dqdv=w_dqdv,
                     use_peak_weight=use_peak_weight, scale_seed=scale_seed)
     # ⚠ R6 내부 F4: 풀셀 워크북은 폴더의 이름순 첫 xlsx 라 사본 하나로 조용히 바뀌는데 이름·sha256 이 어디에도
     #   없었다 (R5-05 는 ne_shape 만). 소비한 입력 셋의 identity 를 Objective 가 들고 다니고 산출마다 적는다.
-    sha = _provenance().sha256_file
-    lit = root / "data" / "literature"
-    obj.consumed_inputs = {
-        "half_cell": {"path": str(hc), "sha256": sha(hc)},
-        "full_cell": {"path": str(wb), "sha256": sha(wb)},
-        "literature": {"si": {"path": str(lit / "Si_OCP_sources" / f"{si_source}.csv"),
-                              "sha256": sha(lit / "Si_OCP_sources" / f"{si_source}.csv")},
-                       "gr": {"path": str(lit / "Si_Gr_literature_OCP.xlsx"),
-                              "sha256": sha(lit / "Si_Gr_literature_OCP.xlsx")}},
-    }
+    obj.consumed_inputs = {"half_cell": hb.identity(), "full_cell": fc_id, "literature": lit_id}
     obj.inputs_sha = inputs_digest(obj.consumed_inputs)
     return obj
 

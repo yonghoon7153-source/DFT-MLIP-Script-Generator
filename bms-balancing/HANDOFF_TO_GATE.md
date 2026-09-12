@@ -39,7 +39,7 @@ git diff --stat 56a35a8..claude/bms-alpha-beta-verify -- \
 |---|---|
 | 포팅 forward model 동치 | MATLAB R2026a(툴박스) 실측, 4 조합 × (앵커 16 + rmse 32) = **192 값, 최대 상대차 4.04e-12** (§1-8, `out/recompare/`; 구판 104 값도 고친 비교기로 재확인) |
 | blind 재적합 | 보고값을 시작점에서 빼도 **마지막 자리까지 같은 답** |
-| 축퇴 폭 재측정 | LAM_NE **0.87 → 3.6027 %p** (4.1 배, `_v2`), LAM_PE 2.8696, LLI 1.0832 |
+| 축퇴 폭 재측정 | LAM_NE **0.87 → 3.6027 %p** (4.1 배), LAM_PE 2.8696, LLI 1.0832 |
 | 규진팀 소스 확인 | chain rule 누락은 **그들 모델의 불일치**, 우리 포팅은 충실 |
 
 정본은 `bms-balancing/FINDINGS.md`. 철회·정정 목록은 그 문서 §0-2.

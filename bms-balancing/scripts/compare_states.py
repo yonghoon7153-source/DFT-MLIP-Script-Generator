@@ -21,70 +21,72 @@ import csv, json, pathlib, re, sys
 MODES = ("LAM_PE", "LAM_NE", "LLI")
 
 
-#: 산출 이름 뒤에 `_v2` 같은 판 번호가 붙는다. **최신 판만** 쓴다.
-#: 2026-09-10 에 이 저장소에서 옛 판을 읽고 쓴 실수가 세 번 있었다
-#: (README 의 8.93 %p, matlab/README 의 dump 표, 그리고 이 스크립트 첫 판).
-VER = re.compile(r"_v(\d+)$")
+#: 정본은 unversioned 이름 하나다. 2026-09-10 에는 `_v2` 가 정본이라 "최신 판" 을 골랐고 그날 옛 판을 읽고 쓴
+#: 실수가 세 번 있었다 (README 의 8.93 %p, matlab/README 의 dump 표, 이 스크립트 첫 판). U14 가 `_v2` 를 unversioned
+#: 이름으로 재현한 뒤에는 그 규칙이 거꾸로 meta 없는 옛 판을 고르게 했다 — 판 번호는 이제 역사 자료의 표지다.
+VER = re.compile(r"_v(\d+)$")   # `_vN` = 옛 판 (역사 자료) — 정본이 아니다 (Codex R6-04)
 
 
-def _split_version(stem: str) -> tuple[str, int]:
-    m = VER.search(stem)
-    return (stem[:m.start()], int(m.group(1))) if m else (stem, 1)
+def _canon_files(d: pathlib.Path, pattern: str):
+    """정본은 **unversioned 이름 하나**다. `_vN` 이 붙은 파일이 out/ 에 남아 있으면 시끄럽게 건너뛴다.
+
+    ⚠ Codex R6-04: "가장 높은 `_vN`" 규칙 때문에 U14 가 정본을 다시 만든 뒤에도 옛 `_v2`(meta 없음)를 골랐다 —
+      새 서명·환경 필드가 소비 경로에 안 실렸다. 옛 판은 `out/archive/` 로 (`out/archive/README.md`)."""
+    for f in sorted(d.glob(pattern)):
+        if f.name.endswith(".meta.json"):
+            continue
+        if VER.search(f.stem):
+            print(f"  ! {f.name}: 판 번호가 붙은 옛 산출 — 정본은 unversioned 이름 하나다; `out/archive/` 로 옮길 것 "
+                  f"(Codex R6-04)", file=sys.stderr)
+            continue
+        yield f
 
 
-def _keep_latest(cands: dict) -> dict:
-    """{(키, 판): 값} → 키마다 가장 높은 판만."""
-    best = {}
-    for (key, ver), val in cands.items():
-        if key not in best or ver > best[key][0]:
-            best[key] = (ver, val)
-    return {k: v for k, (_, v) in best.items()}
+def _read_unit(f: pathlib.Path):
+    """산출 bytes 와 meta 를 한 번씩 읽어 서로 대조한 snapshot → (data, meta). 소비 금지면 (None, None).
 
-
-def _unit_ok(f: pathlib.Path):
-    """R6 내부 F07 (Codex R5-04 의 reader 절): 산출물과 meta 가 한 시도의 묶음이 아니면 표에 넣지 않는다.
-    meta 가 없거나 옛 meta(run_id/sha256 없음)면 None — 전과 같이 읽는다."""
+    ⚠ R6 내부 F07 · Codex R6-01·02: 경로를 따로 검사하고 따로 읽으면 그 사이 끼어든 정상 게시가 검사를 통과해
+      A 데이터에 B meta 가 붙는다. 표는 **이 함수가 돌려준 bytes 만** 소비한다. meta 가 없거나 옛 meta 면 산출이
+      현행 schema(run_id 있음) 인 한 미완이다 — 옛 산출(run_id 없음)만 호환 경로로 읽는다."""
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    from provenance import verify_unit
-    ok, why = verify_unit(f)
+    from provenance import read_unit
+    ok, why, data, meta = read_unit(f)
     if ok is False:
-        print(f"  ! {f.name}: 묶음 불일치 ({why}) — 표에서 뺀다 (R6 내부 F07)", file=sys.stderr)
-    return ok
+        print(f"  ! {f.name}: 묶음 불일치/미완 ({why}) — 표에서 뺀다 (R6 내부 F07 · Codex R6-01·02)", file=sys.stderr)
+        return None, None
+    return data, meta
 
 
 def load_degeneracy(d: pathlib.Path) -> dict:
-    cands = {}
-    for f in sorted(d.glob("degeneracy_*.json")):
-        stem, ver = _split_version(f.stem)
-        m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", stem)
+    out = {}
+    for f in _canon_files(d, "degeneracy_*.json"):
+        m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", f.stem)
         if not m:
             continue
+        data, meta = _read_unit(f)
+        if data is None:
+            continue
         try:
-            j = json.loads(f.read_text(encoding="utf-8"))
+            j = json.loads(data.decode("utf-8"))
         except json.JSONDecodeError:
-            print(f"  ! {f.name} 이 JSON 이 아니다 — 중간에 죽은 산출인가?",
-                  file=sys.stderr)
+            print(f"  ! {f.name} 이 JSON 이 아니다 — 중간에 죽은 산출인가?", file=sys.stderr)
             continue
-        if _unit_ok(f) is False:
-            continue
-        meta = pathlib.Path(str(f) + ".meta.json")
-        cands[(m.group(1), ver)] = {
-            "si": m.group(2), "j": j, "version": ver, "file": f.name,
-            "meta": json.loads(meta.read_text(encoding="utf-8"))
-                    if meta.is_file() else None}
-    return _keep_latest(cands)
+        out[m.group(1)] = {"si": m.group(2), "j": j, "file": f.name, "meta": meta,
+                           "run_id": j.get("run_id")}
+    return out
 
 
 def load_matrix_axis(d: pathlib.Path) -> dict:
     """`matrix_<state>.csv` 에서 **한 축만** 꺼낸다: 반쪽전지 하나 · dQ/dV 끔 · Si 8 종."""
-    cands = {}
-    for f in sorted(d.glob("matrix_*.csv")):
-        stem, ver = _split_version(f.stem)
-        st = stem[len("matrix_"):]
-        if _unit_ok(f) is False:
+    import io
+    out = {}
+    for f in _canon_files(d, "matrix_*.csv"):
+        st = f.stem[len("matrix_"):]
+        data, meta = _read_unit(f)
+        if data is None:
             continue
-        rows = [r for r in csv.DictReader(f.open(encoding="utf-8"))
-                if r.get("w_dqdv") and float(r["w_dqdv"]) == 0]
+        all_rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
+        rows = [r for r in all_rows if r.get("w_dqdv") and float(r["w_dqdv"]) == 0]
         if not rows:
             continue
         by_src = {}
@@ -101,8 +103,10 @@ def load_matrix_axis(d: pathlib.Path) -> dict:
                 **{f"{k}_free": (max(float(r[f"{k}_pct"]) for r in free)
                                  - min(float(r[f"{k}_pct"]) for r in free))
                    if len(free) > 1 else None for k in MODES}}
-        cands[(st, ver)] = {"per": per, "version": ver, "file": f.name}
-    return _keep_latest(cands)
+        rids = {r.get("run_id") for r in all_rows}
+        out[st] = {"per": per, "file": f.name, "meta": meta,
+                   "run_id": next(iter(rids)) if len(rids) == 1 else None}
+    return out
 
 
 def main() -> int:

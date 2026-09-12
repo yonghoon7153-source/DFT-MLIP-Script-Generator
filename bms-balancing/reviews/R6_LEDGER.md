@@ -148,8 +148,10 @@ pandas 3.0.5 · WSL2 — 정본을 만든 조합은 meta 에 없어 모른다, �
 | `profile_gamma_*.csv` 개별 행 | LAM_NE 2.8e-2 · b_NE 3.6e-1 · rmse_pocv 2.1e-2 | 국소 최적점이 갈린 행이 있다 |
 | §5-1 문턱 표 (8·10·11·12 mV) | n 6/10/12/13 **동일**, 폭 13.5860 → 13.5859, 최악 비 동일 | 문서 숫자(소수 3자리)는 그대로 |
 
-**읽는 법**: degeneracy·matrix 는 multistart(24 시작) 라 국소 해가 안정적이고, `profile` 은 γ 마다 등식 제약을 걸고
-적은 시작으로 푸는 구조라 입력의 ULP 차이가 다른 국소 최적점으로 갈 수 있다 — F3(scipy 판에 따라 `savgol_filter` 가
+**읽는 법** (Codex R6-06 정정판): degeneracy·matrix 는 5변수 multistart(24 시작 + 힌트) 이고, `profile` 은 γ 를
+고정한 4변수 L-BFGS-B 를 **γ당 25 회**(`best[:4]` + 무작위 24, `cmd_profile`; 산출 `n_tried` 25) 돈다 — 시작 예산이
+적어서 움직인 것이 **아니다**. ~~적은 시작으로 푸는 구조라~~ 는 SLSQP 등식 프로파일(`_profile_mode`, 3 시작)과 섞은
+오기였다. 같은 예산 안에서 입력의 ULP 차이가 다른 국소 최적점으로 간 것이고 — F3(scipy 판에 따라 `savgol_filter` 가
 ULP 로 갈리고 L-BFGS-B 최적점이 달라진다)이 **야생에서 확인된 것**이다. 다만 영향은 갇혀 있다: §5-1 이 세는 n 과
 최악 비는 그대로고 폭은 넷째 자리에서만 움직인다. **어떤 결론도 뒤집히지 않았다.**
 
@@ -159,3 +161,48 @@ ULP 로 갈리고 L-BFGS-B 최적점이 달라진다)이 **야생에서 확인�
 | ID | 무엇 | 심각도 | 상태 | 테스트 |
 |---|---|---|---|---|
 | U14-05 | U14 재실행이 `out/matrix_300_0009.csv` 를 덮었는데 그 자리에 있던 것이 §4-0 이 "고치기 **전**" 으로 인용하는 v1 이었다 (재실행은 수정된 코드라 `_v2` 를 재현 — 새 파일 ↔ 옛 v1 최대 상대차 4.17e-01). 파이프라인이 덮어쓰는 이름에 역사 자료가 놓여 있었다 | 숫자가_바뀜 (§4-0 의 근거가 사라졌다) | 닫힘 — `out/archive/matrix_300_0009_premultistart.csv` 로 보존(+`out/archive/README.md`), §4-0·§3-3 인용과 테스트 둘을 그쪽으로. archive 는 `out/*.csv` 비재귀 glob 에 안 걸려 소비자와 섞이지 않는다 | `test_i6d_06`·`test_i6d_09` |
+
+---
+
+## Codex R6 (2026-09-12, 대상 `d431404`) — **NO-GO (P1 3 · P2 3) → 여섯 건 전부 재현·닫음** (`reviews/R6_CODEX.md`)
+
+토큰이 돌아와 6차 요청문(`R6_REQUEST.md`)을 Codex 에 보냈다. 판정은 NO-GO — "출처 결속 세 조건을 먼저 닫는다".
+절차는 그대로: 원문 보존 → 우리 트리에서 재현(RED) → 수정 → GREEN → 변이 감사 → 원장. 회귀는
+`tests/test_r6_internal.py` **C 절** (`test_c6_01`~`06` + `test_c6_q3`, 전부 수정 전 트리에서 RED 확인).
+
+| ID | 무엇 (Codex 반례) | 심각도 | 상태 | 테스트 |
+|---|---|---|---|---|
+| **R6-01** (P1) | 독자가 A 의 bytes 를 읽은 뒤 경로를 다시 검사 → 그 사이 게시된 정상 시도 B 가 검사를 통과해 **A 데이터에 B meta**; matrix 는 반대 순서로 A/A 검증 뒤 B 행 소비 | 결론이_바뀜 (동시 게시 시) | 닫힘 (코드) — `provenance.read_unit(path, rid) → (ok, why, data, meta)` 가 bytes 와 meta 를 **한 번씩** 읽어 서로 대조한 snapshot 을 돌려주고, `compare_states.load_degeneracy`·`load_matrix_axis`·`ne_shape.fitted_pair_info` 는 **그 data 만** 파싱한다. `verify_unit` 은 `read_unit(...)[:2]` | `test_c6_01` (훅으로 어느 읽기 경계에 게시가 끼든 A/A · B/B · 미완만) |
+| **R6-02** (P1) | `run_id` 가 있는 현행 산출에 meta 가 없거나 옛 meta 면 `verify_unit` 이 None(옛 산출 호환) → 미완 묶음이 표에 실린다 | 결론이_바뀜 (중단된 게시) | 닫힘 (코드) — `is_modern_bytes` 로 산출 안의 `run_id` 를 보고, 현행이면 meta 없음/옛 meta = **False (미완)**; 옛 산출(run_id 없음)만 None | `test_c6_02` |
+| **R6-03** (P1) | `build` 가 풀셀 워크북을 파싱한 **뒤** 경로를 다시 열어 해시 → 그 사이 재-export 된 B 를 서명 (A 로 계산, B 서명). `ne_shape.main` 은 반쪽전지를 세 번 열었다 (HalfCell · raw_ne_capacity · identity) | 결론이_바뀜 (입력 재-export 시) | 닫힘 (코드) — `data.read_input(path) → InputBytes` (bytes · sha256 · `.stream()` · `.identity()`); `load_full_cell`·`load_literature`·`HalfCell`·`raw_ne_capacity` 가 **같은 bytes** 로 파싱하고 `consumed_inputs`·`inputs_sha` 는 그 bytes 의 해시 | `test_c6_03` (워크북 1·2·3 번째 open · 반쪽전지 2·3 번째 open 직전 재-export — A값/A서명 · B값/B서명만 허용) |
+| **R6-04** (P2) | "가장 높은 `_vN`" 규칙 때문에 U14 가 정본을 다시 만든 뒤에도 독자는 옛 `_v2`(meta 없음)를 골랐다 — 새 서명·환경 필드가 소비 경로에 안 실렸다 | 숫자가_바뀜 (같은 값이었지만 검증 경로가 빠짐) | 닫힘 (코드+자료) — 정본은 **unversioned 이름 하나**. `_vN` 이 out/ 에 남으면 시끄럽게 건너뛴다 (`_canon_files`, ne_shape 도 같은 경고). `degeneracy_300_0009_Li_v2.json`·`matrix_300_0009_v2.csv` 는 `out/archive/` 로 (README 행 추가). FINDINGS §1-8·§3-3·§3-4·§4-1 · README · HANDOFF · matlab/README 의 `_v2` 인용을 정본 이름으로 | `test_c6_04` · `test_compare_states_reads_the_unversioned_canon_*` (옛 "최신 판" 테스트를 규칙째 뒤집음) · `test_r5_05_*` (같은 이름 재게시로) |
+| **R6-05** (P2) | `git_provenance` 가 `-z` 레코드 경로를 `" -> "` 로 쪼개고 strip → `out/a -> b.csv` 가 `b.csv`(코드) 로 분류 | 서술만_바뀜 | 닫힘 (코드) — `rel = ln[3:]` 그대로 | `test_c6_05` |
+| **R6-06** (P2) | U14 판정문 "γ profile 은 적은 시작으로 풀어서 움직였다" — 실제 경로는 `best[:4]` + 무작위 24 = **γ당 25 회** 4변수 L-BFGS-B (`n_tried` 25). SLSQP 등식 프로파일(3 시작)과 섞은 오기 | 서술만_바뀜 | 닫힘 (문서) — 위 "U14 판정" 읽는 법 정정판 · `R6_REQUEST.md` §3 취소선 · FINDINGS §0-2 행 | `test_c6_06` (코드·산출 `n_tried`·문서 셋 동시에) |
+| Q3 | "충돌이면 항상 partial" 문구 ≠ 코드 — `.125`/`.125` 는 conflict 지만 complete, `.125`/`.126` 은 partial | 서술만_바뀜 | 닫힘 (문서) — §1-8: "옵션이 선언은 못 흡수하는 차이를 흡수한 셀이 있을 때만 partial(3)" | `test_c6_q3` (코드 두 경우 + 문구) |
+
+**변이 감사** (`reviews/r6_repros/codex_r6_mutation_audit.py`, 출력 `…_audit.txt`): 수정 여덟 조각을 하나씩
+되돌리면 각각의 테스트가 실패한다 — **8/8 CAUGHT · 0 MISSED**, 되돌린 뒤 7 passed. 이 감사가 없었으면 c6_03 의
+ne_shape 절반은 3 번째 open 만 걸어 "파싱 뒤 다시 열어 해시" 류(2 번 open)를 놓쳤을 것이다 → 2·3 번째를 다 건다.
+
+**규약이 바뀐 것 (소비자 전부)**
+- 독자: `read_unit` 의 (data, meta) snapshot 만 소비. 경로 재검사·재읽기 금지. False 면 표에서 빼고 이유를 찍는다.
+- 산출 판정: `run_id` 있음 + meta 없음/옛 meta = **미완**. 옛 산출(run_id 없음)만 호환 경로 (None).
+- 입력: `read_input` 의 bytes 로 파싱과 해시를 같이. `HalfCell`·`raw_ne_capacity` 는 스트림을 받는다.
+- 정본 이름: unversioned 하나. `_vN` 은 `out/archive/` 의 역사 자료 (`check_u14.baseline_for` 의 "가장 높은 판" 은
+  **옛 리비전**을 읽을 때만 뜻이 있다 — docstring 에 못 박음).
+
+**Codex 의 질문에 대한 답 (R7 요청문 §6 에 다시 싣는다)**
+- Q1 동시 실행: R6-01·02 를 닫았으니 "독자는 검증한 snapshot 만 소비" 가 성립한다. 남는 것은 Codex 가 짚은 대로
+  crash 뒤 "마지막 온전한 묶음 유지" 인데, 지금 게시는 `.part` → rename 두 단계라 data 는 갔고 meta 가 안 간 순간이
+  있다 — 그 순간은 이제 **미완(False)** 으로 읽히지 옛 묶음으로 오인되지 않는다. 시도별 불변 묶음 + 단일 선택 지점은
+  안 만들었다 (신뢰 경계 F01b 로 등록).
+- Q2 producer 의 id 복사: GO 전제로 삼지 않는다 (Codex 동의). F08 그대로.
+- Q3: 문서를 실제 의미로 고쳤다 (위 표).
+- Q4 1.0832 인용: 탐색 하한으로만. endpoint 의 parameter·J·limit·제약 잔차 보존은 안 했다 — U17 로 등록.
+- Q5 §5·§5-1 인용: 인쇄 정밀도의 기술 집계로 가능. "multistart 가 없어서" 는 쓰지 않는다 (R6-06). U16 유지.
+- Q6 다섯 관측: Codex 의 한정어 다섯 줄을 요구서 초안의 관측 열 규격으로 받는다 (R7 §5).
+
+**부수 정정**: 2026-09-10 의 `test_compare_states_reads_the_latest_version` 은 "가장 높은 `_vN` 을 읽어라" 였고 그
+규칙이 R6-04 의 원인이다 — 삭제하지 않고 **규칙을 뒤집어** 같은 이름 자리에 둔다 (역사를 docstring 에 남김).
+`test_quoted_spreads_*`·`test_dump_table_*` 는 `_v2` 가 없으면 조용히 `return` 하던 것을 **assert** 로 바꿨다 —
+정본을 옮기자 두 테스트가 통째로 비었을 것이다 (fixture 가 진실을 가리는 통로).

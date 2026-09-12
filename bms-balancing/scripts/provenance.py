@@ -86,7 +86,9 @@ def git_provenance(cwd: str | None = None, artifact=None, output_roots=("out",))
              for r in output_roots if r]                       # 빈 문자열(미설정 $OUT)은 루트가 아니다
     outputs, code = [], []
     for ln in lines:
-        rel = ln[3:].split(" -> ")[-1].strip()
+        # ⚠ Codex R6-05: `-z` 레코드의 경로는 이미 정확하다. 사람용 rename 표기(" -> ")로 다시 쪼개거나 앞뒤 공백을
+        #   깎으면 정상 파일명 `out/a -> b.csv` 가 `b.csv`(코드) 로 분류된다. 그대로 쓴다.
+        rel = ln[3:]
         path = (top / rel).resolve()
         if path in skip:
             continue
@@ -103,69 +105,118 @@ def sha256_file(path) -> str:
     return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
 
 
-def check_run_id(path, rid: str):
-    """산출물이 **필드로** 이 시도의 id 를 담고 있는가 (Codex R5-08: 파일 어디든 문자열이 있으면 통과하던 grep 대신).
-
-    CSV → 모든 행의 `run_id` 열이 rid; JSON → 최상위 `run_id` 가 rid. → (ok, 설명)"""
-    import csv, json, pathlib
-    p = pathlib.Path(path)
-    if not p.is_file():
-        return False, "파일 없음"
+def check_run_id_bytes(name: str, data: bytes, rid: str):
+    """`data`(이미 읽은 bytes)가 **필드로** 이 시도의 id 를 담고 있는가 (Codex R5-08). CSV → 모든 행의 `run_id` 열;
+    JSON → 최상위 `run_id`. 경로가 아니라 bytes 를 받는 이유: 검증한 bytes 와 소비하는 bytes 가 같아야 한다 (Codex R6-01)."""
+    import csv, io, json
     if not rid:
         return False, "run id 없음"
     try:
-        if p.suffix.lower() == ".csv":
-            with p.open(encoding="utf-8", newline="") as fh:
-                header = next(csv.reader(fh), [])
-                n_col = header.count("run_id")
-                if n_col != 1:                       # R6 내부 V6-08: DictReader 는 같은 이름의 마지막 열만 본다
-                    return False, ("run_id 열 없음" if n_col == 0 else f"run_id 열이 {n_col} 개")
-                fh.seek(0)
-                rows = list(csv.DictReader(fh))
+        txt = data.decode("utf-8-sig")
+        if name.lower().endswith(".csv"):
+            header = next(csv.reader(io.StringIO(txt)), [])
+            n_col = header.count("run_id")
+            if n_col != 1:                           # R6 내부 V6-08: DictReader 는 같은 이름의 마지막 열만 본다
+                return False, ("run_id 열 없음" if n_col == 0 else f"run_id 열이 {n_col} 개")
+            rows = list(csv.DictReader(io.StringIO(txt)))
             if not rows:
                 return False, "행 없음"
             bad = [r.get("run_id") for r in rows if r.get("run_id") != rid]
             return (not bad), ("전 행 일치" if not bad else f"다른 run_id 행 {len(bad)}/{len(rows)}: {bad[:2]}")
-        data = json.loads(p.read_text(encoding="utf-8"))
-        ok = isinstance(data, dict) and data.get("run_id") == rid
-        return ok, ("일치" if ok else f"JSON run_id={data.get('run_id') if isinstance(data, dict) else None!r}")
+        d = json.loads(txt)
+        ok = isinstance(d, dict) and d.get("run_id") == rid
+        return ok, ("일치" if ok else f"JSON run_id={d.get('run_id') if isinstance(d, dict) else None!r}")
     except Exception as e:                           # noqa: BLE001
         return False, f"읽기 실패: {e}"
 
 
-def verify_unit(path, rid: str | None = None):
-    """산출물과 그 `.meta.json` 이 **같은 시도의 한 묶음**인가 (Codex R5-04): meta 의 run_id 가 산출물의
-    필드와 같고 meta 의 sha256 이 지금 bytes 와 같아야 한다. → (ok, 설명). meta 가 없으면 (None, …).
-    `rid` 를 주면 그 묶음이 **이 시도**의 것이어야 한다 (R6 내부 F05a: wrapper 의 "OK [run_id A]" 가 B/B 묶음을
-    보고 통과하던 창)."""
-    import json, pathlib
-    p = pathlib.Path(path); meta = p.with_name(p.name + ".meta.json")
-    if not meta.is_file():
-        return None, "meta 없음"
+def check_run_id(path, rid: str):
+    """경로 판 — 파일을 한 번 읽어 `check_run_id_bytes` 로."""
+    import pathlib
+    p = pathlib.Path(path)
+    if not p.is_file():
+        return False, "파일 없음"
     try:
-        m = json.loads(meta.read_text(encoding="utf-8"))
-    except Exception as e:                           # noqa: BLE001
-        return False, f"meta 읽기 실패: {e}"
-    m_rid, digest = m.get("run_id"), m.get("sha256")
+        return check_run_id_bytes(p.name, p.read_bytes(), rid)
+    except OSError as e:
+        return False, f"읽기 실패: {e}"
+
+
+def is_modern_bytes(name: str, data: bytes):
+    """이 산출이 **현행 schema**(run_id 를 담는다) 인가 — Codex R6-02: 현행 산출에 meta 가 없으면 옛 파일이 아니라
+    게시가 중단된 것이다. CSV → 헤더에 `run_id`; JSON → 최상위 `run_id` 키. 해석 불가면 None."""
+    import csv, io, json
+    try:
+        txt = data.decode("utf-8-sig")
+        if name.lower().endswith(".csv"):
+            return "run_id" in next(csv.reader(io.StringIO(txt)), [])
+        d = json.loads(txt)
+        return isinstance(d, dict) and "run_id" in d
+    except Exception:                                # noqa: BLE001
+        return None
+
+
+def verify_unit_bytes(name: str, data: bytes, meta, rid: str | None = None):
+    """**이미 읽은** 산출 bytes 와 meta dict 가 같은 시도의 한 묶음인가 (Codex R5-04 · R6-01). → (ok, 설명).
+
+    - ok True : 이 bytes 와 이 meta 를 그대로 소비해도 된다.
+    - ok None : 옛 산출(run_id 없음) — 호환 경로. 현행 산출은 여기로 오지 않는다 (Codex R6-02).
+    - ok False: 소비 금지 (섞임 · 미완 · 줄끝).
+    `rid` 를 주면 그 묶음이 **이 시도**의 것이어야 한다 (R6 내부 F05a)."""
+    import hashlib
+    modern = is_modern_bytes(name, data)
+    if meta is None:
+        if modern:
+            return False, "현행 산출(run_id 있음)인데 meta 가 없다 — 게시가 중단됐거나 write_meta 를 안 거쳤다: 미완 (Codex R6-02)"
+        return None, "meta 없음 (옛 산출, run_id 없음 — 호환 경로)"
+    m_rid, digest = meta.get("run_id"), meta.get("sha256")
     if not m_rid or not digest:
+        if modern:
+            return False, "현행 산출(run_id 있음)인데 옛 meta(run_id/sha256 없음) — 미완 (Codex R6-02)"
         return None, "옛 meta (run_id/sha256 없음)"
-    if m.get("artifact") and m["artifact"] != p.name:  # R6 내부 V6-05: 묶음이 맞는 이름 아래 있는가
-        return False, f"meta 의 artifact({m['artifact']!r}) 가 파일 이름({p.name!r}) 과 다르다"
+    if meta.get("artifact") and meta["artifact"] != name:  # R6 내부 V6-05: 묶음이 맞는 이름 아래 있는가
+        return False, f"meta 의 artifact({meta['artifact']!r}) 가 파일 이름({name!r}) 과 다르다"
     if rid and rid != m_rid:
         return False, f"meta 의 run_id({m_rid}) 가 이 시도({rid}) 의 것이 아니다 — 다른 시도가 뒤에 게시했다"
-    ok_id, why = check_run_id(p, m_rid)
+    ok_id, why = check_run_id_bytes(name, data, m_rid)
     if not ok_id:
         return False, f"meta 의 run_id 가 산출물과 다르다: {why}"
-    if sha256_file(p) != digest:
+    if hashlib.sha256(data).hexdigest() != digest:
         # ⚠ U14-01: 줄끝만 바뀐 경우(git 정규화 · Windows 체크아웃)를 "다른 시도가 게시했다" 로 읽지 않게 짚는다.
-        import hashlib
-        raw = p.read_bytes()
-        for name, alt in (("CRLF→LF", raw.replace(b"\r\n", b"\n")), ("LF→CRLF", raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))):
+        for nm, alt in (("CRLF→LF", data.replace(b"\r\n", b"\n")), ("LF→CRLF", data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))):
             if hashlib.sha256(alt).hexdigest() == digest:
-                return False, (f"**줄끝**만 다르다 ({name} 이면 sha256 이 맞는다) — 내용은 같고 게시 뒤 정규화된 "
+                return False, (f"**줄끝**만 다르다 ({nm} 이면 sha256 이 맞는다) — 내용은 같고 게시 뒤 정규화된 "
                                f"것이다 (git `.gitattributes` · Windows 체크아웃). 산출은 LF 로 쓴다")
         return False, "meta 의 sha256 이 지금 bytes 와 다르다"
     return True, "일치"
+
+
+def read_unit(path, rid: str | None = None):
+    """산출 bytes 와 meta 를 **한 번씩** 읽어 서로 대조하고 그 snapshot 을 돌려준다 → (ok, 설명, data, meta).
+
+    ⚠ Codex R6-01: 독자가 데이터를 읽은 뒤 경로를 다시 검사하면, 그 사이 끼어든 정상 게시 B 가 검사를 통과해
+      A 데이터에 B meta 가 붙었다 (반대 순서로는 A 를 검증하고 B 행을 읽었다). 검증한 bytes 만 소비하려면 독자는
+      **이 함수가 돌려준 data·meta 만** 써야 한다 — 어느 읽기 경계에 게시가 끼든 결과는 A/A · B/B · 미완뿐이다."""
+    import json, pathlib
+    p = pathlib.Path(path)
+    try:
+        data = p.read_bytes()
+    except OSError as e:
+        return False, f"읽기 실패: {e}", None, None
+    mp = p.with_name(p.name + ".meta.json"); meta = None
+    if mp.is_file():
+        try:
+            meta = json.loads(mp.read_text(encoding="utf-8"))
+        except Exception as e:                       # noqa: BLE001
+            return False, f"meta 읽기 실패: {e}", data, None
+    ok, why = verify_unit_bytes(p.name, data, meta, rid)
+    return ok, why, data, meta
+
+
+def verify_unit(path, rid: str | None = None):
+    """경로 판 — `read_unit` 의 판정만. 소비할 bytes 가 필요하면 `read_unit` 을 쓸 것 (Codex R6-01)."""
+    ok, why, _, _ = read_unit(path, rid)
+    return ok, why
 
 
 def git_state(cwd: str | None = None, exclude=()) -> tuple[str, bool | None]:
