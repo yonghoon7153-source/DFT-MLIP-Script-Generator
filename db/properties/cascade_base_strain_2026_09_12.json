@@ -2,7 +2,7 @@
  "schema": "observation/v1",
  "record_kind": "observation",
  "date": "2026-09-12",
- "status": "largely_resolved",
+ "status": "open_again",
  "results_seen": true,
  "제목": "cascade base 구조가 UMA 에서 +5.66 GPa 다 — 그리고 완화 방향이 도핑/무도핑에서 반대다",
  "0_어쩌다_나왔나": "1층(LPSCl@Li₂S) 비정질 밀도가 낮게 나온 원인을 가르려고 결정 대조 잡을 돌리다가 나왔다. 1층 문제 자체와는 별개의 발견이고, cascade 쪽이 더 크다.",
@@ -77,7 +77,7 @@
   ],
   "영향_없음_1층": "1층은 이 base 를 쓰지 않는다 (무작위 셀 생성). 별개 사안이다."
  },
- "다음_한_수": "① baseline json 의 출처 구조 확인 (PS₄ 보존율 0.0 인 lpscl_bulk.cif 가 아닌지). ② 무도핑 base 를 스크리닝과 **같은 설정**(FIRE, fmax 0.05, steps 300)으로 한 번 완화해 부호를 본다. ③ 둘 다 GPU 몇 분이다. S1/S2 를 돌리기 전에.",
+ "다음_한_수": "① 계산 기계에서 원시 uma_screening_results.json / baseline.json 을 찾아 **그때 쓴 baseline_volume_per_atom** 을 확인한다 (내 27.48 과 같은지). ② 도핑 설계 하나를 실제로 완화해 절대 V/atom 을 재본다 — 23.8 이 맞는지. ③ eos_V0_per_atom(20.23)과의 18 % 불일치 출처.",
  "출처": [
   "tools/ionic/melt_quench_uma.py --pcheck (2026-09-12)",
   "/data/work/runs/li2s_layer1/npt_control_lpscl.log",
@@ -111,5 +111,22 @@
    "baseline json 이 어느 구조를 완화한 것인지 (lpscl_bulk.cif 는 PS₄ 0.0 이라 기준으로 부적합)",
    "내 대조가 왜 27.62 로 갔는지 — fmax 0.02 vs 스크리닝 0.05 차이인지, 무도핑 구조 자체의 병리인지"
   ]
+ },
+ "7_정정_2026_09_12_앞_해소는_틀렸다": {
+  "무엇을_틀렸나": "§6 에서 '모든 경로가 16–20 Å³/atom 에 모인다 → cascade 무사' 라고 적었다. 그 계산은 `dV_over_V0` 의 **분모를 raw CIF (20.71 Å³/atom)** 로 가정한 것이었다. **아니다.**",
+  "실제_분모": "tools/doping/run_uma_screening.py `get_baseline()` 은 base CIF 를 `relax_structure(base, calc, fmax=args.fmax, steps=args.steps, cell_relax=True)` 로 **완화한 뒤** 그 구조의 `volume_per_atom` 을 baseline 으로 쓴다. 즉 분모는 **완화본**이다.",
+  "그_완화를_실측했다_C0b": {
+   "설정": "스크리닝과 동일 — FIRE · fmax 0.05 · steps 300 · FrechetCellFilter (함수를 import 해서 호출)",
+   "결과": "V/atom 20.71 → **27.48** · ρ 1.656 → 1.248 · P +5.661 → +0.187 GPa · PS₄ 1.0 유지 · **ΔV/V0 +32.71 %**",
+   "뜻": "**내 fmax 설정 탓이 아니다.** LBFGS/0.02 · FIRE/0.02 · FIRE/0.05 세 경로가 전부 27.5 근처로 간다. 무도핑·화학량론·인공정렬 24g 구조 **자체**가 UMA 에서 팽창한다."
+  },
+  "그래서_설계들은_어디_있나": {
+   "계산": "27.48 × (1 − 0.1334) = **23.81 Å³/atom** (중앙)",
+   "생산_구조": "lpsocl_relaxV0 19.43 · modelc_relaxV0_3x3x1 19.62",
+   "차이": "**약 +21 %**. 도핑이 병리를 **부분적으로만** 깬다 (무도핑 +33 % → 도핑 +21 %).",
+   "독립_경로와의_불일치": "eos_V0_per_atom 중앙 20.23 Å³/atom (n=622) 는 생산에 가깝다. 두 파이프라인이 약 18 % 어긋난다 — 이것도 설명이 필요하다."
+  },
+  "⛔_아직_확정_아닌_것": "그 런이 **실제로 쓴** baseline 값이 우리 db 에 없다. 원시 `uma_screening_results.json` 은 계산 기계에 있고 커밋 안 됐다. 캐시된 baseline.json 을 썼다면 다른 설정·다른 base 일 수 있다. **내 재측정이 아니라 그때 값이 근거여야 한다** — 찾아서 확인한다.",
+  "cascade_에_대한_현재_판정": "**경보를 다시 올린다.** §6 의 '무사' 는 철회한다. ΔE_formation 이 생산보다 21 % 부푼 셀에서 계산됐을 가능성이 있고, 그건 BJ2 #2 대표 선택기가 중앙값으로 고르는 바로 그 양이다. S1/S2 를 돌리기 전에 닫는다."
  }
 }
