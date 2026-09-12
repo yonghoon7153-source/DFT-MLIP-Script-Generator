@@ -708,6 +708,7 @@ def main():
     plan = {"system": a.system, "seed": a.seed, "n_atoms": len(sym), "composition": {e: sym.count(e) for e in sorted(set(sym))},
             "start_density_g_cm3": a.density, "T_melt_K": a.T_melt, "T_final_K": a.T_final, "melt_ps": a.melt_ps,
             "quench_rate_K_s": a.quench_rate, "quench_ps": quench_ps, "hold_ps": a.hold_ps, "dt_fs": a.dt_fs,
+            "save_ps": a.save_ps,   # ⛔ 빠뜨리면 --melt_check 가 dt 를 **유도**한다 (2026-09-12)
             "G2_declared_before_results": True, "card": "db/properties/lpscl_li2s_interphase_prereg_2026_09_11.json"}
     (out / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1))
     from ase import Atoms
