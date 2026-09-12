@@ -490,6 +490,26 @@ def compare_static_pair(out_dir, uma_json):
         by_el = {el: float(_np.sqrt((per_atom[[i for i, s in enumerate(syms) if s == el]] ** 2).mean()))
                  for el in sorted(set(syms))}
         imax = int(per_atom.argmax())
+
+        # ⭐ 회신 BO / 카드 §5 — 차이(dF)만으로는 카드가 묻는 것을 못 답한다.
+        #   카드 §5 판정문: *"(b) 의 **DFT** 힘·응력이 크면 '이 구성은 DFT 정상점 아님',
+        #   작으면 '정상점 후보' 까지"*. 그러려면 **각 방법이 자기 기하에서 느끼는 힘**이
+        #   있어야 하는데 종전 출력에는 없었다 (2026-09-13 실측: dF 만 보고 F_DFT≈0 을
+        #   **추론**해야 했다 — 추론이 맞았더라도 도구가 답한 것은 아니다).
+        #   ⛔ 여기에 합격/불합격 문턱을 만들지 않는다. 카드가 수치 문턱을 안 줬으므로
+        #     비교 기준척도(=이 계를 만든 relax 의 forc_conv_thr)만 같이 적고 판정은 사람이 한다.
+        def _fstats(arr):
+            m = _np.linalg.norm(_np.asarray(arr), axis=1)
+            j = int(m.argmax())
+            return {"rmse_eV_A": float(_np.sqrt((m ** 2).mean())),
+                    "max_atom": {"index": j, "element": syms[j], "F_eV_A": float(m[j])},
+                    "by_element": {el: float(_np.sqrt((m[[i for i, s in enumerate(syms) if s == el]] ** 2).mean()))
+                                   for el in sorted(set(syms))}}
+        force_self = {"DFT": _fstats(Fd), "UMA": _fstats(Fu),
+                      "기준척도_eV_A": {"forc_conv_thr_1e-3_Ry_bohr": 0.02571,
+                                        "⚠": "comp1 계열 relax 의 수렴문턱을 Å 단위로 옮긴 값. **합격선이 아니다** — 카드 §5 는 수치 문턱을 주지 않았고, '크다/작다' 판정은 1저자가 한다"},
+                      "⛔": "자기 힘이 작다 == 그 방법의 최소점이다 라고 읽지 않는다. 정상점 **후보**까지다 (카드 §5)"}
+
         n = len(F); ED[tag] = E / n
         cell = {"n_atoms": n, "E_DFT_eV_per_atom": E / n, "E_UMA_eV_per_atom": U[tag]["E_per_atom_eV"],
                 "converged": fl["converged"], "job_done": fl["job_done"], "stress_ok": stress_ok,
@@ -497,6 +517,7 @@ def compare_static_pair(out_dir, uma_json):
                           "note": "벡터 RMSE ≈ √3 × 성분 RMSE", "by_element": by_el,
                           "max_atom": {"index": imax, "element": syms[imax], "dF_eV_A": float(per_atom[imax])},
                           "alarm_exceeded": rmse_vec > STATIC_PAIR_ALARM["force_rmse_eV_A_per_atom_vector"]},
+                "force_self": force_self,
                 "stress": None}
         if stress_ok:
             sd = _np.asarray(S["sigma_GPa"]); su = _np.asarray(U[tag]["stress_voigt_GPa"])
@@ -860,6 +881,33 @@ def _selftest():
                     - _r["cells"]["a"]["force"]["rmse_per_atom_vector_eV_A"]) < 1e-12,
             "compare: δΔE 산술 + 벡터 RMSE = √3 × 성분 RMSE")
 
+        # ── force_self: 각 방법이 자기 기하에서 느끼는 힘 (카드 §5 판정에 필요) ──
+        _fa = _r["cells"]["a"]["force_self"]
+        _expect = ((3 * (0.001 * RY_AU_TO_EV_A) ** 2 + (0.001 * 2 ** 0.5 * RY_AU_TO_EV_A) ** 2) / 4) ** 0.5
+        chk(abs(_fa["DFT"]["rmse_eV_A"] - _expect) < 1e-9 and abs(_fa["UMA"]["rmse_eV_A"] - _expect) < 1e-9,
+            "compare/force_self: DFT·UMA 각자의 |F| RMSE 를 낸다 (dF 가 0 이어도)")
+        chk(_fa["DFT"]["max_atom"]["index"] == 3
+            and abs(_fa["DFT"]["max_atom"]["F_eV_A"] - 0.001 * 2 ** 0.5 * RY_AU_TO_EV_A) < 1e-9
+            and set(_fa["DFT"]["by_element"]) == {"Li", "S"},
+            "compare/force_self: 최대 원자 + 원소별 분해")
+        # ⛔ 음성 경로 — **차이는 크지만 한쪽은 정상점**인 경우를 가르는가.
+        #   이게 실측 (b) 의 모습이다: UMA 는 자기 최소점이라 |F|≈0, DFT 는 거기서 힘을 본다.
+        #   dF 만 보던 종전 출력으로는 "둘이 다르다" 까지밖에 못 갔다.
+        (_d / "sp3" / "a").mkdir(parents=True); (_d / "sp3" / "b").mkdir(parents=True)
+        for _t in ("a", "b"):
+            shutil.copy(_d / "sp" / _t / "scf.in", _d / "sp3" / _t / "scf.in")
+            (_d / "sp3" / _t / "scf.out").write_text(_out(-40.0 if _t == "a" else -39.9, _F, True))
+        _uma0 = {"uma_singlepoint": {t: {"E_per_atom_eV": -10.0 * RY_TO_EV, "F_eV_A": [[0, 0, 0]] * 4,
+                                        "stress_voigt_GPa": [0, 0, 0, 0, 0, 0]} for t in ("a", "b")}}
+        (_d / "uma0.json").write_text(json.dumps(_uma0))
+        _r3 = compare_static_pair(_d / "sp3", _d / "uma0.json")
+        _f3 = _r3["cells"]["b"]["force_self"]
+        chk(_f3["UMA"]["rmse_eV_A"] == 0.0 and abs(_f3["DFT"]["rmse_eV_A"] - _expect) < 1e-9
+            and abs(_r3["cells"]["b"]["force"]["rmse_per_atom_vector_eV_A"] - _expect) < 1e-9,
+            "⛔음성: UMA 정상점 · DFT 아님 을 가른다 (UMA |F|=0 · DFT |F|>0 · dF=DFT)")
+        chk(_f3["기준척도_eV_A"]["forc_conv_thr_1e-3_Ry_bohr"] > 0 and "합격선이 아니다" in _f3["기준척도_eV_A"]["⚠"],
+            "compare/force_self: 기준척도는 있되 **합격선이 아니라고 적혀 있다**")
+
     print(f"  selftest: \u2b55 {ok} \u00b7 \u26d4 {fail}")
     return 0 if fail == 0 else 1
 
@@ -1073,6 +1121,13 @@ def main():
                   f"{' ⚠경보' if f['alarm_exceeded'] else ''} · 최대원자 {f['max_atom']['element']}#{f['max_atom']['index']} "
                   f"{f['max_atom']['dF_eV_A']:.3f} · 응력 " +
                   (f"최대성분차 {st['max_component_diff_GPa']:.3f} GPa{' ⚠경보' if st['alarm_exceeded'] else ''}" if st else "**미검증(응력 블록 없음)**"))
+            fs = c.get("force_self")
+            if fs:
+                print(f"      자기힘 |F| RMSE  DFT {fs['DFT']['rmse_eV_A']:.4f} (max {fs['DFT']['max_atom']['element']}"
+                      f"#{fs['DFT']['max_atom']['index']} {fs['DFT']['max_atom']['F_eV_A']:.3f})"
+                      f"  ·  UMA {fs['UMA']['rmse_eV_A']:.4f} (max {fs['UMA']['max_atom']['element']}"
+                      f"#{fs['UMA']['max_atom']['index']} {fs['UMA']['max_atom']['F_eV_A']:.3f})"
+                      f"   [relax 수렴문턱 {fs['기준척도_eV_A']['forc_conv_thr_1e-3_Ry_bohr']:.4f} — 합격선 아님]")
         if "delta" in _r:
             d = _r["delta"]
             print(f"  ΔE(b−a): UMA {d['dE_UMA_b_minus_a_meV_atom']:+.1f} · DFT {d['dE_DFT_b_minus_a_meV_atom']:+.1f} "
