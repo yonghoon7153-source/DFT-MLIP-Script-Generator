@@ -14,6 +14,7 @@
 | 정본 | `FINDINGS.md` + `out/` (+ `.meta.json`). 이 요청문의 숫자는 사본 |
 | 저장소에 없는 것 | 원본 MATLAB · 원자료 xlsx · 문헌 OCP → `BMS_DATA_ROOT` |
 | 6차 대비 새것 | R6-01~06 닫음 (코드 5 · 문서 1) · Q3 문구 정정 · `_v2` 두 파일 `out/archive/` 로 · 변이 감사 8/8 |
+| 6차 재현 패키지 | 받은 그대로 `reviews/r6_repros/codex/` (sha256 10/10 OK). d431404 에서 **7/7 재현**, HEAD 에서 적응판 **6/6 닫힘**, 적응판 변이 **5/5 CAUGHT** |
 
 ```bash
 git clone -b claude/bms-alpha-beta-verify https://github.com/yonghoon7153-source/Yonghoon-DEM-DFT
@@ -22,7 +23,12 @@ cd Yonghoon-DEM-DFT/bms-balancing && git checkout <이 파일이 든 커밋>
 python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 python3 -m pytest tests/ -q          # 139 passed 기대. 원자료 불필요; 동시 실행 시험은 subprocess+fcntl.flock (Linux/WSL)
 bash matlab/tests/run_all.sh         # Octave 없으면 4·5 단계
-python3 reviews/r6_repros/codex_r6_mutation_audit.py   # 수정 8 조각을 하나씩 되돌리면 각 테스트가 실패해야 한다
+python3 reviews/r6_repros/codex_r6_mutation_audit.py            # 수정 8 조각 ↔ 우리 회귀 테스트
+python3 reviews/r6_repros/codex/replay_codex_r6_adapted.py --target .   # 6차 probe(적응판) 6/6 닫힘
+python3 reviews/r6_repros/codex/mutation_adapted.py             # 그 적응판이 실제로 재는가 — 5/5 CAUGHT
+# 6차 probe 원본을 그대로 보려면 대상 커밋에서: git worktree add --detach /tmp/wt d431404 &&
+#   python3 reviews/r6_repros/codex/replay_codex_r6.py --target /tmp/wt/bms-balancing \
+#     --old <bfc4623^ 의 out>          # → 일곱 probe 전부 '재현'
 ```
 
 ## 1. 검증 — 방금 실행, 작업트리 clean
@@ -31,8 +37,12 @@ python3 reviews/r6_repros/codex_r6_mutation_audit.py   # 수정 8 조각을 하�
 |---|---|---|
 | 전체 테스트 | `python3 -m pytest tests/ -q` | `139 passed in 78.57s` (이 컨테이너, 변이 감사·MATLAB 스모크와 같은 트리) |
 | MATLAB 스모크 (Octave) | `bash matlab/tests/run_all.sh` | `PASS — 실패 0: []` · `전부 통과` (이 컨테이너의 Octave) |
-| 변이 감사 | `python3 reviews/r6_repros/codex_r6_mutation_audit.py` | `8/8 CAUGHT · MISSED: 0` · 되돌린 뒤 `7 passed` (`codex_r6_mutation_audit.txt`) |
+| 변이 감사 (우리 테스트) | `python3 reviews/r6_repros/codex_r6_mutation_audit.py` | `8/8 CAUGHT · MISSED: 0` · 되돌린 뒤 `7 passed` (`codex_r6_mutation_audit.txt`) |
 | 6차 반례 | `tests/test_r6_internal.py -k c6_` | 수정 전 트리에서 전부 RED, 지금 7 passed |
+| **6차 probe 재현** (d431404) | `replay_codex_r6.py --target <worktree>` | 일곱 probe **전부 재현** — `replay_ours_d431404.json` |
+| **6차 probe 적응판** (HEAD) | `replay_codex_r6_adapted.py --target .` | **6/6 닫힘** — `replay_adapted_4396a54.json` |
+| 적응판 변이 감사 | `mutation_adapted.py` | `5/5 CAUGHT · MISSED: 0` — `mutation_adapted.txt` |
+| Codex `inference` 전 항목 (HEAD, 이름만 적응) | 위 적응판 안에서 | `DF01_AND_DERIVED_CLOSURE` · `U14_SECTION_5_1_THRESHOLDS` · `U14_12_ARTIFACT_NUMERIC_COMPARISON` · `U14_PROFILE_BUDGET_FACT` · `CURRENT_SECTION_5_PRINTED_TABLE` 통과 (rc 0) |
 
 ## 2. 6차 여섯 건 — 대응 (원장 `R6_LEDGER.md` "Codex R6")
 
@@ -49,6 +59,10 @@ python3 reviews/r6_repros/codex_r6_mutation_audit.py   # 수정 8 조각을 하�
 부수: `test_quoted_spreads_*`·`test_dump_table_*` 가 `_v2` 없으면 조용히 `return` 하던 것을 assert 로 (정본을
 옮기자 두 테스트가 비어 버릴 통로였다). `check_u14.baseline_for` 의 "가장 높은 판" 은 **옛 리비전**을 읽을 때만의
 규칙임을 docstring 에 못 박음.
+
+**순서에 대한 자백**: 여섯 건은 처음에 리뷰 **본문만** 보고 닫았다. 재현 패키지는 그 뒤에 받아서 위 ①~④ 로 돌렸다
+(원장 "Codex 재현 패키지 도착" 절). 패키지가 먼저 왔다면 ①이 첫 단계였을 것이다. 적응판 변이 감사가 그 대가를
+두 번 청구했다 — R6-01a 가 한 순서만 재고 있었고, R6-03b 의 변이를 원래 결함이 아닌 자리에 넣고 있었다.
 
 ## 3. 6차 질문에 대한 답
 
@@ -85,8 +99,8 @@ python3 reviews/r6_repros/codex_r6_mutation_audit.py   # 수정 8 조각을 하�
 
 ## 6. 질문
 
-1. **R6-01·02 의 닫힘**: `read_unit` 의 (data, meta) snapshot 규약으로 "검증한 것만 소비" 가 닫혔는가. 남는 창이 있으면
-   어느 읽기 경계인가 (테스트는 1~k 번째 open 직전에 게시를 끼운다 — 그 밖의 순서가 있는가).
+1. **R6-01·02 의 닫힘**: `read_unit` 의 (data, meta) snapshot 규약으로 "검증한 것만 소비" 가 닫혔는가. 우리가 잰 순서는
+   둘이다 — 검증 **중** 게시(묶음 불일치로 제외) · 검증 **후** 게시(A/A 그대로 소비). 그 밖의 순서가 있는가.
 2. **R6-03 의 범위**: `InputBytes` 로 세 입력(반쪽전지·풀셀·문헌 Gr/Si) 을 덮었다. 파이프라인이 경로를 두 번 여는 자리가
    더 남았는가 (`run_states.sh` 의 `inputs_sha` 는 실행 **직전** 해시 — 그것과 산출의 `consumed_inputs` 가 다르면 어느
    쪽이 정본인가).
@@ -100,6 +114,9 @@ python3 reviews/r6_repros/codex_r6_mutation_audit.py   # 수정 8 조각을 하�
 ## 7. 실측 첨부
 
 - `reviews/R6_CODEX.md` (6차 원문) · `reviews/R6_LEDGER.md` "Codex R6" 절 · `reviews/r6_repros/codex_r6_mutation_audit.{py,txt}`.
+- `reviews/r6_repros/codex/` — **받은 재현 패키지 원본 10 파일**(`sha256sum -c` OK) + 우리 재생 셋:
+  `replay_codex_r6.py`(probe 별 격리 실행) · `replay_codex_r6_adapted.py`(hook 적응판) · `mutation_adapted.py` +
+  결과 JSON 셋(`replay_ours_d431404` · `replay_ours_4396a54` · `replay_adapted_4396a54`)과 `mutation_adapted.txt`.
 - `out/archive/` — `degeneracy_300_0009_Li_v2.json` · `matrix_300_0009_v2.csv` (U14 가 비트 단위로 재현한 옛 판) + README.
 - U14 산출 12 개는 `out/` 에 그대로 (숫자 변동 없음 — 이번 라운드는 코드·문서만).
 

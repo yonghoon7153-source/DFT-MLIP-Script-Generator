@@ -37,6 +37,12 @@ RED 로 재현한 뒤 닫았다 (`tests/test_r6_internal.py` C 절 `test_c6_01`~
 산출은 meta 없이는 미완(False) · 입력은 `data.read_input` 의 bytes 로 파싱과 해시를 같이 한다 · 정본은 unversioned
 이름 하나이고 `_vN` 은 `out/archive/` 의 역사 자료다.
 
+**Codex 재현 패키지는 닫은 뒤에 받았다** (`reviews/r6_repros/codex/`, 원본 10 파일 sha256 OK). 세 판으로 돌렸다:
+대상 `d431404` 격리 worktree 에서 **일곱 probe 전부 재현** · HEAD 에서 원본 probe 는 전부 '안 재현' 이지만 넷은
+hook 이 빗나간 것이라 **적응판**(hook 만 현행 코드로, 판정은 뒤집어)으로 다시 재 **6/6 닫힘** · 그 적응판을 변이로
+검사해 **5/5 CAUGHT**. 적응판 변이가 두 군데를 고쳐 줬다 (R6-01a 가 한 순서만 쟀다 · R6-03b 변이를 원 결함이 아닌
+자리에 넣었다). 재생 명령은 `R7_REQUEST.md` §0 의 블록.
+
 ## 직전 상태 — R6 내부 리뷰 30 건 닫음 · U13·U14·U15 실측 완료 (닫힘)
 
 Codex 토큰 소진으로 6차는 `/self-review` 로 돌렸다 (네 렌즈 37 건 → 적대적 검증 CONFIRMED 30, 전부 RED → 수정 →

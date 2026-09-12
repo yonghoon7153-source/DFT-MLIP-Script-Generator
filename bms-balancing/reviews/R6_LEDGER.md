@@ -206,3 +206,52 @@ ne_shape 절반은 3 번째 open 만 걸어 "파싱 뒤 다시 열어 해시" �
 규칙이 R6-04 의 원인이다 — 삭제하지 않고 **규칙을 뒤집어** 같은 이름 자리에 둔다 (역사를 docstring 에 남김).
 `test_quoted_spreads_*`·`test_dump_table_*` 는 `_v2` 가 없으면 조용히 `return` 하던 것을 **assert** 로 바꿨다 —
 정본을 옮기자 두 테스트가 통째로 비었을 것이다 (fixture 가 진실을 가리는 통로).
+
+### Codex 재현 패키지 도착 — **우리 트리에서 다시 돌렸다** (2026-09-12 늦게, `reviews/r6_repros/codex/`)
+
+위 여섯 건은 처음에 **리뷰 본문만** 보고 닫았다. 그 뒤 사용자가 Codex 의 재현 패키지(10 파일, `HARNESS_R6_D431404_*`)
+를 줬다 — 절차대로라면 **먼저** 있었어야 할 것이다. 받은 그대로 보존하고(`sha256sum -c` 10/10 OK) 두 트리에서 돌렸다.
+
+**① 대상 커밋 `d431404` 에서 — 일곱 probe 전부 재현** (`replay_ours_d431404.json`, 격리 worktree)
+
+| probe | 관측 |
+|---|---|
+| `snapshot_metadata_mix` (R6-01) | 독자가 **A 데이터 + B meta** 를 소비 (`loaded_data_run_id` attempt-A · `loaded_meta_run_id` attempt-B), 디스크는 B/B 로 온전 |
+| `matrix_after_verification` (R6-01) | A 를 검증(폭 3.0)한 뒤 **B 의 폭 79.0** 을 표에 넣음, 그 순간 디스크 묶음은 false |
+| `missing_modern_metadata` (R6-02) | meta 가 한 번도 없던 현행 산출이 `None`(옛 산출)로 통과해 degeneracy·matrix·`fitted_pair` 전부 소비 |
+| `old_version_selected` (R6-04) | 독자가 `_v2`(meta 없음) 를 골랐고 그 옆의 서명된 정본은 `True` 인데 안 쓰임 |
+| `shape_and_matrix` (R6-03) | 반쪽전지를 늦게 해시 — 값은 A(PE 변화 0 mV), 서명은 B, 그리고 B 의 정상 실행과 meta 가 **동일** |
+| `fullcell_build_signature` (R6-03) | `raced.voltage == original.voltage` 인데 `inputs_sha` 는 B 와 같다 (rmse_pocv 8 점 차 > 1e-6) |
+| `role_checks` (R6-05) | `out/a -> b.csv` 가 `git_modified_code` 로, `git_dirty` true |
+
+Codex 가 첨부한 `harness_r6_final_replay_results.json` 과 같은 관측이다 — **보고서를 믿고 닫은 것이 아니라 우리
+기계에서 같은 반례를 봤다**는 기록이 이제 있다.
+
+**② 우리 HEAD `4396a54` 에서 — 원본 probe 는 전부 '안 재현'** (`replay_ours_4396a54.json`). 다만 **그중 넷은 닫혀서가
+아니라 hook 이 빗나가서**다: `Path.read_text` 가 아니라 `read_bytes` 를 쓰고(01a), `_unit_ok` 가 사라졌고(01b),
+mock 이 새 `identity=` 를 못 받고(03b), `_v2` 가 archive 로 갔다(inference). **hook 이 안 걸린 것을 닫힘으로 읽으면
+안 된다** — 그래서 세 번째 판을 만들었다.
+
+**③ 적응판 — hook 만 현행 코드에 맞추고 판정을 뒤집어서** (`replay_codex_r6_adapted.py`, 결과
+`replay_adapted_4396a54.json`). probe 의 fixture·경쟁 순서·입력은 원본 그대로다.
+
+| 적응 probe | HEAD 에서의 실측 |
+|---|---|
+| R6-01a (두 순서) | 검증 **중** 게시 → 묶음 불일치로 표에서 뺌 · 검증 **후** 게시 → A/A 그대로 소비 (값 1.0) |
+| R6-01b | A 를 검증한 폭 3.0 을 그대로 소비 (B 의 79.0 아님), 디스크는 false |
+| R6-02 | 현행 산출 + meta 없음 = `False`(미완), 두 독자 모두 제외, `ne_shape` 는 RuntimeError. **옛 산출(run_id 없음)은 그대로 읽힌다** (대조군) |
+| R6-03a | 값이 A(PE 0 mV)면 서명도 A (`recorded_sha_is_A`), 디스크의 B 해시와 다름 |
+| R6-03b | `raced.voltage == original.voltage` 이고 `inputs_sha` 도 **A 와 같다** (B 와 다름) |
+| R6-04 | Codex `inference` 스크립트를 정본 이름으로 한 줄 적응해 완주 (rc 0) — `DF01_AND_DERIVED_CLOSURE` · `U14_SECTION_5_1_THRESHOLDS` · `U14_12_ARTIFACT_NUMERIC_COMPARISON` · `U14_PROFILE_BUDGET_FACT` · `CURRENT_SECTION_5_PRINTED_TABLE` 전부 통과 |
+
+**④ 적응판이 실제로 무언가를 재는가** (`mutation_adapted.py`, 출력 `mutation_adapted.txt`): 수정을 하나씩 되돌리면
+해당 적응 probe 가 **열림** 으로 돌아와야 한다 → **5/5 CAUGHT · MISSED 0**, 되돌린 뒤 전부 닫힘.
+
+이 감사가 두 번 고쳐 준 것 (처음엔 둘 다 MISSED 였다):
+- **R6-01a 는 한 순서만 재고 있었다.** 검증 *중* 게시만 걸면 검사가 먼저 깨져 어차피 제외되므로, "검증 뒤 다시
+  읽는다" 를 못 잰다. 검증이 끝난 **뒤** 게시하는 순서를 더해서야 그 변이가 잡혔다.
+- **R6-03b 의 변이를 내가 엉뚱한 자리에 넣고 있었다.** 해시를 `load_full_cell` 안으로 옮기는 변이는 mock 이
+  로더를 감싸는 순서 때문에 아무 일도 안 일으킨다. 원래 결함 자리(`build` 가 로더 뒤에 경로로 해시)로 바꿔야 잡힌다.
+
+**남긴 한계**: 원본 probe 는 d431404 전용(커밋 SHA·옛 API 에 묶여 있다)이라 HEAD 에서는 적응판이 정본이다. 적응은
+hook 지점·mock 서명·`_vN` 이름 세 가지뿐이고 diff 는 `replay_codex_r6_adapted.py` 머리말에 적었다.
