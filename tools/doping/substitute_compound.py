@@ -348,13 +348,48 @@ def li_vacancies_needed(atoms: Atoms, cations: dict[str, int],
     # reverse-halide-rich (Cl→S swap with extra Li) as compensation paths.
 
 
+def _plan_or_select(plan, key, elem, host_idx, n, fallback):
+    """⭐ 회신 BO 조건 2 (2026-09-12): **공통 부모 배열** 을 P1/P2 로 복제하려면 난수가 아니라
+    **실제 인덱스 대응표** 로 자리를 정해야 한다. `index_plan` 이 그 표다.
+
+      index_plan = {"cation_sites": [i, j] | {"Al": [i, j]},
+                    "anion_sites":  [k, l, m] | {"O": [...]},
+                    "vacancy_sites": [p, q, r, s]}
+
+    · 리스트면 원소 무관(단일 원소 처방용 — P1 의 O₃ 와 P2 의 S₃ 가 **같은 리스트**를 쓴다).
+    · 딕셔너리면 원소별.
+    · 인덱스는 치환 **전** host 원자 순서. 공공은 **삭제 전** 인덱스.
+    · 검증: 길이 = 필요 수 · 전부 그 자리의 허용 host 집합 안 · 중복 없음. 하나라도 어기면
+      S1ContractError — 조용히 난수로 대체하지 않는다.
+    ⛔ 이 헬퍼가 못 하는 것: 인덱스가 **물리적으로 좋은** 자리인지는 모른다. 표집 정책은 호출부 몫.
+    """
+    if not plan or key not in plan:
+        return fallback()
+    v = plan[key]
+    if isinstance(v, dict):
+        if elem not in v:
+            raise S1ContractError(f"⛔ index_plan[{key!r}] 에 {elem} 항목이 없다")
+        v = v[elem]
+    v = [int(x) for x in v]
+    if len(v) != n:
+        raise S1ContractError(f"⛔ index_plan[{key!r}] 길이 {len(v)} ≠ 필요 {n} ({elem})")
+    if len(set(v)) != len(v):
+        raise S1ContractError(f"⛔ index_plan[{key!r}] 에 중복 인덱스 {v}")
+    allowed = set(int(x) for x in host_idx)
+    bad = [x for x in v if x not in allowed]
+    if bad:
+        raise S1ContractError(f"⛔ index_plan[{key!r}] 인덱스 {bad} 가 {elem} 의 허용 host 자리 집합 밖이다")
+    return v
+
+
 def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
                                  n_units: int, cation_site: str, anion_site: str,
                                  method: str, seed: int, db: dict,
                                  vacancy_method: str = 'random',
                                  vacancy_cutoff: float = 5.0,
                                  carrier=None, contract: str = 'enforce'
-                                 ) -> tuple[Atoms, dict]:
+                                 ,
+                                 index_plan: dict | None = None) -> tuple[Atoms, dict]:
     """Place all atoms of one compound unit-cluster into target sites.
 
     ``vacancy_method`` is decoupled from ``method`` and defaults to 'random'.
@@ -389,7 +424,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
             raise ValueError(
                 f"Need {n_sub} {cat} at {cation_site}, but only "
                 f"{len(host_idx)} sites available")
-        targets = select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new)
+        targets = _plan_or_select(index_plan, 'cation_sites', cat, host_idx, n_sub,
+                                  lambda: select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new))
         syms = new.get_chemical_symbols()
         for i in targets:
             syms[i] = cat
@@ -409,7 +445,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
             raise ValueError(
                 f"Need {n_sub} {an} at {anion_site}, but only "
                 f"{len(host_idx)} sites available")
-        targets = select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new)
+        targets = _plan_or_select(index_plan, 'anion_sites', an, host_idx, n_sub,
+                                  lambda: select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new))
         syms = new.get_chemical_symbols()
         for i in targets:
             syms[i] = an
@@ -461,10 +498,12 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
                   if s in cations]
         # CR-5 fix (2026-05-16): propagate cluster_radius from CLI so
         # --vacancy_cutoff actually controls the near_cation exponential decay.
-        vac_targets = select_substitution_sites(
-            li_idx, n_vac, vacancy_method, seed_local + 100, atoms=new,
-            reference_indices=ref_idx,
-            cluster_radius=vacancy_cutoff)
+        vac_targets = _plan_or_select(
+            index_plan, 'vacancy_sites', 'Li', li_idx, n_vac,
+            lambda: select_substitution_sites(
+                li_idx, n_vac, vacancy_method, seed_local + 100, atoms=new,
+                reference_indices=ref_idx,
+                cluster_radius=vacancy_cutoff))
         keep = [i for i in range(len(new)) if i not in vac_targets]
         new = new[keep]
         if carrier is not None:
@@ -473,6 +512,16 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
     else:
         placement_log['li_vacancies'] = {'n': 0, 'indices': []}
 
+    # ⭐ 회신 BO: 실제로 쓴 인덱스 표. `--emit_index_plan` 이 이걸 떨궈 짝 처방이 재사용한다.
+    placement_log['index_plan_used'] = {
+        'cation_sites': {pl['element']: list(pl['targets']) for pl in placement_log['placements']
+                         if pl['site'] == cation_site},
+        'anion_sites': {pl['element']: list(pl['targets']) for pl in placement_log['placements']
+                        if pl['site'] == anion_site},
+        'vacancy_sites': list(placement_log['li_vacancies']['indices']),
+        'index_basis': '치환 전 host 원자 순서 · 공공은 삭제 전 인덱스',
+        'from_plan': bool(index_plan),
+    }
     return new, placement_log
 
 
@@ -644,6 +693,42 @@ def _selftest() -> int:
     _needle = "info['conc" + "entration'] = _q"      # 쪼개 둔다 — 안 그러면 이 줄 자신이 걸린다
     chk(_needle not in src,
         "⛔음성: 양자화 기록을 info['concentration'] 에 넣지 않는다 (하류가 float 로 읽는 키)")
+    # ⭐ 회신 BO 조건 2 — index_plan: 공통 부모 배열을 P1/P2 로 복제
+    _car0 = SiteCarrier(pm, base.get_chemical_symbols())
+    _li = parent_host_indices(_car0, 'Li_24g'); _s16 = parent_host_indices(_car0, 'S_16e')
+    _plan = {'cation_sites': _li[:2], 'anion_sites': _s16[:3], 'vacancy_sites': _li[2:6]}
+    def _run(comp):
+        c = SiteCarrier(pm, base.get_chemical_symbols())
+        return substitute_compound_at_sites(base.copy(), comp, 1, 'Li_24g', 'S_16e', 'random', 7,
+                                            DOPANT_DB, carrier=c, contract='enforce', index_plan=_plan)
+    try:
+        d1, l1 = _run({'Al': 2, 'O': 3}); d2, l2 = _run({'Al': 2, 'S': 3})
+        u1, u2 = l1['index_plan_used'], l2['index_plan_used']
+        chk(u1['cation_sites'] == {'Al': _li[:2]} and u2['cation_sites'] == {'Al': _li[:2]},
+            "index_plan: P1/P2 가 같은 Al 자리를 쓴다 (CLI 자리명 Li_24g → 부모지도 Li_any 로 접힘)")
+        chk(u1['anion_sites'] == {'O': _s16[:3]} and u2['anion_sites'] == {'S': _s16[:3]},
+            "index_plan: 같은 16e 인덱스에 P1 은 O, P2 는 S(no-op)")
+        chk(u1['vacancy_sites'] == _li[2:6] == u2['vacancy_sites'], "index_plan: 같은 공공 4")
+        chk(len(d1) == len(d2) == len(base) - 4 and u1['from_plan'] and u2['from_plan'],
+            "index_plan: 둘 다 204→48원자(1×1×1: 52−4) · from_plan 표시")
+        _sy1 = d1.get_chemical_symbols(); _sy2 = d2.get_chemical_symbols()
+        chk(sum(a != b for a, b in zip(_sy1, _sy2)) == 3,
+            "index_plan: 두 구조의 심볼 차이가 정확히 3 (O₃ vs S₃)")
+    except Exception as _e:
+        chk(False, f"index_plan 양성 경로 예외: {_e}")
+    for _bad_plan, _msg in (
+        ({**_plan, 'vacancy_sites': [-1, 0, 1, 2]}, "⛔음성: 허용 집합 밖 인덱스 → 거부"),
+        ({**_plan, 'cation_sites': _li[:1]}, "⛔음성: 길이 불일치(1≠2) → 거부"),
+        ({**_plan, 'anion_sites': [_s16[0], _s16[0], _s16[1]]}, "⛔음성: 중복 인덱스 → 거부"),
+        ({**_plan, 'cation_sites': _s16[:2]}, "⛔음성: S 자리를 Al 자리로 지정 → 거부"),
+    ):
+        try:
+            c = SiteCarrier(pm, base.get_chemical_symbols())
+            substitute_compound_at_sites(base.copy(), {'Al': 2, 'O': 3}, 1, 'Li_24g', 'S_16e', 'random', 7,
+                                         DOPANT_DB, carrier=c, contract='enforce', index_plan=_bad_plan)
+            chk(False, _msg)
+        except S1ContractError:
+            chk(True, _msg)
     print(f"selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
@@ -747,9 +832,16 @@ def main():
     parser.add_argument('--method', default='spread',
                        choices=['spread', 'random', 'first'])
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--index_plan', default=None,
+                        help='⭐ 회신 BO 조건 2: 공통 부모 배열의 인덱스 표(JSON). 주면 난수 대신 이 자리를 쓴다 '
+                             '(cation_sites·anion_sites·vacancy_sites). P1/P2 짝은 같은 파일을 준다')
+    parser.add_argument('--emit_index_plan', default=None,
+                        help='첫 성공 구조가 실제로 쓴 인덱스 표를 이 JSON 으로 떨군다 — 짝 처방이 --index_plan 으로 재사용')
     parser.add_argument('--n_seeds', type=int, default=1,
                        help='Ensemble size (only meaningful with --method random)')
     args = parser.parse_args()
+    _index_plan = json.load(open(args.index_plan)) if args.index_plan else None
+    _index_plan_emitted = [False]
 
     if (not args.compound and not args.halide_rich
             and not args.mixed_halides and not args.mixed_compounds):
@@ -876,7 +968,13 @@ def main():
                         args.method, seed, DOPANT_DB,
                         vacancy_method=args.vacancy_method,
                         vacancy_cutoff=args.vacancy_cutoff,
-                        carrier=carrier, contract=args.s1_contract)
+                        carrier=carrier, contract=args.s1_contract,
+                        index_plan=_index_plan)
+                    if args.emit_index_plan and not _index_plan_emitted[0]:
+                        Path(args.emit_index_plan).write_text(
+                            json.dumps(log['index_plan_used'], ensure_ascii=False, indent=1))
+                        _index_plan_emitted[0] = True
+                        print(f"  index_plan → {args.emit_index_plan}")
                     info['steps'].append({
                         'type': 'A_compound',
                         'compound': args.compound,
@@ -997,7 +1095,8 @@ def main():
                             args.method, step_seed, DOPANT_DB,
                             vacancy_method=args.vacancy_method,
                             vacancy_cutoff=args.vacancy_cutoff,
-                            carrier=carrier, contract=args.s1_contract)
+                            carrier=carrier, contract=args.s1_contract,
+                        index_plan=_index_plan)
                         info['steps'].append({
                             'type': 'D_multi_compound',
                             'compound': cname, 'x': x_each,

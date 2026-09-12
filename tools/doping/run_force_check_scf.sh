@@ -20,6 +20,44 @@
 # =============================================================================
 set -u
 ROOT=${1:-}
+
+# ⛔ 완료 판정은 **한 곳에만** 둔다 — 재개(건너뛸까)와 성공(셌나)이 같은 기준이어야 한다.
+#   갈라져 있던 탓에 미수렴 점이 JOB DONE 만으로 "완료" 로 건너뛰어졌다 (2026-09-08 실측).
+#   ⚠ grep -a — 출력에 NUL 이 섞이면 grep 이 binary 로 보고 조용히 넘어간다.
+_fc_ok() {
+  [ -f "$1" ] || return 1
+  grep -aq "JOB DONE" "$1" \
+    && grep -aq "convergence has been achieved" "$1" \
+    && grep -aq "Forces acting on atoms" "$1" || return 1
+  # ⭐ 회신 BO (2026-09-12): tstress 를 켠 입력이면 **응력 블록까지** 있어야 완료다.
+  #   종전엔 JOB DONE + 힘만 보고 "완료" 라 응력 대조를 통과한 것처럼 읽힐 수 있었다.
+  #   tstress 가 없는 옛 입력(힘 대조 20점)은 그대로 통과시킨다 — 레거시를 깨지 않는다.
+  local _in; _in="$(dirname "$1")/scf.in"
+  if [ -f "$_in" ] && grep -aqiE "tstress *= *\.true\." "$_in"; then
+    grep -aqE "total +stress" "$1" || return 1
+  fi
+  return 0
+}
+
+# ── --selftest : 완료 판정의 양성·음성 경로 (회신 BO 조건 1) ────────────────────
+if [ "${ROOT}" = "--selftest" ]; then
+  _T=$(mktemp -d); _n=0; _f=0
+  _chk() { if eval "$2"; then _n=$((_n+1)); else _f=$((_f+1)); echo "  ✗ $1"; fi; }
+  mkdir -p "$_T/p" "$_T/n" "$_T/l" "$_T/c" "$_T/s"
+  printf "tstress = .true.\ntprnfor = .true.\n" > "$_T/p/scf.in"
+  printf "convergence has been achieved\nForces acting on atoms\n     total   stress  (Ry/bohr**3)   (kbar)  P= 0.12\nJOB DONE\n" > "$_T/p/scf.out"
+  _chk "tstress + 응력 → 완료"            "_fc_ok $_T/p/scf.out"
+  cp "$_T/p/scf.in" "$_T/n/"; printf "convergence has been achieved\nForces acting on atoms\nJOB DONE\n" > "$_T/n/scf.out"
+  _chk "tstress + 응력 없음 → **미완료**"  "! _fc_ok $_T/n/scf.out"
+  printf "calculation = 'scf'\n" > "$_T/l/scf.in"; cp "$_T/n/scf.out" "$_T/l/"
+  _chk "tstress 없음 → 응력 불요구(레거시)" "_fc_ok $_T/l/scf.out"
+  cp "$_T/p/scf.in" "$_T/c/"; printf "JOB DONE\n     total   stress\n" > "$_T/c/scf.out"
+  _chk "수렴·힘 줄 없음 → 미완료"          "! _fc_ok $_T/c/scf.out"
+  printf "TSTRESS=.TRUE.\n" > "$_T/s/scf.in"; cp "$_T/n/scf.out" "$_T/s/"
+  _chk "대소문자 tstress + 응력 없음 → 미완료" "! _fc_ok $_T/s/scf.out"
+  _chk "scf.out 부재 → 미완료"             "! _fc_ok $_T/없음/scf.out"
+  rm -rf "$_T"; echo "selftest: $_n 통과 · $_f 실패"; [ "$_f" = 0 ]; exit $?
+fi
 [ -n "$ROOT" ] || { echo "usage: $0 <스냅샷 디렉터리> [NP=16]"; exit 2; }
 [ -d "$ROOT" ] || { echo "⛔ 디렉터리가 없다: $ROOT"; exit 2; }
 # ⚠ 랭크 수 기본값 = **물리코어**. `nproc` 은 하이퍼스레드를 포함하는데 Open MPI 는
@@ -88,15 +126,7 @@ DRY_RUN=${DRY_RUN:-0}
 
 ts() { date '+%m-%d %H:%M:%S'; }
 
-# ⛔ 완료 판정은 **한 곳에만** 둔다 — 재개(건너뛸까)와 성공(셌나)이 같은 기준이어야 한다.
-#   갈라져 있던 탓에 미수렴 점이 JOB DONE 만으로 "완료" 로 건너뛰어졌다 (2026-09-08 실측).
-#   ⚠ grep -a — 출력에 NUL 이 섞이면 grep 이 binary 로 보고 조용히 넘어간다.
-_fc_ok() {
-  [ -f "$1" ] || return 1
-  grep -aq "JOB DONE" "$1" \
-    && grep -aq "convergence has been achieved" "$1" \
-    && grep -aq "Forces acting on atoms" "$1"
-}
+
 
 # ── 중복 실행 가드 (CLAUDE.md 공통 관례 · pgrep 이 아니라 flock) ──────────────
 #   pgrep 로 세면 래퍼(sh -c … | tee)까지 세어 시작하자마자 죽는 사고가 있었다.
