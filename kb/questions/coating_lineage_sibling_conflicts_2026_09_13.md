@@ -24,6 +24,19 @@ feedsInto: kb/syntheses/cathode_coating_computational_lineage.md
 
 ---
 
+## 왜 중요한가
+
+세 자리 전부 **우리 값을 문헌에 붙이는 대목**이다. 조용히 한쪽으로 정리하면 그 선택이
+원고의 인용 한 줄로 굳는다 — 그리고 이 캠페인은 그런 식으로 **이미 두 번 물렸다**:
+Zuo 2023 의 CV 창이 vs In/InLi 라 우리 값이 창 아래 0.34 V 로 보였던 건, 그리고
+inbox #104 `Bai2026`(실제 Cronk)·#112 `Banerjee2020`(실제 Xiao) 두 번의 서지 오기.
+
+특히 충돌 1 은 **숫자가 비슷해서 위험하다.** 1.717 과 1.72 는 육안으로 같아 보이는데
+#7 digest 가 *"우연"* 이라고 판정했다. 그 판정이 맞다면, 둘을 한 표에 놓는 순간
+**다른 양을 같은 양으로 만든 인용**이 된다.
+
+---
+
 ## 충돌 1 — ★ **1.7 V 근처 숫자가 셋인데, 우리 것이 어느 쪽인가**
 
 우리 원장에는 1.7 V 근처 값이 **둘** 있고, 두 digest 가 **서로 다른 쪽**을 문헌의 *reduction/cathodic limit*
@@ -83,7 +96,17 @@ feedsInto: kb/syntheses/cathode_coating_computational_lineage.md
 
 ---
 
-## 반론 / 이 카드가 틀릴 수 있는 곳
+## Evidence For — 세 자리가 실제로 갈려 있다는 근거
+
+| 충돌 | 근거 (원문 위치) |
+|---|---|
+| **1** | `litdb/papers/honrao2021_interpretable_ml_sse_anode_coatings.md` — `Fig. S2` *"Li uptake = 0 평탄구간"* 정의로 우리 **1.717** 을 지목 · `litdb/papers/nolan2018_computation_accelerated_design_review.md` — `Fig. 6A` 의 1.72 를 *LGPS 환원한계*로 읽고 우리 **1.242** 를 지목, 1.717↔1.72 는 **우연**이라 명시 |
+| **2** | #7 digest 가 정의 문장을 *Joule* **2** p. 2022 에서 인용 · #8 digest §7c 가 *"#8 에도 있다"* 며 우열표를 만들고 §10-12 에 **#7 카드 완화 편집 필요**로 기록 |
+| **3** | #8 digest 가 초고의 *"계보 최초"* 주장을 **4곳에서 철회**. #7 은 `Li₆PS₅Cl` 본문 3회(수치 있음·소절 없음), #8 은 「Sulfides」 3.5 pp + 「Argyrodites」 소절(소절 있음·고유 수치 없음) |
+
+⚠ 셋 다 **digest 텍스트가 근거**다 — 원논문 PDF 를 다시 열어 대조하지는 않았다.
+
+## Evidence Against — 이 카드가 틀릴 수 있는 곳
 
 - **충돌 1 이 충돌이 아닐 수 있다.** #6 과 #7 이 *다른 논문의 다른 그림*을 읽은 것이므로, 두 논문이 각각
   자기 정의를 갖고 있고 우리 두 값이 각각 그 둘에 대응할 수도 있다. 그러면 "둘 다 맞을 수 없다" 는 내 문장이
@@ -93,10 +116,16 @@ feedsInto: kb/syntheses/cathode_coating_computational_lineage.md
 - 충돌 3 은 이미 #8 이 스스로 철회했으므로 **분쟁이 아니라 기록**이다. 여기 둔 것은 계보 카드 서사에
   반영하기 위해서다.
 
-## 다음
+## 결정 실험
 
 1. `db/properties/canonical_registry.json` 에서 `reduction_limit_V` · `ocv_self_decomposition_V` 두 항목의
    `method` · `source_path` 를 읽고 **각각 어떤 연산인지** 적는다. (계산 0 · 원장 읽기만)
 2. 그 결과로 충돌 1 을 닫거나, 못 닫으면 `citation_hazards.json` 에 CONDITIONAL 항목을 세운다.
 3. 충돌 2 는 #7·#8 digest 의 해당 절을 나란히 놓고 계보 카드 #7 행을 편집한다.
 4. 충돌 3 은 계보 카드 "흐름 한 줄" 과 #7·#8 행에 이미 반영됐다 — 추가 작업 없음.
+
+## Status Log
+
+| 날짜 | 무슨 일 |
+|---|---|
+| 2026-09-13 | 계보 #7·#8·#9 digest 를 공유 파일에 MERGE 하면서 세 자리가 갈린 것을 발견 — **합치지 않고 이 카드로 뺐다.** 아무것도 해소하지 않았다. |
