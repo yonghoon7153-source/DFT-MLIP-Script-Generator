@@ -62,6 +62,14 @@
    "106. Sup) Aykol2014_Thermodynamic_Aspects_of_Cathode_Coatings_LIB.pdf"
   ]
  },
+ "aykol2016_ht_cathode_coating_design": {
+  "figures": 13,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "107. Aykol2016_HT_Computational_Design_Cathode_Coatings_ncomms13779.pdf",
+   "107. Sup) Aykol2016_HT_Computational_Design_Cathode_Coatings_ncomms13779.pdf"
+  ]
+ },
  "bai2020_argyrodite_review_progress": {
   "figures": 13,
   "generated": "2026-08-05",
@@ -1489,7 +1497,7 @@
   ]
  },
  "xu2023_realistic_am_shape_cgmd_calendering": {
-  "figures": 5,
+  "figures": 7,
   "generated": "2026-09-11",
   "pdfs": [
    "main.pdf"
