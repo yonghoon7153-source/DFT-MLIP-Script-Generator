@@ -81,6 +81,7 @@ evidenceScope: multi-source-primary
 | BK | 2026-09-09 | `codex_BK_prompt_doping_question_2026_09_09.md` | — | 초안 | — |
 | BL | 2026-09-11 | `codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` | `codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` | 진행 | 같은 라벨 · 주제 토큰 일치 ['ambiguity', 'gate', 'lpsocl']; 판정 인용 1회 |
 | BM | 2026-09-12 | `codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` | `codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` | 진행 | 1층 밀도 게이트 — **G4 재설계 필요, seed1 합격·2층 진행은 반대**. 후속: `db/properties/lpscl_li2s_layer1_g2_deviation_2026_09_12.json` (P0 G2 이탈 확인) |
+| BN | 2026-09-12 | `codex_BN_prompt_cascade_replan_gonogo_2026_09_12.md` | — | 작성 — 발송 대기 | cascade 재실행 계획 **선심사**(go/no-go). 전역 감사 동봉: `db/properties/cascade_axis_global_audit_2026_09_12.json` |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 
