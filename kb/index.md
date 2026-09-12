@@ -1,13 +1,14 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 402
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 403
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 204건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 205건)
 - 2026-09-13 · `kb/reviews/codex_BP_prompt_static_pair_result_2026_09_13.md` — 회신 BP 요청 — 정적대조 2 SCF 실행 결과 (BO 조건 1 이행) · 파일럿 보고량 재질의 · 발송대기
+- 2026-09-13 · `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` — 코팅 계보 #6·#7·#8 digest 가 서로 다른 말을 하는 세 자리 — 우리 값이 문헌의 어느 양인가 · open [open]
 - 2026-09-12 · `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB) · 채택
 - 2026-09-12 · `kb/reviews/codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 프롬프트 — LPSCl@Li₂S 1층: 비정질 밀도 게이트의 기준을 무엇에 두는가 · 발송대기
 - 2026-09-12 · `kb/reviews/codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 회신 원문 — 1층 밀도 게이트: G4 재설계 필요, 그러나 seed1 합격·2층 진행은 반대 · 수령
@@ -26,7 +27,6 @@
 - 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
 - 2026-09-09 · `kb/reviews/codex_BJ2_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ2 — cascade 재설계 A′: 설계 다섯 칸부터 다시 · 깔때기는 계획칸만 · GO 전까지 안 돌립니다 · 초안
 - 2026-09-09 · `kb/reviews/codex_BJ2_reply_2026_09_09.md` — 리뷰 BJ2 회신 원문 — NO-GO(A′ 전체) / GO(B1 제외 + B3 축소) · P0 3건 · 재심 조건 7 · 원문보관
-- 2026-09-09 · `kb/reviews/codex_BJ2_response_draft_2026_09_09.md` — 리뷰 BJ2 회신 대응 초안 — P0 3건·정정 6건 전부 재현, 우리 오류. 재심 조건 7 수용 · 초안
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -364,7 +364,8 @@
 - `kb/projects/symposium_2026_competitive_analysis.md` — 전지기술 심포지엄 2026 — 경쟁 좌표 분석 (이상욱 / 문장혁)
 - `kb/projects/zn_alzib_dft_md_contribution_2026_09_03.md` — Zn ALZIB 세미나(2026-09-02) — 우리가 DFT/MD 로 기여할 수 있는 지점  (2026-09-03 · 진행)
 
-## questions/ (11)
+## questions/ (12)
+- `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` — 코팅 계보 #6·#7·#8 digest 가 서로 다른 말을 하는 세 자리 — 우리 값이 문헌의 어느 양인가 [open]  (2026-09-13 · open)
 - `kb/questions/doped_declared_state_feasibility_2026_08_29.md` — doped E_ads 를 '상태 선언' 으로 살릴 수 있나 — NUPDOWN 은 홀 위치를 안 묶는다 [open]  (2026-08-29 · open)
 - `kb/questions/esw_reduction_limit_field_2026_08_28.md` — `reduction_limit_V` 는 환원한계가 아닌 것 같다 — breakpoint 하나 아래를 가리킨다 [open]  (2026-08-28 · open)
 - `kb/questions/li3nd_pristine_reconstruction_2026_09_02.md` — Li₃Nd pristine 3×3×3 이 0.65 eV 재구성한다 — NEB 기반 구조도 같은가? [open]  (2026-09-02 · open)
