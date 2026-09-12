@@ -1,0 +1,59 @@
+{
+ "schema": "observation/v1",
+ "record_kind": "observation",
+ "date": "2026-09-12",
+ "status": "open_question",
+ "results_seen": true,
+ "제목": "cascade base 구조가 UMA 에서 +5.66 GPa 다 — 그리고 완화 방향이 도핑/무도핑에서 반대다",
+
+ "0_어쩌다_나왔나": "1층(LPSCl@Li₂S) 비정질 밀도가 낮게 나온 원인을 가르려고 결정 대조 잡을 돌리다가 나왔다. 1층 문제 자체와는 별개의 발견이고, cascade 쪽이 더 크다.",
+
+ "1_실측_단일점_압력_0K": {
+  "방법": "tools/ionic/melt_quench_uma.py --pcheck (UMA-s-1p1 omat, default 모드, 완화 없음, 단일점 응력). P = -tr(σ)/3, 0 K 이라 virial = 총압력.",
+  "측정": [
+   {"구조": "db/structures/lpsocl_relaxV0.xyz", "n_atoms": 62, "rho_g_cm3": 1.813,
+    "min_cell_width_A": 5.67, "P_GPa": -0.260, "쓰임": "LPSOCl MD 생산 구조"},
+   {"구조": "db/structures/modelc_relaxV0_3x3x1.xyz", "n_atoms": 558, "rho_g_cm3": 1.817,
+    "min_cell_width_A": 17.16, "P_GPa": -0.209, "쓰임": "modelc 3×3×1 MD 생산 구조"},
+   {"구조": "db/structures/lpscl_F43m_24G_canonical.cif", "n_atoms": 52, "rho_g_cm3": 1.656,
+    "min_cell_width_A": 10.25, "P_GPa": 5.661, "쓰임": "**cascade/doping 설계 생성기의 base**"}
+  ],
+  "읽는_법": "우리 MD 생산 구조는 UMA 평형에 있다(≈ -0.2 GPa). 고정 셀 NVT 가 압축 상태에서 돈 것이 아니다. 이상한 것은 canonical base 하나다."
+ },
+
+ "2_왜_이상한가": "canonical base 는 ρ 1.656 으로 생산 구조(1.817)보다 **9 % 덜 촘촘한데** 압력이 +5.66 GPa 다. 덜 촘촘한데 더 눌려 있을 수는 없다 → 셀 크기가 아니라 **원자 위치**가 나쁘다(완화 안 한 이상화 Wyckoff 좌표). PS₄ 보존율 1.000 은 P–S 거리만 보므로 이 결함을 못 잡는다.",
+
+ "3_완화_방향이_반대다": {
+  "무도핑_base": {"도구": "melt_quench_uma.py --npt_control (LBFGS + FrechetCellFilter, maxstep 0.05, fmax 0.02)",
+    "결과": "ρ 1.656 → 1.241 · 부피 **+33.4 %** · 수렴함(fmax 도달, 102 steps) · PS₄ 보존 1.000 → 1.000 · 최종 P +0.083 GPa",
+    "교차확인": "FIRE + FrechetCellFilter 도 1.239 로 같은 답 — 옵티마이저 실패가 아니다"},
+  "도핑_설계_237풀": {"도구": "tools/doping/run_uma_screening.py (FIRE + FrechetCellFilter)",
+    "지표": "screen_dV_over_V0 = (V_relax − V_base×N비)/(V_base×N비) — 원자당 부피 기준이라 조성 차이는 보정돼 있다",
+    "분포_n3615": {"최소": -0.3308, "10%": -0.2075, "중앙": -0.1334, "90%": -0.0156, "최대": 0.1456,
+                  "abs>0.10": 2559, "abs>0.20": 446, "abs>0.30": 12},
+    "결과": "중앙 **−13.3 % 수축**. 71 %가 |ΔV/V0| > 10 %"},
+  "불일치": "같은 base 에서 출발하는데 무도핑은 +33 % 팽창, 도핑은 중앙 −13 % 수축이다. 둘 다 셀을 푸는 UMA 완화다."
+ },
+
+ "4_가능한_설명_아직_판정_아님": [
+  "① 옵티마이저 설정 차이 — 내 대조는 LBFGS(maxstep 0.05, fmax 0.02), 스크리닝은 FIRE. FrechetCellFilter 의 fmax 는 **힘과 응력을 섞은 합성 벡터**라 converged=True 의 뜻이 다를 수 있다 (tools/cascade/uma_relax_check.py:126 에 이미 경고가 있다).",
+  "② 도핑이 구조를 바꾼다 — Li 공공·치환이 격자를 실제로 수축시킨다. 그러면 두 방향이 다 옳다.",
+  "③ base 의 나쁜 위치가 만든 얕은 분지 — 무도핑 완화가 팽창 쪽 국소최소로 빠졌다.",
+  "⛔ 셋 중 무엇인지 아직 모른다. 같은 base 를 **스크리닝 도구로** 완화해 보면 ①이 갈린다."
+ ],
+
+ "5_영향_범위": {
+  "영향_없음_확인됨": ["LPSOCl 3×3×1 닫힌 값 Ea 0.1804 eV — 생산 구조가 P −0.26 GPa 로 평형",
+                     "modelc 3×3×1 9런 — 생산 구조가 P −0.21 GPa 로 평형"],
+  "확인_필요": ["cascade 237 설계의 ΔE_formation — BJ2 #2 대표 선택기가 **ΔE 중앙값**으로 고르는 바로 그 양이다. 완화가 분지를 달리 타면 ΔE 가 달라진다.",
+               "cascade S1/S2 를 돌리기 전에 ①을 닫아야 한다"],
+  "영향_없음_1층": "1층은 이 base 를 쓰지 않는다 (무작위 셀 생성). 별개 사안이다."
+ },
+
+ "다음_한_수": "같은 canonical base 를 tools/doping/run_uma_screening.py 경로로 한 번 완화해 ΔV/V0 부호를 본다. 수축이면 ①(옵티마이저 설정), 팽창이면 ②③ 쪽이다. 비용 몇 분.",
+ "출처": ["tools/ionic/melt_quench_uma.py --pcheck (2026-09-12)",
+         "/data/work/runs/li2s_layer1/npt_control_lpscl.log",
+         "db/properties/cascade_v23_all.csv (screen_dV_over_V0, n=3615)",
+         "tools/doping/run_uma_screening.py:326-333 (dV 정의)"],
+ "⛔_이_기록이_주장하지_않는_것": "cascade 결과가 틀렸다고 말하지 않는다. 완화 방향이 두 경로에서 반대라는 **관측**과, 그것이 ΔE 에 닿을 수 있다는 **경로**를 적었을 뿐이다. 판정은 다음 한 수 뒤에."
+}
