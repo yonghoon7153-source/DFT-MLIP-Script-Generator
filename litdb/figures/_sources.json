@@ -63,7 +63,7 @@
   ]
  },
  "aykol2016_ht_cathode_coating_design": {
-  "figures": 13,
+  "figures": 14,
   "generated": "2026-09-12",
   "pdfs": [
    "107. Aykol2016_HT_Computational_Design_Cathode_Coatings_ncomms13779.pdf",
@@ -1035,6 +1035,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DEM 논문/39. Discrete element model for effective electrical conductivity of spark plasma sintered porous materials.pdf"
+  ]
+ },
+ "nolan2019_chemistries_stable_high_energy_cathodes": {
+  "figures": 16,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "108. Nolan2019_Solid_State_Chemistries_Stable_with_High_Energy_Cathodes.pdf",
+   "108. Sup) Nolan2019_Solid_State_Chemistries_Stable_with_High_Energy_Cathodes.pdf"
   ]
  },
  "oh2026_bimodal_composite_cathode": {
