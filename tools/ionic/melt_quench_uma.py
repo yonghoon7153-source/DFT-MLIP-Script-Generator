@@ -212,6 +212,24 @@ def pressure_GPa(atoms):
     return float(-(sig[0] + sig[1] + sig[2]) / 3.0 * EV_A3_TO_GPA)
 
 
+def cell_widths_A(cell):
+    """셀의 **면간거리** (각 축에 수직인 폭) = V / |a_j × a_k|.
+
+    ⛔ 원자 수가 아니라 이 값이 MIC 의 기준이다 — 이게 컷오프보다 작으면 원자가 자기 이미지를
+    본다. primitive 셀은 원자 수가 같아도 폭이 훨씬 작다 (2026-09-12: Li₂S primitive ×2³ 는
+    24 원자에 폭 6.6 Å 였고, 나는 conventional 을 가정해 96 원자로 알고 있었다).
+    """
+    C = np.asarray(cell, float)
+    V = abs(np.linalg.det(C))
+    return np.array([V / np.linalg.norm(np.cross(C[(i + 1) % 3], C[(i + 2) % 3])) for i in range(3)])
+
+
+def auto_repeat(cell, min_width_A):
+    """각 축 면간거리가 min_width 이상이 되도록 필요한 반복수 (1 이상)."""
+    w = cell_widths_A(cell)
+    return tuple(int(max(1, math.ceil(min_width_A / x - 1e-9))) for x in w)
+
+
 def density_g_cm3(atoms):
     """g/cm³. 카드 밖 원소(대조 잡에 아무 결정이나 넣을 수 있다)는 ASE 질량으로 — MASS 는 4원소뿐이라
     예전 같으면 KeyError 로 죽었다. 생산 런 경로는 MASS 를 그대로 쓰므로 숫자가 안 바뀐다."""
@@ -220,7 +238,7 @@ def density_g_cm3(atoms):
     return float(m / 6.02214076e23 / (atoms.get_volume() * 1e-24))
 
 
-def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, log=print):
+def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, min_width_A=9.0, log=print):
     """⭐ 배로스탯 **대조 잡** — 알려진 결정을 같은 NPT 배선에 넣어 밀도를 지키는지 본다.
 
     비정질 밀도가 낮게 나왔을 때 원인이 두 갈래다: (ⓐ 우리 배선·단위가 틀렸다 / ⓑ UMA 또는 구조가 그렇다).
@@ -235,6 +253,11 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
     from ase.optimize import FIRE
     out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
+    w0 = cell_widths_A(atoms.get_cell())
+    log(f"  [대조] {len(atoms)} 원자 · 면간거리 {w0[0]:.2f}/{w0[1]:.2f}/{w0[2]:.2f} Å (최소 {w0.min():.2f})")
+    if w0.min() < min_width_A:
+        log(f"  ⚠ 최소 면간거리 {w0.min():.2f} Å < {min_width_A} Å — MIC 여유가 얇다. "
+            f"drift 가 문턱 근처로 나오면 배로스탯 탓인지 셀 탓인지 **못 가른다**.")
     atoms.calc = calc
     rho_file = density_g_cm3(atoms)
     try:
@@ -265,6 +288,8 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     rho_npt = float(np.mean([x[1] for x in half])); P_npt = float(np.mean([x[2] for x in half]))
     drift = rho_npt / rho_0K - 1.0
     res = {"kind": "npt_barostat_control", "T_K": T_K, "ps": ps, "dt_fs": dt_fs, "baro": dict(BARO),
+           "cell_widths_A": [float(x) for x in w0], "min_cell_width_A": float(w0.min()),
+           "min_width_required_A": min_width_A, "cell_wide_enough": bool(w0.min() >= min_width_A),
            "n_atoms": len(atoms), "composition": {e: atoms.get_chemical_symbols().count(e) for e in sorted(set(atoms.get_chemical_symbols()))},
            "rho_file_g_cm3": rho_file, "rho_UMA_0K_g_cm3": rho_0K, "P_UMA_0K_GPa": P_0K,
            "rho_NPT_mean_last_half_g_cm3": rho_npt, "P_NPT_mean_last_half_GPa": P_npt,
@@ -445,6 +470,18 @@ def _selftest():
             and os.path.isfile(os.path.join(td, "control.json")),
             f"대조 잡 배선: ρ(0K) {res['rho_UMA_0K_g_cm3']:.3f} · P_NPT {res['P_NPT_mean_last_half_GPa']:+.3f} GPa · control.json")
         chk(abs(res["P_UMA_0K_GPa"]) < 0.5, f"가변셀 완화가 0 GPa 근처로 간다 (P_0K {res['P_UMA_0K_GPa']:+.3f} GPa)")
+        chk(res["cell_wide_enough"] is False and abs(res["min_cell_width_A"] - 8.6) < 0.01,
+            f"⛔음성: 폭 {res['min_cell_width_A']:.2f} Å < 9 Å 인 셀을 **조건부**로 표시한다 (조용히 통과 안 시킨다)")
+    # ⑤ 면간거리 — 원자 수가 아니라 이게 MIC 기준이다
+    cub = np.eye(3) * 10.0
+    chk(np.allclose(cell_widths_A(cub), 10.0), "입방 셀 면간거리 = 변 길이")
+    prim = np.array([[0., 2., 2.], [2., 0., 2.], [2., 2., 0.]])          # fcc primitive (a=4)
+    wp = cell_widths_A(prim)
+    chk(abs(wp.min() - 4.0 / math.sqrt(3)) < 1e-9,
+        f"fcc primitive(a=4): 벡터 길이 2.83 인데 폭은 a/√3 = {wp.min():.3f} Å — 원자 수로는 안 보이는 값")
+    r = auto_repeat(prim, 9.0)
+    chk(cell_widths_A((np.diag(r) @ prim)).min() >= 9.0,
+        f"auto_repeat 가 폭 문턱을 채운다 ×{r} → {cell_widths_A((np.diag(r) @ prim)).min():.2f} Å")
     # ⛔음성: 압력을 못 주는 계산기는 0 이 아니라 NaN
     class _NoStress(LennardJones):
         implemented_properties = ["energy", "forces"]
@@ -475,7 +512,10 @@ def main():
     ap.add_argument("--out_root", help="출력 루트 → <out_root>/<system>/seed<seed>/")
     ap.add_argument("--npt_control", metavar="STRUCT",
                     help="⭐배로스탯 대조 잡: 결정 구조 파일(.vasp/.cif/.xyz)을 같은 NPT 배선에 넣어 밀도 유지 확인")
-    ap.add_argument("--control_repeat", type=int, default=2, help="--npt_control 셀 반복 (기본 2 → 2×2×2)")
+    ap.add_argument("--control_repeat", type=int, default=None,
+                    help="--npt_control 셀 반복을 손으로 고정 (기본: --control_min_width 를 채우도록 자동)")
+    ap.add_argument("--control_min_width", type=float, default=9.0,
+                    help="--npt_control 최소 면간거리 [Å] — 원자 수가 아니라 이 폭이 MIC 기준이다 (기본 9.0)")
     ap.add_argument("--control_ps", type=float, default=20.0, help="--npt_control NPT 길이 [ps]")
     ap.add_argument("--control_tol", type=float, default=0.03, help="--npt_control 통과 문턱 |Δρ/ρ_UMA(0K)|")
     ap.add_argument("--control_out", help="--npt_control 출력 폴더 (기본 <out_root>/npt_control)")
@@ -488,18 +528,26 @@ def main():
             raise SystemExit(f"⛔ 구조 파일이 없다: {a.npt_control}")
         from ase.io import read
         at = read(a.npt_control)
-        at = at.repeat(a.control_repeat); at.pbc = True
+        rep = ((a.control_repeat,) * 3 if a.control_repeat else auto_repeat(at.get_cell(), a.control_min_width))
+        at = at.repeat(rep); at.pbc = True
         cout = pathlib.Path(a.control_out or (pathlib.Path(a.out_root or ".") / "npt_control"))
-        print(f"[대조 잡] {a.npt_control} ×{a.control_repeat}³ = {len(at)} 원자 · {a.T_final:.0f} K · {a.control_ps:.0f} ps → {cout}", flush=True)
+        _w = cell_widths_A(at.get_cell())
+        print(f"[대조 잡] {a.npt_control} ×{rep} = {len(at)} 원자 · 면간거리 최소 {_w.min():.2f} Å "
+              f"({'자동' if not a.control_repeat else '손지정'}) · {a.T_final:.0f} K · {a.control_ps:.0f} ps → {cout}", flush=True)
         calc = make_calc(a.device, a.turbo)
-        res = run_npt_control(at, calc, cout, T_K=a.T_final, ps=a.control_ps, dt_fs=a.dt_fs, tol=a.control_tol)
+        res = run_npt_control(at, calc, cout, T_K=a.T_final, ps=a.control_ps, dt_fs=a.dt_fs,
+                              tol=a.control_tol, min_width_A=a.control_min_width)
+        res["repeat"] = list(rep)
         res["uma_inference_mode"] = getattr(calc, "_mq_mode", "default")
         res["structure_file"] = a.npt_control
         (cout / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
         print(json.dumps({k: res[k] for k in ("rho_file_g_cm3", "rho_UMA_0K_g_cm3", "P_UMA_0K_GPa",
                                               "rho_NPT_mean_last_half_g_cm3", "P_NPT_mean_last_half_GPa",
-                                              "drift_vs_UMA_0K", "UMA_vs_file", "plumbing_ok")},
+                                              "drift_vs_UMA_0K", "UMA_vs_file", "plumbing_ok",
+                                              "min_cell_width_A", "cell_wide_enough")},
                          ensure_ascii=False, indent=1))
+        if not res["cell_wide_enough"]:
+            print(f"⚠ 셀 폭 {res['min_cell_width_A']:.2f} Å < {a.control_min_width} Å — 이 판정은 조건부다")
         print("⭕ 배선 정상 — 비정질 밀도는 배로스탯 탓이 아니다" if res["plumbing_ok"]
               else "⛔ 배선 이상 — 비정질 결과를 해석하기 전에 배로스탯·단위를 고친다")
         return
