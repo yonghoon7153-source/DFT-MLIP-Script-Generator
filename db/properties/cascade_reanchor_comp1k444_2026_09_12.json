@@ -1,7 +1,7 @@
 {
  "schema": "evidence/v1",
  "date": "2026-09-12",
- "status": "measured — 새 계산 0",
+ "status": "measured — 새 계산 0. ⛔ 회신 BO 로 해석 절반 가설 강등 (2026-09-12)",
  "제목": "v23 dV 축을 comp1_V0_k444 앵커로 재산정 — 게이트는 가짜 basin 을 기준으로 삼았다",
  "입력": [
   "db/properties/cascade_v23_all.csv (3,615행, screen_dV_over_V0 = V/atom ÷ 27.478 − 1)",
@@ -58,5 +58,15 @@
   "설계 V/atom 23.81 의 +22 % 중 얼마가 canonical 상속이고 얼마가 도펀트 팽창인지 — comp1_k444 에서 다시 만들어야 갈린다",
   "회신 BN Q5②: 원자수가 바뀌는 처방에서 V/atom 비는 순수 체적변형률이 아니다 — 이 표 전체에 그 단서가 붙는다"
  ],
- "연결": "회신 BO · cascade_rebuild_estimand_card_v2_2026_09_12.json · cascade_base_strain_2026_09_12.json §12"
+ "연결": "회신 BO · cascade_rebuild_estimand_card_v2_2026_09_12.json · cascade_base_strain_2026_09_12.json §12",
+ "⛔_회신BO_강등_2026_09_12": {
+  "확정에서_가설로": [
+   "'UMA 의 일반 부피편향은 ~0' — **가설.** 증거는 'comp1 에서 시작하면 머물고 canonical 에서 시작하면 다른 종점' 뿐. 두 종점의 상대 E·F·응력·안정성 미확인",
+   "'v23 설계는 가짜 basin 을 상속' — **가설.** 재앵커는 게이트 민감도만 보여준다. 부피가 비슷하다고 같은 basin 이 아니다",
+   "'B₂O₃(P자리)만 진짜 host 부피에 도달' — **가설.** 위와 같은 이유"
+  ],
+  "삭제": "'null 대조 Li₂S·LiCl·LiBr·Li₃N' — LiBr·Li₃N 은 Br·N 을 도입하므로 화학식 이름만으로 null 이 아니다. Li₂S·LiCl 도 조성상 null 일 뿐 basin 동일성은 미확인",
+  "유지": "canonical 20.71 이 이 조성의 DFT 평형이 아니라는 것(comp1_V0_k444 = DFT k444 평형 19.55, eos.json 원출력) · 재앵커 산술 자체 · 'UMA 가 이 조성에서 언제나 +34 %' 철회",
+  "판정_경로": "정적대조(카드 v3 §5) 에서 (a)(b) 양쪽 E·F·전체응력을 회수한 뒤 δΔE 와 힘·응력 크기로 **기술**한다. 에너지 높낮이로 basin 을 확정하지 않는다"
+ }
 }
