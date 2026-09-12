@@ -1805,7 +1805,7 @@
    "card": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
    "supersedes": [],
    "enforcement": "생성기는 tools/cascade/s1_contract.py 의 계약을 쓰고, 개정안 `기계_판독` 블록과 다르면 시작하지 않는다(fail-closed). 부모 지도 없이 enforce 로 돌면 멈춘다. 옛 경로는 --s1_contract legacy_bypass 로만 가능하고 실행 로그·요약에 낙인이 남으며 계약본 산출물과 섞지 않는다. 회귀시험: tools/cascade/s1_contract.py --selftest (32/32) · tools/doping/substitute_compound.py --selftest (7/7).",
-   "decision_state": "proposed",
+   "decision_state": "active",
    "proposed_by": [
     {
      "actor_type": "agent",
@@ -1819,9 +1819,23 @@
      "state": "proposed",
      "by": "agent",
      "note": "BJ2 재심 조건 #3. 실측 3건(S_16e 16→8 · NdCl₃ net −2 vs +1 · x=0.1→1 unit=0.25)으로 결함을 재현하고 고쳤다. D_rel 측정 0건 시점."
+    },
+    {
+     "at": "2026-09-12",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
     }
    ],
-   "status": "proposed"
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-12T11:49:43Z",
+    "commit": "7149cf5ba405dd85608625c2e4a4e37a4fefb897",
+    "decision_digest": "sha256:b006c018566ef59e996654cc8f3bb48e36f2a948c245d7dd28df98640e6638e5",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
