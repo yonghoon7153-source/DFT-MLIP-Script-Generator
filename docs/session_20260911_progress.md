@@ -82,10 +82,15 @@
 ⇒ 이 격자에서 조성 순서는 origin 섭동에 흔들리지 않는다.  ⚠ **한 격자의 서술일 뿐**이고,
 격자를 바꾸면 SR-01 에서 σ_ion 비의 **부호가 뒤집힌** 전례가 있다.
 
-⬜ **미확인 — 인용 전 반드시 닫을 것**: `run_receipt.json` 에 **`plate_rule` 이 없다**
-(`periodic_xy: false` 는 있다).  R5-CX-06 이 p1 plate rule 산물의 인용을 금지하므로,
-이 값들을 원고에 쓰기 전에 payload 매니페스트에서 plate rule 을 확인해야 한다.
-⚠ payload 를 지우면 확인 수단이 사라지므로 **삭제 전에 전체 매니페스트를 회수**한다.
+★ **plate rule 확인 완료 (2026-09-12, 삭제 전 회수)** — `run_receipt.json` 에는 그 칸이
+없어서(`periodic_xy: false` 만 있다) payload 매니페스트를 전수로 읽었다:
+**32/32 가 `plate_rule = p2-occupied-surface-first`** 이고 `periodic_xy` 도 32/32 가 False 다.
+⇒ R5-CX-06 이 인용을 금지하는 것은 **p1** 산물이므로 이 32팔은 **그 축에 걸리지 않는다.**
+전수 기록 = `docs/data/phase_a_h015_arms/phaseA_h015_manifests.json` (32팔 매니페스트 전문).
+⚠ 다만 이것이 "인용해도 된다" 는 뜻은 아니다 — **판정은 여전히 REFUSED** 이고, 쓸 수 있는
+것은 *"vox 0.15 에서 이렇게 측정됐다"* 는 서술뿐이다.
+⚠ receipt 에 `plate_rule` 칸이 **없다는 것 자체**가 구멍이다 — 봉인 축을 receipt 만 보고
+확인할 수 없었고, payload 를 지웠으면 영영 확인 못 했다.
 
 ## 6. kgy 디스크 (95 % · 여유 50 G)
 

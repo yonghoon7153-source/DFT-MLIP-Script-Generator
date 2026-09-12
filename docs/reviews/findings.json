@@ -1827,6 +1827,19 @@
    "evidence_tests": [
     "scripts/check_review_findings.py"
    ]
+  },
+  {
+   "id": "SELF-19",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/session_20260911_progress.md",
+   "title": "런 receipt 에 **봉인 축 `plate_rule` 칸이 없다** — 원자료를 지웠으면 영영 확인 못 했다",
+   "note": "2026-09-12 실측.  Phase A vox 0.15 32팔의 `run_receipt.json` 은 `fibre_stamp`·`ptfe_stamp`·`bridge_um`·`vox_um`·`periodic_xy`·`sdcp_stamp`·`code_sha` 를 적는데 **`plate_rule` 은 안 적는다**.  그런데 R5-CX-06 은 **p1 plate rule 산물의 인용을 금지**하므로, 그 칸이 없으면 *\"이 값을 인용해도 되는가\"* 를 receipt 만으로 답할 수 없다.\n⚠ 실제로 위험했다: 디스크 정리로 4.6 GB payload 를 지우려던 참이었고, **payload 매니페스트가 그 값을 아는 유일한 자리**였다.  삭제 전에 전수로 읽어 `plate_rule = p2-occupied-surface-first` (32/32) · `periodic_xy = False` (32/32) 를 확인하고 `docs/data/phase_a_h015_arms/phaseA_h015_manifests.json` 로 박제했다.  ⇒ 이번엔 막았지만 **막은 것이 규율이 아니라 우연한 순서**였다.\n★ 이 결함의 모양은 SELF-17 과 같다 — *\"provenance 를 증언해야 할 기록이 정작 그 축을 안 담는다\"*.  다른 점은 SELF-17 이 **있는 값이 도달 불가**였고 이것은 **값 자체가 없다**는 것.\n처방 후보 (규율 ① — 새로 짜지 말 것): 러너가 receipt 를 쓰는 자리에서 `plate_rule` 을 함께 적고, `phase_a_arms_from_payload.py` 의 `SEAL` 에 넣어 **매번 재확인**하게 한다.  ⚠ 옛 런의 receipt 에는 그 칸이 없으므로 **부재를 오류로 만들면 기존 디렉터리가 전부 막힌다** — `None` 이면 payload 매니페스트에서 읽어 채우고 그 출처를 기록하는 쪽이 맞다 (조용히 통과시키지 말 것).\n⚠ 더 넓은 축: receipt 가 담는 키 집합이 **봉인 축 목록과 같다는 것을 아무도 검사하지 않는다**.  SELF-04 가 `FIELD_CONTRACT` 쪽에서 같은 부류를 닫았는데 receipt 쪽은 안 닫혔다.",
+   "evidence_tests": [
+    "scripts/phase_a_arms_from_payload.py"
+   ]
   }
  ]
 }
