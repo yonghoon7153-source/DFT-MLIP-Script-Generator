@@ -2241,6 +2241,150 @@
    "evidence_tests": [
     "docs/reviews/codex_request_dem_webapp_stack_20260913.md"
    ]
+  },
+  {
+   "id": "L2-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "협착저항의 **ψ 가 분모에 있다** — 문헌은 곱한다 (비 = (1-s)^-3)",
+   "note": "(Codex 라벨: **P1-L2-01**)\n`network_conductivity.py:395-401` 이 `R = 1/(sigma*k*2*a_eff*psi)` = **R_H / psi** 인데 Yovanovich 1982 (p.86 식 1-3) 은 `R_c = psi/(2 k_s a)` = **psi * R_H** 다.  2005 리뷰도 접촉 **conductance** 분모에 psi 를 둔다.  두 원문 모두 유효범위를 **0 < a/b <= 0.3** 으로 명시.\n⚠ `b` 를 입자 반경 `r` 로 놓는 것도 **별도의 기하 가정**이지 그 식이 보증하는 동일성이 아니다.\n★ **이 리포에서 재현 (자리 일치)**: a/r = 0.1/0.2/0.3 에서 R_code = **5.85606974 / 3.49385621 / 2.84578240**, psi*R_H = 4.26907484 / 1.78885438 / 0.97610336, 비 = 1.371742 / 1.953125 / **2.915452** = `(1-s)^-3` 과 정확히 일치.  ⇒ **깊은 겹침을 요구하지 않는다** (a/r=0.1 에서 이미 1.37배).\n★ **비단조·불연속도 재현**: 절단 없는 `1/[2a(1-a/r)^1.5]` 의 최소점 **s = 0.4000**, s=0.8 에서 R = 6.98771243 (면적을 늘렸는데 저항 증가).  실제 구현은 `psi <= 1e-4` 에서 R_c = 0 으로 **떨어진다** — 전환점 s* = **0.99784556531**, s*-1e-8 에서 R = **5010.76059484**, s*+1e-8 에서 **0**.  ⇒ *'발산을 구현했다'* 도 *'매끄러운 full-contact limit'* 도 **둘 다 틀리다**.  `:400` 주석의 *'spreading vanishes'* 는 극한이 아니라 **절벽**이다.\n⛔ **처방이 psi 위치 수정만이 아니다**: `:323` 이 `a = sqrt(A/pi)` 로 A 를 **원판 면적**으로 읽는데 Physics 의 `2*pi*R_min^2` 표면 cap 을 넣으면 `a = sqrt(2) r` 가 되고 `:394` 에서 다시 r 로 잘린다 ⇒ **구 표면 피복 면적과 평면 전류 원판을 같은 양으로 취급**한다.  판정문: *'L2 에 넘길 면적 A 가 무엇인가' 를 먼저 정해야 한다* (수송 patch / 표면 피복 / 퍼진 막 구분 → 접촉 연산자·영역 선택 → 그에 맞춰 L1 수정).\n⇒ **이것이 L1-01/02/03 을 아직 안 고친 이유의 답이다** — 두 층이 같은 결정에 걸려 있다.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "L2-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**정상 미퍼콜(valid_null)을 양의 fallback 으로 복원**한다 — 초록 게이트로 통과",
+   "note": "(Codex 라벨: **P1-L2-02**)\n`run_network_full_corrections.py:717` 이 **상태를 안 쓰고** `:757` 이 **값만으로** 분류해 `784-789`/`804-806` 에서 대체하고 823/828 에 저장한다.\n★ Codex 반례 (실제 fracture classifier + 실제 apply_corrections + 실제 network CLI): 36구·30접촉에서 AM 3기둥의 중앙 bridge 3개를 pulverization 으로 삭제 ⇒ 수정 AM 그래프 위아래 연결 **없음** · 직접 network 출력 **None / valid_null (AM 망 미퍼콜)** 인데 최종 Stage-E 전자 sigma = **0.0832670335 mS/cm** (raw 0.103889 x factor 0.8015), source = `fallback_weighted_factor`, 그리고 **`trustworthy_overall = true`**.\n⚠ *'솔버가 불안정해서 None 였을 것'* 이 아니다 — **실제로 비관통**이고 그런 망의 전극 간 DC 전도는 **0** 이다.\n⇒ 무너지는 결론: *'Stage-E sigma 는 그 수정 접촉망을 푼 값이다'* · *'초록 validation 이면 양의 수송이 실재한다'*.\n처방: `no_through_component` · `not_applicable` · `not_run` · `solver_failed` 를 구별하고 정상 미퍼콜은 **명시적 0** 으로 보존.  근사는 원 상태·원값을 보존한 **별도 estimate 열**이지 같은 primary sigma 를 채우지 않는다.",
+   "evidence_tests": [
+    "scripts/run_network_full_corrections.py"
+   ]
+  },
+  {
+   "id": "L2-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "grain factor = 1 이면 **파괴로 망이 끊겨도 계산을 생략**한다",
+   "note": "(Codex 라벨: **P1-L2-03**)\n`run_network_full_corrections.py:651`(특히 `661-663`)·696/708/719 의 unity-skip 이 **grain factor 항등**을 **fracture x grain 전체 연산자 항등**으로 바꿔 읽는다.\n★ Codex 반례: 같은 중앙 bridge 3개 절단(AM_S·SE r=1 um) ⇒ 독립 reachability **false**, 수정망 직접 solve **None/valid_null** 인데 run_one 안에서 solver 호출 **0회**, 전자 sigma 가 raw **0.140619 → Stage-E 0.140619** 그대로, source = `baseline_no_correction`.  동시에 fracture 원장에는 **pulverization 3개가 남아 있다**.  그리고 UI 행 생성기는 **'Direct solver (all channels + both modes valid)'** 를 낸다 (`webapp/app.py:1386`).\n⇒ 손상 기록이 없었던 것이 아니라 **있는데 계산에서 무시**했다.\n처방: 해당 채널의 **최종 간선 집합·면적·delta·전도도** 가 원본과 같을 때만 skip.  grain factor 하나만 비교하면 안 된다.",
+   "evidence_tests": [
+    "scripts/run_network_full_corrections.py"
+   ]
+  },
+  {
+   "id": "L2-04",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**벽에 닿지 않는 입자 사슬을 관통으로 판정**한다 (전극을 내부 15/85 % 로 옮김)",
+   "note": "(Codex 라벨: **P1-L2-04**)\n`network_conductivity.py:207-231`(특히 `224-231`)이 *'벽에 닿는 입자가 3개 미만'* 이면 **내부 관측 z 범위의 15/85 % 위치에 전극을 다시 놓는다**.  그런데 전도도 정규화 길이는 **여전히 입력 plate_z** 다.\n★ Codex 반례: 상자 10x10x10, 벽 z=0/10, 같은 상 6구(r=0.1)가 z=4.00~4.95 에만 있다.  원자료 기준 아래/위 벽 접촉 **0/0** 인데 builder 는 첫 구/마지막 구를 전극으로 만들고 decomposition 이 `percolating_fraction = **1**`, `sigma_full = 0.00090514`, `status = computed` 를 낸다.\n⇒ 무너지는 결론: 양의 sigma 와 관통 분율이 **입력한 물리 벽 사이의 수송**을 뜻한다는 주장.\n처방: **알려진 벽에서는 fallback 금지**.  경계를 모르면 `boundary_unknown`, 벽과 분리되면 **정상 zero**.  내부 슬래브 전극을 쓰려면 그 경계와 길이를 함께 기록하고 **다른 estimand** 로 낸다.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "L2-05",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**전류가 0인 막다른 가지** 하나가 sigma 를 약 4 % 바꾼다 (전극저항이 전 간선에 걸린다)",
+   "note": "(Codex 라벨: **P1-L2-05**)\n`network_conductivity.py:593-616`(특히 `607-610`)이 전극 conductance 를 **모든 간선의 sum/max** 에서 만든다.\n★ Codex 반례: R=1 단일 경로 + 코드가 붙이는 전극 링크 R=1/50 ⇒ baseline G = **0.96153846153846** (해석해 `1/(1+2/50)` 와 일치).  시작 노드에 **전류가 0인** R=0.001 막다른 가지 하나를 붙이면 G = **0.99996004156128** = **+3.995844 %**.  이유는 `g_boundary` 가 50 → **50050** 으로 바뀌기 때문이고, 새 해도 바뀐 경계저항의 해석해와 일치한다 ⇒ **수치 잡음이 아니라 고정한 문제가 달라진 것**이다.\n⇒ 무너지는 결론: 서로 다른 접촉망의 sigma 차이가 **내부 수송의 차이만** 반영한다는 해석.\n처방: 실제 Dirichlet 전극을 정확히 소거하거나 **별도로 정한 물리 전극저항**을 쓴다.  conditioning 은 행렬 스케일링/전처리로 다루고 **경계저항으로 대신하지 않는다**.  수정 후 회귀 = 막다른 가지 불변성 · 저항 단위 스케일링.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "L2-06",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**수치 사고를 정상 미퍼콜로**, **thermal NaN 을 computed 로** 분류한다",
+   "note": "(Codex 라벨: **P1-L2-06**)\n`network_conductivity.py:687-691` 이 예외를 None 로 바꾸고 `:1226-1251` 이 다시 None 를 **정상 미퍼콜** 로 분류한다.\n★ 반례 둘: ① 정상 관통망의 `spsolve` 만 RuntimeError 를 내게 하면 이온·전자·열 **전부 valid_null** 이 나온다.  ② **solver 무변조 음성대조** — 정상 경로에 `x = NaN` 인 AM 노드와 SE-AM 간선만 넣으면 NaN 저항 간선이 행렬에서 빠져 singular 가 되는데 결과가 `thermal_sigma_full = NaN` 인데 `thermal_status = **computed**` 다 (`:1290`).  이온/전자 NaN 은 기존 분류기가 failed 로 막는데 **thermal 만 그 공통 분류를 안 쓴다**.\n⚠ ②는 **잘못된 원자료의 거부 시험**이지 실제 덤프에 NaN 이 있었다는 증거가 아니다.\n⇒ 무너지는 결론: `valid_null` 이 물리적 미퍼콜의 증거이고 `computed` 가 유한한 성공값이라는 계약.\n처방: **숫자 부재만으로 원인을 추론하지 않는다** — 유효 전기 그래프의 reachability · 실제 solve 성공 · finite·잔차/KCL 검사를 **각각** 통과한 상태를 명시 전달.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "L2-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "`CONTACT_FREE/FULL` 을 **Bruggeman 대 실측**으로 설명한다 (다른 비다)",
+   "note": "(Codex 라벨: **P2-L2-07**)\n`network_conductivity.py:1095` · `grade_engine.py:340` · `webapp/app.py:8763` · `templates/single.html:1960` 의 설명 문구.\n★ Codex 반례 (실제 `run_decomposition`, 4구 r=1 거리 1.9 delta 0.1, sigma_bulk 0.003 S/cm): FULL **0.034749** · CONTACT_FREE **0.126754** · Bruggeman **0.009630** mS/cm ⇒ `CF/FULL = 3.6477` 인데 `Bruggeman/FULL = 0.2771` — **하나는 1보다 크고 하나는 작다**.\n⇒ *'간단한 이론식이 실제보다 몇 배 과대'* 라는 설명은 **분자와 분모를 모두 바꿔 읽는다**.\n★ 연산 자체는 **조건부 CONFIRMED**: CF 는 **같은 접촉 그래프의 bulk-only** 다 (접촉이 있어야 그래프에 들어오므로 *'접촉망을 없앤 모델'* 이 아니다).  단 `:593-610` 이 mode 마다 전극 conductance 를 다시 계산하므로 **고정 전극 정리를 그대로 인용할 수 없고**, 증강 망의 단조성으로만 상한 관계를 설명할 수 있다.\n⛔ **우리 원장 CL-81 의 문헌 삼각측량이 여기 걸린다** — `R_brug_over_full` n=157 중앙값 4.04x/6.69x 를 kim2025 EIS GB-only 3.75x 와 *'8 % 안에서 만난다'* 고 적었는데, 그 키는 **CF/FULL** 이고 **그 접촉 모델·그래프 내부의 민감도**이지 실험 오차 분포가 아니다.  산포가 크다고 **하나의 보정 배수로 다른 MPM/voxel 솔버에 이식할 수 없다**.\n⚠ 다만 CL-81 의 **구조적 결론**(복셀 FV 가 CONTACT_FREE 가지 위에 있다)은 부정되지 않았다.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py",
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L2-08",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**\"협착이 전체 저항의 45 %\"** 는 전력 기여도가 아니다 (실제 8.1818 %)",
+   "note": "(Codex 라벨: **P2-L2-08**)\n`network_conductivity.py:1010` · `webapp/app.py:2483` · `:8765` 의 통계는 간선별 `R_bulk/(R_bulk+R_c)` 의 **비가중 산술평균**이다.\n★ **이 리포에서 재현 (자리 일치)**: 두 병렬 경로 x 2 직렬 간선, 모든 R_bulk=1, A 의 R_c=9 · B 의 R_c=0 ⇒ 화면 통계 **45 %**, 실제 `sum(I^2 R_c)/sum(I^2 R_total)` = **8.1818 %** (판정문과 동일).  **5.5배** 차이다.  Codex 추가: 가상 전극까지 분모에 넣으면 8.1008 %, CF 로 바꾸면 A 경로 전류 몫이 9.09 % → 50 % (단순 배수 변경이 아니다).\n처방: 통계를 유지하려면 **'접촉별 협착 저항 비율의 비가중 평균'** 으로 명명.  거시 기여도를 쓰려면 같은 FULL field 에서 **I^2 R 원장**을 계산하고 전극 포함 여부를 명시.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "L2-09",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "fallback factor 가 **채널 밖 접촉**을 평균에 넣는다 (+26.9231 %)",
+   "note": "(Codex 라벨: **P2-L2-09**)\n`run_network_full_corrections.py:435-450`.\n★ Codex 반례: 같은 atoms·같은 SE 망에 **AM-AM 접촉 기록만 추가**.  raw 이온 sigma 는 양쪽 모두 0.008437 mS/cm 로 같은데, backend 실패를 주입하면 factor 가 0.65 → **0.825** 로 바뀌어 이온 estimate 가 0.00548405 → **0.006960525** = **+26.9231 %**.  **이온 전류를 나르지 않는 접촉** 때문이다.\n⚠ `L2-02` 를 고쳐 정상 미퍼콜 복원을 금지해도 **진짜 수치 실패에 estimate 를 유지하면 이 결함은 남는다**.  최소한 채널 마스크가 필요하고, `contact_area` 가중이 실제 conductance/소산 감도를 대표하는지는 별도 문제다.",
+   "evidence_tests": [
+    "scripts/run_network_full_corrections.py"
+   ]
+  },
+  {
+   "id": "L2-10",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "**0 저항 단락을 간선 삭제**로 처리한다 (NaN·음수도 조용히 삭제)",
+   "note": "(Codex 라벨: **P2-L2-10**)\n생산 가능한 `R_c = 0` 은 `network_conductivity.py:401` 에서 나오는데 CONSTRICTION_ONLY 의 조립(`560-567`)이 그 간선을 **지운다**.\n★ Codex 반례: 직렬 `R_c = [0, 1]` → 단락을 합치면 유효한 경로인데 실제는 간선을 지워 **singular/NaN**.  0 저항 직접 간선 + 1+1 우회 경로 → 단락을 삭제하고 **G = 0.49504950 / computed**, 단락 간선의 기록 전류는 0.  NaN/음수 저항 간선을 넣어도 조용히 삭제한 뒤 **finite computed** 가 가능하다.\n⚠ FULL 의 기존 결과 전부가 이 반례에 해당하는 것은 **아니다**.\n처방: finite R 검증과 그 모드의 전기 그래프 구성을 먼저.  `R = 0` 은 **명시적 노드 합체**로 단락 처리, 음수/NaN 은 **거부**, `+inf` 는 **명시적 절연 상태**로 구분.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py"
+   ]
+  },
+  {
+   "id": "SELF-24",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "`CL-81` 의 **문헌 삼각측량 문장**이 지지되지 않는다 (구조적 결론은 유지)",
+   "note": "CLAUDE.md 의 CL-81 절이 `R_brug_over_full` (n=157 중앙값 **4.04x**(Hertz) · **6.69x**(소성면적), 범위 2.3~13.6x) 를 적고 *'kim2025 EIS 의 GB-only 3.75x 가 우리 4.04 와 8 % 안에서 만난다'* 고 썼다.\nL2 판정: 그 키는 **CONTACT_FREE/FULL** 이고 CF 는 **같은 접촉망의 bulk-only 가지**다 ⇒ 그 배수는 **그 접촉 모델·그래프 내부의 민감도**이지 실험 대비 오차가 아니다.  ⇒ **삼각측량 문장은 인용하지 말 것.**  산포가 크다고 **하나의 보정 배수로 다른 MPM/voxel 솔버에 이식**할 수도 없다 (CL-81 이 이미 *'상대비교도 자동으로 안전하지 않다'* 고 적은 것과 같은 방향이지만 이유가 더 강하다).\n★ **무너지지 않은 것**: CL-81 의 구조적 결론 — 복셀 FV 가 접촉망의 `CONTACT_FREE` 가지 위에 있고 Holm 협착 항이 **정확히 0** 이라는 것.  L2 판정이 CF = bulk-only 임을 오히려 확인했다.\n⚠ 배수 자체(4.04/6.69)는 **재계산하지 않았다** — Codex 가 실코퍼스 원자료를 갖고 있지 않다.\n처방: CLAUDE.md CL-81 절의 *'kim2025 … 8 % 안에서 만난다'* 문장에 철회 표지를 달고, 그 배수를 인용할 때 **'모델 내부 민감도'** 한정어를 붙인다.",
+   "evidence_tests": [
+    "docs/voxel_contact_free_gap.md"
+   ]
   }
  ]
 }
