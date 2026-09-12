@@ -28,7 +28,7 @@ targetVenue:
 | # | 논문 | 무엇을 세웠나 (잠정) | 우리와 닿는 곳 | litdb |
 |---|---|---|---|---|
 | 1 | **Aykol 2014** AENM `10.1002/aenm.201400690` — Thermodynamic Aspects of Cathode Coatings for LIB (Wolverton) | 액체전해질 LIB 코팅을 **4속성 열역학**(HF 포획 −ΔH_s-HF · Ω_V · Ω_G · **가역 Li 손실**)으로 형식화. 이원 산화물/불화물 **81쌍** 전수 DFT → 조합 설계도표. 계보의 뿌리 | **답: 아니다 — 우리 `oxidation_stability` 의 조상이 아니다.** μ 를 안 열고(닫힌계), 산물을 가정하며, **eV per HF** 로 정규화하고, 전압은 **평균 전환전압**이다. 우리 2.256 V 의 계보는 Mo/Ong/Ceder 2012 → [Zhu15] → [Xiao19]. 접점은 `V=−ΔH/ne` 변환(Aydinol/Ceder 1997)과 **U 계보(Wang2006)** 둘뿐 | ✅ `papers/aykol2014_cathode_coating_thermodynamics.md` (2026-09-11) |
-| 2 | **Aykol 2016** Nat Commun 7:13779 `10.1038/ncomms13779` — *High-throughput computational design of cathode coatings for Li-ion batteries* (Aykol, Kim, Hegde, Snydacker, Lu, Hao, Kirklin, **Morgan**, **Wolverton**) | 1번을 **OQMD 기반 고속 스크리닝 + MOOP 다목적 최적화**로. 물리장벽 / HF-장벽 / HF-scavenger 세 역할로 후보를 가른다 | 스크리닝 판정 규칙(무엇을 '안정' 이라 부르나) · **csv 2개에 후보 랭킹·속성이 기계판독 형태로 다 있다** → 우리 스크리닝(③)의 문헌 대조표로 바로 쓸 수 있다 | ⏳ 대기 (본문 2026-09-12 수령) |
+| 2 | **Aykol 2016** Nat Commun 7:13779 `10.1038/ncomms13779` — *High-throughput computational design of cathode coatings for Li-ion batteries* (Aykol, Kim, Hegde, Snydacker, Lu, Hao, Kirklin, **Morgan**, **Wolverton**) | 1번을 **OQMD 13만종 고속 스크리닝 + MOOP**(weighted-sum + rank aggregation)로. **산물을 더 이상 가정하지 않는다**(hull 최소화). 역할 3분할: 물리장벽 / **HF-barrier(신설)** / HF-scavenger. HHI(공급위험) 축 신설. **Eq 4–6: 양극과 평형시킨 뒤에도 기능하나** | 🔑 **"안정"의 조작적 정의 확정** — `E_d` = **리튬화 개시**(평균 아님) · `E_c` = **액체로의 양이온 용출**(NBS 수용액 전위표) · 기준 vs Li/Li⁺ · DB **OQMD**. **csv 2본(속성 5,225행 + weighted-sum top-100×3)으로 깔때기·랭킹을 독립 재현**했고 `Fig. 1` 의 **숨은 필터 1개**를 찾아냈다 | ✅ `papers/aykol2016_ht_cathode_coating_design.md` (2026-09-12) |
 | 3 | **Xiao 2019** Joule `10.1016/j.joule.2019.02.006` (Ceder × Samsung) | **SSB** 로 무대를 옮긴 첫 대규모 코팅 스크리닝 | 우리 계(황화물 SE)와 같은 무대 | ✅ `xiao2019_cathode_coating_screening.md` (474줄) |
 | 4 | **Nolan 2019** ACS Energy Lett `10.1021/acsenergylett.9b01703` (Mo) | 고전압 양극과 **양립하는 고체 화학**의 목록화 | 우리 산화 onset 2.256 V 와 **같은 축** | ⏳ 대기 |
 | 5 | **Nolan 2021** ENSM `10.1016/j.ensm.2021.06.027` (Mo × Wachsman) | **가넷** SE 용 코팅 — 산화물 계 | 계가 다르다(가넷 vs 황화물) — 방법만 전이 | ⏳ 대기 |
@@ -56,11 +56,14 @@ targetVenue:
 
 - **Q1 "안정" 의 조작적 정의** — 편마다 다르고, **#1 은 구간이 아예 아니다**:
   · **Aykol 2014** = **스칼라 문턱 2개** (`0.30 ≤ −ΔH_s-HF ≤ 1.50 eV HF⁻¹` **and** `V(MₓF) ≤ 3.0 V`). 닫힌계 0 K 반응엔탈피.
-  · **Aykol 2016** = 같은 기호 `G_s-HF`, 같은 단위인데 **ΔG°(298 K) + 액체 H₂O·희박 HF 기준**이라 **값이 최대 2배 다르다**(Al₂O₃ 0.76 → 0.380). ⛔ 세대 혼용 금지.
+  · **Aykol 2016** = **세 개의 다른 양을 한 프레임에 붙인 것**(#2 digest 2026-09-12 확정): ⓐ 열역학 = **OQMD hull 위 불리언** ⓑ 전기화학 = **구간처럼 보이지만 두 반응모델의 합성** — `E_d`(리튬화 **개시**, hull 첫 상영역 최고 계단) + `E_c`(**액체로의 양이온 용출**, NBS 수용액 표준산화전위 + 활동도 10⁻⁶) ⓒ `G_s-HF`(eV per HF).
+    ⚠ `G_s-HF` 는 기호·단위가 #1 과 같지만 **ΔG°(298 K) + 액체 H₂O·희박 HF 기준**이라 값이 최대 2배 다르다(Al₂O₃ 0.76 → 0.380). ⛔ 세대 혼용 금지.
+    ⚠ 그리고 **같은 논문 안에서도 정의가 갈린다**: 일반 MOOP 는 **절대 문턱**(`E_d<3`·`−E_c>3.5 V`), `Table 2` 는 **양극 상대 문턱 + ±0.12 V 버퍼** — `Table 2` 의 LiCoO₂ 최적 코팅은 **전원 일반 게이트 탈락**이다.
   · **Xiao 2019** = 진짜 창 (`V_ox ≥ 4.0` & `V_red ≤ 2.7 V`, grand potential) + pseudo-binary `|ΔE_rxt| < 100 meV/atom`.
   · **우리** = grand-potential **개시 전압** (ox **2.256** / red **1.242 V**) + `interface_reactivity` **eV/atom**.
   ⇒ **우리 2.256 V 와 같은 양은 [Xiao19]/[Zhu15] 쪽이고, Aykol 두 편은 *다른 양*이다.**
-- **Q2 기준** — Aykol 은 **vs Li/Li⁺**(금속 Li 기준 전환전압)이라 축 이름은 우리와 같지만 **DB 가 OQMD**(우리는 MP)이고 **평균 ≤ 개시**라 절대값 비교 불가. 순서 감각까지만.
+- **Q2 기준** — 두 편 다 **vs Li/Li⁺**, **DB 는 OQMD**(우리는 MP). ⚠ **"평균 ≤ 개시" 논거는 2014 에만 유효하다** — **2016 의 `E_d` 는 개시 전압**이다(#2 digest §6b).
+  🔑 **그래서 판정이 두 갈래로 갈린다**: 🟢 **환원축** — `E_d` 는 우리 `reduction_limit_V`(**1.242 V**)와 **같은 종류의 양**(hull 첫 상영역 리튬화 개시) ⇒ #1 digest 의 판정이 **부분적으로 뒤집힌다**. 🔴 **산화축** — `E_c` 는 **양이온이 액체로 용출**되는 전위라 우리 **2.256 V** 와 **대응물이 없다**(용매가 없는 계) ⇒ #1 판정이 **더 강해진다**. **2.256 V 의 직계는 여전히 [Zhu15]/[Xiao19]**. 절대값 비교는 양축 모두 금지 — **정의 대조까지만**.
 - **Q3 액체/고체** — #1·#2 는 **액체 LiPF₆**, 적은 **HF**. 우리 계엔 HF 가 없다. 이식 가능한 것은 **문법 3개**뿐:
   ① 산물이 **상온 안정 고체**여야 보호가 된다 ② 코팅이 **가역 Li 를 먹으면 안 된다** ③ **평형 후에도 기능하나**(2016 Eq 5–6: 완전 반응한 Al₂O₃ 는 더 이상 HF-scavenger 가 아니다).
 - **Q4 양극/음극** — #1 은 **양극 코팅**이 맞다(양극 5종의 HF 공격 엔탈피를 하한 게이트로 씀).
@@ -80,7 +83,9 @@ targetVenue:
 - ~~Lu 본문이 없다~~ → **2026-09-12 수령** (zip 으로 왔다 — PDF 직접 업로드는 계속 다른 파일 바이트가 도착했다).
   **세트 9편 전부 본문 확보.** ⚠ 다만 이 편은 축이 다르다(저온 계면 동역학) — 양극 코팅 계산 계보의 **8편과 나란히 놓지 않고** 별 행(#9)으로 둔다.
 - 우리 `oxidation_stability.json` 의 반응에너지 정의가 문서 어디에 적혀 있는지 아직 이 카드에 안 옮겼다.
-- 8편 중 **6편**의 digest 가 아직 없다(#1 완료, #3 기존) — 순차 진행 중.
+- 8편 중 **5편**의 digest 가 아직 없다(#1·**#2** 완료, #3 기존) — 순차 진행 중.
+- ~~Aykol 2016 본문이 없다~~ → **#2 digest 완료(2026-09-12)**. 부수 소득: **CSV 2본의 스키마 확정 + 깔때기/랭킹 독립 재현**(우리 스크리닝 대조표에 `HHI_R`·`HHI_P` 열을 추가 계산 0 으로 붙일 수 있다).
+- **새로 생긴 물음**: #2 가 #1 의 **산물 물리상태 게이트**를 잃어버렸다(휘발성 옥시할라이드가 top-30 에 앉아 있다). #4–#7(Mo 라인)이 이 게이트를 복원하는지 확인할 것.
 
 ## 출처
 

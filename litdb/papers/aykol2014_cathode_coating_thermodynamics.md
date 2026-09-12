@@ -16,7 +16,7 @@
 
 > **저자**: **Muratahan Aykol**, **Scott Kirklin**, **C. Wolverton\*** — Northwestern University, Dept. of Materials Science and Engineering, Evanston IL (단일 기관, 3인) · 투고 2014-04-24 / 수정 2014-06-11 / **온라인 2014-08-05** · 연구비: **The Dow Chemical Company**(M.A.·C.W.) + DOE EFRC **CEES**(S.K.) · 계산 프레임 = **OQMD**(Open Quantum Materials Database, 같은 그룹) · ⚠ **OA 아님** (Hanyang Univ. Library 라이선스 다운로드)
 >
-> **계보 (1저자 지정 "양극 코팅 계산 계보" 8편 세트의 #1)**: 본 논문(2014, **액체 전해질·HF 축**) → [Aykol 2016 *Nat. Commun.* 7, 13779](inbox #107, SI 만 보유) → **[Xiao19]** `xiao2019_cathode_coating_screening.md`(2019, **SSB 축으로 전환**) → Nolan 2019 / Nolan 2021 / Honrao 2021 / 리뷰 2편. 자세한 승계·수정 대조는 **§6**.
+> **계보 (1저자 지정 "양극 코팅 계산 계보" 8편 세트의 #1)**: 본 논문(2014, **액체 전해질·HF 축**) → [Aykol 2016 *Nat. Commun.* 7, 13779](aykol2016_ht_cathode_coating_design.md) ✅ → **[Xiao19]** `xiao2019_cathode_coating_screening.md`(2019, **SSB 축으로 전환**) → Nolan 2019 / Nolan 2021 / Honrao 2021 / 리뷰 2편. 자세한 승계·수정 대조는 **§6**.
 
 ---
 
@@ -355,7 +355,7 @@ HF/H₂O 는 **고립 분자**로 다룬다(용매화 없음). 그리고 두 개
 | # | 논문 | 무대 | 이 논문(#1)과의 관계 | litdb 상태 |
 |---|---|---|---|---|
 | **1** | **Aykol 2014 AENM** ← **본 digest** | **액체 LIB · HF** | 원점: 코팅을 **4속성 열역학**으로 형식화 | ✅ 본 파일 |
-| 2 | Aykol 2016 *Nat. Commun.* 7, 13779 | 액체 LIB · HF | **직계 후속**(§6d) — 이원 81 → 수천 종·삼원 이상, 코팅 역할 **3분할**, HHI(공급위험) 추가 | ⚠ **SI 만 보유**(inbox #107, 본문 없음) |
+| 2 | Aykol 2016 *Nat. Commun.* 7, 13779 | 액체 LIB · HF | **직계 후속**(§6d) — 이원 81 → **OQMD 13만종**, 산물 **hull 자동 결정**, 역할 **3분할**, HHI 추가, 전압이 **평균→개시** | ✅ `aykol2016_ht_cathode_coating_design.md` (2026-09-12) |
 | 3 | **Xiao/Miara/Wang/Ceder 2019 Joule** | **SSB · 황화물 SE** | **무대 전환**: 적(敵)이 HF → *양극·SE 자신*. 게이트 문법은 승계(§6c) | ✅ `xiao2019_cathode_coating_screening.md` |
 | 4 | Nolan/Liu/Mo 2019 *ACS Energy Lett.* | SSB · 고전압 양극 | 미독 | ⬜ inbox #108 |
 | 5 | Nolan/Wachsman/Mo 2021 *ENSM* | SSB · **가넷 SE** | 미독 | ⬜ inbox #109 |
@@ -409,7 +409,9 @@ HF/H₂O 는 **고립 분자**로 다룬다(용매화 없음). 그리고 두 개
 ### 6d. Aykol 2016 (#2) 이 무엇을 승계·수정했나
 
 > **자료 상태 (2026-09-11→12)**: 이 digest 작성을 시작할 때는 SI(CSV 2본)만 있었고, 작업 중 **본문 12 pp 가 inbox 에 도착**했다(`107. Aykol2016_…ncomms13779.pdf`). 아래는 **SI CSV 전량 + 본문의 방법/결과 일부**를 확인한 것이다.
-> ⛔ **2016 의 정본은 이 절이 아니라 #2 digest 다** — 여기 적은 것은 *2014 와의 접속점*에 한정한다.
+> ⛔ **2016 의 정본은 이 절이 아니라 #2 digest 다** (`aykol2016_ht_cathode_coating_design.md`, 2026-09-12 완료) — 여기 적은 것은 *2014 와의 접속점*에 한정한다.
+> 🔴 **#2 digest 가 아래 서술 한 곳을 정정했다**: 본 digest 는 Aykol 의 전압을 *"평균 전환전압"* 이라고 특징지었는데, **2016 의 `E_d` 는 평균이 아니라 개시 전압**(hull 첫 상영역의 최고 계단, `Fig. 2b`)이다.
+> ⇒ *"Aykol 은 평균 전압이라 우리 개시 전압과 다른 양"* 이라는 논거는 **2014 에만 유효**하고, **2016 의 환원축에는 적용되지 않는다**. 자세히는 #2 digest §6b.
 > 저자진: Aykol, **Kim**, Hegde, **Snydacker**, Lu, **Hao**, Kirklin, **D. Morgan**, **Wolverton** (2014 3인 → 9인).
 
 - **승계**: 열 이름 `G_{s-HF} (eV/HF)` — **2014 의 정규화 단위(eV per HF)가 그대로**다. HF-scavenging 개념·양극 공격 비교·전압 게이트 모두 승계.
@@ -560,7 +562,7 @@ HF/H₂O 는 **고립 분자**로 다룬다(용매화 없음). 그리고 두 개
   digest 머리의 `methods: … ESW` 태그는 **"전압 게이트라는 같은 과(科)"** 라는 뜻이고, 계산 방식이 같다는 뜻이 **아니다.**
 - ⛔ **"Aykol 도 B₂O₃ 를 버렸다"를 우리 B₂O₃ 논거로 쓰지 않는다** — 사유(BF₃ 기체)가 우리 계에 존재하지 않는다(§7d).
 - ⛔ **Aykol 2016 값과 2014 값을 한 표에 섞지 않는다** — 부호도 크기도 다르다(Al₂O₃ +0.76 ↔ −0.380), 이유는 본문 미보유로 미상(§6d).
-- ⚠ **Aykol 2016 에 대한 서술은 부분 확인**이다: SI CSV 2본 전량 + **본문 12 pp 중 Methods(Eq 7–12)·결과 일부**만 봤다(본문이 이 digest 작업 중 2026-09-12 에 inbox 도착). **2016 의 정본은 #2 digest** 이고, 거기서 뒤집히면 그쪽이 이긴다.
+- ~~⚠ **Aykol 2016 에 대한 서술은 부분 확인**이다~~ → **해소 2026-09-12**: #2 digest(`aykol2016_ht_cathode_coating_design.md`)가 본문 12 pp + SI 6 pp + CSV 2본 전수로 완성됐다. **그쪽이 2016 의 정본**이고, 본 digest 의 2016 관련 서술 중 **"평균 전환전압" 특징짓기 1건이 정정**됐다(§6d 머리 참조).
 - ⚠ **#4–8(Nolan·Honrao·리뷰 2편)은 읽지 않았다.** §6a 표의 성격 서술은 제목 기준 자리표시.
 - ⚠ 실험 검증은 **전부 남의 실험의 순위 재현**이고, 그 실험 둘이 서로 충돌한다(ZrO₂ vs Al₂O₃).
 - ⚠ Fig. 5 위 두 패널은 **y 가 0 에서 시작**해 −ΔH 가 음수인 10종이 안 보인다 — "81종이 다 보인다"로 읽지 말 것.
