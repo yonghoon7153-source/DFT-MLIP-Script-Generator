@@ -81,7 +81,7 @@ evidenceScope: multi-source-primary
 | BK | 2026-09-09 | `codex_BK_prompt_doping_question_2026_09_09.md` | — | 초안 | — |
 | BL | 2026-09-11 | `codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` | `codex_BL_reply_lpsocl_gate_ambiguity_2026_09_11.md` | 진행 | 같은 라벨 · 주제 토큰 일치 ['ambiguity', 'gate', 'lpsocl']; 판정 인용 1회 |
 | BM | 2026-09-12 | `codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` | `codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` | 진행 | 1층 밀도 게이트 — **G4 재설계 필요, seed1 합격·2층 진행은 반대**. 후속: `db/properties/lpscl_li2s_layer1_g2_deviation_2026_09_12.json` (P0 G2 이탈 확인) |
-| BN | 2026-09-12 | `codex_BN_prompt_cascade_rebuild_2026_09_12.md` | — | 작성 — 발송 대기 | cascade **재건** 계획 선심사. 1저자가 수리→재건으로 전환(2026-09-12). 동봉: 전역감사 `cascade_axis_global_audit_2026_09_12.json` · 보고량카드 `cascade_rebuild_estimand_card_2026_09_12.json`. 최대 쟁점 Q2 — host UMA 평형이 DFT 대비 +34 % |
+| BN | 2026-09-12 | `codex_BN_prompt_cascade_rebuild_2026_09_12.md` | `codex_BN_reply_cascade_rebuild_2026_09_12.md` | **회신됨-NO-GO** | 560 GPU-h 불승인 · 재건 방향 찬성 · 카드 P0 7건(D 식·처방 미정의·`Li_48h` 미구현·UMA +34 % 정적대조 선행·무반복 factorial df 0·게이트 반례·성공전용 마감) · 채택 순서 = 처방감사(GPU 0) → 동일구조 DFT–UMA E/F/응력 대조 → 한 대비 파일럿 |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 
