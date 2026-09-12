@@ -12,7 +12,9 @@ R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`).
 종료 코드: 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락·파일 없음.
 """
 from __future__ import annotations
-import argparse, csv, json, pathlib, sys
+import argparse, csv, json, pathlib, re, sys
+
+VER = re.compile(r"_v(\d+)$")          # `matrix_300_0009_v2.csv` — compare_states._split_version 과 같은 규칙
 
 # 산출 종류별 **새 스키마** 필수 필드 (R6 내부 F3·F4·F5 · R5-04·R5-07·R5-08)
 JSON_KEYS = ("run_id", "n_grid", "n_samples", "env", "consumed_inputs", "inputs_sha")
@@ -29,23 +31,51 @@ JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
 ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref"}
 
 
+def baseline_for(new_file: pathlib.Path, old: pathlib.Path) -> pathlib.Path | None:
+    """`new_file` 에 대응하는 **정본** — 같은 이름이 아니라 가장 높은 판이다 (`_v2` 가 있으면 그것).
+
+    ⚠ U14-02: 전 판은 이름으로만 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자 이전)과 댔다. 정본은 `_v2` 고
+      (`compare_states._keep_latest` 가 표에 쓰는 것도 그쪽), 그래서 재실행이 v2 를 그대로 재현했는데도
+      span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
+    """
+    stem, suffix = new_file.stem, new_file.suffix
+    base = VER.sub("", stem)
+    cands = []
+    for f in old.glob(f"{base}*{suffix}"):
+        if f.name.endswith(".meta.json"):
+            continue
+        st = VER.sub("", f.stem)
+        if st != base:
+            continue
+        m = VER.search(f.stem)
+        cands.append((int(m.group(1)) if m else 1, f))
+    return max(cands)[1] if cands else None
+
+
 def _rows(p: pathlib.Path, key):
     with p.open(encoding="utf-8", newline="") as fh:
         return {key(r): r for r in csv.DictReader(fh)}
 
 
-def _num_diff(a, b, path=""):
-    """같은 모양의 두 값에서 다른 스칼라를 [(경로, 옛, 새)] 로. 숫자는 문자열이어도 float 로 댄다."""
+def _num_diff(a, b, path="", added=None):
+    """같은 모양의 두 값에서 다른 스칼라를 [(경로, 옛, 새)] 로. 숫자는 문자열이어도 float 로 댄다.
+
+    ⚠ U14-02: 정본에 **없던 필드**(스키마 추가분 — `grid_pct`·`attainable_pct` 등)는 `None → [값]` 이 되어 전부
+      diff 로 세어졌다 (618 건 중 대부분). 새 필드는 스키마 얘기지 숫자가 움직인 것이 아니다 — `added` 로 뺀다.
+    """
     out = []
     if isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
-            out += _num_diff(a.get(k), b.get(k), f"{path}.{k}" if path else k)
+            kp = f"{path}.{k}" if path else k
+            if k not in a and added is not None:
+                added.append(kp); continue
+            out += _num_diff(a.get(k), b.get(k), kp, added)
     elif isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):
             out.append((path, f"길이 {len(a)}", f"길이 {len(b)}"))
         else:
             for i, (x, y) in enumerate(zip(a, b)):
-                out += _num_diff(x, y, f"{path}[{i}]")
+                out += _num_diff(x, y, f"{path}[{i}]", added)
     else:
         try:
             if float(a) == float(b):
@@ -58,7 +88,7 @@ def _num_diff(a, b, path=""):
 
 
 def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
-    missing, diffs, seen = [], [], 0
+    missing, diffs, seen, added, paired = [], [], 0, [], []
     # ⚠ `.meta.json` 은 산출이 아니다 — `degeneracy_*.json` glob 이 `degeneracy_100_Li.json.meta.json` 까지
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
     arts = [f for f in sorted(new.glob("degeneracy_*.json")) + sorted(new.glob("matrix_*.csv"))
@@ -81,13 +111,16 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
             missing += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
         if schema_only or old is None:
             continue
-        o = old / f.name
-        if not o.is_file():
+        o = baseline_for(f, old)
+        if o is None:
             diffs.append((f.name, "정본에 없음", "새 파일만 있다")); continue
+        paired.append((f.name, o.name))
         if f.suffix == ".json":
             a, b = json.loads(o.read_text(encoding="utf-8")), json.loads(f.read_text(encoding="utf-8"))
             for k in JSON_NUM:
-                diffs += [(f"{f.name}:{k}{p and '.' + p}", x, y) for p, x, y in _num_diff(a.get(k), b.get(k))]
+                sub = []
+                diffs += [(f"{f.name}:{k}{p and '.' + p}", x, y) for p, x, y in _num_diff(a.get(k), b.get(k), added=sub)]
+                added += [f"{f.name}:{k}.{x}" for x in sub]
         else:
             key = ((lambda r: (r["half_cell"], r["si"], r["w_dqdv"])) if f.name.startswith("matrix_")
                    else (lambda r: r["gamma_Si"]))
@@ -95,9 +128,46 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
             for k in sorted(set(A) | set(B)):
                 if k not in A or k not in B:
                     diffs.append((f"{f.name}:{k}", "정본에만" if k in A else "새 산출에만", "")); continue
+                added += [f"{f.name}:{c}" for c in sorted(set(B[k]) - set(A[k]) - ROW_SKIP)]
                 for c in sorted(set(A[k]) & set(B[k]) - ROW_SKIP):
                     diffs += [(f"{f.name}:{k}:{c}", x, y) for _, x, y in _num_diff(A[k][c], B[k][c])]
-    return seen, missing, diffs
+    return seen, missing, diffs, sorted(set(added)), paired
+
+
+def renormalize(new: pathlib.Path) -> int:
+    """U14-01 뒷수습 — 이미 게시된 CSV 가 CRLF 면 LF 로 고치고 meta 를 **다시 서명**한다.
+
+    재실행 없이 bytes 를 바꾸는 것이므로 조건을 건다: 파싱한 셀이 **완전히 같아야** 한다 (줄끝만 다르다는 증명).
+    하나라도 다르면 그 파일은 건드리지 않는다 — 그때는 재실행이 답이다. 무엇을 했는지는 meta 에 적는다.
+    """
+    import datetime, hashlib
+    touched, refused = [], []
+    for f in sorted(new.glob("*.csv")):
+        raw = f.read_bytes()
+        if b"\r\n" not in raw:
+            continue
+        lf = raw.replace(b"\r\n", b"\n")
+        before = list(csv.reader(raw.decode("utf-8").splitlines()))
+        after = list(csv.reader(lf.decode("utf-8").splitlines()))
+        if before != after:                         # 줄끝 말고 다른 것이 바뀐다 → 손대지 않는다
+            refused.append(f.name); continue
+        m = f.with_name(f.name + ".meta.json")
+        meta = json.loads(m.read_text(encoding="utf-8")) if m.is_file() else None
+        if meta is None or meta.get("sha256") != hashlib.sha256(raw).hexdigest():
+            refused.append(f"{f.name} (meta 가 지금 bytes 를 서명한 것이 아니다)"); continue
+        f.write_bytes(lf)
+        meta["sha256"] = hashlib.sha256(lf).hexdigest()
+        meta["bytes_renormalized"] = {
+            "what": "CRLF→LF", "why": "U14-01 — writer 가 CRLF 를 썼고 git 은 LF 로 저장한다 (서명이 fresh clone 에서 깨진다)",
+            "verified": "파싱한 셀이 완전히 같다 (줄끝만 다르다)",
+            "utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        m.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        touched.append(f.name)
+    print(f"줄끝 정규화: {len(touched)} 개 다시 서명" + (f" — {', '.join(touched)}" if touched else " (CRLF 인 파일 없음)"))
+    if refused:
+        print(f"! 손대지 않음 {len(refused)} — 줄끝 말고 다른 것이 다르거나 meta 가 안 맞는다: {', '.join(refused)}")
+        print("  그 파일은 재실행이 답이다 (bytes 를 손으로 고치면 서명의 뜻이 사라진다).")
+    return 1 if refused else 0
 
 
 def main() -> int:
@@ -106,12 +176,20 @@ def main() -> int:
     ap.add_argument("--old", default="out", help="정본 디렉터리 (기본 out)")
     ap.add_argument("--schema-only", action="store_true", help="숫자 대조 없이 새 스키마만")
     ap.add_argument("--max-show", type=int, default=20)
+    ap.add_argument("--renormalize", action="store_true",
+                    help="U14-01 뒷수습: CRLF 로 게시된 CSV 를 LF 로 고치고 meta 를 다시 서명한다 "
+                         "(파싱한 셀이 완전히 같을 때만 — 아니면 그 파일은 건드리지 않는다)")
     a = ap.parse_args()
     new, old = pathlib.Path(a.new), (None if a.schema_only else pathlib.Path(a.old))
     if not new.is_dir():
         print(f"! {new} 가 없다"); return 2
-    seen, missing, diffs = check(new, old, a.schema_only)
+    if a.renormalize:
+        return renormalize(new)
+    seen, missing, diffs, added, paired = check(new, old, a.schema_only)
     print(f"산출 {seen} 개 점검 ({new})")
+    for n, o in paired:
+        if n != o:
+            print(f"  정본 선택: {n} ↔ **{o}** (가장 높은 판 — compare_states 가 표에 쓰는 것과 같은 규칙)")
     if not seen:
         print("! 점검할 산출이 없다 — 경로가 맞나?"); return 2
     if missing:
@@ -123,6 +201,9 @@ def main() -> int:
     else:
         print("  새 스키마: 전부 갖췄다 (run_id·sha256·env·inputs_sha·시작 시점 git·인자 필드)")
     if old is not None:
+        if added:
+            print(f"\n  정본에 없던 필드 {len(added)} — 스키마 추가분이다 (숫자가 움직인 것이 아니다): "
+                  + ", ".join(sorted({x.split(":")[-1].split(".")[-1] for x in added})[:12]))
         if diffs:
             print(f"\n■ 정본과 **다른 숫자** {len(diffs)} — 계산 경로는 안 고쳤으므로 같아야 한다.")
             print("   먼저 볼 축: meta 의 `env`(python·numpy·scipy) 가 정본을 만든 기계와 같은가 (R6 내부 F3:")

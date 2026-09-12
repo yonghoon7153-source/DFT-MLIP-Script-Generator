@@ -157,6 +157,13 @@ def verify_unit(path, rid: str | None = None):
     if not ok_id:
         return False, f"meta 의 run_id 가 산출물과 다르다: {why}"
     if sha256_file(p) != digest:
+        # ⚠ U14-01: 줄끝만 바뀐 경우(git 정규화 · Windows 체크아웃)를 "다른 시도가 게시했다" 로 읽지 않게 짚는다.
+        import hashlib
+        raw = p.read_bytes()
+        for name, alt in (("CRLF→LF", raw.replace(b"\r\n", b"\n")), ("LF→CRLF", raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))):
+            if hashlib.sha256(alt).hexdigest() == digest:
+                return False, (f"**줄끝**만 다르다 ({name} 이면 sha256 이 맞는다) — 내용은 같고 게시 뒤 정규화된 "
+                               f"것이다 (git `.gitattributes` · Windows 체크아웃). 산출은 LF 로 쓴다")
         return False, "meta 의 sha256 이 지금 bytes 와 다르다"
     return True, "일치"
 

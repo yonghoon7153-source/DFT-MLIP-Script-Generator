@@ -1,3 +1,8 @@
 # shell 은 LF 로 고정 — 리뷰어의 Windows 작업사본(autocrlf)에서 CRLF 로 구문 오류가 났다 (R4)
 *.sh text eol=lf
 *.py text eol=lf
+# ⚠ U14-01 (2026-09-12): 산출 CSV/JSON 은 meta 의 sha256 이 서명한다. git 이 줄끝을 정규화하면 디스크 bytes 와
+#   커밋 bytes 가 갈려 fresh clone 에서 `--verify-unit` 이 깨지고, reader(R6 내부 F07)가 그 상태를 표에서 뺀다.
+#   writer 도 LF 로 쓴다 (`atomic_write_csv`) — 둘을 같게 두는 것이 서명이 사는 조건이다.
+*.csv text eol=lf
+*.json text eol=lf

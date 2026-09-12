@@ -741,3 +741,94 @@ def test_i6u_15_matlab_sprintf_baseline_matches_our_formatter():
     assert verify.token_excess(f2, 0.125, 0.1249) == 0.0
     assert verify.token_excess(f2, 0.125, 0.13) > 0.0
     assert verify.token_excess(g17, 1e-5, 1e-5) == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+# U14 실행이 드러낸 것 (2026-09-12, 사용자 기계 네 상태 재실행) — `reviews/R6_LEDGER.md` U14 절
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_i6w_01_published_csv_survives_a_git_round_trip(tmp_path):
+    """[U14-01] `atomic_write_csv` 는 `csv` 기본 lineterminator 라 **CRLF** 를 쓰는데 git 은 `.gitattributes` 가
+    csv 를 안 덮어 LF 로 정규화해 저장한다 (`git add` 가 "CRLF will be replaced by LF" 경고). 그러면 meta 의
+    sha256 은 CRLF bytes 의 것이라 **fresh clone 에서 `verify_unit` 이 False** 가 되고, F07 수정 때문에
+    `compare_states` 가 그 상태를 표에서 조용히 뺀다 — 저장소를 새로 받은 리뷰어에게는 상태가 사라진 표가 간다.
+
+    2026-09-12 사용자 기계 U14 커밋에서 실제로 경고가 났다 (matrix_100·200·300_0147, profile 셋).
+    산출은 LF 로 쓰고 `.gitattributes` 로 고정한다 — 디스크 bytes 와 커밋 bytes 가 같아야 서명이 산다.
+    """
+    p = tmp_path / "m.csv"
+    verify.atomic_write_csv(p, [{"a": 1, "run_id": "rid"}], ["a", "run_id"])
+    raw = p.read_bytes()
+    assert b"\r\n" not in raw, raw[:40]
+    # ne_shape 도 같은 규약 (이미 lineterminator="\n" — 두 writer 가 갈리지 않는지 고정한다)
+    assert b"\r\n" not in (ROOT / "out" / "ne_shape_GITT_Li.csv").read_bytes()[:400]
+    # `.gitattributes` 가 서명 대상 확장자를 덮는가 (작업사본이 CRLF 로 체크아웃되면 같은 일이 난다)
+    attrs = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+    for ext in ("*.csv", "*.json"):
+        assert re.search(rf"^{re.escape(ext)}\s+text\s+eol=lf", attrs, re.M), (ext, attrs)
+
+
+def test_i6w_02_verify_unit_says_line_endings_when_only_they_changed(tmp_path):
+    """[U14-01 후속] sha256 만 다르다고 말하면 리뷰어가 "다른 시도가 게시했다" 로 읽는다 — 줄끝만 바뀐 경우는
+    원인을 짚어 줘야 한다 (git 정규화·Windows 체크아웃). 내용이 같다는 것은 bytes 정규화로 확인한다."""
+    prov = _prov()
+    p = tmp_path / "m.csv"
+    verify.atomic_write_csv(p, [{"a": 1, "run_id": "rid"}], ["a", "run_id"])
+    (tmp_path / "m.csv.meta.json").write_text(json.dumps(
+        {"artifact": "m.csv", "run_id": "rid", "sha256": prov.sha256_file(p)}), encoding="utf-8")
+    assert prov.verify_unit(p) == (True, "일치")
+    p.write_bytes(p.read_bytes().replace(b"\n", b"\r\n"))          # Windows 체크아웃이 하는 것
+    ok, why = prov.verify_unit(p)
+    assert ok is False and "줄끝" in why, (ok, why)
+    p.write_bytes(p.read_bytes().replace(b"rid", b"xxx"))          # 대조군: 내용이 바뀌면 줄끝 얘기 안 한다
+    ok2, why2 = prov.verify_unit(p)
+    assert ok2 is False and "줄끝" not in why2, (ok2, why2)
+
+
+def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(tmp_path):
+    """[U14-02] `check_u14.py` 가 파일 **이름**으로만 정본을 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자
+    이전)과 댔다 — 정본은 `_v2` 다 (`compare_states._keep_latest` 가 쓰는 규칙). 그래서 재실행이 v2 를 그대로
+    재현했는데도 span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
+
+    또 정본에 **없던 필드**(`grid_pct` 등 스키마 추가분)가 `None → [값]` 으로 전부 diff 에 섞여 618 건을 만들었다 —
+    새 필드는 스키마 얘기지 숫자가 움직인 것이 아니다. 둘을 갈라 보고한다.
+    """
+    old, new = tmp_path / "out", tmp_path / "out_u14"
+    old.mkdir(); new.mkdir()
+    base = {"state": "300_0009", "n_accepted": 5, "best_obj": 1.5,
+            "LLI_percent": {"min": 1.0, "max": 2.0, "is_lower_bound": True}}
+    (old / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # v1 — 정본이 아니다
+        base | {"LLI_percent": {"min": 9.0, "max": 9.5, "is_lower_bound": True}}), encoding="utf-8")
+    (old / "degeneracy_300_0009_Li_v2.json").write_text(json.dumps(base), encoding="utf-8")
+    (new / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # 재실행 = v2 재현 + 새 필드
+        base | {"run_id": "r", "n_grid": 21, "n_samples": 400, "inputs_sha": "a" * 12,
+                "env": {"numpy": "2"}, "consumed_inputs": {"full_cell": {"sha256": "x"}},
+                "LLI_percent": {"min": 1.0, "max": 2.0, "is_lower_bound": True, "grid_pct": [1.0, 2.0]}}),
+        encoding="utf-8")
+    (new / "degeneracy_300_0009_Li.json.meta.json").write_text(json.dumps(
+        {k: "v" for k in ("run_id", "sha256", "artifact", "env", "started_utc", "git_commit_at_start")}
+        | {"git_state_changed_during_run": False}), encoding="utf-8")
+    r = _u14_run(old, new)
+    assert r.returncode == 0, (r.returncode, r.stdout)               # v2 와 같으므로 숫자는 안 움직였다
+    assert "_v2" in r.stdout and "정본에 없던 필드" in r.stdout, r.stdout
+
+
+def test_i6w_04_renormalize_resigns_only_when_the_cells_are_identical(tmp_path):
+    """[U14-01 뒷수습] 이미 CRLF 로 게시·커밋된 산출을 재실행(수 시간) 없이 살리려면 LF 로 고치고 meta 를 다시
+    서명해야 한다. 재실행 없이 bytes 를 바꾸는 것이므로 **줄끝만 다르다는 증명**(파싱한 셀이 완전히 같다)이
+    조건이고, 무엇을 했는지 meta 에 남긴다. 다른 것이 다르면 손대지 않는다 — 그때는 재실행이 답이다."""
+    prov = _prov(); out = tmp_path / "out"; out.mkdir()
+    def publish(name, body_lf, sign=None):
+        f = out / name; f.write_bytes(body_lf.replace(b"\n", b"\r\n"))
+        (out / (name + ".meta.json")).write_text(json.dumps(
+            {"artifact": name, "run_id": "rid", "sha256": sign or prov.sha256_file(f)}), encoding="utf-8")
+        return f
+    good = publish("matrix_100.csv", b"a,run_id\n1,rid\n")
+    stale = publish("matrix_200.csv", b"a,run_id\n2,rid\n", sign="0" * 64)   # meta 가 지금 bytes 의 것이 아니다
+    r = subprocess.run([sys.executable, str(ROOT / "scripts/check_u14.py"), "--new", str(out), "--renormalize"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 1, (r.returncode, r.stdout)           # 하나를 거절했으니 0 이 아니다
+    assert b"\r\n" not in good.read_bytes() and prov.verify_unit(good) == (True, "일치"), r.stdout
+    meta = json.loads((out / "matrix_100.csv.meta.json").read_text(encoding="utf-8"))
+    assert meta["bytes_renormalized"]["what"] == "CRLF→LF" and meta["bytes_renormalized"]["utc"], meta
+    assert b"\r\n" in stale.read_bytes() and "matrix_200.csv" in r.stdout, r.stdout   # 거절된 쪽은 그대로

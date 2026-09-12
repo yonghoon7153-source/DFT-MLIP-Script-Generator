@@ -71,7 +71,7 @@ def inputs_digest(consumed: dict) -> str:
 
 
 def scale_audit_line(root, args, audit: dict, inputs_sha: str | None = None) -> str:
-    """eval 의 `# scale_audit,…` 줄 (R5-09 식별자 · R5-06 eps_rel/equiv · U13 root). R6 내부 F1: root 라벨은 URL
+    r"""eval 의 `# scale_audit,…` 줄 (R5-09 식별자 · R5-06 eps_rel/equiv · U13 root). R6 내부 F1: root 라벨은 URL
     인코딩으로 공백을 살리고(사본 파서 `\S+`), 진짜 identity 는 `inputs=<소비 입력 digest>` 가 준다."""
     import urllib.parse
     root_label = urllib.parse.quote(Path(str(root)).name or str(root), safe="")
@@ -110,7 +110,10 @@ def atomic_write_csv(path, rows, fieldnames):
                                      delete=False, newline="", encoding="utf-8")
     try:
         with fh:
-            w_ = csv.DictWriter(fh, fieldnames=fieldnames)
+            # ⚠ U14-01: `csv` 기본 lineterminator 는 **CRLF** 다. git 은 `.gitattributes` 로 LF 로 정규화해
+            #   저장하므로 디스크 bytes 와 커밋 bytes 가 갈리고, meta 의 sha256 이 fresh clone 에서 안 맞아
+            #   `verify_unit` 이 False → F07 수정이 그 상태를 표에서 뺀다. 서명이 사는 유일한 길은 둘을 같게.
+            w_ = csv.DictWriter(fh, fieldnames=fieldnames, lineterminator="\n")
             w_.writeheader(); w_.writerows(rows)
     except BaseException:
         Path(fh.name).unlink(missing_ok=True)
