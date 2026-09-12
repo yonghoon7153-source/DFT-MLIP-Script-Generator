@@ -74,6 +74,10 @@
   · pw.x 를 던지기 전 `nvidia-smi` 로 **python3(UMA)가 GPU 를 쓰고 있는지** 본다 — kgy 도 공유다.
 - **gabia** (A6000 단일 GPU, QE-GPU + fairchem/UMA): root@121.78.116.27. **pw.x와 UMA 동시 실행 금지**
   (VRAM 47/48 GB 점유 사례) — nvidia-smi로 확인 후 실행.
+  · UMA python = **`/data/apps/miniforge3/envs/uma/bin/python`** (envs: dft·mace·mlipx·sevennet·uma).
+    tmux 커맨드에는 **절대경로**를 박는다 — base 의 `python3` 는 fairchem 이 없다.
+    ⛔ `pgrep -af` 는 **친 그대로의 토큰**(`python3`)을 주지 해석된 경로를 안 준다 — 여기서 경로를 캐지 않는다
+    (2026-09-12 실패). 모르면 `~/.bash_history` 의 `conda activate` 줄이 답이다.
 - **desktop WSL**: ORCA r2SCAN-3c (SDCP 분자 계열).
 - 공통: 실행 스크립트에 pgrep 중복실행 가드, 출력 grep은 `grep -a`(NUL 오염 대비), watch 스크립트 관례 유지.
 - **산출물 회수 기본 경로 = `C:\Users\Administrator\Downloads\`** (1저자 지정 2026-09-01).
