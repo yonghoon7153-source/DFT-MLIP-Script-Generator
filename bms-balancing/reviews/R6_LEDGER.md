@@ -524,6 +524,17 @@ P1-2·P1-4 의 "축소된 roster" 를 닫으려면 **없는 것이 요청 밖인
 소스 32 행 · `run_states.sh` 의 `pick_src` 주석(2026-09-10 실측). `D.declared_states("GITT")` 가 `[100, 200, 300_0009]` 를
 주는데 이는 커밋된 `out/ne_shape_GITT_Li.csv` 의 행 집합과 **정확히 같다**.
 
+### digest 규칙이 바뀌어 **정본의 옛 `inputs_sha` 는 새 규칙으로 재계산되지 않는다** (실측)
+
+`inputs_digest` 를 역할 결속으로 바꾸면서 값이 달라졌다 (그래서 `RECEIPT_SCHEMA_VERSION = "r10.1"` 을 payload 에 넣었다).
+그 결과 커밋된 `out/degeneracy_*.json` 네 개는 receipt(역할 넷 다 있다)는 통과하지만 기록된 `inputs_sha` 가 옛 규칙의
+값이라 재계산과 안 맞는다 — `check_u14 --new out --schema-only` 가 이제 그것을 "내용 검사 실패 4" 로 말한다
+(`replay_ours_after_fixes/check_u14_out_schema_only.txt`, 출처 열 누락 24 + profile `gamma_roster` 4 는 그대로).
+
+**숫자는 하나도 안 움직였다** — 바뀐 것은 digest 규칙이고, 옛 값은 옛 규칙의 값이다. 이것도 U18 재실행이 채운다
+(재실행 산출은 새 규칙으로 서명되고 gate 가 재계산과 대조한다). 소급해서 값을 고쳐 넣지 않는다 — 그러면 그 digest 가
+무엇을 증명하는지 사라진다.
+
 ### 계약이 바뀐 곳 (이전 라운드 회귀를 같이 고쳤다)
 
 | 전 | 후 | 왜 |

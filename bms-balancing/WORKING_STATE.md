@@ -49,8 +49,10 @@ d10_01~16) → 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "Codex R10" �
 **expected commit 의 sparse worktree 에서 대상 bytes 실행** · 도구 자신의 봉인(`instrument_sealed`)까지 본 뒤에만
 `evidence_eligible: true`.
 
-**정본 범위 (변화 없음)**: 현행 `out/` 12 개는 여전히 provenance-incomplete (출처 열 24 건 + 이번에 profile 의
-`gamma_roster` 4 건이 더해졌다 — 둘 다 U18 재실행이 채운다). `check_u14 --new out --schema-only` 가 rc 2 로 말한다.
+**정본 범위**: 현행 `out/` 12 개는 여전히 provenance-incomplete (출처 열 24 + profile `gamma_roster` 4). 여기에
+**digest 규칙 변경**이 더해졌다 — `inputs_digest` 가 역할을 묶으면서 값이 달라져 커밋된 degeneracy 네 개의 옛
+`inputs_sha` 가 재계산과 안 맞는다 ("내용 검사 실패 4"). 숫자는 하나도 안 움직였고 바뀐 것은 규칙이다; 소급해서 고쳐
+넣지 않고 U18 재실행이 새 규칙으로 서명한다. `check_u14 --new out --schema-only` 가 rc 2 로 말한다.
 자기 점검(`--new out --old out`)은 이제 **거부**된다 (P1-8) — 승격 대조는 독립 baseline 으로만.
 
 ## 직전 상태 — Codex 9차 NO-GO 열두 건 닫음 (닫힘)

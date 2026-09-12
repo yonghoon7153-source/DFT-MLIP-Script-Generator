@@ -46,15 +46,15 @@ python3 scripts/check_u14.py --new out --schema-only            # rc 2: provenan
 
 | 검사 | 명령 | 출력 |
 |---|---|---|
-| 전체 회귀 | `python3 -m pytest tests/ -q` | `<<SUITE>>` (이 컨테이너) |
-| MATLAB 스모크 (Octave) | `bash matlab/tests/run_all.sh` | `<<MATLAB>>` |
-| 변이 감사 (우리 테스트) | `codex_r6_mutation_audit.py` | `<<MUT>>` |
-| 적응판 변이 감사 | `mutation_adapted.py` | `<<MUT_ADAPTED>>` |
-| R6 적응판 재생 | `replay_codex_r6_adapted.py` | `<<R6>>` |
-| R7 닫힘 재생 | `replay_codex_r7.py --expected-head <코드 커밋>` | `<<R7>>` |
-| R9 닫힘 재생 | `replay_codex_r9.py --expected-head <코드 커밋>` | `<<R9>>` |
-| **10차 패키지 재실행 (수정 뒤)** | 위 세 스크립트 | `<<R10PKG>>` |
-| 현행 정본 점검 | `check_u14 --new out --schema-only` | `<<U14>>` |
+| 전체 회귀 | `python3 -m pytest tests/ -q` | `183 passed in 146.56s` (이 컨테이너, `replay_ours_after_fixes/pytest_full.txt`) |
+| MATLAB 스모크 (Octave) | `bash matlab/tests/run_all.sh` | `PASS — 실패 0: []` · `전부 통과` (`replay_ours_after_fixes/matlab_smoke.txt`) |
+| 변이 감사 (우리 테스트) | `codex_r6_mutation_audit.py` | `8/8 CAUGHT · MISSED: 0` · 복구 뒤 `7 passed` (`replay_ours_after_fixes/codex_r6_mutation_audit.txt`) |
+| 적응판 변이 감사 | `mutation_adapted.py` | `5/5 CAUGHT · MISSED: 0` · baseline·복구 6/6 닫힘 (`replay_ours_after_fixes/mutation_adapted.txt`) |
+| R6 적응판 재생 | `replay_codex_r6_adapted.py` | `"mode": "full"` 6/6 닫힘 (`replay_ours_after_fixes/replay_codex_r6_adapted.json`) |
+| R7 닫힘 재생 | `replay_codex_r7.py --expected-head <코드 커밋>` | 6/6 **도달 True · 반례 소멸** · `evidence_eligible: true` · `instrument_sealed: true` · `ran_in: 격리 snapshot` |
+| R9 닫힘 재생 | `replay_codex_r9.py --expected-head <코드 커밋>` | 12/12 **도달 True · 반례 소멸** · `evidence_eligible: true` · `instrument_sealed: true` · `ran_in: 격리 snapshot` |
+| **10차 패키지 재실행 (수정 뒤)** | 위 세 스크립트 | `reviews/r10_repros/replay_codex_r10.py` 로 22/22 닫힘 — snapshot 6 + u18 5 는 **자기 반례 assertion** 에서 멈추고, evidence 7 은 flag(`false_positive`·`false_clean`·`false_identity`×2·`mutant_survived`·`corrupt_package_accepted`·`claim_gap`)가 전부 False, 적응 2 는 positive closure. `snapshot:argv` 는 bash `$*` 의미 자체라 **우리 코드 밖**, `u18:shape_duplicates` 는 중복이 이제 거부돼 게시가 없으므로 **전제 변경**(적응 probe 가 닫는다) |
+| 현행 정본 점검 | `check_u14 --new out --schema-only` | rc 2 — 출처 열 24 · profile `gamma_roster` 4 · **내용 4**(degeneracy 의 옛 `inputs_sha` 가 새 역할 결속 digest 로 재계산되지 않는다, §4) · `PROMOTION {"promotion_eligible": false, …}` |
 
 ## 2. R10 열다섯 건 — 재현과 수정
 
@@ -86,10 +86,13 @@ python3 scripts/check_u14.py --new out --schema-only            # rc 2: provenan
 | 4 dirty runner | `--allow-dirty` 는 `evidence_eligible: false` 로 구조화했다. 기본은 **거부가 아니라 materialize** — 실행 bytes 를 commit 에서 가져오므로 worktree 상태가 오염원이 되지 않는다. status rc 비영은 즉시 오류 |
 | 5 export 계약 | 방향(build 경계 typed snapshot, role-keyed manifest, sensitivity 는 A/B digest)에 동의. **아직 미구현** — §5·§6 Q3 |
 
-## 4. 정본 범위 — 현행 `out/` 은 provenance-incomplete (변화 없음)
+## 4. 정본 범위 — 현행 `out/` 은 provenance-incomplete (+ 이번 라운드가 더한 digest 규칙 변경)
 
 숫자는 그대로이고, 새 검사(명부·역할 receipt·조건·환경·중복·tagged union)에서 빠지는 것은 matrix/profile 8 개의 출처 열
-24 건 + profile 4 개의 `gamma_roster` 4 건이다. 보강은 **U18** (사용자 기계 재실행, 별도 `OUT=`; 이제 gate 가 명부 12/12 ·
+24 건 + profile 4 개의 `gamma_roster` 4 건 + **degeneracy 4 개의 옛 digest** 다. 마지막 것은 이번 라운드가 만든 것이다:
+`inputs_digest` 가 역할을 묶으면서 값이 달라져(그래서 `RECEIPT_SCHEMA_VERSION`) 옛 `inputs_sha` 가 재계산과 안 맞는다.
+**숫자는 하나도 안 움직였고 바뀐 것은 규칙이다** — 소급해서 값을 고쳐 넣지 않는다 (그러면 그 digest 가 무엇을 증명하는지
+사라진다). U18 재실행이 새 규칙으로 서명한다. 보강은 **U18** (사용자 기계 재실행, 별도 `OUT=`; 이제 gate 가 명부 12/12 ·
 receipt 역할 · 조건 · 환경 · candidate/baseline 독립성 · exact equality 를 그 순서로 강제한 뒤에만 승격). 자기 점검
 (`--new out --old out`)은 이제 rc 2 로 거부된다 (P1-8) — 현행 점검은 `--schema-only` 다.
 
