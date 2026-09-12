@@ -1,0 +1,90 @@
+{
+ "provenance": {
+  "timestamp_iso": "2026-09-12T16:46:30.641933+00:00",
+  "python_version": "3.11.15",
+  "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "hostname": "vm",
+  "ase_version": "3.29.0",
+  "numpy_version": "2.4.6",
+  "scipy_version": "1.17.1",
+  "fairchem_version": "not_installed",
+  "torch_version": "not_installed",
+  "uma_model_name": "uma-s-1p1",
+  "uma_task_name": "omat",
+  "git_commit": "c9b71b1310d785d4eb9407afaeb47205cb63e52e",
+  "git_branch": "lldvar-work",
+  "git_dirty": true
+ },
+ "created": "2026-09-12T16:46:30",
+ "kind": "static_pair",
+ "settings": {
+  "ecutwfc": 60,
+  "ecutrho": 480,
+  "kpoints": "4 4 4",
+  "occupations": "smearing",
+  "smearing": "mv",
+  "degauss": 0.01,
+  "conv_thr": "1.0d-9",
+  "mixing_beta": 0.3,
+  "mixing_mode": "plain",
+  "nosym": true,
+  "calculation": "scf"
+ },
+ "pp_names": {
+  "Li": "li_pbe_v1_4_uspp_F.UPF",
+  "P": "P_pbe-n-rrkjus_psl_1_0_0.UPF",
+  "S": "s_pbe_v1_4_uspp_F.UPF",
+  "Cl": "cl_pbe_v1_4_uspp_F.UPF"
+ },
+ "alarm": {
+  "force_rmse_eV_A_per_atom_vector": 0.05,
+  "stress_component_GPa": 0.3,
+  "⚠": "진단 **경보선**이지 Ea/B 정확도 보증이 아니다 (회신 BO Q2). basin 판정 없음 — 에너지 높낮이로 최소점을 확정하지 않는다"
+ },
+ "cells": [
+  {
+   "tag": "a",
+   "source": "runs/static_ab_in/a_comp1_k444.vasp",
+   "source_sha256": "fdac1ae975bcd3b30887fb0ffad04901e7e3f205d058032c46689b25ddcc9bbe",
+   "scf_in_sha256": "bfcc640cbe4de4b46c10223025ff02522f7e56e532118bbb8757aa5ed7fcc141",
+   "n_atoms": 52,
+   "composition": {
+    "P": 4,
+    "S": 20,
+    "Li": 24,
+    "Cl": 4
+   },
+   "V_per_atom": 19.55038315070511
+  },
+  {
+   "tag": "b",
+   "source": "runs/static_ab_in/b_canonical_uma.vasp",
+   "source_sha256": "3ecd7a404b4a9ffb4ad2f600594817e3767bfd60dbae7864c73a017302309158",
+   "scf_in_sha256": "e0e9f4fecbe8f3013885b30511a0e9ec10d8b5b19e1f14c3662707ef77ca2cf2",
+   "n_atoms": 52,
+   "composition": {
+    "P": 4,
+    "S": 20,
+    "Li": 24,
+    "Cl": 4
+   },
+   "V_per_atom": 27.4782718090233
+  }
+ ],
+ "⚠_k_mesh_주의": {
+  "무엇": "두 셀에 **같은 `4 4 4`** 를 쓰지만 셀 길이가 달라 k 밀도가 다르다",
+  "kxL": {
+   "a": "4 × 10.0551 = 40.22",
+   "b": "4 × 11.2633 = 45.05"
+  },
+  "왜_그래도_4인가": "comp1 정본이 kxL≈40(k444)이고, (b)에서 kxL 40 을 맞추려면 k=3.55 → 정수 격자에서 가장 가까운 값이 역시 4 다",
+  "⛔_미평가": "이 k 밀도 차이가 δΔE 에 얼마나 들어가는지 평가하지 않았다. δΔE 를 해석할 때 이 단서를 함께 적는다"
+ },
+ "⚠_DFT_기대값을_힘과_응력에_다르게_적용": {
+  "근거": "db/properties/eos.json AUTHORITATIVE_structure — comp1_V0_k444 는 '4x4x4 relax'. EOS 프로토콜은 통상 **부피 고정 + 원자만 완화**다 (셀 완화 아님)",
+  "힘": "(a) 에서 DFT 힘은 ≈ 0 으로 기대된다 → UMA 힘이 거의 그대로 모델 오차",
+  "응력": "(a) 에서 DFT 응력은 **0 이 아닐 수 있다** (셀 미완화면 편차 성분 잔류) → UMA 응력을 그대로 오차로 읽으면 틀릴 수 있다. **DFT 응력을 실제로 보고 판단한다**",
+  "⛔": "이 카드는 relax 종류를 원출력으로 확인하지 않았다 — relax_k444.out 의 `calculation` 을 보면 확정된다"
+ }
+}
