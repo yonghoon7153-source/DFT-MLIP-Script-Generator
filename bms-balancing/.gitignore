@@ -13,3 +13,8 @@ out/**/*.part
 #   그쪽은 루트 `.gitignore` 가 막아야 하고, 본체 소유다 —
 #   `HANDOFF_TO_GATE.md` §2b 에 신고해 뒀다.
 cells/
+
+# 재생 스크립트가 만드는 스크래치 (toctou 렌즈는 임시 저장소·산출을 여기에 만든다)
+reviews/r6_repros/*/tmp/
+reviews/r6_repros/*/work/
+reviews/r6_repros/*/__pycache__/
