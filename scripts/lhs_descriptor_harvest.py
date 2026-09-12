@@ -45,6 +45,14 @@ c_i = FREE_SURFACE_INVALID                                    [F_i ≤ 0]
 계산하는 것이 **아니다**.  ⚠ `F_i ≤ 0` 을 **0 으로 접지 않는다** (`DESC-05`: 실제 무접촉과
 분모 붕괴가 섞인다).  cap 발동 횟수와 분모붕괴 횟수를 **따로** 보고한다.
 
+⚠⚠ **`hertz` 라는 별칭은 물려받은 오해다** (`L1-04`, 2026-09-13 L1 판정).  공식 LIGGGHTS
+문서·구현에서 `contactArea` 는 역학 해가 아니라 **기하학적 교차 원판**이다:
+`A_LIGG = π(rδ − δ²/4)` vs `A_Hertz = πR*δ` ⇒ 동일 반경에서 비 = `2 − δ/(2r)`
+(r = 0.5 µm · δ/R\* = 0.05 에서 **1.9875배**, 이 리포에서 재현).  등록 별칭은 **바꾸지
+않지만**(판정문: *"기존 키와 frozen feature 를 세대 표시 없이 바꾸면 안 된다"*) 매 행에
+`area_channel` 을 박아 **무엇을 센 값인지**를 남긴다.  권고 이름 구분은
+`A_dem_geometric` / `A_hertz_elastic` / `A_plastic_model` 이다.
+
 ⚠ **전체 평균의 함정** (판정문 반례): P 1개·10 % · S 3개·각 90 % 이면 **전체 70 %** 다.
 상 평균의 평균은 50 %, 총면적비는 30 %, 질량가중은 18 % — **넷이 다른 양**이다.
 
@@ -120,6 +128,9 @@ N_TAU_PAIRS = 200
 TAU_LO, TAU_HI = 1.0, 20.0
 #: 접촉 덤프의 면적·겹침 열 (`parse_liggghts.py:47` 과 같은 규약).
 COL_AREA, COL_D1, COL_D2 = 'c_cpl[22]', 'c_cpl[7]', 'c_cpl[8]'
+#: L1-04 — 이 열이 **무엇인지** 매 행에 박는다 (별칭의 `hertz` 는 물려받은 오해다).
+AREA_CHANNEL = ('dem_geometric_c_cpl22 — LIGGGHTS 기하 교차 원판 pi(r d - d^2/4); '
+                'Hertz 탄성 pi R* d 가 **아니다** (동일 반경 비 = 2 - d/(2r))')
 
 STATUS_OK = 'OK'
 STATUS_ABSENT = 'N_A_PHASE_ABSENT'
@@ -434,7 +445,7 @@ def harvest(atom_path, contact_path, n_types, case, plate_z=None, mesh_path=None
             n_capped=cov['n_capped'],
             n_free_surface_invalid=cov['n_free_surface_invalid'],
             counts=cov['counts'], contact_headers=cheaders),
-        V_box_sim=phi['V_box_sim'], raw=raw,
+        V_box_sim=phi['V_box_sim'], raw=raw, area_channel=AREA_CHANNEL,
         contract='codex_verdict_lhs_descriptors_20260913 §7 (1~6)')
 
 
@@ -669,6 +680,18 @@ def selftest():
         M.last_timestep = keep
         chk('⑫ PA12-09: TIMESTEP 가드를 퇴행시키면 ⑧ 이 실제로 뚫린다 (대조가 살아있다)',
             not broke)
+
+        # ── ⑬b L1-04: 면적 채널 라벨이 매 행에 박히는가 ─────────────────────
+        chk('⑬b L1-04: area_channel 이 출력에 있다',
+            'dem_geometric_c_cpl22' in str(r4.get('area_channel', '')))
+        chk('⑬b L1-04: 그 라벨이 Hertz 가 아님을 명시한다',
+            'Hertz' in str(r4.get('area_channel', ''))
+            and '2 - d/(2r)' in str(r4.get('area_channel', '')))
+        #  기하 교차면적 ÷ Hertz = 2 − δ/(2r) 을 실제로 확인 (판정문 1.9875)
+        _r, _d = 0.5, 0.05 * 0.25
+        _ratio = (np.pi * (_r * _d - _d * _d / 4)) / (np.pi * (_r / 2) * _d)
+        chk('⑬b L1-04: A_LIGG/A_Hertz = 2 − δ/(2r) = 1.9875',
+            abs(_ratio - 1.9875) < 1e-9)
 
         # ── ⑬ 계약⑥: 291 코퍼스를 읽지 않는다 (정적) ────────────────────────
         src = open(os.path.abspath(__file__), encoding='utf-8').read()
