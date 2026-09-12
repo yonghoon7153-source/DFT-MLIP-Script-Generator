@@ -2106,6 +2106,21 @@
    "evidence_tests": [
     "docs/reviews/lhs_local_gap_verdict_20260903.md"
    ]
+  },
+  {
+   "id": "SELF-22",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/session_20260911_progress.md",
+   "title": "세팅 스크립트에 `pyflakes` 가 빠져 **게이트가 오탐 114건으로 런을 세웠다**",
+   "note": "`sdcp_gain_vox015_8arm.sh:584` 의 미정의-이름 게이트가 부르는 `check_undefined_names.py` 는 **pyflakes 가 있으면 그것을, 없으면 AST 최소 검사**로 떨어진다 (`:8` · `:89-95`).  최소 검사는 **중첩 함수의 클로저 변수를 못 본다** — `_grow` 안의 `curl`/`buckle_lam`, `_filt` 안의 `in_am`, `voxelize` 안의 `film` 이 전부 'undefined' 로 잡힌다.\n런북 §② 가 가리키는 `setup_gpu_server.sh` 에는 pyflakes 가 **없고** `setup_gpu_host.sh:75` 에는 **있다** ⇒ V100 에서 Phase A 세 단계(h020·h025·qc015)가 전부 `ABORT … ✗ 114 건` → **팔 0** 으로 죽었다.  `종료 rc=0` 으로 찍혀 완주로 읽힐 뻔했다.\n★ 재현: 이 컨테이너(pyflakes 없음)에서 같은 5파일을 돌리면 **정확히 114 건** = V100 과 동일 수 ⇒ **코드 결함이 아니라 백엔드 차이**임이 확정된다.  h015 32팔은 kgy 의 pyflakes 로 통과했으므로 V100 에 넣는 것은 게이트 **약화가 아니라 동일화**다.\n수정: `setup_gpu_server.sh` 의 [4/7] 에 pyflakes 추가 + [7/7] 검증에 import 한 줄 (그 이유를 주석으로 남김).\n⚠ 남은 것: 러너가 stage ABORT 를 `rc=0` 으로 삼킨다 (리포 밖 임시 스크립트) · `check_undefined_names.py` 가 최소-AST 로 떨어졌을 때 **그 사실을 게이트 호출자에게 구별 가능한 코드로 알리지 않는다** (지금은 오탐과 진짜 결함이 같은 exit 로 나온다).",
+   "evidence_tests": [
+    "scripts/setup_gpu_server.sh",
+    "scripts/check_undefined_names.py"
+   ],
+   "claimed_fixed_sha": "dcc723e1e"
   }
  ]
 }
