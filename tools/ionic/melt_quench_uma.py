@@ -259,15 +259,16 @@ def _flushing_print(*a, **k):
     print(*a, **k); sys.stdout.flush()          # ⛔ 로그 리다이렉트 시 블록 버퍼링 (CLAUDE.md 규율)
 
 
-def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, min_width_A=9.0,
-                    cell_relax=True, max_relax_dV=0.10, log=_flushing_print):
+def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, p_tol=0.10,
+                    min_width_A=9.0, cell_relax=True, max_relax_dV=0.10, log=_flushing_print):
     """⭐ 배로스탯 **대조 잡** — 알려진 결정을 같은 NPT 배선에 넣어 밀도를 지키는지 본다.
 
     비정질 밀도가 낮게 나왔을 때 원인이 두 갈래다: (ⓐ 우리 배선·단위가 틀렸다 / ⓑ UMA 또는 구조가 그렇다).
     이 잡이 그 둘을 가른다 — 결정을 **UMA 0 K 가변셀로 먼저 완화**해 ρ_UMA(0K) 를 얻고(= UMA 자신의 답),
     그 구조로 **생산 런과 같은 BARO 설정** NPT 를 돌려 ρ_NPT 를 얻는다.
-      · |ρ_NPT/ρ_UMA(0K) − 1| ≤ tol → 배선 정상. 비정질 밀도는 배로스탯 탓이 아니다.
-      · 벗어나면 → 배선·단위 문제. 비정질 결과를 해석하기 전에 여기를 고친다.
+      · **판정은 압력이다**: |⟨P_total⟩| ≤ p_tol (기본 0.10 GPa) 이면 배로스탯이 목표를 지킨다.
+      · 밀도 drift(0 K → T_K)는 **열팽창이라 판정이 아니다** — 관측값으로만 적는다.
+        2026-09-12 에 drift 3 % 를 배선 고장으로 읽은 적이 있다(실제 총 압력 −0.02 GPa).
     ρ_UMA(0K) 와 파일 밀도의 차이는 **UMA 자신의 오차**라 tol 판정에 넣지 않는다 — 따로 찍어서 사람이 본다.
     """
     from ase import units
@@ -345,7 +346,15 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
            "cell_relax": bool(cell_relax), "cell_relax_note": relax_note,
            "reference_for_drift": ref_name, "PS4_fraction_file": ind_file.get("PS4_fraction"),
            "rho_NPT_mean_last_half_g_cm3": rho_npt, "P_NPT_mean_last_half_GPa": P_npt,
-           "drift_vs_UMA_0K": drift, "tol": tol, "plumbing_ok": bool(abs(drift) <= tol),
+           "drift_vs_UMA_0K": drift, "tol": tol,
+           # ⭐ 배선 판정은 **압력**이다 (2026-09-12 재설계). 밀도 drift 로 판정하면 0 K 기준과
+           #    300 K MD 사이의 **열팽창**을 배선 고장으로 읽는다 — 실제로 그렇게 오판했다
+           #    (Li₂S: drift −3.0 % 인데 총 압력은 −0.02 GPa 로 정상이었다).
+           "P_tol_GPa": p_tol, "plumbing_ok": bool(abs(P_npt) <= p_tol),
+           "density_drift_is_thermal_expansion": ("0 K 기준 → %.0f K NPT 의 밀도 변화다. "
+                                                  "판정이 아니라 관측값이다." % T_K),
+           "alpha_V_apparent_per_K": (float(-drift / T_K) if T_K else None),
+           "drift_tol_legacy_not_a_gate": True,
            "UMA_vs_file": (rho_0K / rho_file - 1.0) if rho_0K is not None else None,
            "⛔": "판정은 배선(배로스탯·단위)에 한정된다. UMA 자신의 밀도 오차(UMA_vs_file)는 이 판정 밖이다."}
     (out / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
@@ -714,6 +723,8 @@ def main():
                     help="--npt_control 에서 0 K 가변셀 완화를 건너뛴다 (기준이 **파일 밀도**로 바뀐다)")
     ap.add_argument("--control_max_relax_dV", type=float, default=0.10,
                     help="0 K 완화가 부피를 이보다 더 바꾸면 멈춘다 — 그만큼 움직이면 대조가 아니다 (기본 0.10)")
+    ap.add_argument("--control_p_tol", type=float, default=0.10,
+                    help="배선 통과 문턱 |⟨P_total⟩| [GPa] — **판정은 압력이다** (밀도 drift 는 열팽창)")
     ap.add_argument("--control_tol", type=float, default=0.03, help="--npt_control 통과 문턱 |Δρ/ρ_UMA(0K)|")
     ap.add_argument("--control_out", help="--npt_control 출력 폴더 (기본 <out_root>/npt_control)")
     ap.add_argument("--dry_run", action="store_true", help="셀만 만들고 계획을 찍는다 (UMA 안 부름)")
@@ -742,7 +753,7 @@ def main():
               f"({'자동' if not a.control_repeat else '손지정'}) · {a.T_final:.0f} K · {a.control_ps:.0f} ps → {cout}", flush=True)
         calc = make_calc(a.device, a.turbo)
         res = run_npt_control(at, calc, cout, T_K=a.T_final, ps=a.control_ps, dt_fs=a.dt_fs,
-                              tol=a.control_tol, min_width_A=a.control_min_width,
+                              tol=a.control_tol, p_tol=a.control_p_tol, min_width_A=a.control_min_width,
                               cell_relax=not a.control_no_cellrelax,
                               max_relax_dV=a.control_max_relax_dV)
         res["repeat"] = list(rep)
@@ -751,14 +762,20 @@ def main():
         (cout / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
         print(json.dumps({k: res[k] for k in ("rho_file_g_cm3", "rho_UMA_0K_g_cm3", "P_UMA_0K_GPa",
                                               "rho_NPT_mean_last_half_g_cm3", "P_NPT_mean_last_half_GPa",
-                                              "drift_vs_UMA_0K", "reference_for_drift", "UMA_vs_file",
+                                              "drift_vs_UMA_0K", "alpha_V_apparent_per_K",
+                                              "reference_for_drift", "UMA_vs_file", "P_tol_GPa",
                                               "plumbing_ok", "min_cell_width_A", "cell_wide_enough",
                                               "cell_relax", "cell_relax_note", "PS4_fraction_file")},
                          ensure_ascii=False, indent=1))
         if not res["cell_wide_enough"]:
             print(f"⚠ 셀 폭 {res['min_cell_width_A']:.2f} Å < {a.control_min_width} Å — 이 판정은 조건부다")
-        print("⭕ 배선 정상 — 비정질 밀도는 배로스탯 탓이 아니다" if res["plumbing_ok"]
-              else "⛔ 배선 이상 — 비정질 결과를 해석하기 전에 배로스탯·단위를 고친다")
+        print(f"⭕ 배선 정상 — ⟨P⟩ {res['P_NPT_mean_last_half_GPa']:+.3f} GPa 가 0 을 지킨다"
+              if res["plumbing_ok"] else
+              f"⛔ 배선 이상 — ⟨P⟩ {res['P_NPT_mean_last_half_GPa']:+.3f} GPa (허용 ±{res['P_tol_GPa']})")
+        print(f"   밀도 {res['rho_file_g_cm3']:.3f}(파일) → "
+              f"{('%.3f' % res['rho_UMA_0K_g_cm3']) if res['rho_UMA_0K_g_cm3'] else '—'}(0K) → "
+              f"{res['rho_NPT_mean_last_half_g_cm3']:.3f}({a.T_final:.0f}K) · "
+              f"0K→T 변화 {100*res['drift_vs_UMA_0K']:+.2f} % = **열팽창, 판정 아님**")
         return
     if not (a.system and a.seed is not None and a.out_root):
         ap.error("--system · --seed · --out_root 가 필요하다")

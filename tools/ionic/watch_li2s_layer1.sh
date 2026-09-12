@@ -80,9 +80,15 @@ for d in sorted(glob.glob(os.path.join(R, "npt_control*"))):
         print(f"  {name:22s} ✅ 완료  {c.get('n_atoms','?')}원자 폭 {f('min_cell_width_A','%.2f')} Å  "
               f"ρ파일 {f('rho_file_g_cm3')} → 0K {f('rho_UMA_0K_g_cm3')} → "
               f"NPT {f('rho_NPT_mean_last_half_g_cm3')}  P {f('P_NPT_mean_last_half_GPa','%+.3f')} GPa")
+        # ⭐ 판정은 **압력**이다. 밀도 drift 는 0 K↔T 열팽창이라 판정이 아니다 (2026-09-12 오판)
         verdict = ("⭕ 배선 정상" if ok else ("⛔ 배선 이상" if ok is not None else "— 판정 없음"))
-        print(f"  {'':22s}    drift {('%+.2f %%' % (100*dr)) if dr is not None else '—'} (기준 {ref}) → {verdict}"
+        pt = c.get("P_tol_GPa")
+        basis = (f"⟨P⟩ {f('P_NPT_mean_last_half_GPa','%+.3f')} GPa vs ±{pt}" if pt is not None
+                 else "⚠ 옛 판정(밀도 drift 기준) — 압력으로 다시 보라")
+        print(f"  {'':22s}    {basis} → {verdict}"
               f"{'' if c.get('cell_wide_enough', True) else '  ⚠ 셀이 얇다 — 조건부'}")
+        print(f"  {'':22s}    0K→T 밀도 {('%+.2f %%' % (100*dr)) if dr is not None else '—'} "
+              f"(기준 {ref}) = **열팽창, 판정 아님**")
         if c.get("cell_relax_note"): print(f"  {'':22s}    0K 완화: {c['cell_relax_note']}")
     else:
         th = os.path.join(d, "thermo.csv"); cl = os.path.join(d, "cellrelax.log")
