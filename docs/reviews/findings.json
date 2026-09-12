@@ -2121,6 +2121,126 @@
     "scripts/check_undefined_names.py"
    ],
    "claimed_fixed_sha": "dcc723e1e"
+  },
+  {
+   "id": "L1-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "하한 > 상한이어도 **정상 Physics 면적**을 낸다 (feasibility 미검사)",
+   "note": "(Codex 라벨: **L1-CX-01**)\n`plastic_coverage.py:292` 가 세 cap 의 min 을, `:307` 이 Hertz/LIGGGHTS floor 와 max 를 취한다.  `L = max(A_H, A_LIGG)` > `U = min(A_Tabor, A_volume, A_geom)` 이면 **모든 조건을 만족하는 A 가 없는데** 거부하지 않고 L 을 돌려준다.  `binding` 이름은 feasibility 증거가 아니다.\n★ **이 리포에서 소수 자리까지 재현**: SI 로 r=0.5 um, d/R*=0.01, ligg_area = 기하 교차 원판 ⇒ `binding=liggghts`, A_final/A_tabor = **1.784757** · A_final/A_volume = **8.016722** (판정문 1.78476 · 8.01672), `L > U` **True**.  얕은 겹침(d/R*=0.01)에서 나온다.\n⇒ 무너지는 결론: *'체적 보존 및 Tabor 상한으로 비물리 면적을 차단했다'* · *'단위만 고치면 L1 이 닫힌다'*.\n⚠ min/max 순서를 뒤집으면 하한을 깨뜨릴 뿐이다.  caps 가 **전체 접촉면적의 한계**인지 **추가로 퍼진 막의 한계**인지 먼저 정해야 한다.\n최소 코드 방어 = 불가능 조합을 `cap_conflict` 로 기록하고 **검증된 Physics 값으로 승격하지 않기**.",
+   "evidence_tests": [
+    "scripts/plastic_coverage.py"
+   ]
+  },
+  {
+   "id": "L1-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "`V_overlap` 이 이름대로의 **구 교집합이 아니다** — 얕으면 절반, 깊으면 **음수**",
+   "note": "(Codex 라벨: **L1-CX-02**)\n`plastic_coverage.py:284` 의 `V_code = pi d^2 (3R* - d)/6` 인데 동일 반경의 정확한 전체 lens 는 `pi d^2 (6r - d)/12` 다.  `R* = r/2` 를 넣으면 비 = `(3r - 2d)/(6r - d)`.\n★ **재현**: r=0.5 um · d=0.0125 um → 코드 +0.000060336578 vs 정확 +0.000122207136 um^3 (**0.493724배**, 해석식과 일치).  d=0.95 um → 코드 **-0.094509578995** (음수!) vs 정확 +0.484361592352 ⇒ **거부 없이 양의 면적 반환**.\n⇒ 무너지는 결론: *'V_overlap 은 구 겹침 부피이고 이 cap 이 재료 체적을 보존한다'*.\n⚠ 처방이 자명하지 않다: **전체 교집합**을 의도했다면 두 반경·중심거리 piecewise lens + 내포/동심 처리가 필요하고, **한쪽 상에 할당되는 부피**를 의도했다면 전체 lens 라 부를 수 없고 분담식과 근거를 밝혀야 한다.  판정문은 *'기계적으로 전체 lens 로 치환하라는 물리 승인이 아니다'* 라고 못 박았다.",
+   "evidence_tests": [
+    "scripts/plastic_coverage.py"
+   ]
+  },
+  {
+   "id": "L1-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "**AM–AM · SE–SE 에도 AM–SE 탄성률과 SE 경도**를 쓴다 (상 쌍 인자가 없다)",
+   "note": "(Codex 라벨: **L1-CX-03**)\n`coverage_physics_vs_hertzian.py:214` 가 **상 분류 전에** 같은 helper 를 부르고, `plastic_coverage.py:277` 이 전역 AM–SE E*, `:280` 이 전역 SE 경도를 쓴다.  `:379` 는 그 값을 **SE–SE · AM–AM Physics 면적으로 기록**하고 `network_conductivity.py:299` 의 수송 경로도 같은 helper 를 쓴다.\n★ **재현**: `film_area_from_overlap` 시그니처는 `(delta, R_star, R_min, ligg_area, mode, k_spread, return_components)` — **phase/pair/E*/hardness 인자가 없다**.  본문이 쓰는 전역은 `E_STAR_AM_SE = 2.2414943e10` · `H_REAL_SE = 8.5e8`.  Codex: 동일 반경·겹침의 AM–AM / AM–SE / SE–SE 세 호출이 **전부 A = 0.3610932373 um^2, binding=tabor**.  상수로 reduced modulus 만 따로 계산하면 AM–AM **74.6667** · AM–SE **22.4149** · SE–SE **13.1868 GPa** 로 갈린다.\n⇒ 무너지는 결론: *'상별 실제 물성으로 보정한 Physics 면적'* — 특히 **SE–SE 이온 경로**와 전상 열 경로 해석을 지지하지 못한다.\n⚠ 단위 수정으로 **안 닫힌다**.  코드 방어 = 지원 pair 를 명시하고 미지원 pair 를 조용히 Physics 로 내지 않기.  정식 모델은 pair 별 탄소성/경도/형상 규약이 필요하다.",
+   "evidence_tests": [
+    "scripts/plastic_coverage.py",
+    "scripts/coverage_physics_vs_hertzian.py"
+   ]
+  },
+  {
+   "id": "L1-04",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "`contact_area` 는 **기하 교차면적**인데 `hertz` 채널로 읽힌다 (1.9875배)",
+   "note": "(Codex 라벨: **L1-CX-04**)\n`parse_liggghts.py:47` 이 `c_cpl[22]` 를 `contact_area` 로 보존하고 `coverage_physics_vs_hertzian.py:206` 이 그것을 **Hertz 채널**로 쓴다.  공식 LIGGGHTS 문서·구현(`compute_pair_gran_local.cpp#L509-L517`)은 이를 **역학 해가 아닌 기하학적 교차 원판**으로 구분한다.\n★ **재현**: `A_LIGG/A_Hertz = 2 - d/(2r)` — r=0.5 um · d/R*=0.05 에서 **1.987500** (해석·실측 일치, 판정문 1.9875).\n또 `plastic_coverage.py:273` 의 elastic 반환은 LIGG floor 를 안 쓴다 ⇒ *'Physics 는 항상 DEM-native 보다 크다'* 도 전 구간 계약이 아니다 (비 0.50003536).\n⇒ 무너지는 결론: `hertz` 를 `pi R* d` 로 읽거나 두 열 차이를 *'추가 소성면적'* 으로만 읽는 것.\n처치(부분): 새 수확기 `lhs_descriptor_harvest.py` 가 매 행에 `area_channel` 을 박는다 (`dem_geometric_c_cpl22 … Hertz 탄성이 아니다; 비 = 2 - d/(2r)`) + selftest ⑬b 회귀.\n⛔ **미해결**: 웹앱/스케일링법칙 쪽 키 이름은 **그대로다** — 판정문이 *'기존 키와 frozen feature 를 세대 표시 없이 바꾸면 안 된다'* 고 했으므로 `A_dem_geometric`/`A_hertz_elastic`/`A_plastic_model` 로의 개명은 **세대 표시와 함께** 별건으로 해야 한다.",
+   "evidence_tests": [
+    "scripts/lhs_descriptor_harvest.py"
+   ],
+   "claimed_fixed_sha": "a9db0c15d"
+  },
+  {
+   "id": "L1-05",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "`eps_union` 은 정확한 union 이 아니라 **pair-only 차감** — 100 % 를 넘을 수 있다",
+   "note": "(Codex 라벨: **L1-CX-05**)\n`dem_analysis_core.py:72` 가 pair lens 를 합하고 `:94` 가 구 부피합에서 뺀다.  **삼중 이상 겹침의 inclusion–exclusion 항이 없다**.\n★ **재현 (소수 자리까지)**: 반경 1 구 4개를 한 변 0.1 정사면체로(한 변 4 상자 안) 놓고 여섯 접촉 d 를 주면 `eps_sphere = 73.8201 %` · `eps_union = **110.1472 %**` · union 부피 **-6.49420**.  참 union 은 구 하나를 포함하므로 >= 4.18879 ⇒ 참 eps <= **93.4550 %**.\n★ **2구 대조는 정확한 lens 와 일치**(3.874892739) ⇒ 결함이 **삼중 이상 겹침**으로 특정된다.\n`recompute_porosity_dual.py:337` 는 기존 porosity 를 다시 앵커로 쓰고 `:344` 는 **sphere 범위만** 검사하므로 union > 100 을 못 막는다.\n⇒ 무너지는 결론: 이 열을 **정확한 합집합/실변형체 공극률**로 문헌과 직접 비교하는 것 · `webapp/app.py:8703` 의 *'항상 살짝 크다'*.\n⚠ 극단 입력의 **범위 반례**이지 실코퍼스 오차율 추정이 아니다.  다만 삼중 겹침이 있으면 극단적이지 않아도 정확한 union 과 다른 양이다.",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py"
+   ]
+  },
+  {
+   "id": "L1-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "B3 는 **실제 변형 형상을 측정하지 않는다** — 상수로 분모를 바꾼다",
+   "note": "(Codex 라벨: **L1-CX-06**)\n`dem_analysis_core.py:28` 의 phase 상수(AM_P 1.40 · AM_S 1.10 · SE 1.05)로 `coverage_physics_vs_hertzian.py:278` 이 rough 분모를 만든다:\n`raw = A / (S_sphere - A_AMAM)` vs `rough = A / (alpha S_sphere - A_AMAM)`.\nCodex: 실제 producer 에서 alpha 를 1 로 두면 raw 는 그대로이고 rough 만 raw 와 같아진다 (AM_P rough/raw **0.71301253** · AM_S **0.90857469**, 위 식과 일치).  AM–AM 공제 때문에 **단순 1/alpha 도 아니다**.\n★ **L1-5 답**: 검토 경로에서 B3 분모 **1회 적용은 CONFIRMED**, 이중 적용은 **재현 안 됨** (단 앱의 모든 소비자 전수 승인은 아니다).\n⇒ 무너지는 결론: `webapp/app.py:8737` 의 *'찌그러진 모양까지 반영한 가장 믿을 만한'* 설명.  규약 감도로 **병기는 가능**하나 검증된 형상 측정값으로 **승격 불가**.",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py",
+    "scripts/coverage_physics_vs_hertzian.py"
+   ]
+  },
+  {
+   "id": "L1-07",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "**Hertz feature 면 안전**이 아니다 — 타깃 y 가 Physics 우선이라 이온·열이 영향받는다",
+   "note": "(Codex 갱신질문 (c))\n내가 요청서에 쓴 *'등록 타깃이 Hertz 전용인 한 전이되지 않는다'* 는 **feature 에만** 맞고 **target 에는 틀리다**:\n· **이온 T1** — `cov^0.5` feature 는 Hertz-명명 우선이지만 **y 는 Physics Stage-E 우선** (`generate_comparison_plots.py:4222` · `:4687` · `:4689`) ⇒ 정상 행도 y 가 변할 수 있다.\n· **열 T1** — y 도 Physics 우선이고 `area_*_physics` **선형 feature** 를 쓴다 (`:6741` · `:6783` · `:6835`) ⇒ **X 와 y 둘 다** 바뀐다.  ⚠ ridge 가 면적 선형 열을 표준화하지 않아 **단순 단위 재표현만으로도 같은 alpha 에서 적합이 달라질 수 있다**.\n· **전자 22.5** — 보통 불변이나 **Hertz 후보 탈락 뒤 Physics fallback 행**은 y/포함집합이 달라진다 (`:5799` · `:5816` · `:5953` · `:6050`).  실제 y·X·ID 대조 없이 '영향 없음' 으로 닫지 않는다.\n★ Codex 가 실제 getter 를 합성 입력으로 실행: `(ionic y, cov, electronic y)` = Physics 수정 **전 (3, 0.1, 11)** → **후 (6, 0.1, 11)**, electronic Physics fallback **12 → 24**.\n⚠⚠ **소급 재적합은 별도 사전등록 사안**이다 (판정문 §5).  기존 데이터를 이미 봤으므로 최초 사전등록이 아니라 **'오류 교정 후속 프로토콜'** 로 표시하고, **LOCKED 지수 · EXCL · phi_c · endpoints/drop set · 검증 분할을 유지**한 채 ① 기존 계수를 새 데이터에 그대로 평가 → ② 등록된 LIVE 계수만 재적합, 두 결과를 **따로** 보고한다.  ⛔ 유리한 모델/지수/문턱 재선택을 버그 수정에 끼워 넣지 않는다.\n⚠ 세대 순서도 강제된다: `run_network_full_corrections.py:706`/`:734` 의 unity 분기가 기존 baseline 을 재사용하므로 **coverage → raw Physics network → Stage-E → 생산식 데이터셋** 순으로 새 세대를 만들어야 한다.  *'Stage-E 만 돌려 값이 같았다'* 는 불변성 증명이 아니다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L1-08",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "`H_FILM_MIN = 5 nm` 의 앵커로 지목된 Sakuda 2013 은 그 상수를 제시하지 않는다",
+   "note": "(Codex 갱신질문 (a))\n`plastic_coverage.py:48-50` 이 5 nm 를 *'Sakuda 2013 discussion'* 으로 앵커한다.  판정문: 그 본문은 Li2S–P2S5 glass 의 성형·밀착·밀도/탄성률을 다루며 **LPSCl 전체 접촉면적용 5 nm 최소막 cap 을 제시하지 않는다** (Sci. Rep. 3, 2261).  ⚠ 보충자료·후속 논문까지 부재를 증명했다는 뜻은 아니다.\n★ 부등식 자체는 옳다: 두께 h(x) >= h_min 인 막이면 `A_film <= V_available / h_min`.  빠진 연결이 넷이다 — ① 가상 구 겹침 부피가 **어느 상의 이동 가능한 재료량**인가 ② 막이 기존 elastic contact 와 **별개인가 전체 load-bearing 면적인가** ③ 5 nm 가 그 재료·압력·온도·길이 범위의 최소 두께인가 ④ 재구성한 Hertz force 가 **연화 DEM 의 하중·잔류변형·이력**과 양립하는가.\n⚠ 판정문은 *'고정 h_min 이 차원적으로 틀린 것은 아니고, 반드시 h(a) 로 바꾸라는 뜻도 아니다'* 라고 적었다 — 임의의 접촉반경 함수로 바꾼다고 물리가 생기지 않는다.\n⇒ 기하 지표 보존은 가능하지만 **이 한 식을 실제 소성면적으로 승인하는 것은 불가능**.",
+   "evidence_tests": [
+    "scripts/plastic_coverage.py"
+   ]
+  },
+  {
+   "id": "SELF-23",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
+   "title": "내 `DESC-03` 반례가 **A_LIGG = A_Hertz 를 가정한 입력**이었다 — 결론 하나가 좁혀진다",
+   "note": "판정문이 명시적으로 *'저자의 단위 반례는 그 입력에서 **유효**하며 철회할 이유가 없다'* 고 했다.  좁혀지는 것은 **그 다음 문장**이다.\n내가 요청서에 쓴 *'교정하면 binding 이 대부분 volume 으로 넘어간다'* 는 **미증명**이다 — 공식 LIGGGHTS 기하면적(`A_LIGG/A_Hertz = 1.9875`)을 넣으면 최종 선택이 volume 이 아니라 **LIGG floor** 이고, coverage 는 0.78206456 % → **0.62109375 %** 로 간다 (내 toy 의 0.38411458 % 가 아니다).\n⇒ 교훈: 합성 반례의 **입력 가정**이 결론의 적용 범위를 정한다.  `A_LIGG` 를 `A_Hertz` 로 놓은 것은 편의였는데 그것이 cap 경쟁의 승자를 바꿨다.\n⚠ 또 하나: *'coverage 가 줄면 sigma 도 그 제곱근만큼 준다'* 는 환산도 **반증**됐다 — 합성망에서 coverage **-73.2 %** 인데 최종 Stage-E sigma 는 **+259.8390 %** 였다 (`network_conductivity.py:396` 의 `1/[2a(1-a/r)^1.5]` 가 비단조 + 1.1x baseline 초과 시 weighted-factor fallback).  ⛔ 이 비율을 화면 델타나 실코퍼스에 **적용 금지** — 전부 합성 입력이고 발생률은 미측정이다.",
+   "evidence_tests": [
+    "docs/reviews/codex_request_dem_webapp_stack_20260913.md"
+   ]
   }
  ]
 }
