@@ -322,6 +322,79 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     return res
 
 
+def npt_msd(sym, pos, cells, dt_ps):
+    """**NPT** 궤적의 원소별 MSD [Å²]. 셀이 프레임마다 변하므로 분수좌표에서 unwrap 한다.
+
+    NVT 용 도구(framework_site_census.py 등)를 여기 쓰면 안 된다 — 그쪽은 셀이 변하면 멈춘다.
+    절차: 분수좌표 차분 → MIC(round 빼기) → 그 프레임 셀로 실공간 증분 → 누적 → **전체 평균
+    병진(드리프트) 제거** → 원소별 평균 제곱변위.
+    """
+    sym = np.asarray(sym); pos = np.asarray(pos, float); cells = np.asarray(cells, float)
+    T, N, _ = pos.shape
+    frac = np.einsum("tnj,tjk->tnk", pos, np.linalg.inv(cells))
+    df = np.diff(frac, axis=0)
+    df -= np.round(df)
+    steps = np.einsum("tnj,tjk->tnk", df, cells[1:])
+    disp = np.concatenate([np.zeros((1, N, 3)), np.cumsum(steps, axis=0)])
+    disp -= disp.mean(axis=1, keepdims=True)
+    t = np.arange(T) * dt_ps
+    return t, {str(e): ((disp[:, sym == e] ** 2).sum(-1)).mean(-1) for e in sorted(set(sym))}
+
+
+def fit_D(t, msd, t_from, t_to):
+    """자유절편 선형맞춤 msd = 6 D t + c → D [cm²/s] (1 Å²/ps = 1e-4 cm²/s)."""
+    m = (t >= t_from) & (t <= t_to)
+    if m.sum() < 4:
+        return None, None
+    a, c = np.polyfit(t[m], msd[m], 1)
+    return float(a / 6.0 * 1e-4), float(c)
+
+
+def melt_check(run_dir, *, d_melt_cm2s=1e-6, log=print):
+    """⭐ **녹았나** — melt 구간에서 P 골격이 확산했는지 본다 (관측 후 진단, 사전등록 게이트 아님).
+
+    안 녹았으면 담금질은 초기 무작위 충전의 채움밀도를 그대로 얼린 것이고, 그때 밀도는
+    물리가 아니라 생성기 설정이다. G4 밴드를 논하기 **전에** 이걸 먼저 가른다.
+
+    ⛔ 못 하는 것: 결정화 여부를 못 본다(g(r)·XRD 가 따로 있다) · 문턱 1e-6 cm²/s 는
+    액체/고체를 가르는 **진단값**이고 카드 문턱이 아니다 · 시드 하나로 판정하지 않는다.
+    """
+    from ase.io import read
+    run = pathlib.Path(run_dir)
+    plan = json.loads((run / "plan.json").read_text(encoding="utf-8"))
+    frames = read(str(run / "traj.xyz"), index=":")
+    if len(frames) < 8:
+        raise SystemExit(f"⛔ 프레임이 {len(frames)}개뿐이다 — MSD 를 못 낸다")
+    dt_ps = plan["save_ps"] if "save_ps" in plan else None
+    if dt_ps is None:                       # 옛 plan.json — 전체 길이에서 유도한다
+        total = plan["melt_ps"] + plan["quench_ps"] + plan["hold_ps"]
+        dt_ps = total / (len(frames) - 1)
+        log(f"  ⚠ plan.json 에 save_ps 가 없다 — 전체 {total:.0f} ps / {len(frames)-1} 구간 = {dt_ps:.3f} ps 로 유도")
+    sym = frames[0].get_chemical_symbols()
+    pos = np.array([f.get_positions() for f in frames])
+    cells = np.array([np.asarray(f.get_cell()) for f in frames])
+    t, msd = npt_msd(sym, pos, cells, dt_ps)
+    melt_ps = float(plan["melt_ps"])
+    half = melt_ps / 2.0
+    out = {"kind": "melt_check", "run": str(run), "n_frames": len(frames), "dt_ps": dt_ps,
+           "melt_ps": melt_ps, "fit_window_ps": [half, melt_ps], "T_melt_K": plan.get("T_melt_K"),
+           "d_melt_threshold_cm2_s": d_melt_cm2s, "per_element": {}}
+    for e, m in msd.items():
+        i = int(np.searchsorted(t, melt_ps))
+        D, c = fit_D(t, m, half, melt_ps)
+        out["per_element"][e] = {"msd_at_melt_end_A2": float(m[min(i, len(m) - 1)]),
+                                "D_melt_cm2_s": D, "intercept_A2": c}
+        log(f"  [melt] {e:2s}  MSD({melt_ps:.0f} ps) {m[min(i,len(m)-1)]:8.2f} Å²  "
+            f"D {('%.3e' % D) if D is not None else '—':>10s} cm²/s")
+    P = out["per_element"].get("P", {})
+    DP = P.get("D_melt_cm2_s")
+    out["framework_diffused"] = bool(DP is not None and DP > d_melt_cm2s)
+    out["verdict"] = ("melted" if out["framework_diffused"] else "not_melted_framework_frozen")
+    out["⛔"] = ("진단이다. 'melted' 가 구조가 좋다는 뜻이 아니고, 'not_melted' 면 그 담금질의 밀도는 "
+                 "물리가 아니라 생성기 채움밀도다 — G4 밴드를 논하기 전에 이걸 고친다.")
+    return out
+
+
 def schedule(T_melt, T_final, quench_rate_K_s, dt_fs):
     if quench_rate_K_s is None or quench_rate_K_s <= 0:
         raise SystemExit("⛔ --quench_rate [K/s] 를 주어라 (G2: 담금질 속도는 결과 보기 전에 선언한다). 기본값은 없다.")
@@ -526,6 +599,33 @@ def _selftest():
     cold.calc = LennardJones(sigma=3.0, epsilon=0.2, rc=8.0)
     chk(abs(pressure_GPa(cold) - pressure_GPa(cold, include_ideal_gas=False)) < 1e-12,
         "속도 0 이면 두 값이 같다 — 차이는 순전히 운동 항이다")
+    # ⑦ NPT MSD — 셀이 숨쉬는 것을 확산으로 읽지 않는지 (이게 핵심 음성시험)
+    rng = np.random.default_rng(7)
+    N, T = 40, 60
+    f0 = rng.uniform(0, 1, (N, 3))
+    L = np.linspace(20.0, 18.0, T)                       # 셀이 10 % 수축한다
+    cells_b = np.array([np.eye(3) * x for x in L])
+    pos_b = np.array([f0 @ cells_b[i] for i in range(T)])  # 분수좌표 고정 = 강체
+    symb = ["P"] * N
+    _t, m_b = npt_msd(symb, pos_b, cells_b, 1.0)
+    naive = ((pos_b - pos_b[0]) ** 2).sum(-1).mean(-1).max()
+    chk(m_b["P"].max() < 1e-16 < naive and naive > 1.0,
+        f"⛔음성: 셀 10 % 수축 + 분수좌표 고정 → MSD {m_b['P'].max():.2e} Å² (실공간 순진계산은 {naive:.1f} Å²)")
+    # 전체 병진(드리프트)도 확산이 아니다
+    pos_d = pos_b + (np.arange(T)[:, None, None] * np.array([0.3, 0.0, 0.0]))
+    _t, m_d = npt_msd(symb, pos_d, cells_b, 1.0)
+    chk(m_d["P"].max() < 1e-12, f"⛔음성: 전체 병진 {0.3*T:.0f} Å 를 확산으로 읽지 않는다 ({m_d['P'].max():.2e} Å²)")
+    # 자유절편 맞춤이 D 를 되찾는다
+    tt = np.arange(0, 101.0, 1.0); Dtrue = 2.5e-5
+    D_hat, c_hat = fit_D(tt, 6 * (Dtrue * 1e4) * tt + 3.0, 50.0, 100.0)
+    chk(abs(D_hat / Dtrue - 1) < 1e-9 and abs(c_hat - 3.0) < 1e-6,
+        f"fit_D 가 D={Dtrue:.1e} 와 절편 3.0 을 되찾는다 (D̂ {D_hat:.3e} · ĉ {c_hat:.3f})")
+    # 실제로 움직이면 잡아낸다 — 한 원소만 무작위걷기
+    step = 0.25
+    walk = np.cumsum(rng.normal(0, step, (T, N, 3)), axis=0)
+    pos_w = pos_b + walk
+    _t, m_w = npt_msd(symb, pos_w, cells_b, 1.0)
+    chk(m_w["P"][-1] > 3.0, f"움직이는 골격은 잡아낸다 (MSD {m_w['P'][-1]:.2f} Å²)")
     print(f"selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
@@ -547,6 +647,9 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--turbo", action="store_true", help="fairchem inference_settings='turbo' 시도 (없으면 기본으로 내려가고 기록)")
     ap.add_argument("--out_root", help="출력 루트 → <out_root>/<system>/seed<seed>/")
+    ap.add_argument("--melt_check", metavar="RUN_DIR",
+                    help="⭐이미 끝난 런에서 melt 구간 P 골격이 확산했는지 본다 (새 계산 없음)")
+    ap.add_argument("--d_melt_cm2_s", type=float, default=1e-6, help="--melt_check 액체 판정 진단 문턱")
     ap.add_argument("--npt_control", metavar="STRUCT",
                     help="⭐배로스탯 대조 잡: 결정 구조 파일(.vasp/.cif/.xyz)을 같은 NPT 배선에 넣어 밀도 유지 확인")
     ap.add_argument("--control_repeat", type=int, default=None,
@@ -560,6 +663,15 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(_selftest())
+    if a.melt_check:
+        res = melt_check(a.melt_check, d_melt_cm2s=a.d_melt_cm2_s)
+        (pathlib.Path(a.melt_check) / "melt_check.json").write_text(
+            json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(json.dumps({k: res[k] for k in ("verdict", "framework_diffused", "fit_window_ps",
+                                              "d_melt_threshold_cm2_s")}, ensure_ascii=False))
+        print("⭕ 녹았다 — 밀도는 물리다. G4 밴드 쪽을 본다" if res["framework_diffused"]
+              else "⛔ 안 녹았다 — 이 담금질의 밀도는 생성기 채움밀도다. melt 조건을 먼저 고친다")
+        return
     if a.npt_control:
         if not os.path.isfile(a.npt_control):
             raise SystemExit(f"⛔ 구조 파일이 없다: {a.npt_control}")
