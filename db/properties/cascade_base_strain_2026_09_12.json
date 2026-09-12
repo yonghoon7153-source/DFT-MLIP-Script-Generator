@@ -2,7 +2,7 @@
  "schema": "observation/v1",
  "record_kind": "observation",
  "date": "2026-09-12",
- "status": "open_question",
+ "status": "largely_resolved",
  "results_seen": true,
  "제목": "cascade base 구조가 UMA 에서 +5.66 GPa 다 — 그리고 완화 방향이 도핑/무도핑에서 반대다",
  "0_어쩌다_나왔나": "1층(LPSCl@Li₂S) 비정질 밀도가 낮게 나온 원인을 가르려고 결정 대조 잡을 돌리다가 나왔다. 1층 문제 자체와는 별개의 발견이고, cascade 쪽이 더 크다.",
@@ -77,7 +77,7 @@
   ],
   "영향_없음_1층": "1층은 이 base 를 쓰지 않는다 (무작위 셀 생성). 별개 사안이다."
  },
- "다음_한_수": "① canonical base 의 셀 a=10.2493 Å 가 **어느 계산에서 왔는지** 출처를 찾는다 (DFT 완화면 UMA↔DFT 불일치, 이상화 구성이면 근사 문제). ② 같은 base 를 tools/doping/run_uma_screening.py 경로로 완화해 ΔV/V0 부호를 본다. ③ Li 배열을 달리한 아지로다이트(48h 혼합 등)에서도 +P 가 나오는지 본다 — 2b 가설의 직접 시험.",
+ "다음_한_수": "① baseline json 의 출처 구조 확인 (PS₄ 보존율 0.0 인 lpscl_bulk.cif 가 아닌지). ② 무도핑 base 를 스크리닝과 **같은 설정**(FIRE, fmax 0.05, steps 300)으로 한 번 완화해 부호를 본다. ③ 둘 다 GPU 몇 분이다. S1/S2 를 돌리기 전에.",
  "출처": [
   "tools/ionic/melt_quench_uma.py --pcheck (2026-09-12)",
   "/data/work/runs/li2s_layer1/npt_control_lpscl.log",
@@ -93,5 +93,23 @@
    "우리 MD 생산 구조(다른 Li 배열·다른 조성)는 같은 UMA 에서 −0.21 ~ −0.26 GPa 로 평형이다"
   ],
   "⛔": "가설이다. 확인 전에는 UMA 가 틀렸다고도, 구조가 틀렸다고도 말하지 않는다."
+ },
+ "6_해소_2026_09_12_원자당_부피로_보니": {
+  "방법": "GPU 없이 기존 기록만으로. 모든 경로를 **원자당 부피**로 환산해 한 줄에 놓았다.",
+  "V_per_atom_A3": {
+   "canonical base (원본)": 20.71,
+   "lpsocl_relaxV0 (생산)": 19.43,
+   "modelc_relaxV0_3x3x1 (생산)": 19.62,
+   "도핑 풀 완화 후 (중앙, screen_dV_over_V0 n=3615 를 base 에 적용)": 17.94,
+   "eos_V0_per_atom (독립 경로, 중앙 n=622)": 20.23,
+   "⛔ 내 --npt_control 의 0 K 완화": 27.62
+  },
+  "판정": "cascade 파이프라인의 모든 경로가 **16–20 Å³/atom** 에 모인다 — 생산 구조와 같은 자리다. **27.62 는 내 대조 런 하나만 튄다.** 즉 +33 % 팽창은 cascade 경로의 성질이 아니라 그 실행의 성질이다.",
+  "남은_가설": "무도핑·화학량론·인공 정렬 24g 배열이 UMA 에게 분포 밖이고, **도핑·공공이 그 인공 정렬을 깨면 병리가 사라진다**. 도핑 풀이 전부 정상 부피로 가는 것과 정합한다.",
+  "cascade_에_대한_결론": "**ΔE_formation 에 대한 경보는 크게 내려간다.** 설계는 전부 도핑된 구조이고 그 완화가 정상 방향(치밀화)이다. 다만 base 자체를 **완화 없이 에너지 기준으로 쓰면 안 된다** — baseline 이 무엇을 완화한 것인지는 따로 확인이 남았다 (`--baseline data/lpscl_bulk_uma_relaxed.json`, 그리고 lpscl_bulk.cif 는 PS₄ 보존율 0.0 인 파일이다).",
+  "⛔_남는_것": [
+   "baseline json 이 어느 구조를 완화한 것인지 (lpscl_bulk.cif 는 PS₄ 0.0 이라 기준으로 부적합)",
+   "내 대조가 왜 27.62 로 갔는지 — fmax 0.02 vs 스크리닝 0.05 차이인지, 무도핑 구조 자체의 병리인지"
+  ]
  }
 }
