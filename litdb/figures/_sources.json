@@ -892,6 +892,14 @@
    "DFT 먹인 논문/45. Sup) ﻿Dual-Functional GaF Co-Doped Argyrodite Sulfide Electrolytes for All-Solid-State Lithium Batteries.pdf"
   ]
  },
+ "lu2024_lowtemp_assb_li2zro3_interface": {
+  "figures": 18,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "113. Lu2024_ACSNano_Superior_LowTemp_ASSB_HighIonicConductivity_LowEnergyBarrier_Interface.pdf",
+   "113. Sup) Lu2024_ACSNano_Superior_LowTemp_ASSB_HighIonicConductivity_LowEnergyBarrier_Interface.PDF"
+  ]
+ },
  "lu2025_tailoring_cl_rich_anode_licl": {
   "figures": 21,
   "generated": "2026-08-05",
@@ -1043,6 +1051,13 @@
   "generated": "2026-08-05",
   "pdfs": [
    "DEM 논문/39. Discrete element model for effective electrical conductivity of spark plasma sintered porous materials.pdf"
+  ]
+ },
+ "nolan2018_computation_accelerated_design_review": {
+  "figures": 11,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "111. Nolan2018_Computation_Accelerated_Design_Materials_Interfaces_ASSB_REVIEW.pdf"
   ]
  },
  "nolan2019_chemistries_stable_high_energy_cathodes": {
@@ -1518,6 +1533,13 @@
    "DFT 먹인 논문/37. Computational Screening of Cathode Coatings for Solid-State Batteries.pdf",
    "DFT 먹인 논문/37. Sup1) Computational Screening of Cathode Coatings for Solid-State Batteries.pdf",
    "DFT 먹인 논문/37. Sup2) Computational Screening of Cathode Coatings for Solid-State Batteries.pdf"
+  ]
+ },
+ "xiao2020_interface_stability_ssb_review": {
+  "figures": 6,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf"
   ]
  },
  "xu2023_realistic_am_shape_cgmd_calendering": {
