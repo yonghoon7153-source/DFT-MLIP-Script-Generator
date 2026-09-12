@@ -280,3 +280,50 @@ v2 헤더 표는 `phase_a_plan.py` 를 **폐기(실행 거부)** 로 적고 *"�
 **덤프 → 디스크립터(`porosity_sphere` · `coverage_*_hertz` · `tortuosity_dijkstra_SE`)** 수확기가
 없다.  §P 는 제출까지만 닫았다.  ⇒ 291 이 거친 것과 **같은 파이프라인**
 (`network_conductivity.py` 계열)을 130 덤프에 돌리는 것이 다음 작업이고, **GPU 가 아니라 CPU**다.
+
+## 11. Phase A 잔여 72팔 — V100 대여로 이관 (2026-09-13)
+
+### 왜 옮겼나
+kgy 에서 `h020 → h025 → qc015` 직렬 러너를 걸었으나 **DFT 가 카드를 물어** 진행 불가:
+`h020` **1/32** · `h025` **2/32** 만 내고 두 단계 모두 조기 종료했고(`--step3-require-gpu` 라
+CPU 폴백 없음), `qc015` 는 여유 **941 MiB < 10,100** 으로 5분마다 두드리기만 했다.
+⇒ 기다림이 아니라 **실패**였다.  러너 중지 후 전용 GPU 대여로 이관.
+
+### 필요 사양 (실측 기반)
+`≈210 B/dof` (LEAN=2 · σ_e 전용).  vox 0.15 의 **실측 10,032 MiB** 로 맞춘 계수다.
+| 단계 | dof | 필요 VRAM |
+|---|---|---|
+| `0.25` | 10.3 M | ≈ 2.2 GB |
+| `0.20` | **20.1 M** (로그 실측) | ≈ 4.2 GB |
+| `0.15` (QC) | ~48 M | **≈ 10 GB** (실측) |
+★ 이 계산은 **CG 반복 = 메모리 대역폭 병목**이다.  텐서코어·FP16 을 전혀 안 쓰므로
+*"싸고 대역폭 높은 구형 카드"* 가 신형보다 유리하다 (A100/H100 은 과잉).
+
+### 대여 인스턴스 (runyour.ai)
+`Tesla V100-PCIE-32GB` · **32,768 MiB** · RAM **125 GB** · 디스크 **925 GB 여유** · **32 코어** ·
+컨테이너 `3f2c2428df7f`.  ⇒ 전 단계가 여유롭게 돌고, **CPU 32 코어**라 LHS 디스크립터 수확
+(§10 의 막힌 곳)도 여기서 병행 가능하다.
+
+### 세팅 (전부 기존 도구, 새로 짠 것 없음)
+정본 = `docs/server_bootstrap_runbook.md`.
+- 로컬: `scripts/setup_v100_local.sh <pem> ubuntu@machine.runyour.ai 22` → `ssh v100` 완성.
+  ⚠ 그 스크립트의 **마지막 안내문은 낡았다** — `setup_v100.sh` 를 가리키는데 그것은
+  `se_curve` 배치 전용 레이아웃 복원기다.  우리에게 맞는 것은 런북 §② 의
+  **`setup_gpu_server.sh`** (범용 환경 재건).  둘은 다른 일을 한다.
+- 서버: `setup_gpu_server.sh` → **7/7 통과** (taichi 1.7.4 · **cupy GPU sparse CG OK info=0**).
+- 코드 고정: `git checkout 70b9e37a` (**detached HEAD 가 맞다**) — 0.15 32팔이 그 `code_sha` 로
+  돌았고 **같은 캠페인에서 코드가 섞이면 안 된다**.
+
+### ⚠ 이번에 밟은 지뢰 — 긴 설치를 SSH **포그라운드**에서 돌렸다
+`[4/7] python 패키지` 중 `Connection closed by remote host` 로 죽고 이어서
+`Permission denied (publickey)` 가 났다.  **원인은 자원이 아니었다** — 재접속해 보니
+RAM 125 GB · 디스크 925 GB 여유 · 컨테이너 ID 동일(재시작 없음)이었다.  **SSH 가 끊긴 것**이다.
+⇒ 런북이 런에 `setsid nohup` 을 쓰는 것과 **같은 이유로 설치도 떼어내야** 한다:
+`setsid nohup bash -c 'curl … | bash' > ~/setup.log 2>&1 &`.
+
+### ⬜ 남은 것 = 침대 전송
+`~/pa/kits03` = 4킷 × ~2.35 GB = **9.4 GB** · 부분결과 `h020` 144 MB + `h025` 290 MB.
+⚠ **pem 이 kgy 에 없다** ⇒ 경로 셋: ⓐ pem 을 kgy 로 옮겨 **직송** ⓑ `DESKTOP-IK8J81H` 경유
+(두 번 전송) ⓒ **필요 파일만 추려 직송** — 러너는 매니페스트 기준 **6개**
+(`scaffold`·`se`·`phase`·`fibre`·`fibre_dia`·`metrics_json`)만 읽으므로 ⓒ 가 가장 싸다.
+⇒ 킷 내부 파일 크기 실측 대기 중.
