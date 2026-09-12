@@ -348,6 +348,86 @@ def li_vacancies_needed(atoms: Atoms, cations: dict[str, int],
     # reverse-halide-rich (Cl→S swap with extra Li) as compensation paths.
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 음이온 자리의 **부모 양이온 분산** (2026-09-13 · 카드 v4 §1b · BO 조건 #2)
+#
+# 왜 필요한가
+#   S_16e 는 PS₄ 사면체의 모서리 S 다. O 를 3개 넣을 때 **같은 P 에 딸린 S** 로
+#   몰리면 `PS₁O₃` 한 덩어리가 생긴다. 그건 *희석된 O 치환* 이 아니라
+#   **한 사면체만 심하게 산화된 것**이고 국소 화학이 다르다. 카드가 고른 것은
+#   서로 다른 P 에 하나씩 = **PS₃O 세 개** 다.
+#
+# ⛔ 기존 선택기는 이것을 보장하지 않는다 — `select_substitution_sites` 의
+#   docstring 이 스스로 *"May leave the seed PS4 and hop into adjacent PS4"* 라고
+#   적고 있고, 'spread' 도 거리로만 고르지 부모를 보지 않는다.
+#
+# ⛔ 이 코드가 **못 하는 것**
+#   · 부모 원소를 추론하지 않는다. `parent_symbol` 을 받는다(기본 'P').
+#   · 결합을 양자화학으로 판정하지 않는다. **거리 컷오프**로 가장 가까운 부모를 고른다.
+#   · 어느 배치가 물리적으로 옳은지 판정하지 않는다. 카드가 정한 규칙을 **집행**할 뿐이다.
+#   · 기본값으로 켜지지 않는다 — 다른 캠페인(Nd₂O₃ 5 mol% 등)은 이 규칙을 안 쓴다.
+# ══════════════════════════════════════════════════════════════════════════
+def anion_parent_map(atoms, s_indices, parent_symbol='P', cutoff=2.6):
+    """S 인덱스 → 가장 가까운 부모 양이온 인덱스. **애매하면 멈춘다.**
+
+    raise:
+      · 부모 후보가 컷오프 안에 **하나도 없다** → 자리 지도를 못 만든다
+      · **둘 이상** 있다 → 어느 사면체인지 애매하다 (컷오프가 크거나 구조가 깨졌다)
+    """
+    sym = atoms.get_chemical_symbols()
+    parents = [i for i, e in enumerate(sym) if e == parent_symbol]
+    if not parents:
+        raise S1ContractError(f"⛔ 부모 원소 {parent_symbol} 가 구조에 없다 — 부모 분산 규칙을 집행할 수 없다")
+    out = {}
+    for si in s_indices:
+        d = atoms.get_distances(si, parents, mic=True)
+        near = [(float(dd), pj) for dd, pj in zip(d, parents) if dd <= cutoff]
+        if not near:
+            raise S1ContractError(
+                f"⛔ S #{si} 주변 {cutoff} Å 안에 {parent_symbol} 가 없다 "
+                f"(최근접 {float(min(d)):.3f} Å) — 부모를 못 정한다")
+        if len(near) > 1:
+            raise S1ContractError(
+                f"⛔ S #{si} 주변 {cutoff} Å 안에 {parent_symbol} 가 {len(near)}개다 "
+                f"({[f'#{j}@{dd:.3f}' for dd, j in sorted(near)]}) — 어느 사면체인지 애매하다")
+        out[si] = near[0][1]
+    return out
+
+
+def select_distinct_parent_sites(host_idx, n, method, seed, atoms,
+                                 parent_symbol='P', cutoff=2.6):
+    """부모가 **서로 다른** 자리 n 개를 고른다. 못 고르면 **멈춘다**(조용히 완화 없음).
+
+    방법: 부모별로 자리를 묶고 → 부모를 seed 로 섞어 n 개 고르고 →
+          각 부모 안에서 다시 seed 로 하나씩 고른다. 같은 seed 면 같은 결과다.
+    """
+    import random as _random
+    pmap = anion_parent_map(atoms, host_idx, parent_symbol, cutoff)
+    groups = {}
+    for si, pj in pmap.items():
+        groups.setdefault(pj, []).append(si)
+    if len(groups) < n:
+        raise S1ContractError(
+            f"⛔ 부모 {parent_symbol} 가 {len(groups)}종뿐인데 서로 다른 부모 {n} 자리를 요구했다 "
+            f"— 규칙을 만족할 수 없다. 셀을 키우거나 규칙을 바꿔라(조용히 완화하지 않는다)")
+    rng = _random.Random(seed)
+    chosen_parents = rng.sample(sorted(groups), n)
+    return sorted(rng.choice(sorted(groups[pj])) for pj in chosen_parents)
+
+
+def assert_distinct_parents(atoms, targets, parent_symbol='P', cutoff=2.6, where='anion_sites'):
+    """이미 정해진 자리들이 규칙을 지키는지 **검사**한다. `index_plan` 경로용."""
+    pmap = anion_parent_map(atoms, targets, parent_symbol, cutoff)
+    par = [pmap[t] for t in targets]
+    if len(set(par)) != len(par):
+        dup = {pj for pj in par if par.count(pj) > 1}
+        detail = {f"{parent_symbol}#{pj}": [t for t in targets if pmap[t] == pj] for pj in sorted(dup)}
+        raise S1ContractError(
+            f"⛔ {where}: 부모 {parent_symbol} 가 겹친다 {detail} — 카드 §1b 는 "
+            f"**서로 다른 부모**를 요구한다. index_plan 을 고치거나 규칙을 끄고 그 사실을 적어라")
+    return pmap
+
+
 def _plan_or_select(plan, key, elem, host_idx, n, fallback):
     """⭐ 회신 BO 조건 2 (2026-09-12): **공통 부모 배열** 을 P1/P2 로 복제하려면 난수가 아니라
     **실제 인덱스 대응표** 로 자리를 정해야 한다. `index_plan` 이 그 표다.
@@ -389,7 +469,10 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
                                  vacancy_cutoff: float = 5.0,
                                  carrier=None, contract: str = 'enforce'
                                  ,
-                                 index_plan: dict | None = None) -> tuple[Atoms, dict]:
+                                 index_plan: dict | None = None,
+                                 distinct_anion_parent: bool = False,
+                                 anion_parent_symbol: str = 'P',
+                                 anion_parent_cutoff: float = 2.6) -> tuple[Atoms, dict]:
     """Place all atoms of one compound unit-cluster into target sites.
 
     ``vacancy_method`` is decoupled from ``method`` and defaults to 'random'.
@@ -445,17 +528,32 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
             raise ValueError(
                 f"Need {n_sub} {an} at {anion_site}, but only "
                 f"{len(host_idx)} sites available")
-        targets = _plan_or_select(index_plan, 'anion_sites', an, host_idx, n_sub,
-                                  lambda: select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new))
+        # ⭐ 카드 v4 §1b — 부모 양이온 분산 규칙 (기본 꺼짐, 파일럿에서 켠다)
+        #   index_plan 경로도 **검사한다** — 계획으로 넣었다고 규칙을 비켜 가지 않는다.
+        if distinct_anion_parent:
+            targets = _plan_or_select(
+                index_plan, 'anion_sites', an, host_idx, n_sub,
+                lambda: select_distinct_parent_sites(host_idx, n_sub, method, seed_local, new,
+                                                     anion_parent_symbol, anion_parent_cutoff))
+            _pmap = assert_distinct_parents(new, targets, anion_parent_symbol,
+                                            anion_parent_cutoff, where=f"anion_sites[{an}]")
+        else:
+            targets = _plan_or_select(index_plan, 'anion_sites', an, host_idx, n_sub,
+                                      lambda: select_substitution_sites(host_idx, n_sub, method, seed_local, atoms=new))
+            _pmap = None
         syms = new.get_chemical_symbols()
         for i in targets:
             syms[i] = an
         new.set_chemical_symbols(syms)
         if carrier is not None:
             carrier.substitute(targets, an, syms)
-        placement_log['placements'].append(
-            {'element': an, 'site': anion_site, 'n': n_sub,
-             'targets': targets})
+        _rec = {'element': an, 'site': anion_site, 'n': n_sub, 'targets': targets,
+                'distinct_parent_rule': bool(distinct_anion_parent)}
+        if _pmap is not None:
+            _rec['parent_map'] = {int(k): int(v) for k, v in _pmap.items() if k in targets}
+            _rec['parent_symbol'] = anion_parent_symbol
+            _rec['parent_cutoff_A'] = anion_parent_cutoff
+        placement_log['placements'].append(_rec)
         seed_local += 1
 
     # 3. Charge compensation — Li vacancies (donor case) or Li interstitials
@@ -729,6 +827,77 @@ def _selftest() -> int:
             chk(False, _msg)
         except S1ContractError:
             chk(True, _msg)
+    # ══ 카드 v4 §1b — 음이온 자리의 부모 양이온 분산 (BO 조건 2) ══════════════
+    #   ⛔ 이 규칙이 없으면 O 3개가 같은 PS4 에 몰려 PS1O3 한 덩어리가 된다.
+    #     기존 선택기는 이것을 보장하지 않는다(docstring 이 스스로 인정한다).
+    try:
+        _pmap_all = anion_parent_map(base, _s16, 'P', 2.6)
+        chk(len(_pmap_all) == len(_s16) and all(base.get_chemical_symbols()[v] == 'P'
+                                                for v in _pmap_all.values()),
+            "부모지도: S_16e 전부가 P 하나에 배정된다")
+        _groups = {}
+        for _si, _pj in _pmap_all.items():
+            _groups.setdefault(_pj, []).append(_si)
+        chk(all(len(v) == 4 for v in _groups.values()),
+            f"부모지도: PS₄ 라 부모당 S 가 4개씩 ({sorted(len(v) for v in _groups.values())})")
+
+        _sel = select_distinct_parent_sites(_s16, 3, 'random', 7, base, 'P', 2.6)
+        _par = [_pmap_all[i] for i in _sel]
+        chk(len(set(_par)) == 3, f"선택기: 부모가 서로 다른 3자리 (부모 {_par})")
+        chk(_sel == select_distinct_parent_sites(_s16, 3, 'random', 7, base, 'P', 2.6),
+            "선택기: 같은 seed → 같은 결과 (재현성)")
+
+        # 양성: 규칙을 켜고 돌면 통과하고 기록이 남는다
+        _c = SiteCarrier(pm, base.get_chemical_symbols())
+        _d, _l = substitute_compound_at_sites(
+            base.copy(), {'Al': 2, 'O': 3}, 1, 'Li_24g', 'S_16e', 'random', 7,
+            DOPANT_DB, carrier=_c, contract='enforce', distinct_anion_parent=True)
+        _op = [q for q in _l['placements'] if q['element'] == 'O'][0]
+        chk(_op['distinct_parent_rule'] and len(set(_op['parent_map'].values())) == 3,
+            "양성: 규칙 켜고 생성 → 부모 3종 · placement_log 에 parent_map 기록")
+    except Exception as _e:
+        chk(False, f"부모 분산 양성 경로 예외: {_e}")
+
+    # ⛔음성 ① 같은 부모에 2개를 넣은 index_plan 은 거부된다
+    _same_parent = sorted(_groups[sorted(_groups)[0]])[:2] + [sorted(_groups[sorted(_groups)[1]])[0]]
+    try:
+        _c = SiteCarrier(pm, base.get_chemical_symbols())
+        substitute_compound_at_sites(
+            base.copy(), {'Al': 2, 'O': 3}, 1, 'Li_24g', 'S_16e', 'random', 7, DOPANT_DB,
+            carrier=_c, contract='enforce',
+            index_plan={**_plan, 'anion_sites': _same_parent}, distinct_anion_parent=True)
+        chk(False, "⛔음성: 같은 부모 P 에 O 2개인 index_plan → 거부")
+    except S1ContractError:
+        chk(True, "⛔음성: 같은 부모 P 에 O 2개인 index_plan → 거부")
+
+    # ⛔음성 ② 규칙을 끄면 **그 계획이 통과한다** — 위 거부가 규칙 덕분임을 보인다
+    #    (이게 없으면 다른 이유로 거부된 것일 수도 있어 시험이 아무것도 안 본 게 된다)
+    try:
+        _c = SiteCarrier(pm, base.get_chemical_symbols())
+        _d0, _l0 = substitute_compound_at_sites(
+            base.copy(), {'Al': 2, 'O': 3}, 1, 'Li_24g', 'S_16e', 'random', 7, DOPANT_DB,
+            carrier=_c, contract='enforce',
+            index_plan={**_plan, 'anion_sites': _same_parent}, distinct_anion_parent=False)
+        _op0 = [q for q in _l0['placements'] if q['element'] == 'O'][0]
+        chk(_op0['distinct_parent_rule'] is False and 'parent_map' not in _op0,
+            "⛔음성 대조: 규칙을 끄면 같은 계획이 통과한다 (거부가 이 규칙 덕분임을 보인다)")
+    except Exception as _e:
+        chk(False, f"규칙 OFF 대조 경로 예외: {_e}")
+
+    # ⛔음성 ③ 부모 종류보다 많이 요구하면 **조용히 완화하지 않고 멈춘다**
+    try:
+        select_distinct_parent_sites(_s16, len(_groups) + 1, 'random', 7, base, 'P', 2.6)
+        chk(False, "⛔음성: 부모 종류보다 많은 자리 요구 → 거부")
+    except S1ContractError:
+        chk(True, "⛔음성: 부모 종류보다 많은 자리 요구 → 거부 (조용한 완화 없음)")
+
+    # ⛔음성 ④ 컷오프가 너무 작으면 부모를 못 정하고 멈춘다 (추측하지 않는다)
+    try:
+        anion_parent_map(base, _s16[:1], 'P', 0.5)
+        chk(False, "⛔음성: 컷오프 0.5 Å → 부모 없음으로 거부")
+    except S1ContractError:
+        chk(True, "⛔음성: 컷오프 0.5 Å → 부모 없음으로 거부 (추측하지 않는다)")
+
     print(f"selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
@@ -835,6 +1004,15 @@ def main():
     parser.add_argument('--index_plan', default=None,
                         help='⭐ 회신 BO 조건 2: 공통 부모 배열의 인덱스 표(JSON). 주면 난수 대신 이 자리를 쓴다 '
                              '(cation_sites·anion_sites·vacancy_sites). P1/P2 짝은 같은 파일을 준다')
+    parser.add_argument('--distinct_anion_parent', action='store_true',
+                        help='⭐ 카드 v4 §1b (BO 조건 2): 음이온 치환 자리들이 **서로 다른 부모 양이온**에 '
+                             '속하도록 강제한다. O 3개가 같은 PS4 에 몰리면 PS1O3 한 덩어리가 되어 '
+                             '희석 치환이 아니게 되기 때문이다. index_plan 으로 넣은 자리도 **검사한다**. '
+                             '만족 못 하면 조용히 완화하지 않고 멈춘다')
+    parser.add_argument('--anion_parent_symbol', default='P',
+                        help='부모 양이온 원소 (기본 P — S_16e 의 PS4 중심)')
+    parser.add_argument('--anion_parent_cutoff', type=float, default=2.6,
+                        help='부모 판정 거리 컷오프 Å (기본 2.6). 컷오프 안에 부모가 0개거나 2개 이상이면 멈춘다')
     parser.add_argument('--emit_index_plan', default=None,
                         help='첫 성공 구조가 실제로 쓴 인덱스 표를 이 JSON 으로 떨군다 — 짝 처방이 --index_plan 으로 재사용')
     parser.add_argument('--n_seeds', type=int, default=1,
@@ -969,7 +1147,10 @@ def main():
                         vacancy_method=args.vacancy_method,
                         vacancy_cutoff=args.vacancy_cutoff,
                         carrier=carrier, contract=args.s1_contract,
-                        index_plan=_index_plan)
+                        index_plan=_index_plan,
+                        distinct_anion_parent=args.distinct_anion_parent,
+                        anion_parent_symbol=args.anion_parent_symbol,
+                        anion_parent_cutoff=args.anion_parent_cutoff)
                     if args.emit_index_plan and not _index_plan_emitted[0]:
                         Path(args.emit_index_plan).write_text(
                             json.dumps(log['index_plan_used'], ensure_ascii=False, indent=1))
@@ -1096,7 +1277,10 @@ def main():
                             vacancy_method=args.vacancy_method,
                             vacancy_cutoff=args.vacancy_cutoff,
                             carrier=carrier, contract=args.s1_contract,
-                        index_plan=_index_plan)
+                        index_plan=_index_plan,
+                        distinct_anion_parent=args.distinct_anion_parent,
+                        anion_parent_symbol=args.anion_parent_symbol,
+                        anion_parent_cutoff=args.anion_parent_cutoff)
                         info['steps'].append({
                             'type': 'D_multi_compound',
                             'compound': cname, 'x': x_each,
