@@ -709,6 +709,9 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--turbo", action="store_true", help="fairchem inference_settings='turbo' 시도 (없으면 기본으로 내려가고 기록)")
     ap.add_argument("--out_root", help="출력 루트 → <out_root>/<system>/seed<seed>/")
+    ap.add_argument("--pcheck", nargs="+", metavar="STRUCT",
+                    help="⭐구조 파일들의 **단일점 압력**을 UMA 로 찍는다 (완화 없음). "
+                         "고정 셀 MD 가 어떤 내부 압력에서 돌고 있는지 보는 용도")
     ap.add_argument("--melt_check", metavar="RUN_DIR",
                     help="⭐이미 끝난 런에서 melt 구간 P 골격이 확산했는지 본다 (새 계산 없음)")
     ap.add_argument("--d_melt_cm2_s", type=float, default=1e-6, help="--melt_check 액체 판정 진단 문턱")
@@ -731,6 +734,18 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(_selftest())
+    if a.pcheck:
+        from ase.io import read
+        calc = make_calc(a.device, a.turbo)
+        print(f"UMA {getattr(calc, '_mq_mode', 'default')} · 단일점 (완화 없음) — 우리 MD 셀의 내부 압력")
+        for f in a.pcheck:
+            at = read(f); at.calc = calc
+            w = cell_widths_A(at.get_cell())
+            print(f"  {pathlib.Path(f).name:40s} {len(at):4d}원자 ρ {density_g_cm3(at):.3f} g/cm³ "
+                  f"폭 {w.min():5.2f} Å  P(virial, 0 K) {pressure_GPa(at, include_ideal_gas=False):+7.3f} GPa")
+        print("  ⛔ 이건 **그 셀에서의 압력**이다. 양수면 UMA 가 더 큰 셀을 원한다는 뜻이고, "
+              "그 자체가 구조가 틀렸다는 뜻은 아니다 (DFT 로 완화한 셀이면 UMA-DFT 차이다).")
+        return
     if a.melt_check:
         res = melt_check(a.melt_check, d_melt_cm2s=a.d_melt_cm2_s)
         (pathlib.Path(a.melt_check) / "melt_check.json").write_text(
