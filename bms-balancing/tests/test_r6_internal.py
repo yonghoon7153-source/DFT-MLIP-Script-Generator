@@ -872,3 +872,39 @@ def test_i6w_06_baseline_can_be_read_from_a_git_revision(tmp_path):
         assert (dest / name).is_file(), sorted(p.name for p in dest.iterdir())[:5]
     assert json.loads((dest / "degeneracy_300_0147_Li.json").read_text(encoding="utf-8"))["state"] == "300_0147"
     assert m.extract_rev("nonexistent-rev-xyz", tmp_path / "b2", ROOT) == 0     # 없는 리비전은 0
+
+
+def test_i6w_07_ne_shape_reader_survives_the_provenance_columns(tmp_path):
+    """[2026-09-12] R6 내부 F02 가 `ne_shape` 행에 `run_id` 를 붙였는데 소비 helper 는 모든 열을 `float()` 로 읽어
+    사용자 기계에서 세 테스트가 `ValueError: could not convert string to float: '17749f76…'` 로 깨졌다.
+
+    이 트리에서 안 깨진 이유가 중요하다 — 커밋된 `out/ne_shape_GITT_Li.csv` 가 **아직 옛 스키마**라 fixture 가
+    진실을 가리고 있었다 (이 저장소에서 다섯 번째로 실측된 패턴). 그래서 helper 를 경로 인자로 열어 **새 스키마
+    파일**로 직접 건다 — 커밋된 산출이 재생성되기 전에도 회귀가 잡히도록.
+    """
+    from test_review_findings import _ne_shape_csv, NE_SHAPE_TEXT_COLS
+    src = (ROOT / "out" / "ne_shape_GITT_Li.csv").read_text(encoding="utf-8").splitlines()
+    hdr, rows = src[0], src[1:]
+    new = tmp_path / "ne_shape_GITT_Li.csv"
+    new.write_text("\n".join([hdr + ",run_id"] + [r + ",17749f76588f4138a0e846318a1bdc39" for r in rows]) + "\n",
+                   encoding="utf-8")
+    R = _ne_shape_csv(new)
+    assert R and all(v["run_id"] == "17749f76588f4138a0e846318a1bdc39" for v in R.values()), R
+    assert isinstance(next(iter(R.values()))["measured_shape_mV"], float)      # 숫자 열은 그대로 숫자
+    assert "run_id" in NE_SHAPE_TEXT_COLS
+
+
+def test_i6w_08_committed_artifacts_carry_no_merge_conflict_markers():
+    """[2026-09-12] rebase 충돌이 해결되지 않은 채 `out/matrix_300_0009.csv` 에 `<<<<<<< HEAD` 가 박혔고, 그 결과가
+    여덟 개의 `KeyError: 'half_cell'` 로 나왔다 — 원인에서 먼 오류다. 산출은 기계가 읽는 정본이므로 표식 하나로
+    바로 말한다."""
+    marks = ("<<<<<<<", "=======", ">>>>>>>")
+    def scan(text):
+        return [m for m in marks if any(l.startswith(m) for l in text.splitlines())]
+    bad = {}
+    for f in sorted(list((ROOT / "out").glob("*.csv")) + list((ROOT / "out").glob("*.json"))):
+        hits = scan(f.read_text(encoding="utf-8", errors="replace"))
+        if hits:
+            bad[f.name] = hits
+    assert not bad, f"산출에 충돌 표식이 남았다 — 해결하고 다시 커밋할 것: {bad}"
+    assert scan("a,b\n<<<<<<< HEAD\n1,2\n") == ["<<<<<<<"]      # 탐지기가 실제로 잡는다 (변이 대신 자체 증명)

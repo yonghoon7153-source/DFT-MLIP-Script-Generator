@@ -1245,13 +1245,18 @@ def test_ne_shape_artifact_uses_lf_and_provenance_helper(tmp_path):
 
 # ── §1-12 · §5-2 의 ne_shape 표는 CSV 와 칸별로 같아야 한다 (2026-09-11) ──
 
-def _ne_shape_csv():
-    f = ROOT / "out" / "ne_shape_GITT_Li.csv"
+#: `ne_shape` CSV 에서 **숫자가 아닌** 열 — 값 대신 문자열로 둔다.
+#: `gamma_witness` 는 '없음' 이 들어가고(R3-03), `run_id` 는 R6 내부 F02 가 붙인 provenance 다.
+NE_SHAPE_TEXT_COLS = ("gamma_witness", "run_id")
+
+
+def _ne_shape_csv(path=None):
+    f = pathlib.Path(path) if path else ROOT / "out" / "ne_shape_GITT_Li.csv"
     if not f.is_file():
         pytest.skip("out/ne_shape_GITT_Li.csv 가 없다")
     # 빈 칸(예: R3-03 의 `gamma_witness` 가 '없음')은 nan 으로 — 문자열 열은 그대로
     def _v(k, v):
-        if k in ("gamma_witness",):
+        if k in NE_SHAPE_TEXT_COLS:
             return v
         return float(v) if v != "" else float("nan")
     return {r["state"]: {k: _v(k, v) for k, v in r.items() if k != "state"}
