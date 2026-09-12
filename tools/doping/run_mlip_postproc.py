@@ -186,6 +186,110 @@ def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
     return best
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 셀 정책 (2026-09-13 · 회신 BP Q4③ 지적 → 실물 확인 → 이행)
+#
+# ⛔⛔ **GAP-3 실측**: `eos_sweep` 은 점마다 `atoms_ref.copy()` 로만 작업해
+#   **atoms_ref 를 바꾸지 않는다**. 그래서 `process_one` 이 V₀ 를 record 에
+#   기록만 하고, 이어지는 `elastic_finite_strain(atoms, ...)` 에는 여전히
+#   **2단계 post-anneal 구조**가 들어갔다 — 즉 **탄성이 보고된 V₀ 가 아닌
+#   부피에서 계산됐다.** 두 양이 같은 구조를 가리킨다고 읽으면 틀린다.
+#
+# ⚠ 기본 동작은 **바꾸지 않는다** (과거 명령의 재현성). 대신
+#   ① `--apply_eos_v0` 로 명시하면 V₀ 를 실제로 적용하고
+#   ② 적용하든 안 하든 `record['cell_policy']` 에 **무엇을 했는지 남긴다**.
+#   적용 안 한 경우에도 경고 문자열이 출력에 박히므로 조용히 지나가지 않는다.
+#
+# 형상 정책의 정확한 표현 (회신 BP):
+#   "셀 각도와 길이비를 고정하고 등방 E(V) 경로에서 부피를 최적화한다.
+#    **목표** 평균압은 0 GPa 이며, **실제 잔류 평균압과 편차응력을 별도로 보고**한다."
+#   ⛔ '전체 응력 0' · '자유 영응력 평형' 과 다르다.
+# ══════════════════════════════════════════════════════════════════════════
+EV_A3_TO_GPA = 160.21766208
+
+
+def stress_report(atoms):
+    """실제 잔류 응력 — 평균압과 편차성분을 **따로** 낸다 (회신 BP Q4③).
+
+    ⛔ 이 함수가 하지 않는 것: '영응력이다' 판정. 숫자만 낸다.
+    """
+    import numpy as _np
+    v = _np.asarray(atoms.get_stress(voigt=True), dtype=float) * EV_A3_TO_GPA
+    sig = _np.array([[v[0], v[5], v[4]], [v[5], v[1], v[3]], [v[4], v[3], v[2]]])
+    p = float(_np.trace(sig) / 3.0)
+    dev = sig - p * _np.eye(3)
+    return {'sigma_GPa': sig.tolist(), 'P_mean_GPa': p,
+            'deviatoric_max_abs_GPa': float(_np.abs(dev).max()),
+            '⚠': '목표 평균압 0 과 별개로 **실제** 값이다. 영응력 판정 아님'}
+
+
+def apply_v0_fixed_shape(atoms_ref, V0, calc, fmax=0.05, relax_steps=500):
+    """**셀 각도·길이비를 고정한 채** 부피만 V₀ 로 맞추고 원자만 완화한다.
+
+    등방 스케일이므로 각도와 길이비는 구조적으로 보존된다 — 그것이 이 정책이
+    'argyrodite 골격 보존' 을 뜻하는 방식이다.
+
+    ⛔ 이 함수가 **못 하는 것**
+      · 셀 형상을 최적화하지 않는다 (그것이 금지된 vc-relax 다).
+      · 편차응력을 없애지 않는다 — 없애려면 형상을 풀어야 한다. 남은 값을 **보고**한다.
+      · V₀ 가 None 이면 아무것도 하지 않고 그대로 돌려준다 (BM 적합 실패 시).
+    """
+    if V0 is None:
+        return atoms_ref, {'applied': False, 'reason': 'V0 is None (BM 적합 실패)'}
+    a = atoms_ref.copy()
+    f = float(V0) / a.get_volume()
+    a.set_cell(a.cell.array * f ** (1.0 / 3.0), scale_atoms=True)
+    a.calc = calc
+    opt = FIRE(a, logfile=None)                 # ← 고정셀: CellFilter 를 쓰지 않는다
+    opt.run(fmax=fmax, steps=relax_steps)
+    rep = {'applied': True, 'V0_target_A3': float(V0),
+           'V_before_A3': float(atoms_ref.get_volume()),
+           'V_after_A3': float(a.get_volume()),
+           'scale_factor': f,
+           'n_relax_steps': opt.get_number_of_steps(),
+           'converged': opt.get_number_of_steps() < relax_steps}
+    try:
+        rep['residual_stress'] = stress_report(a)
+    except Exception as e:                       # 계산기가 응력을 못 내는 경우
+        rep['residual_stress'] = {'error': str(e)}
+    return a, rep
+
+
+def maybe_apply_eos_v0(atoms, record, args, calc):
+    """EOS V₀ 를 적용할지 말지의 **갈림길 자체**. selftest 가 이 함수를 친다.
+
+    반환 (atoms, policy_dict). 적용 안 한 경우에도 policy_dict 에 **경고가 박힌다** —
+    조용히 지나가지 않게 하는 것이 이 함수의 목적이다.
+
+    ⛔ 이 함수가 **못 하는 것**: 어느 쪽이 옳은지 판정하지 않는다. 무엇을 했는지 적을 뿐이다.
+    """
+    pol = {
+        'step0_relax': ('FIRE(atoms) — 고정셀(각도·길이비 보존)'
+                        if getattr(args, 'fixed_shape_relax', False)
+                        else 'CellFilter(atoms) — 형상 무제한'),
+        'eos_v0_applied': False,
+        '표현': ('셀 각도와 길이비를 고정하고 등방 E(V) 경로에서 부피를 최적화한다. '
+                 '목표 평균압은 0 GPa 이며, 실제 잔류 평균압과 편차응력을 별도로 보고한다'),
+    }
+    no_eos = bool(getattr(args, 'no_eos', False))
+    if getattr(args, 'apply_eos_v0', False) and not no_eos:
+        v0 = (record.get('eos') or {}).get('V0')
+        atoms, rep = apply_v0_fixed_shape(atoms, v0, calc,
+                                          fmax=getattr(args, 'eos_fmax', 0.05),
+                                          relax_steps=getattr(args, 'relax_steps', 500))
+        pol['eos_v0_applied'] = bool(rep.get('applied'))
+        pol['apply_report'] = rep
+        if not rep.get('applied'):
+            pol['⛔경고'] = ('V₀ 적용을 요청했으나 적용하지 못했다 (%s). 아래 elastic 은 '
+                             'V₀ 가 아닌 부피에서 계산된 값이다.' % rep.get('reason', '?'))
+    elif not no_eos and not bool(getattr(args, 'no_elastic', False)):
+        pol['⛔경고'] = (
+            'EOS 가 낸 V₀ 를 **적용하지 않았다**. 아래 elastic 은 V₀ 가 아니라 '
+            'post-anneal 부피에서 계산된 값이다 (GAP-3, cell_policy_gap_2026_09_13.json). '
+            '두 양이 같은 구조를 가리킨다고 읽으면 틀린다. 적용하려면 --apply_eos_v0')
+    return atoms, pol
+
+
 def elastic_finite_strain(atoms_ref, calc, eps=0.005, fmax=0.05,
                           relax_steps=300):
     """6 independent Voigt strains × ±eps. Compute stress → Cij.
@@ -287,7 +391,10 @@ def process_one(xyz_path, calc, out_dir, args):
                                             return_counts=True))}}
 
     # 0. Refresh relax to ensure starting at minimum
-    opt = FIRE(CellFilter(atoms), logfile=None)
+    #    ⚠ 기본은 형상 무제한 CellFilter — **DFT 쪽 고정셀 규율이 여기 걸려 있지 않다**
+    #      (GAP-1·2). --fixed_shape_relax 로 고정셀 경로를 고를 수 있다.
+    _target = atoms if getattr(args, 'fixed_shape_relax', False) else CellFilter(atoms)
+    opt = FIRE(_target, logfile=None)
     opt.run(fmax=0.05, steps=500)
     record['E_pre_anneal_per_atom'] = atoms.get_potential_energy() / len(atoms)
 
@@ -317,9 +424,16 @@ def process_one(xyz_path, calc, out_dir, args):
                                       relax_steps=args.relax_steps)
         record['eos']['t_s'] = time.time() - t0
 
+    # 2b. EOS V₀ 를 **실제로** 적용한다 (GAP-3). 기본은 과거 동작 유지.
+    atoms, record['cell_policy'] = maybe_apply_eos_v0(atoms, record, args, calc)
+
     # 3. Elastic
     if not args.no_elastic:
         t0 = time.time()
+        try:
+            record['cell_policy']['stress_at_elastic_ref'] = stress_report(atoms)
+        except Exception as _e:
+            record['cell_policy']['stress_at_elastic_ref'] = {'error': str(_e)}
         record['elastic'] = elastic_finite_strain(atoms, calc,
                                                   eps=args.elastic_eps,
                                                   fmax=args.elastic_fmax,
@@ -330,12 +444,93 @@ def process_one(xyz_path, calc, out_dir, args):
     return record
 
 
+def _selftest():
+    """셀 정책 로직 검사 — UMA 없이 ASE EMT 로. **음성 경로 포함** (카드 v4 §4b).
+
+    이 selftest 가 보는 것은 '갈림길이 제대로 갈리는가' 뿐이다.
+    ⛔ 물리를 검증하지 않는다. EMT 는 Cu 용 장난감 퍼텐셜이다.
+    """
+    import numpy as _np
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    ok = fail = 0
+    def chk(cond, label):
+        nonlocal ok, fail
+        if cond: ok += 1
+        else: fail += 1; print(f"  ⛔ {label}")
+
+    class A:                      # 가짜 args
+        def __init__(self, **kw):
+            self.apply_eos_v0 = False; self.fixed_shape_relax = False
+            self.no_eos = False; self.no_elastic = False
+            self.eos_fmax = 0.05; self.relax_steps = 50
+            self.__dict__.update(kw)
+
+    at = bulk('Cu', 'fcc', a=3.6, cubic=True) * (2, 2, 2)
+    at.calc = EMT()
+    V_post = at.get_volume()
+    V0 = V_post * 1.08                      # post-anneal 과 **다른** V₀
+
+    # ① 적용: 부피가 V₀ 가 되고 각도·길이비가 보존된다
+    a2, rep = apply_v0_fixed_shape(at, V0, EMT(), fmax=0.05, relax_steps=50)
+    chk(rep['applied'] and abs(a2.get_volume() - V0) / V0 < 1e-9,
+        "V₀ 적용 후 부피 = V₀")
+    ang0, ang2 = at.cell.angles(), a2.cell.angles()
+    l0, l2 = at.cell.lengths(), a2.cell.lengths()
+    chk(_np.allclose(ang0, ang2, atol=1e-9), "각도 보존")
+    chk(_np.allclose(l0 / l0[0], l2 / l2[0], atol=1e-9), "길이비 보존 (등방 스케일)")
+
+    # ② ⛔음성: V₀ 가 None 이면 적용하지 않고 구조를 그대로 돌려준다
+    a3, rep3 = apply_v0_fixed_shape(at, None, EMT())
+    chk((not rep3['applied']) and abs(a3.get_volume() - V_post) < 1e-12,
+        "⛔음성: V₀=None → 미적용 + 구조 불변")
+
+    # ③ ★ 갈림길 — 같은 record 로 두 갈래가 **다른 부피**를 탄성에 넘긴다
+    rec = {'eos': {'V0': V0}}
+    at_on = bulk('Cu', 'fcc', a=3.6, cubic=True) * (2, 2, 2); at_on.calc = EMT()
+    a_on, pol_on = maybe_apply_eos_v0(at_on, rec, A(apply_eos_v0=True), EMT())
+    at_off = bulk('Cu', 'fcc', a=3.6, cubic=True) * (2, 2, 2); at_off.calc = EMT()
+    a_off, pol_off = maybe_apply_eos_v0(at_off, rec, A(apply_eos_v0=False), EMT())
+    chk(pol_on['eos_v0_applied'] and abs(a_on.get_volume() - V0) / V0 < 1e-9,
+        "갈림길 ON: 탄성이 V₀ 를 받는다")
+    chk((not pol_off['eos_v0_applied']) and abs(a_off.get_volume() - V_post) < 1e-9,
+        "⛔음성: 갈림길 OFF → 탄성이 **post-anneal 부피**를 받는다 (= GAP-3 의 실제 모습)")
+    chk(abs(a_on.get_volume() - a_off.get_volume()) > 1e-6,
+        "⛔음성: 두 갈래가 실제로 **다른 구조**를 넘긴다 (같으면 이 시험은 아무것도 안 본 것이다)")
+
+    # ④ 적용 안 했으면 **경고가 박힌다** — 조용히 지나가지 않는가
+    chk('⛔경고' in pol_off and 'GAP-3' in pol_off['⛔경고'],
+        "⛔음성: 미적용 시 record 에 경고 문자열")
+    chk('⛔경고' not in pol_on, "적용했으면 경고 없음")
+
+    # ⑤ no_eos 면 경고도 안 단다 (EOS 를 안 돌렸으니 V₀ 자체가 없다)
+    _, pol_noeos = maybe_apply_eos_v0(at, {}, A(no_eos=True), EMT())
+    chk('⛔경고' not in pol_noeos, "no_eos → 경고 없음 (V₀ 가 애초에 없다)")
+
+    # ⑥ 응력 보고: 평균압과 편차가 **따로** 나오고 산술이 맞는다
+    sr = stress_report(at)
+    sig = _np.array(sr['sigma_GPa'])
+    chk(abs(sr['P_mean_GPa'] - _np.trace(sig) / 3) < 1e-9, "P_mean = trace/3")
+    dev = sig - sr['P_mean_GPa'] * _np.eye(3)
+    chk(abs(sr['deviatoric_max_abs_GPa'] - _np.abs(dev).max()) < 1e-9, "편차 최대성분")
+    chk('영응력 판정 아님' in sr['⚠'], "응력 보고에 '영응력 판정 아님' 이 박혀 있다")
+
+    # ⑦ ⛔음성: step0 정책이 기록에 남는가 (두 값이 달라야 한다)
+    chk(maybe_apply_eos_v0(at, {}, A(no_eos=True), EMT())[1]['step0_relax'] !=
+        maybe_apply_eos_v0(at, {}, A(no_eos=True, fixed_shape_relax=True), EMT())[1]['step0_relax'],
+        "⛔음성: step0 정책 두 갈래가 기록에서 구분된다")
+
+    print(f"  selftest: ⭕ {ok} · ⛔ {fail}")
+    return 0 if fail == 0 else 1
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--winners', help='winners.json from select_winners.py')
     p.add_argument('--xyz', nargs='+', help='specific xyz files')
-    p.add_argument('--out', required=True)
+    p.add_argument('--out')          # ⚠ --selftest 는 out 이 필요 없다 (아래에서 검사)
     p.add_argument('--device', default='cuda')
     p.add_argument('--task', default='omat')
     # Step toggles
@@ -362,9 +557,22 @@ def main():
     p.add_argument('--elastic_fmax', type=float, default=0.05)
     # General
     p.add_argument('--relax_steps', type=int, default=500)
+    # ── 셀 정책 (2026-09-13, 회신 BP §4b) — 기본값은 과거 동작 그대로 ──
+    p.add_argument('--apply_eos_v0', action='store_true',
+                   help='EOS 가 낸 V0 를 **실제로 적용**해 고정셀 원자완화 후 탄성으로 넘긴다 '
+                        '(기본 미적용 = GAP-3 그대로, 단 record 에 경고가 박힌다)')
+    p.add_argument('--fixed_shape_relax', action='store_true',
+                   help='0단계 relax 를 CellFilter 없이 고정셀로 한다 (각도·길이비 보존)')
+    p.add_argument('--selftest', action='store_true',
+                   help='셀 정책 로직만 검사 (UMA 없이 ASE EMT 로 — 음성 경로 포함)')
     p.add_argument('--limit', type=int, default=None,
                   help='Limit to first N structures (debug)')
     args = p.parse_args()
+    if args.selftest:
+        sys.exit(_selftest())
+    if not args.out:
+        p.error('--out 이 필요하다 (--selftest 제외)')
+
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

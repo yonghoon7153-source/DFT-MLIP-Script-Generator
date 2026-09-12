@@ -22,6 +22,16 @@ is represented by the cell-minimum substitution):
 -> corner expected to win, but free-S must be tested (site-preference step of the pipeline).
 
 **Next — pipeline-v2 track (`argyrodite_mechanical_pipeline.md`; NO vc-relax, DFT = fixed-cell only)**:
+
+> ⚠ **적용 범위 (2026-09-13 추가 — 이 줄이 통째로 인용되는 사고가 있었다).**
+> `NO vc-relax, DFT = fixed-cell only` 는 **DFT 경로에만** 걸린 정책이다.
+> **바로 아래 1번이 `UMA full relax`** 이고, UMA 기본 경로(`tools/doping/run_uma_screening.py:56` ·
+> `run_mlip_postproc.py`)는 **형상 무제한 `CellFilter(atoms)`** 를 쓴다.
+> ⇒ 이 줄을 *"파이프라인이 셀을 절대 안 푼다"* 의 근거로 쓰면 **틀린다.**
+> 근거·함의: `db/properties/cell_policy_gap_2026_09_13.json` (GAP-1·2) ·
+> 회신 `kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md` Q4③.
+> 고정셀 UMA 경로가 필요하면 `run_mlip_postproc.py --fixed_shape_relax --apply_eos_v0`.
+
 1. Stage 2a (kgy/gabia GPU, minutes): UMA full relax of the 4 candidates -> energy ranking
    -> champion O site.
 2. Step 4 (kgy, ~5 min): `scripts/adhesion/uma_eos_pre_dft.py` on the champion -> V0 +
