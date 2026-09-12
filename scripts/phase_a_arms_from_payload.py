@@ -196,10 +196,16 @@ def build(d, out, receipt_path=None):
     if bad:
         raise SystemExit('⛔ 읽을 수 없는 팔이 있다 — 하나라도 어긋나면 만들지 않는다:\n  '
                          + '\n  '.join(bad))
-    os.makedirs(out, exist_ok=True)
+    # ★ 팔 디렉터리에는 **팔만** 둔다 — 판정기는 `*.json` 을 통째로 읽고 파싱 못 하는
+    #   파일이 하나라도 있으면 거부한다 (fail-closed).  요약·receipt 를 섞으면 그 거부에
+    #   걸린다 (2026-09-12 실측).  그래서 `<out>/arms/` 에 팔을, `<out>/` 에 메타를 둔다.
+    adir = os.path.join(out, 'arms')
+    os.makedirs(adir, exist_ok=True)
     for a in arms:
         n = f"arm_w{a['vgcf_wt']:g}_v{a['vox']:g}_o{a['origin']}.json"
-        json.dump(a, open(os.path.join(out, n), 'w'), ensure_ascii=False, indent=1)
+        json.dump(a, open(os.path.join(adir, n), 'w'), ensure_ascii=False, indent=1)
+    json.dump(receipt, open(os.path.join(out, 'run_receipt.json'), 'w'),
+              ensure_ascii=False, indent=1)
     summary = {'n_arms': len(arms), 'tool_sha': _tool_sha(),
                'receipt_digest': receipt.get('receipt_digest'),
                'receipt_code_sha': receipt.get('code_sha'),
@@ -207,6 +213,7 @@ def build(d, out, receipt_path=None):
                'cells': sorted([a['vgcf_wt'], a['vox'], a['origin']] for a in arms),
                'sigma_e': {f"{a['vgcf_wt']:g}/{a['vox']:g}/{a['origin']}": a['sigma_e']
                            for a in arms}}
+    summary['arms_dir'] = adir
     json.dump(summary, open(os.path.join(out, '_adapter_summary.json'), 'w'),
               ensure_ascii=False, indent=1)
     return arms, summary
@@ -255,6 +262,10 @@ def _selftest():
                 for a in arms))
         chk('④ 요약이 tool_sha·receipt 를 남긴다',
             'tool_sha' in summ and summ['receipt_code_sha'] == 'deadbeef')
+        chk('⑮ 팔 디렉터리에 팔만 있다 (판정기가 *.json 을 통째로 읽는다)',
+            sorted(os.listdir(os.path.join(out, 'arms'))) ==
+            sorted(f"arm_w{a['vgcf_wt']:g}_v{a['vox']:g}_o{a['origin']}.json" for a in arms)
+            and set(os.listdir(out)) == {'arms', 'run_receipt.json', '_adapter_summary.json'})
 
         def neg(name, mutate, src_extra=None):
             d2 = os.path.join(td, 'n_' + name)
@@ -325,7 +336,7 @@ def main(argv=None):
     for w in sorted({x['vgcf_wt'] for x in arms}):
         g = sorted(x['sigma_e'] for x in arms if x['vgcf_wt'] == w)
         print(f'  VGCF {w:g} wt%  n={len(g)}  σ_e {g[0]:.6g} … {g[-1]:.6g} S/cm')
-    print(f'  ★ 판정: python3 scripts/phase_a_order_verdict.py --dir {a.out}')
+    print(f"  ★ 판정: python3 scripts/phase_a_order_verdict.py --dir {os.path.join(a.out, 'arms')}")
     return 0
 
 
