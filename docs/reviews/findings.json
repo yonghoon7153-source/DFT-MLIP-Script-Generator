@@ -1840,6 +1840,19 @@
    "evidence_tests": [
     "scripts/phase_a_arms_from_payload.py"
    ]
+  },
+  {
+   "id": "SELF-20",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/session_20260911_progress.md",
+   "title": "SI Table S2 의 `σ_SDCP = 256.6 (Measured)` 를 **런은 쓰지 않았다** (실제 250.0)",
+   "note": "2026-09-12, 원고 v6 · SI v6 를 커밋된 원자료와 대조하다 잡았다.\n원고 헤드라인(σ_ele 54.0 → 70.6 mS/cm)은 `docs/data/w4_ptfe_centerline_20260827` 에서 **소수점까지 재현된다** (SBE 53.987 · DBE 70.605 · 쌍대응비 1.307820 ± 0.001053 · `plate_rule = p2` ⇒ R5-CX-06 비해당).  그런데 그 8팔 전부의 매니페스트가 `sigma_sdcp_S_cm = 250.0` 인데 **Table S2 는 `256.6 S cm⁻¹` 을 `Measured` 로 적는다.**\n⚠ 크기는 작다 — 2.6 % 차이이고 비 감도로 환산하면 1e-4 수준이라 결론은 안 움직인다.  문제는 **재현성**이다: 표대로 256.6 을 넣고 돌린 독자는 우리 숫자를 못 얻고, `Measured` 라벨은 그 실측이 모델에 **들어갔다**고 읽힌다.  ⇒ 표를 `250 (Assumed; 별도 실측 256.6 과 2.6 % 이내)` 로 고치거나 256.6 으로 재실행하거나, 둘 중 하나여야 한다.\n★ 부수 소득 — CL-61 은 σ_SDCP 를 *\"문헌 밴드가 없는 저자 지정값\"* 으로 두고 방어를 `sdcp_inert_prereg_20260903` + closure 3×3 의 σ_SDCP 축에 맡겼다.  이제 **Figure S5 의 4점 탐침 실측**(189 nm 필름)이 생겼으므로 그 방어가 문헌이 아니라 **자체 실측**으로 올라선다.  저자 확인 후 CL-61 의 방어 문장을 갱신할 것 (⚠ 값의 지위를 바꾸는 것이므로 원장 수정은 저자 판단).\n⚠ 함께 본 것 (같은 대조에서 나왔고 별건): SI Table S3 의 σ_ion 절대값에 CL-81 의 `CONTACT_FREE 상한` 라벨이 없다 · porosity 규약(ε_sphere/ε_union) 미기재 · NCM σ_e 가 표엔 한 값인데 런엔 AM_S/AM_P 둘.  경위 전문은 `docs/session_20260911_progress.md` §7.",
+   "evidence_tests": [
+    "scripts/check_cohort_packages.py"
+   ]
   }
  ]
 }
