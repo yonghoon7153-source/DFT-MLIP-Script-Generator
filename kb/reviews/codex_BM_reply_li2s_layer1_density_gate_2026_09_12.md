@@ -6,11 +6,13 @@ tags: [review, codex, li2s, layer1, estimand, density, gate, reply]
 status: 수령
 confidence: high
 verificationStatus: verified
+verifiedAt: 2026-09-12
+verifiedBy: "회신 원문 — 바깥 리뷰어가 쓴 판정 그대로"   # 우리가 재검증한 것이 아니다
 explored: false
 authoredBy: agent
 effort: medium
-claimType: review
-evidenceScope: single-campaign
+claimType: prescriptive
+evidenceScope: multi-source-primary
 ---
 
 # 리뷰 BM 회신 — **원문 그대로**

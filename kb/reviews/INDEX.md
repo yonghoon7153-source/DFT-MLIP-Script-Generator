@@ -83,6 +83,7 @@ evidenceScope: multi-source-primary
 | BM | 2026-09-12 | `codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` | `codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` | 진행 | 1층 밀도 게이트 — **G4 재설계 필요, seed1 합격·2층 진행은 반대**. 후속: `db/properties/lpscl_li2s_layer1_g2_deviation_2026_09_12.json` (P0 G2 이탈 확인) |
 | BN | 2026-09-12 | `codex_BN_prompt_cascade_rebuild_2026_09_12.md` | `codex_BN_reply_cascade_rebuild_2026_09_12.md` | **회신됨-NO-GO** | 560 GPU-h 불승인 · 재건 방향 찬성 · 카드 P0 7건(D 식·처방 미정의·`Li_48h` 미구현·UMA +34 % 정적대조 선행·무반복 factorial df 0·게이트 반례·성공전용 마감) · 채택 순서 = 처방감사(GPU 0) → 동일구조 DFT–UMA E/F/응력 대조 → 한 대비 파일럿 |
 | BO | 2026-09-12 | `codex_BO_prompt_cascade_rebuild_v2_2026_09_12.md` | `codex_BO_reply_cascade_rebuild_v2_2026_09_12.md` | **회신됨-조건부GO** | 정적대조 2 SCF·파일럿 30런 둘 다 조건부 GO — 단 'UMA 내부 진단' 한정. 실행 전 5조건: basin 분기 삭제·공통 부모 배열 2·비-Li 골격 기준계(Li-COM 제거는 신호 삭제)·D=기울기/6·EOS↔B_V·df 설계별·factorial 자동진입 금지. 'UMA 편향 ~0'·'가짜 basin' → 가설 강등 |
+| BP | 2026-09-13 | `codex_BP_prompt_static_pair_result_2026_09_13.md` | — | **발송 대기** | BO 조건 1(정적대조 2 SCF) 이행 보고 + 재질의 6. 측정: (a) 는 DFT 정상점(|F| 0.00093, 문턱의 1/28, **원자 자유도 한정**) · **(b) 는 DFT 정상점 아님**(0.0888 = 문턱 3.5배, S 최대 0.160, 등방압 0.402 GPa) · δΔE **+6.13 meV/atom**(1.34 %, 10 meV 아래) · 힘 경보선 0.05 **a·b 둘 다 초과**, 응력 0.3 둘 다 통과 · **오차가 S 에 몰린다**(b 에서 DFT 가 S 를 10.6배 세게, 방향 반대) · (b) 반평행 cos −0.979(S 16/20 · Li 21/24). ★ 핵심 질의 Q2 = **모델이 가장 틀리는 자리(S 16e)를 골라 바꾸는 설계**인데 파일럿이 그대로 유효한가. 그 외: δΔE 의 파일럿 전이 가능성 · host (a) 의 셀 형상 유보(편차 ±1.3 GPa · yz 1.08) · 방향 판독 허용 범위 · 경보선 초과의 운영적 의미 |
 
 ## 🔴 모순 (status 는 대기인데 증거는 회신 수령)
 

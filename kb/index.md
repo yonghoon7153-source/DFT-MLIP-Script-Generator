@@ -1,15 +1,18 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 396
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 402
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 201건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 204건)
+- 2026-09-13 · `kb/reviews/codex_BP_prompt_static_pair_result_2026_09_13.md` — 회신 BP 요청 — 정적대조 2 SCF 실행 결과 (BO 조건 1 이행) · 파일럿 보고량 재질의 · 발송대기
 - 2026-09-12 · `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB) · 채택
 - 2026-09-12 · `kb/reviews/codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 프롬프트 — LPSCl@Li₂S 1층: 비정질 밀도 게이트의 기준을 무엇에 두는가 · 발송대기
 - 2026-09-12 · `kb/reviews/codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 회신 원문 — 1층 밀도 게이트: G4 재설계 필요, 그러나 seed1 합격·2층 진행은 반대 · 수령
+- 2026-09-12 · `kb/reviews/codex_BN_reply_cascade_rebuild_2026_09_12.md` — 회신 BN 접수 — NO-GO. 재건 방향 찬성, 카드 P0 5건 · 접수
+- 2026-09-12 · `kb/reviews/codex_BO_reply_cascade_rebuild_v2_2026_09_12.md` — 회신 BO 접수 — 조건부 GO (정적대조 2 SCF · 파일럿 30 런). 실행 전 수정 5 조건 · 접수
 - 2026-09-12 · `kb/syntheses/cathode_coating_computational_lineage.md` — 양극 코팅 계산 계보 — Wolverton → Ceder → Mo 라인과 우리 LPSCl 산화축의 관계 · 진행
 - 2026-09-11 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-11 · `kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11 · 진행
@@ -24,9 +27,6 @@
 - 2026-09-09 · `kb/reviews/codex_BJ2_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ2 — cascade 재설계 A′: 설계 다섯 칸부터 다시 · 깔때기는 계획칸만 · GO 전까지 안 돌립니다 · 초안
 - 2026-09-09 · `kb/reviews/codex_BJ2_reply_2026_09_09.md` — 리뷰 BJ2 회신 원문 — NO-GO(A′ 전체) / GO(B1 제외 + B3 축소) · P0 3건 · 재심 조건 7 · 원문보관
 - 2026-09-09 · `kb/reviews/codex_BJ2_response_draft_2026_09_09.md` — 리뷰 BJ2 회신 대응 초안 — P0 3건·정정 6건 전부 재현, 우리 오류. 재심 조건 7 수용 · 초안
-- 2026-09-09 · `kb/reviews/codex_BJ_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ — cascade 를 컨셉부터 다시 짭니다: 보고량 카드 §1–3 + 재설계안 A/B/C (GO 전까지 안 돌립니다) · 회신됨-NO-GO
-- 2026-09-09 · `kb/reviews/codex_BK_prompt_doping_question_2026_09_09.md` — 리뷰 요청 BK — 우리가 묻는 것이 무엇인가: 격자 치환 / 별도 코팅상 / 첨가상 (BJ 재작성의 전제) · 초안
-- 2026-09-09 · `kb/reviews/codex_BK_reply_2026_09_09.md` — 리뷰 BK 회신 — A 선택 수용 · 정정 다섯을 전부 재현했다 · 우리 규율 둘을 고친다 · 초안
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -206,9 +206,10 @@
 - `kb/results/vgcf_hbn_figure_plan.md` — VGCF/h-BN 원고 — 층수 연구를 어디에 둘 것인가 (2026-07-31 결정)
 - `kb/results/vgcf_hbn_gallery_mechanism_2026_07_30.md` — h-BN@VGCF — 209 meV 층수효과의 정체: confinement 확정 (2026-07-30)
 
-## reviews/ (119)
+## reviews/ (125)
 - `kb/reviews/ECERD2600097_review_notes.md` — 📝 리뷰 노트 — ECER-D-26-00097 (Fan 외, *Stability Issues in Sulfide-Based ASSB*)
 - `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성)  (2026-09-11 · 자동생성)
+- `kb/reviews/_superseded_BN_replan_2026_09_12.md` — 회신 BN 요청 — cascade 재실행 계획의 **선(先)심사**: go / no-go
 - `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09  (2026-09-09 · 진행)
 - `kb/reviews/codex_AA_prompt_stageA_v5_regate_2026_08_29.md` — Codex 재검토 요청 AA — 회신 Z 의 P0 8건 처리 후 Stage A v5 재게이트  (2026-08-29 · 발송 완료 — 회신 AA 접수, 후속은 codex_AB_prompt_…)
 - `kb/reviews/codex_AB_prompt_stageA_v9_regate_2026_08_29.md` — Codex 재검토 요청 AB — 회신 AA 의 P0 5건 + Q2 처리, 그리고 자체검토에서 나온 넷  (2026-08-29 · 회신 수령 (원문 파일 없음 — 근거: AD (Stage A v10)))
@@ -261,6 +262,11 @@
 - `kb/reviews/codex_BL_response_lpsocl_gate_ambiguity_2026_09_11.md` — 회신 BL 대응 — NO-GO 수용(추가 MD·C3 실행 0), 감사 GO 항목 전부 착수: 개정안(post-hoc)·C3 도구 2판·C6 원장 등록  (2026-09-11 · 진행)
 - `kb/reviews/codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 프롬프트 — LPSCl@Li₂S 1층: 비정질 밀도 게이트의 기준을 무엇에 두는가  (2026-09-12 · 발송대기)
 - `kb/reviews/codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 회신 원문 — 1층 밀도 게이트: G4 재설계 필요, 그러나 seed1 합격·2층 진행은 반대  (2026-09-12 · 수령)
+- `kb/reviews/codex_BN_prompt_cascade_rebuild_2026_09_12.md` — 회신 BN 요청 — cascade **재건** 계획의 선(先)심사
+- `kb/reviews/codex_BN_reply_cascade_rebuild_2026_09_12.md` — 회신 BN 접수 — NO-GO. 재건 방향 찬성, 카드 P0 5건  (2026-09-12 · 접수)
+- `kb/reviews/codex_BO_prompt_cascade_rebuild_v2_2026_09_12.md` — 회신 BO 요청 — 재건 카드 v2 · 정적대조·한 대비 파일럿 GO 요청
+- `kb/reviews/codex_BO_reply_cascade_rebuild_v2_2026_09_12.md` — 회신 BO 접수 — 조건부 GO (정적대조 2 SCF · 파일럿 30 런). 실행 전 수정 5 조건  (2026-09-12 · 접수)
+- `kb/reviews/codex_BP_prompt_static_pair_result_2026_09_13.md` — 회신 BP 요청 — 정적대조 2 SCF 실행 결과 (BO 조건 1 이행) · 파일럿 보고량 재질의  (2026-09-13 · 발송대기)
 - `kb/reviews/codex_B_neb_md_tools_2026_08_20.md` — 교차리뷰 B — NEB · MD · 도구 (codex 작업지시서)  (2026-08-20 · 리뷰대기)
 - `kb/reviews/codex_C_funnel_2026_08_20.md` — 교차리뷰 C v2.1 — cascade 깔때기는 잘 작동했나 (codex 2라운드 종료)  (2026-08-20 · v2.1 — codex 2라운드 종료 (manifest 지적 철회 ·…)
 - `kb/reviews/codex_D_symposium_talk_standard_2026_08_25.md` — 교차리뷰 D — 심포지엄 세션(덱+녹취) 표준 (codex 작업지시서)  (2026-08-25 · 리뷰완료-HOLD)
@@ -459,4 +465,4 @@
 ## elements/ — 118개 (생성물/템플릿, 목록 생략)
 ## templates/ — 3개 (생성물/템플릿, 목록 생략)
 
-## litdb/ — digest 258개 (정본 목록: litdb/INDEX.md)
+## litdb/ — digest 264개 (정본 목록: litdb/INDEX.md)

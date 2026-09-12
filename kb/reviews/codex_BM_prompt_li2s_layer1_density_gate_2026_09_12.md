@@ -9,8 +9,8 @@ verificationStatus: unverified
 explored: false
 authoredBy: agent
 effort: medium
-claimType: question
-evidenceScope: single-campaign
+claimType: prescriptive
+evidenceScope: multi-source-primary
 ---
 
 # 리뷰 BM — 1층 비정질 밀도 게이트

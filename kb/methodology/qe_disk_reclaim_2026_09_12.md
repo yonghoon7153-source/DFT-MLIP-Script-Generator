@@ -6,11 +6,13 @@ tags: [ops, disk, qe, kgy, gabia, neb, reclaim]
 status: 채택
 confidence: high
 verificationStatus: verified
+verifiedAt: 2026-09-12
+verifiedBy: self   # 문서가 기록한 실행 그 자체(kgy 306 GB 회수). 재검증한 것이 아니라 스키마가 요구하는 짝을 채웠다
 explored: false
 authoredBy: agent
 effort: medium
-claimType: procedural
-evidenceScope: single-machine
+claimType: prescriptive
+evidenceScope: single-source
 ---
 
 # QE 디스크 회수 절차
