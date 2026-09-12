@@ -32,13 +32,13 @@ targetVenue:
 | 3 | **Xiao 2019** Joule `10.1016/j.joule.2019.02.006` (Ceder × Samsung) | **SSB** 로 무대를 옮긴 첫 대규모 코팅 스크리닝 | 우리 계(황화물 SE)와 같은 무대 | ✅ `xiao2019_cathode_coating_screening.md` (474줄) |
 | 4 | **Nolan 2019** ACS Energy Lett `10.1021/acsenergylett.9b01703` (Nolan/Liu/**Mo**, UMD) — *Solid-State Chemistries Stable with High-Energy Cathodes* | **"안정"을 *전압이 아니라* `E_d = 0` 불리언으로 형식화** — 유사이원 상호분해에너지(끝점 준안정성 제거, **eV/atom**) 의 최솟값이 0 인가를, **양극의 리튬화·탈리튬화 두 이산 상태 각각**에 대해. **자체 DFT 0회**, **Materials Project** 에너지 + 상평형 조합론. 양극 8상태 × 접촉 고체 236종 = **1,888 쌍** 전수 | 🔑🔑 **계보 8편 중 처음으로 우리 *두 양*을 둘 다 갖고 있다.** ① **E_d ↔ 우리 `interface_reactivity`(−0.3227 eV/atom)** = **같은 양 + 같은 구현**(pymatgen `InterfacialReactivity(use_hull_energy=True)`) ⇒ 그 값의 **1차 문헌 원전이 [Zhu16]→본 논문으로 확정** ② **anodic limit(`Fig. S7`·`S9`·`S10` 축) ↔ 우리 2.256 V** = 같은 grand-potential·같은 기준(vs Li/Li⁺) — **그러나 정의를 안 적고 값도 안 준다**([Zhu15] 인용 승계, boxplot figure-read 뿐) ⇒ **2.256 V 의 직계 원전은 여전히 [Zhu15]→Mo/Ong/Ceder 2012**, 본 논문은 **형제 적용** ⛔ Ed 데이터셋에 **황화물 0·염화물 0** — 우리 계는 목록에 **없다** | ✅ `papers/nolan2019_chemistries_stable_high_energy_cathodes.md` (2026-09-12) |
 | 5 | **Nolan 2021** ENSM `10.1016/j.ensm.2021.06.027` (Nolan/**Wachsman**/**Mo**, UMD) — *Computation-guided discovery of coating materials … lithium garnet SE and high-energy cathodes* | **#4 의 자기인용 후속**(ref 41). 같은 `E_d` 기계를 **가넷 무대**로 옮기면서 셋을 더했다: ① **개방계(전압인가) 쌍둥이 식 (5)–(7)** ② **조성공간(Gibbs 삼각형) 전면 스캔** — 코팅은 점이 아니라 **영역** ③ **문턱형 선정 규칙** `\|E_d\|<0.05 eV/atom`. 자체 DFT 0·실험 0, MP + pymatgen + python-ternary, **ICSD id 보유 상만** | 🔑🔑 **계보 카드가 #4 에 남긴 물음 ②의 답이 여기 있다** — **Methods 식 (5) `μ_Li(φ)=μ⁰_Li−eφ`(기준 Li 금속) + 식 (6) `E_D^open`** 이 **본문에 인쇄**돼 있다 = **우리 ESW 정의가 이 계보에서 처음 활자가 된 편**. 그리고 **`anodic/cathodic limit` 수치가 Sup2 XLSX 열에 89종 전부**(μ_Li eV → `φ=−μ_Li/e`; `Li₃PO₄` **0.69–4.20 V** 가 [Zhu15] 0.68–4.21 V 재현). ⛔ 그래도 *"limit ≡ E_D^open 이 0 을 벗어나는 φ"* **문장은 없고** φ 는 **3 V·5 V 두 점뿐**. ⛔ 무대가 **가넷** — 황화물·현대 할라이드 SE 는 `Fig. S3` 에도 **0종** | ✅ `papers/nolan2021_garnet_cathode_coating.md` (2026-09-12, **Sup2/Sup3 XLSX 9시트 전수 재분석 + `Table 1`·`Table 2` 좌표 복원 + `Fig. S4`·`Fig. S5` 픽셀 캘리브레이션**) |
-| 6 | **Honrao 2021** Sci Rep `10.1038/s41598-021-94275-5` | **해석가능 ML** + HT 다물성 스크리닝 (SSE·**음극** 코팅) | cascade 축의 방법 참고 · 양극 아님 | ⏳ 대기 |
+| 6 | **Honrao 2021** Sci Rep `10.1038/s41598-021-94275-5` — *Discovery of novel Li SSE and anode coatings using interpretable ML and HT multi-property screening* (Honrao/Radhakrishnan\*/Lawson\* — **NASA Ames × Nissan**) | ⚠ **세트의 후속이 아니라 *분기*다.** 무대를 **음극(Li 금속)** 으로 옮기면서 **#3–#5 가 쌓은 계면 열역학(`E_d`·pseudo-binary)을 통째로 버린다**(계면 계산 **0건**). 남은 공통분모는 **grand-potential 창** 하나. 대신 새로 세운 것 셋: ① **전도도를 1차 게이트로**(softBV 3D 장벽 ≤0.5/1 eV) ② **`V_red = 0 V` 불리언** 판정 ③ **해석가능 ML**(GB + SHAP + PFI). 규모 **MP 15,446종**(창은 8,924종) → SE **>250** · 코팅 **26**. 자체 DFT 0 · 실험 0 · **공개 기계판독 데이터 0본** | 🔑🔑 **계보 6편 중 cathodic limit 을 *그림으로 정의*하는 유일한 편**(`Fig. S2`: *"Li uptake = 0 평탄구간"*) ⇒ 그 정의로 재면 우리 `reduction_limit_V` **1.242 V** 는 그 양이 **아니고** `ocv_self_decomposition_V` **1.717 V** 가 그 자리다(`Li₆PS₅I` **1.722** · `Li₃PS₄` **1.702–1.722** figure-read). 🔑 **재현 교차검증 3건 전원 통과**(`Li₃PO₄` 0.690 ↔ [Nolan21] 0.69 ↔ [Zhu15] 0.68 · `Li₂SO₄` ≈1.55 ↔ 1.57 · `Li₇La₃Hf₂O₁₂` 0.469 ↔ 0.470). ⛔⛔ **우리 계를 배제한다 — 이유가 전도도가 아니다**: `E_hull ≤30 meV` 가 **`Li₆PS₅Cl`·`Li₆PS₅Br` 을 자르고**, `0.5 eV` softBV 문턱이 **`Li₃InCl₆`(0.59)·`Li₃ScCl₆`(0.56)·`Li₃YBr₆`(0.55)** 를 자른다 | ✅ `papers/honrao2021_interpretable_ml_sse_anode_coatings.md` (2026-09-12, **그림 12장 실독 + `Fig. S2`·`Fig. 1` 픽셀 캘리브레이션**) |
 | 7 | **Nolan/Zhu/He/Bai/Mo** — Computation-Accelerated Design (리뷰, 31 p) | 4·5 의 **방법 교과서** | 정의를 확인할 때 여기부터 | ⏳ 대기 |
 | 8 | **Banerjee/Wang/Meng** — Understanding interface stability in SSB (*Nat. Rev. Mater.* `10.1038/s41578-019-0157-5`, 22 p · 1저자 Yihan Xiao) | 계면 안정성의 **실험·계산 통합 지도** | Cronk 2026(같은 Meng 그룹)과 이어진다 | ⏳ 대기 |
 | **9** | **Lu 2024** *ACS Nano* **18, 7334−7345** — *Superior Low-Temperature ASSB Enabled by High-Ionic-Conductivity and Low-Energy-Barrier Interface* (Pushun Lu · Sheng Gong 공동1 … Hong Li, **Fan Wu\*** · IOP CAS) | ⚠ **축이 다르다** — 양극 코팅 설계가 아니라 **저온(−30 °C) ASSB 계면 동역학**. Ni90(LiNi₀.₉Co₀.₀₅Mn₀.₀₅O₂) + **Li₆PS₅Cl** 계면이 불안정 → CEI 나쁨 → Li⁺ 수송 느림. **Li₂ZrO₃ 코팅**으로 계면 Ea **60.19 → 41.39 kJ/mol**, **Li₃InCl₆ 할라이드 SE** 로 바꾸면 **25.79 kJ/mol** (÷96.485 = 0.624 → 0.429 → **0.267 eV**), −30 °C 용량유지 26.9 % | ⭐ **우리 계다** — comp1 과 같은 SE, 고Ni 양극 상대(Zuo 2023 과 같은 자리). ⛔ 이 Ea 는 **EIS 계면 전하이동** 이고 우리 0.180 eV 는 **벌크 Li 확산**이다 — 같은 표 금지, 방향·메커니즘만 소환값 | ⏳ 대기 (본문 2026-09-12 수령, zip 경로) |
 
 **흐름 한 줄**: 액체전해질 코팅 열역학(1) → 고속 스크리닝(2) → **고체전해질로 이식**(3) → 고전압 양극 양립성 목록(4)
-→ 계 확장(5, 가넷) · 방법 확장(6, ML) · 교과서화(7·8).
+→ 계 확장(5, 가넷) · **분기(6, 음극 + ML — 계면 열역학을 버리고 전도도 게이트를 얻는다)** · 교과서화(7·8).
 
 ## Argument — 이 세트를 먹일 때 **반드시 물어야 할 것 넷**
 
@@ -49,6 +49,7 @@ targetVenue:
 3. **무대가 액체인가 고체인가.** 1·2 는 액체 LIB 다. 우리 계는 황화물 SE 다. 같은 수식을 써도 **막으려는 실패 모드**
    (HF 용출 vs 계면 분해층)가 다르다.
 4. **양극 코팅인가 음극 코팅인가.** 6 은 음극 코팅이다 — 1저자 요청은 *"양극 관련"* 이었으므로 그 사실을 적고 분류한다.
+   → **#6 digest 의 답(2026-09-12)**: 음극 코팅이 맞고, **양극이라는 말이 결론에 한 번도 안 나온다**. 게다가 *축이 뒤집히는 것보다 더 큰 변화*는 **계면 열역학이 통째로 빠진 것**이다(아래 #6 절).
 
 ## Answer — #1 digest 가 답한 것 (2026-09-11)
 
@@ -148,6 +149,67 @@ targetVenue:
   그리고 **`Fig. 3` 오른쪽 주기율표 인셋 군번호가 전부 1씩 어긋나 있다**(Zn=11 로 인쇄; 4× 확대 확인).
   ✅ 공정: **그림 주석 ↔ 공개 XLSX 가 4/4 일치** — #4 의 `Table S1` 8종 결손 같은 문제는 **없다**.
 
+## Answer — #6 digest 가 답한 것 (2026-09-12) ★ 세트의 분기점 · cathodic limit 의 *그림 정의*
+
+- **Q1 "안정"의 조작적 정의** — **#6 = 서로 다른 세 문턱의 AND 이고, 계면은 아예 없다.**
+  · **이온이동** `softBV 3D 장벽 ≤ 0.5 eV`(SE) / `≤ 1 eV`(코팅) — 본문 표현이 *"arbitrary cutoff"* 다.
+  · **Li 금속 안정성** = **`V_red(vs Li/Li⁺) = 0 V` 정확히** — **불리언**. [Nolan21] 이 `E_d=0` → `|E_d|<0.05` 로 *완화*한 것과 **반대 방향**이다.
+  · **창** `≥ 1 V`(`Table S1` 캡션) / *"wider than 1 V"*(본문) — 미세 불일치.
+  · **열역학·전자** `E_hull ≤ 30 meV/atom`, `E_g ≥ 1 eV`.
+  ⛔ **`E_d`·pseudo-binary·상호분해에너지가 0건**이다. #3–#5 의 헤드라인 양이 #6 에는 **없다**.
+  ⛔ 그리고 코팅 요건을 *"stability against Li metal on one side, and **the electrolyte on the other**"* 로 **양면 선언**해 놓고
+     **전해질 쪽 면을 한 번도 계산하지 않는다** — Li 쪽조차 *"자기 창의 아랫변이 0인가"* 라는 **단독 물성**으로 대신한다.
+- **Q2 계보 — ★ 정의의 *그림판*이 여기 있다 (그러나 *활자*는 여전히 #5 다).**
+  · ✅ **`Fig. S2`** 가 창을 *"the voltage range corresponding to **zero Li uptake**"* 로 정의하고 계단마다 산물을 적는다
+    ⇒ **cathodic limit = Li uptake 0 평탄구간의 *아랫변*, anodic limit = 윗변.** 계보 6편 중 이것을 **그림으로 보여 주는 유일한 편**이다
+    (#4 는 boxplot 만, #5 는 식 + XLSX 열만).
+  · ⛔ **그런데 식은 오히려 흐려진다**: 본 편 식 (4) `eφ = E − μ_Li·N_Li` 는 **grand potential Φ 와 전극전위 eφ 를 한 줄에 뭉갠다**
+    (`μ_Li = μ⁰_Li − eφ` 가 없다). 식 (2) 는 조판에서 **지수 기호가 빠져** 있다.
+    ⇒ **우리 2.256 V 정의의 인용처는 계속 [Nolan21] Methods 식 (5)(6)**, 직계 원전은 [Zhu15] → Mo/Ong/Ceder 2012.
+  · ✅ **기계의 재현성은 교차검증 3건 전원 통과**(본 digest 픽셀 ↔ 남의 XLSX/인쇄값):
+    `Li₃PO₄` **0.690** ↔ [Nolan21] **0.69** ↔ [Zhu15] **0.68** · `Li₂SO₄` **≈1.55** ↔ [Nolan21] **1.57** · `Li₇La₃Hf₂O₁₂` **0.469** ↔ `Table S1` **0.470**.
+    ⇒ **서로 다른 논문·구현·hull 세대의 grand-potential 이 0.02 V 안에서 일치한다.**
+  · 🔑 **우리 쪽 미해결 물음에 증거 1건**: 그들 정의로 잰 티오인산염/아지로다이트의 cathodic limit 은 **1.70–1.72 V**
+    (`Li₃PS₄` 1.702 `Fig. S2` / 1.722 `Fig. 1`, **`Li₆PS₅I` 1.722**) — **우리 `ocv_self_decomposition_V` 1.717 V 가 그 자리이고
+    `reduction_limit_V` 1.242 V 는 그 양이 아니다.** ⚠ 판정은 아니다(할로겐 다름·hull 세대 다름·우리 코드 정의 미확인).
+    **작업거리(추가 DFT 0)**: `tools/oxidation` 으로 comp1 의 **Li uptake 프로파일 전체**를 `Fig. S2` 형식으로 그린다.
+- **Q3 무대** — **Li 금속 음극 ↔ SE**. 실패 모드가 #1–#5 와 **반대**다(적이 산화가 아니라 **Li 의 환원력**).
+  산물이 `Li₂S`·`Li₃P`·`LiCl` 로 **우리 SEI 목록과 같다** — `Fig. S2` 의 환원 4계단(1.702→1.262→1.156→0.926→0.867)이
+  우리 `oxidation_stability.json` 주석의 **P⁵⁺ → P → LiP → Li₃P** 순서를 **그대로 재현**한다(외부 확인 1건).
+- **Q4 양극/음극** — **음극 전용**. 양극 인용은 서론 한 문단(ref 54·55·56 = [Xiao19]·[Aykol16]·[Nolan19])뿐이고 **방법은 계승하지 않는다**.
+- 🔑 **#6 이 답한 계보 물음 — *산물 물리상태 게이트*는 6편 연속 미복원.** 본 편은 아예 **언급이 0** 이고,
+  게다가 **`LiS₄`**(우리가 GG phase set 으로 명시 배제하는 MP 상)를 `Li₃PS₄` 의 산화 첫 산물로 인쇄한다.
+  ⇒ 우리 `interface_reactivity` 산물 파싱 열이 **넷**이 된다: ⓐ 기체·저융점 ⓑ Li 소모 몰수 ⓒ 저장조상 제외 **ⓓ 의심 MP 상 플래그**.
+- 🔑 **#6 이 답한 또 하나 — "게이트가 Li 전도체를 배제하나" 에는 *세 가지 다른 함정*이 있다.**
+  ⓐ **[Aykol16]**: 전도체를 **잘랐다**(`−E_c>3.5 V` → `Li₂ZrO₃`·`LiAlO₂`) ⓑ **[Nolan21]**: 전도도를 **안 봤다**(`Table S4` 가 스스로 10⁻¹⁵~10⁻¹⁸ S/cm)
+  ⓒ **[Honrao21]**: 전도도를 **1차 게이트로 세웠는데도 우리 계를 잃는다** — ① **`E_hull ≤ 30 meV` 가 `Li₆PS₅Cl`·`Li₆PS₅Br` 을 자르고**
+  (`Li₆PS₅I` 통과, LGPS 32 meV 탈락) ② **`0.5 eV` softBV 문턱이 `Li₃YBr₆` 0.55·`Li₃ScCl₆` 0.56·`Li₃InCl₆` 0.59 를 전부 자른다**.
+  ⚠ 그런데 논문 자신이 *"softBV barriers tend to be overestimated"*(구조 완화 없음) 라고 적고, **`Li₃InCl₆` 는 같은 논문 `Table 4` 에서
+  DFT-MD 가 빠르다고 판정한 물질**이다 = **자기 데이터 안의 위음성**.
+  ⇒ 원고에 쓸 정확한 문장: *"HT 스크리닝이 우리 계를 빠뜨리는 원인은 **무질서를 못 담는 `E_hull` 문턱**과 **완화를 못 담는 BV 프록시**다."*
+- 🔑 **"Interpretable ML" 의 실체 (1저자 물음)** — **SHAP(개별 예측 분해) + PFI(전역 중요도) 두 층이 전부**이고,
+  둘 다 **모델에 대한 설명**이지 물질에 대한 설명이 아니다. 특징이 물리적으로 읽히는 것(`SPF`·`DLFS`·`Li` 분율·`SNC`)은 **진짜 강점**이고
+  `Table 3`(0.86 vs Coulomb matrix 0.72 / XRD 0.70)이 그 값어치를 뒷받침한다. **그러나 인과 검증은 치환 일화 2건뿐이고 그 둘도 깨져 있다**:
+  *"**by simply changing the SPF**"*(나머지 21특징 고정 = 물리적으로 불가능한 입력) + `LSiPS 0.457` 은 **모델 출력이 아니라 softBV 계산값**
+  (`Fig. 1` 마커 0.456, 본 digest 픽셀). ✅ 공정하게: 논문 스스로 *"do not necessarily provide causality"* 라고 물러선다 — **주장 크기는 정직**.
+  ⛔⛔ **가장 아픈 곳**: 코팅 판정은 **불리언(`V_red=0`)** 인데 훈련은 **회귀**이고, `Fig. S11a` 확대에서 **진짜 0 V 인 화합물이 ≈0.8 V 까지 예측**된다
+  ⇒ **이 회귀로는 자기 논문의 스크리닝을 재현할 수 없고, 분류 지표를 한 번도 보고하지 않는다.**
+  🔑 **우리 cascade 에 그대로 옮겨지는 규율: 게이트가 불리언이면 회귀 R² 는 그 게이트의 성능을 보증하지 않는다.**
+- ⚠ **본문↔그림/데이터 어긋남 12건**(digest §10). 인용에 실제로 걸리는 **4건**:
+  ① **초록 ↔ `Table 5` 가 R² 의 축을 서로 뒤집어 적는다**(0.95/0.92 를 초록은 산화/환원, 표는 환원/산화) — **축을 지정해 인용하면 50 % 확률로 틀린다**
+  ② **`LiF` 장벽 0.241(`Fig. 1`·`S4` 픽셀) ↔ 0.536(`Table S1`)** — 0.536 이면 그 그림들의 `≤0.5 eV` 게이트 위반. (같은 상황인 `LiCl` 은 본문이 폴리모프 차이를 **적어 두었는데** `LiF` 는 침묵)
+  ③ **`Li₃PS₄` 창 윗변 2.2 V(본문·SI 캡션 두 곳) ↔ 2.360 V(`Fig. S2` 픽셀)**
+  ④ **질화물 서사 역전** — 서론(ref 57 Zhu 2017)·`Fig. S6` 캡션이 질화물 코팅을 밀어 놓고, `Table S1` 질화물은 2종뿐이며
+     `V_red=0` 질화물 **6종**(`Li₃N`·`Li₃BN₂`·`Li₃AlN₂`·`Li₂SiN₂`·`Li₃ScN₂`·`Li₃YN₂`)이 **전원 목록에 없다**(설명 0).
+     같은 유형으로 **`Li₉S₃N`**(초록 헤드라인 후보, `V_red`=0.000)도 목록에 없다. ⇒ *"이 논문은 질화물 코팅을 지지한다"* 는 **오인용**이다.
+- ⚠ **계보의 *숨은 필터* 패턴이 #6 에서 가장 심하다**: ① *"filter out **most** d-/f-block"* — 규칙 없음, 실제로 **Ti·Sc·Y·Zr·Hf·Ta·La·Pr·Er·Bi 가 살아남는다**
+  ② 본문 *"over 250"* ↔ `Fig. S3–S6` 마커 **137개**(본 digest 계수) ③ **기계판독 데이터 공개 0본**([Aykol16] CSV 2본·[Nolan19]/[Nolan21] XLSX 와 정면 대비).
+- ★ **부수 소득 — 폴리모프 민감도 2.1× 실측**: 같은 `LiCl` 이 **0.349 eV**(mp-1185319, `Table S1`) ↔ **0.735 eV**(mp-22905, `Table 4`).
+  그런데 SE 게이트가 **0.5 eV** 라 **구조 선택이 통과/탈락을 가른다**. 우리 BVSE 규율(*"정량·순위는 원본 주기셀 값만"*)의 **외부 실증**.
+- ★ **우리 계 인접 좌표 확보(figure-read, 문헌 소환값)**: `Li₆PS₅I`(1.722 V, 0.251 eV) · `Li₃PS₄`(1.722, 0.308) · `Li₇P₃S₁₁`(2.279, 0.294) ·
+  **`Li₆PClO₅`(= Li₆PO₅Cl, 산소 아지로다이트) 0.690 V, 0.467 eV** ← 황화물 아지로다이트보다 `V_red` 가 **1.03 V 낮다**(우리 LPSOCl 방향의 단서 1점, **방향만**) ·
+  LLZO(0.050, 0.495) — **0 이 아니라서 코팅 목록에서 빠진다**(불리언 게이트의 엄격함 실증).
+
 ## Counter-arguments
 
 - **"계보를 세워 봐야 우리 값은 우리 값이다."** — 맞다. 이 카드는 우리 값을 바꾸지 않는다.
@@ -162,11 +224,12 @@ targetVenue:
 - ~~Lu 본문이 없다~~ → **2026-09-12 수령** (zip 으로 왔다 — PDF 직접 업로드는 계속 다른 파일 바이트가 도착했다).
   **세트 9편 전부 본문 확보.** ⚠ 다만 이 편은 축이 다르다(저온 계면 동역학) — 양극 코팅 계산 계보의 **8편과 나란히 놓지 않고** 별 행(#9)으로 둔다.
 - 우리 `oxidation_stability.json` 의 반응에너지 정의가 문서 어디에 적혀 있는지 아직 이 카드에 안 옮겼다.
-- 8편 중 **3편**의 digest 가 아직 없다(#1·**#2**·**#4**·**#5** 완료, #3 기존) — 순차 진행 중(**#6·#7·#8 남음**).
+- 8편 중 **2편**의 digest 가 아직 없다(#1·#2·**#4**·**#5**·**#6** 완료, #3 기존) — 순차 진행 중(**#7·#8 남음**).
 - ~~Aykol 2016 본문이 없다~~ → **#2 digest 완료(2026-09-12)**. 부수 소득: **CSV 2본의 스키마 확정 + 깔때기/랭킹 독립 재현**(우리 스크리닝 대조표에 `HHI_R`·`HHI_P` 열을 추가 계산 0 으로 붙일 수 있다).
 - ~~**새로 생긴 물음**: #2 가 #1 의 **산물 물리상태 게이트**를 잃어버렸다. #4–#7(Mo 라인)이 복원하는지 확인할 것.~~
   → **#4 의 답 = 복원하지 않았다**(2026-09-12). `O₂` 가 고체와 같은 자격으로 상평형에 들어간다.
-  → **#5 의 답도 "복원하지 않았다"**(2026-09-12): `O₂` 는 물론 **`Li` 금속까지 5 V 산물로 인쇄된다**(`Fig. S9a`). **#7 에서 마지막으로 확인할 것.**
+  → **#5 의 답도 "복원하지 않았다"**(2026-09-12): `O₂` 는 물론 **`Li` 금속까지 5 V 산물로 인쇄된다**(`Fig. S9a`).
+  → **#6 의 답도 "복원하지 않았다"**(2026-09-12): 물리상태 **언급 자체가 0** 이고, 게다가 **`LiS₄`**(우리가 명시 배제하는 MP 상)를 산화 첫 산물로 인쇄한다. **#7 에서 마지막으로 확인할 것.**
 - **새로 생긴 물음 (2026-09-12, #4 digest 발)**: ① `Fig. S7`·`S8` 의 anodic/cathodic limit 원자료는 자매논문 **Wang/Bai/Nolan/Liu/Gong/Sun/Mo, *Angew* 2019, 58, 8039** 로 보인다 — **그 편이 Li–Cl/Li–Br 계의 grand-potential 창을 갖고 있어 우리 2.256 V 와 *직접* 비교 가능할 가능성이 높다**(세트 밖이지만 다음 우선순위 후보). ~~② **#7 리뷰가 anodic limit 의 식을 적어 두었을 것**~~ → **#5 가 먼저 답했다**(2026-09-12): [Nolan21] **Methods 식 (5)(6)** 이 그 식이다. #7 은 이제 *확인*이지 *확정*이 아니다. ③ 우리 `−0.3227 eV/atom` 이 그들 데이터셋 **최악 구간**(−0.29…−0.53)에 해당하는데 이것이 *황화물이라서*인지 *hull 세대 차이*인지 — **대조 잡 1건**(같은 우리 코드로 `Li₃PO₄+LiCoO₂` 를 돌려 **0 이 나오는지**)으로 즉시 갈린다.
 - **새로 생긴 물음·작업거리 (2026-09-12, #5 digest 발)**: ① ★ **ESW 대조 잡** — 우리 `tools/oxidation` 으로 `Li₃PO₄`(0.69–4.20)·`Li₂SO₄`(1.57–4.66)·`Li₂ZrO₃`(0.34–3.41 V)를 돌려 [Nolan21] XLSX 값을 재현하는지 본다. 재현되면 우리 2.256 V 가 *"같은 기계에서 나온 값"* 이라는 주장이 **실측으로** 보강되고, 어긋나면 그 차이가 **hull 세대차의 크기**다. ⚠ 보고량 카드 먼저(단일상 창 vs min-over-x 를 섞지 않는다). ② **`Fig. S5` 형식의 μ_Li 창 그림을 우리 계로**(comp1·modelc·+B₂O₃·LPSOCl·LiCoO₂, **우리 값만**). ③ **cascade 후보표에 "조성 여유" 열** — `interface_reactivity.py` 를 조성 격자 루프로 감싸면 `E_d≈0` 영역의 넓이가 나온다. ④ **`Li₂ZrO₃` 3판정 표**([Aykol16] ⛔ / [Nolan21] ✅ / [Lu24] 실험 ✅).
 
@@ -176,3 +239,4 @@ targetVenue:
 - `litdb/papers/xiao2019_cathode_coating_screening.md` (세트 중 유일한 기존 digest)
 - `litdb/papers/zuo2022_chlorination_cathode_interface.md` (기준전극 혼용 사고의 선례)
 - `db/properties/constrained_esw_cl_scan.json` · `db/properties/oxidation_stability.json`
+- **새로 생긴 물음·작업거리 (2026-09-12, #6 digest 발)**: ① ★★ **`reduction_limit_V` 정의 감사** — `tools/oxidation` 의 `get_element_profile` 로 comp1 의 **Li uptake 프로파일 전체**를 [Honrao21] `Fig. S2` 형식으로 그려, **1.242 V 와 1.717 V 중 어느 것이 문헌의 cathodic limit 인지** 확정한다(추가 DFT 0). 확정되면 `comparison_vs_ours.md` 축 B 의 **digest Q3** 가 닫힌다. ② **cascade 기술자 4개 이식 검토** — `SPF`(부격자 충전율)·`DLFS`(Zeo++)·Li 분율·`SNC`. 우리 BVSE 채널% 와 같은 물리를 다른 축으로 잰다. ⚠ 무질서 계는 **배열 평균** 필요. ③ **불리언 게이트 지표 규율** — 우리 cascade 의 선별 단계에 **분류 지표**(재현율/정밀도)를 회귀 R² 와 **따로** 낸다(#6 의 `Fig. S11a` 실패를 반복하지 않기 위해). ④ **`LiS₄` 같은 "의심 MP 상" 플래그 열**을 `interface_reactivity` 산물 파싱에 추가(기체·Li 몰수·저장조상에 이어 **네 번째** 열).
