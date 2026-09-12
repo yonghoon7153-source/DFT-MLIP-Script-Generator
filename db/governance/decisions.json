@@ -1778,6 +1778,50 @@
     "decision_digest": "sha256:715275c4efcc4236e047ef68f00c775593871e47366cdc76db04ededeb458754",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-12-cascade-s1-contract",
+   "schema_version": 2,
+   "kind": "estimand",
+   "scope": "cascade.s1_generation",
+   "slot": "cascade_s1_generation_contract",
+   "applies_to": {
+    "systems": [
+     "lpscl*"
+    ],
+    "tasks": [
+     "cascade_design_generation"
+    ],
+    "methods": [
+     "*"
+    ],
+    "use_cases": [
+     "*"
+    ]
+   },
+   "title": "cascade S1 생성 계약 — 부모 자리 승계 · 전체 보상 수지 · 농도 분자·분모 · 실패 시 중단",
+   "statement": "cascade 설계 생성은 ① 치환 **전** host 에서 굳힌 부모 자리 지도를 승계해 자리를 고르고(현재 배위로 재분류하지 않는다. 배위는 관측값으로만 남긴다), ② 양이온·**음이온**·Li 공공·Li 침입을 모두 합산한 형식전하 수지가 0 이어야 하며 보상 실패는 중단이고, ③ 농도는 분자(도펀트 식단위×multiplicity)와 분모(셀 안 host 식단위)를 적어 정수가 아니면 기본적으로 **생성을 거부**한다(승인 양자화만 예외, 묵시적 최소 1 unit 없음, 0 unit 은 무도핑 대조군이라 도핑 후보 수에서 분리), ④ 계약 실패는 물리적 탈락과 분리해 센다. 이 결정은 생성 규칙만 정하며 캠페인 실행을 승인하지 않는다.",
+   "record": "db/properties/cascade_s1_contract_amendment_2026_09_12.json",
+   "card": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
+   "supersedes": [],
+   "enforcement": "생성기는 tools/cascade/s1_contract.py 의 계약을 쓰고, 개정안 `기계_판독` 블록과 다르면 시작하지 않는다(fail-closed). 부모 지도 없이 enforce 로 돌면 멈춘다. 옛 경로는 --s1_contract legacy_bypass 로만 가능하고 실행 로그·요약에 낙인이 남으며 계약본 산출물과 섞지 않는다. 회귀시험: tools/cascade/s1_contract.py --selftest (32/32) · tools/doping/substitute_compound.py --selftest (7/7).",
+   "decision_state": "proposed",
+   "proposed_by": [
+    {
+     "actor_type": "agent",
+     "actor_id": "claude",
+     "date": "2026-09-12"
+    }
+   ],
+   "status_history": [
+    {
+     "at": "2026-09-12",
+     "state": "proposed",
+     "by": "agent",
+     "note": "BJ2 재심 조건 #3. 실측 3건(S_16e 16→8 · NdCl₃ net −2 vs +1 · x=0.1→1 unit=0.25)으로 결함을 재현하고 고쳤다. D_rel 측정 0건 시점."
+    }
+   ],
+   "status": "proposed"
   }
  ]
 }
