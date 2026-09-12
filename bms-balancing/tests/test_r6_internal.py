@@ -252,7 +252,9 @@ def test_i6d_06_section_4_0_states_the_tolerance_behind_its_counts():
     """[R6 내부 DF-06] "6 개에서 목적함수가 나빠졌다 · 17 조합은 더 좋아졌다 · 나빠진 6 개는 전부 w_dqdv=1" 은 상대
     변화 1e-9 초과만 셀 때의 숫자다 — 부호만 보면 10·22·0 이고 w=0 도 (1e-9 아래로) 나빠진다. 본문에 문턱이 없었다."""
     k = lambda r: (r["half_cell"], r["si"], float(r["w_dqdv"]))
-    d1 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009.csv")}
+    # ⚠ U14-05: 수정 **전** 산출은 `out/archive/matrix_300_0009_premultistart.csv` 에 있다 — U14 재실행이
+    #   `out/matrix_300_0009.csv` 를 덮으면서 그 자리의 v1 이 사라졌다 (재실행은 수정된 코드라 v2 를 재현한다).
+    d1 = {k(r): float(r["obj"]) for r in _rows("out/archive/matrix_300_0009_premultistart.csv")}
     d2 = {k(r): float(r["obj"]) for r in _rows("out/matrix_300_0009_v2.csv")}
     def count(tol):
         w = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] > tol]; b = [kk for kk in d2 if (d2[kk] - d1[kk]) / d1[kk] < -tol]
@@ -288,10 +290,10 @@ def test_i6d_08_section_4_1_free_reference_width_is_the_width_of_the_values():
 
 def test_i6d_09_section_3_3_cites_the_matrix_row_that_actually_matches():
     """[R6 내부 DF-09] `best` 의 LAM/LLI 가 "`out/matrix_300_0009.csv` 의 GITT/Li/w0 행과 일치" — 비트 단위로 같은
-    것은 `_v2` 행(Δ 0) 이고 v1 행은 Δ 5.5e-5 %p (§4-0 이 말하는 옛 multistart 산출)."""
+    것은 `_v2` 행(Δ 0) 이고 v1 행은 Δ 5.5e-5 %p (§4-0 이 말하는 옛 multistart 산출 — U14-05 로 archive 에 옮겼다)."""
     bm = json.loads((OUT / "degeneracy_300_0009_Li_v2.json").read_text(encoding="utf-8"))["best_modes_percent"]
     pick = lambda p: next(r for r in _rows(p) if r["half_cell"] == "GITT" and r["si"] == "Li" and float(r["w_dqdv"]) == 0)
-    d1 = max(abs(bm[k] - float(pick("out/matrix_300_0009.csv")[k + "_pct"])) for k in bm)
+    d1 = max(abs(bm[k] - float(pick("out/archive/matrix_300_0009_premultistart.csv")[k + "_pct"])) for k in bm)      # U14-05: 수정 전 판은 archive 에
     d2 = max(abs(bm[k] - float(pick("out/matrix_300_0009_v2.csv")[k + "_pct"])) for k in bm)
     assert d2 == 0.0 and d1 > 1e-6, (d1, d2)
     sec = _live(_section(_doc("FINDINGS.md"), "### 3-3"))

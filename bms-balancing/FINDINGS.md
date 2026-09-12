@@ -1123,8 +1123,9 @@ LAM_NE 8.5789 %) 이 **둘 다 1 % 안**이라 그것만으로 이미 **1.5924 %
     best 에서 LAM_PE 6.3562 % · LAM_NE 7.8957 % · LLI 15.7001 %
 
 `ref_p` 는 §1-1 의 blind 재적합 결과와 정확히 같고, `best` 의 LAM/LLI 는
-`out/matrix_300_0009_v2.csv` 의 GITT/Li/w0 행과 일치한다 (비트 단위 Δ 0; 전 판이 가리킨 v1
-`matrix_300_0009.csv` 행은 Δ 5.5e-5 %p — §4-0 의 옛 multistart 산출, R6 내부 DF-09).
+`out/matrix_300_0009_v2.csv` 의 GITT/Li/w0 행과 일치한다 (비트 단위 Δ 0; 전 판이 가리킨 v1 행은 Δ 5.5e-5 %p —
+§4-0 의 옛 multistart 산출로, U14 재실행이 그 이름을 덮어써서 지금은 `out/archive/matrix_300_0009_premultistart.csv`
+에 있다, R6 내부 DF-09 · U14-05).
 
 | mode | 철회한 값 (구름) | 이번 구름 | **최종 (합집합)** | 범위 | 배수 |
 |---|---:|---:|---:|---|---:|
@@ -1187,7 +1188,7 @@ LAM_NE 는 프로파일이 제약 최적화가 못 간 곳까지 갔다 (하한�
 
 ### 4-0. `multistart` 수정이 답을 최대 5.9 %p 움직였다
 
-전 판 `out/matrix_300_0009.csv` 는 **비정상 종료한 optimizer 결과를 성공한
+전 판 (`out/archive/matrix_300_0009_premultistart.csv` — U14-05 로 옮겼다, 아래) 은 **비정상 종료한 optimizer 결과를 성공한
 fit 으로 채택하던** 코드로 만든 것이다 (리뷰 [A3]). 그것만 고치고 다시 돌린
 결과, 32 조합 중 **8 개에서 LAM/LLI 가 1 %p 넘게 움직였다.** 최대치:
 
