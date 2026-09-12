@@ -203,13 +203,26 @@ def make_calc(device="cuda", turbo=False):
     return calc
 
 
-def pressure_GPa(atoms):
-    """순간 압력 [GPa] = -tr(σ)/3. 응력을 못 주는 계산기면 NaN (조용히 0 으로 적지 않는다)."""
+def pressure_GPa(atoms, include_ideal_gas=True):
+    """순간 압력 [GPa] = -tr(σ)/3.
+
+    ⛔ 기본으로 **운동 항(ideal-gas)을 포함한다** — ASE 의 NPTBerendsen 이 제어하는 양이 그것이다.
+    virial 만 찍으면 81원자·300 K·1283 Å³ 에서 NkT/V = 0.26 GPa 를 빠뜨려, 목표가 0 GPa 인데
+    −0.30 으로 보인다. 2026-09-12 에 그 때문에 **배로스탯이 고장난 줄 알았다** (실제 총 압력은
+    −0.05 GPa 로 정상이었다). 응력을 못 주는 계산기면 0 이 아니라 NaN.
+    """
     try:
-        sig = np.asarray(atoms.get_stress(voigt=True), float)
+        try:
+            sig = np.asarray(atoms.get_stress(voigt=True, include_ideal_gas=include_ideal_gas), float)
+            return float(-(sig[0] + sig[1] + sig[2]) / 3.0 * EV_A3_TO_GPA)
+        except TypeError:                                   # 구버전 ASE — 손으로 더한다
+            sig = np.asarray(atoms.get_stress(voigt=True), float)
+            P = -(sig[0] + sig[1] + sig[2]) / 3.0 * EV_A3_TO_GPA
+            if include_ideal_gas:                           # P_kin = (2/3)·E_kin/V = NkT/V
+                P += 2.0 / 3.0 * atoms.get_kinetic_energy() / atoms.get_volume() * EV_A3_TO_GPA
+            return float(P)
     except Exception:
         return float("nan")
-    return float(-(sig[0] + sig[1] + sig[2]) / 3.0 * EV_A3_TO_GPA)
 
 
 def cell_widths_A(cell):
@@ -278,14 +291,15 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
                        taut=BARO["taut_fs"] * units.fs, taup=BARO["taup_fs"] * units.fs,
                        compressibility_au=BARO["compressibility_au"])
     n = int(round(ps * 1000 / dt_fs)); save_int = max(1, int(round(save_ps * 1000 / dt_fs))); _t0 = time.time()
-    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa\n")
+    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa,P_virial_GPa\n")
     rows = []
     for step in range(n + 1):
         if step % save_int == 0:
             r, P = density_g_cm3(atoms), pressure_GPa(atoms)
             rows.append((step * dt_fs / 1000, r, P))
             tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_K:.1f},{r:.4f},"
-                       f"{atoms.get_volume():.2f},{atoms.get_potential_energy():.4f},{P:.4f}\n"); tlog.flush()
+                       f"{atoms.get_volume():.2f},{atoms.get_potential_energy():.4f},{P:.4f},"
+                       f"{pressure_GPa(atoms, include_ideal_gas=False):.4f}\n"); tlog.flush()
             if step and step % max(save_int, n // 10 or 1) == 0:
                 log(f"  [대조] {step*dt_fs/1000:6.2f}/{ps:.0f} ps  ρ {r:.4f}  P {P:+.3f} GPa  "
                     f"({(time.time()-_t0)/60:.1f} min)")
@@ -336,7 +350,7 @@ def run_melt_quench(atoms, calc, out, *, seed, T_melt, T_final, melt_ps, quench_
     n_m = int(round(melt_ps * 1000 / dt_fs)); n_h = int(round(hold_ps * 1000 / dt_fs))
     save_int = max(1, int(round(save_ps * 1000 / dt_fs)))
     trj = out / "traj.xyz"; trj.unlink(missing_ok=True)
-    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa\n")
+    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa,P_virial_GPa\n")
     step = 0; t0 = time.time()
     def record(T_set):
         nonlocal step
@@ -344,7 +358,8 @@ def run_melt_quench(atoms, calc, out, *, seed, T_melt, T_final, melt_ps, quench_
             write(str(trj), atoms, format="extxyz", append=True)
             vol = atoms.get_volume(); rho = sum(MASS[s] for s in atoms.get_chemical_symbols()) / 6.02214076e23 / (vol * 1e-24)
             tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_set:.1f},{rho:.4f},{vol:.2f},"
-                       f"{atoms.get_potential_energy():.4f},{pressure_GPa(atoms):.4f}\n"); tlog.flush()
+                       f"{atoms.get_potential_energy():.4f},{pressure_GPa(atoms):.4f},"
+                       f"{pressure_GPa(atoms, include_ideal_gas=False):.4f}\n"); tlog.flush()
     chunk = 50
     for phase, n_steps, Tfun in (("melt", n_m, lambda i: T_melt),
                                  ("quench", n_q, lambda i: T_melt - (T_melt - T_final) * i / max(1, n_q)),
@@ -465,8 +480,9 @@ def _selftest():
             and os.path.isfile(os.path.join(td, "thermo.csv")), "final.xyz + final.vasp + thermo.csv 생성 (xyz·POSCAR 쌍)")
         hdr = open(os.path.join(td, "thermo.csv")).readline().strip().split(",")
         row = open(os.path.join(td, "thermo.csv")).readlines()[1].strip().split(",")
-        chk(hdr[-1] == "P_GPa" and len(row) == len(hdr) and row[-1] not in ("", "nan"),
-            f"thermo.csv 에 배로스탯 제어변수 P_GPa 가 실제 값으로 기록된다 ({row[-1]} GPa)")
+        chk(hdr[-2:] == ["P_GPa", "P_virial_GPa"] and len(row) == len(hdr)
+            and row[-1] not in ("", "nan") and row[-2] != row[-1],
+            f"thermo.csv 에 총 압력과 virial 을 **둘 다** 기록하고 서로 다르다 ({row[-2]} / {row[-1]} GPa)")
     # ④ 배로스탯 대조 잡 — LJ 결정(fcc)으로 배선만. 같은 BARO 를 쓰는지까지 본다
     from ase.build import bulk
     with tempfile.TemporaryDirectory() as td:
@@ -497,6 +513,19 @@ def _selftest():
             raise RuntimeError("stress 없음")
     at2 = bulk("Li", "fcc", a=4.3, cubic=True); at2.calc = _NoStress()
     chk(math.isnan(pressure_GPa(at2)), "⛔음성: 응력을 못 주면 NaN — 0 GPa 로 조용히 적지 않는다")
+    # ⑥ 운동 항 — 배로스탯이 보는 압력은 virial 이 아니다 (2026-09-12 오독)
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution as _MB
+    hot = bulk("Li", "fcc", a=4.3, cubic=True).repeat(3)
+    hot.calc = LennardJones(sigma=3.0, epsilon=0.2, rc=8.0)
+    _MB(hot, temperature_K=300)
+    _v, _t = pressure_GPa(hot, include_ideal_gas=False), pressure_GPa(hot)
+    _kin = 2.0 / 3.0 * hot.get_kinetic_energy() / hot.get_volume() * EV_A3_TO_GPA
+    chk(abs((_t - _v) - _kin) < 1e-9 and _kin > 0.05,
+        f"총 압력 − virial = NkT/V ({_kin:+.4f} GPa) — 이걸 빼먹으면 0 GPa 목표가 −0.3 으로 보인다")
+    cold = bulk("Li", "fcc", a=4.3, cubic=True).repeat(2)
+    cold.calc = LennardJones(sigma=3.0, epsilon=0.2, rc=8.0)
+    chk(abs(pressure_GPa(cold) - pressure_GPa(cold, include_ideal_gas=False)) < 1e-12,
+        "속도 0 이면 두 값이 같다 — 차이는 순전히 운동 항이다")
     print(f"selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
