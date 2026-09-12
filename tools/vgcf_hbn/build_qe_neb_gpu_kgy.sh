@@ -123,8 +123,21 @@ echo "  MPI       $HPCX"
 echo "  cuda-cc   $CC_ARCH   ${CUDA_CC:+(명시)}${CUDA_CC:-(nvidia-smi 에서 유도)}"
 echo "  소스      $SRC"
 echo "  bin       $GPUBIN    · make -j$JOBS · neb=$WANT_NEB"
-echo "toolchain: $(command -v nvfortran) | $(command -v mpif90)"
-command -v nvfortran >/dev/null && command -v mpif90 >/dev/null || { echo "⛔ nvfortran/mpif90 없음 (NVHPC env 확인)"; exit 1; }
+echo "toolchain: $(command -v nvfortran || echo '(없음)') | $(command -v mpif90 || echo '(없음)')"
+if ! command -v nvfortran >/dev/null || ! command -v mpif90 >/dev/null; then
+  # ⛔ "env 확인" 만 찍으면 사람이 뭘 봐야 할지 모른다 — **어느 파일이 없는지** 짚는다.
+  #   2026-09-13 실측: NVHPC 를 apt 로 푸는 중(13 GB)에 던져서, 디렉터리는 생겼지만
+  #   compilers/bin 이 아직 없었다. 루트 탐지는 성공하고 컴파일러만 없는 이 상태가
+  #   가장 헷갈린다 — 설치가 도는 중인지까지 말해준다.
+  echo "⛔ nvfortran/mpif90 이 PATH 에 없다 — 시작하지 않는다. 기대한 자리:"
+  for _p in "$NV/compilers/bin/nvfortran" "$HPCX/bin/mpif90"; do
+    [ -e "$_p" ] && echo "   있음  $_p" || echo "   ⛔없음 $_p"
+  done
+  if pgrep -x dpkg >/dev/null 2>&1 || pgrep -x apt-get >/dev/null 2>&1; then
+    echo "   ⚠ dpkg/apt-get 이 아직 돌고 있다 — **설치가 안 끝났다**. 끝난 뒤 다시 실행해라."
+  fi
+  exit 1
+fi
 
 if [ "$PHASE" = configure ]; then
   mkdir -p "$(dirname "$SRC")"; cd "$(dirname "$SRC")"
