@@ -94,6 +94,7 @@ fi
 #    분석기를 짜면 규약이 데이터를 보고 정해지고, 그때는 사전등록이 아니다.
 #    extract = AM 접촉 그래프의 z-퍼콜 (1차 관측량) · fit = Firth 문턱 + 프로파일 구간.
 run 'lhs_perc_extract       --selftest' python3 scripts/lhs_perc_extract.py --selftest
+run 'lhs_descriptor_harvest --selftest' python3 scripts/lhs_descriptor_harvest.py --selftest
 run 'lhs_perc_fit           --selftest' python3 scripts/lhs_perc_fit.py --selftest
 
 #  ★ 2026-08-30 — 이 둘은 selftest 가 **있었는데 배선이 없었다**.  `make_heckel_manifest.scan()`

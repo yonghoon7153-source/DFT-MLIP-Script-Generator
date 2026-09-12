@@ -36,7 +36,7 @@ jobs:
         #    러너에서 5개가 전부 import 에서 죽는다 — 배선해 놓고 안 도는 상태였다
         #    (Codex R19 Q6 P2).  이제 `check_selftest_inventory` 가 의존 폐포를
         #    계산해 이 줄과 대조하므로, 빠지면 검사가 잡는다.
-        run: python -m pip install --quiet numpy scipy matplotlib flask requests
+        run: python -m pip install --quiet numpy scipy matplotlib flask requests networkx
 
       - name: 실행 계약 단일 출처 (selftest)
         run: python scripts/run_contract.py --selftest
@@ -87,6 +87,9 @@ jobs:
       #   런이 끝난 뒤 분석기를 짜면 규약이 데이터를 보고 정해지고, 그때는 사전등록이 아니다.
       - name: LHS 퍼콜 추출기 (그래프 규약 · 경계 fixture) (selftest)
         run: python scripts/lhs_perc_extract.py --selftest
+
+      - name: lhs_descriptor_harvest (LHS 130 수확 계약 — 판정문 §7)
+        run: python scripts/lhs_descriptor_harvest.py --selftest
 
       - name: LHS 문턱 적합기 (Firth · 프로파일 구간 · 예외 규칙) (selftest)
         run: python scripts/lhs_perc_fit.py --selftest
