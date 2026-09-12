@@ -56,3 +56,46 @@ elif modes:
     print(f"  UMA 실행모드 {modes.pop()} (전 시드 동일) · 담금질 {Pj['quench_rate_K_s']:.0e} K/s")
 PY
 echo "  ⛔ 지표(PS4·Cl6·S-Li8)는 카드 §2 문턱과 사람이 대조한다 — 이 표는 판정하지 않는다"
+
+# ── 배로스탯 대조 잡 (같은 루트 밑 npt_control*) ──────────────────────────────
+echo "── 대조 잡 (배로스탯) ──"
+python3 - "$R" <<'PY'
+import sys, os, json, glob
+R = sys.argv[1]; found = False
+for d in sorted(glob.glob(os.path.join(R, "npt_control*"))):
+    if not os.path.isdir(d):
+        continue
+    found = True; name = os.path.basename(d); cj = os.path.join(d, "control.json")
+    if os.path.isfile(cj):
+        try:
+            c = json.load(open(cj))
+        except Exception as e:
+            print(f"  {name:22s} ⚠ control.json 못 읽음 ({e})"); continue
+        ref = c.get("reference_for_drift", "?"); dr = c.get("drift_vs_UMA_0K")
+        w = c.get("min_cell_width_A"); ok = c.get("plumbing_ok")
+        r0 = c.get("rho_UMA_0K_g_cm3"); rn = c.get("rho_NPT_mean_last_half_g_cm3")
+        print(f"  {name:22s} ✅ 완료  {c.get('n_atoms','?')}원자 폭 {w:.2f} Å  "
+              f"ρ파일 {c.get('rho_file_g_cm3',float('nan')):.3f} → 0K {('%.3f'%r0) if r0 else '—'} → NPT {('%.3f'%rn) if rn else '—'}  "
+              f"P {c.get('P_NPT_mean_last_half_GPa',float('nan')):+.3f} GPa")
+        print(f"  {'':22s}    drift {100*dr:+.2f} % (기준 {ref}) → {'⭕ 배선 정상' if ok else '⛔ 배선 이상'}"
+              f"{'' if c.get('cell_wide_enough', True) else '  ⚠ 셀이 얇다 — 조건부'}")
+        if c.get("cell_relax_note"): print(f"  {'':22s}    0K 완화: {c['cell_relax_note']}")
+    else:
+        th = os.path.join(d, "thermo.csv"); cl = os.path.join(d, "cellrelax.log")
+        if os.path.isfile(th) and os.path.getsize(th) > 60:
+            last = open(th).read().strip().splitlines()[-1].split(",")
+            try:
+                t, T, rho = float(last[0]), float(last[1]), float(last[3])
+                P = float(last[6]) if len(last) > 6 else float("nan")
+                print(f"  {name:22s} … NPT  t {t:5.2f} ps  T {T:5.0f} K  ρ {rho:.4f}  P {P:+.3f} GPa")
+            except ValueError:
+                print(f"  {name:22s} … thermo.csv 헤더만")
+        elif os.path.isfile(cl):
+            ln = [x for x in open(cl).read().strip().splitlines() if x.strip()]
+            print(f"  {name:22s} … 0 K 셀 완화  {ln[-1].strip() if ln else '(빈 로그)'}")
+        else:
+            print(f"  {name:22s} … 준비(UMA 로드)")
+if not found:
+    print("  (대조 잡 없음)")
+print("  ⛔ drift 판정은 **배선(배로스탯·단위)** 에 한정된다. UMA 자신의 밀도 오차는 그 판정 밖이다.")
+PY
