@@ -54,6 +54,11 @@ from ase import Atoms
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'cascade'))
+# ⭐ S1 계약 (BJ2 재심 조건 #3) — 부모 자리 승계 · 전체 보상 수지 · 농도 양자화.
+#    규약을 여기 복사하지 않는다: 계약은 tools/cascade/s1_contract.py 한 곳에만 있다.
+from s1_contract import (S1ContractError, freeze_parent_sites, SiteCarrier,     # noqa: E402
+                         charge_ledger, quantize_concentration)
 from site_preference import DOPANT_DB, HOST_SITES, site_preference_filter
 from _provenance import get_provenance
 from substitute_struct import (
@@ -265,6 +270,55 @@ def auto_balance_compound(composition: dict[str, int],
                'net_q': net_q}
 
 
+PARENT_ALIAS = {'Li_24g': 'Li_any', 'Li_48h': 'Li_any'}   # Li Wyckoff 는 입력에서 못 가른다
+
+
+def build_parent_site_map(atoms: Atoms) -> dict:
+    """치환 **전** host 의 원자별 부모 자리를 굳힌다 (BJ2 P0-2).
+
+    이 지도가 생긴 뒤로는 자리를 **현재 배위로 다시 분류하지 않는다**. P→Nd/B 치환 뒤
+    PS₄ 의 S 가 free S 로 넘어가던 것이 바로 그 재분류였다.
+    """
+    sym = atoms.get_chemical_symbols()
+    s16 = set(find_host_indices_for_site(atoms, 'S_16e'))
+    s4a = set(find_host_indices_for_site(atoms, 'S_4a'))
+    site_of: dict[int, str] = {}
+    for i, el in enumerate(sym):
+        if el == 'S':
+            if i in s16:
+                site_of[i] = 'S_16e'
+            elif i in s4a:
+                site_of[i] = 'S_4a'
+            else:
+                raise S1ContractError(f"⛔ S #{i} 가 S_16e 도 S_4a 도 아니다 — 부모 지도를 못 굳힌다")
+        elif el == 'Li':
+            site_of[i] = 'Li_any'
+        elif el == 'P':
+            site_of[i] = 'P_4b'
+        elif el == 'Cl':
+            site_of[i] = 'Cl_4d'
+        else:
+            site_of[i] = f'other_{el}'
+    return freeze_parent_sites(sym, site_of)
+
+
+def parent_host_indices(carrier: SiteCarrier, site: str) -> list[int]:
+    """부모 자리가 ``site`` 이고 아직 host 원소가 앉아 있는 원자들."""
+    want = PARENT_ALIAS.get(site, site)
+    host_el = SITE_TO_HOST[site]
+    return [i for i in carrier.indices_of_parent_site(want) if carrier.occupant[i] == host_el]
+
+
+def _host_sites(atoms: Atoms, carrier, site: str, contract: str) -> list[int]:
+    if carrier is not None:
+        return parent_host_indices(carrier, site)
+    if contract == 'enforce':
+        raise S1ContractError(
+            "⛔ S1 계약(enforce) 인데 부모 자리 지도가 없다 — 치환 전 host 에서 지도를 굳혀 넘겨라 "
+            "(--s1_contract legacy_bypass 로만 옛 배위 재분류 경로를 쓴다)")
+    return find_host_indices_for_site(atoms, site)
+
+
 def compute_substitution_count(n_units: int, multiplicity: int) -> int:
     """Atoms of one element introduced when ``n_units`` formula units of the
     compound enter the cell."""
@@ -298,7 +352,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
                                  n_units: int, cation_site: str, anion_site: str,
                                  method: str, seed: int, db: dict,
                                  vacancy_method: str = 'random',
-                                 vacancy_cutoff: float = 5.0
+                                 vacancy_cutoff: float = 5.0,
+                                 carrier=None, contract: str = 'enforce'
                                  ) -> tuple[Atoms, dict]:
     """Place all atoms of one compound unit-cluster into target sites.
 
@@ -329,7 +384,7 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
     seed_local = seed
     for cat, mult in cations.items():
         n_sub = compute_substitution_count(n_units, mult)
-        host_idx = find_host_indices_for_site(new, cation_site)
+        host_idx = _host_sites(new, carrier, cation_site, contract)
         if n_sub > len(host_idx):
             raise ValueError(
                 f"Need {n_sub} {cat} at {cation_site}, but only "
@@ -339,6 +394,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
         for i in targets:
             syms[i] = cat
         new.set_chemical_symbols(syms)
+        if carrier is not None:
+            carrier.substitute(targets, cat, syms)
         placement_log['placements'].append(
             {'element': cat, 'site': cation_site, 'n': n_sub,
              'targets': targets})
@@ -347,7 +404,7 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
     # 2. Substitute anions
     for an, mult in anions.items():
         n_sub = compute_substitution_count(n_units, mult)
-        host_idx = find_host_indices_for_site(new, anion_site)
+        host_idx = _host_sites(new, carrier, anion_site, contract)
         if n_sub > len(host_idx):
             raise ValueError(
                 f"Need {n_sub} {an} at {anion_site}, but only "
@@ -357,6 +414,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
         for i in targets:
             syms[i] = an
         new.set_chemical_symbols(syms)
+        if carrier is not None:
+            carrier.substitute(targets, an, syms)
         placement_log['placements'].append(
             {'element': an, 'site': anion_site, 'n': n_sub,
              'targets': targets})
@@ -364,9 +423,18 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
 
     # 3. Charge compensation — Li vacancies (donor case) or Li interstitials
     #    (acceptor case, e.g., B³⁺/Si⁴⁺ at P⁵⁺). Compute signed surplus first.
-    host_q = HOST_SITES[cation_site]['charge']
-    surplus = sum((db[c]['charge'] - host_q) * compute_substitution_count(n_units, m)
-                  for c, m in cations.items())
+    # ⭐ BJ2 #3: 양이온만 더하던 수지에 **음이온 치환**을 넣는다. S²⁻→Cl⁻ 는 자리당 Δq=+1 이라
+    #    빠뜨리면 보상이 그만큼 모자란 셀이 조용히 나간다.
+    _placements = ([{'element': c, 'site': cation_site, 'n': compute_substitution_count(n_units, m)}
+                    for c, m in cations.items()]
+                   + [{'element': a, 'site': anion_site, 'n': compute_substitution_count(n_units, m)}
+                      for a, m in anions.items()])
+    _charges = {e: db[e]['charge'] for e in list(cations) + list(anions)}
+    _site_q = {cation_site: HOST_SITES[cation_site]['charge'],
+               anion_site: HOST_SITES[anion_site]['charge']}
+    ledger = charge_ledger(_placements, _charges, _site_q)
+    placement_log['charge_ledger'] = ledger
+    surplus = ledger['net_charge']
     n_vac = max(surplus, 0)
     n_int = max(-surplus, 0)
     if n_int > 0:
@@ -374,9 +442,14 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
             new, int_positions = add_li_interstitials(new, n_int)
             placement_log['li_interstitials'] = {
                 'n': n_int, 'positions': [list(p) for p in int_positions]}
+            if carrier is not None:
+                carrier.append(['Li'] * n_int)
         except RuntimeError as e:
             placement_log['li_interstitials'] = {'n': n_int, 'error': str(e)}
-            # leave cell charge-imbalanced; UMA will rank it low
+            if contract == 'enforce':
+                raise S1ContractError(
+                    f"⛔ Li 침입 {n_int}개를 못 넣었다 ({e}) — 전하 불균형 셀을 "
+                    "'UMA 가 낮게 매길 것' 으로 흘려보내지 않는다 (BJ2 #3 실패 시 중단)") from e
     if n_vac > 0:
         li_idx = find_host_indices(new, 'Li')
         if n_vac >= len(li_idx):
@@ -394,6 +467,8 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
             cluster_radius=vacancy_cutoff)
         keep = [i for i in range(len(new)) if i not in vac_targets]
         new = new[keep]
+        if carrier is not None:
+            carrier.delete(vac_targets)
         placement_log['li_vacancies'] = {'n': n_vac, 'indices': vac_targets}
     else:
         placement_log['li_vacancies'] = {'n': 0, 'indices': []}
@@ -403,7 +478,9 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
 
 def mixed_halide_swap(atoms: Atoms, halide_excess: dict[str, float],
                      n_fu: int, anion_site: str, method: str, seed: int,
-                     vacancy_method: str = 'random') -> tuple[Atoms, dict]:
+                     vacancy_method: str = 'random',
+                     carrier=None, contract: str = 'enforce',
+                     quantize_policy: str = 'exact', approved_by=None) -> tuple[Atoms, dict]:
     """Multi-halide halide-rich substitution (LPSClBr-style precursors).
 
     ``halide_excess`` = {'Cl': 0.3, 'Br': 0.3} → 0.3 + 0.3 = 0.6 total excess
@@ -412,9 +489,12 @@ def mixed_halide_swap(atoms: Atoms, halide_excess: dict[str, float],
     swaps). Replicates comp2/3/4/5 chemistry (Cl₁₋ₓBrₓ argyrodite family).
     """
     new = atoms.copy()
-    host_idx = find_host_indices_for_site(new, anion_site)
-    n_swap_per_halide = {h: max(1, int(round(n_fu * x)))
-                         for h, x in halide_excess.items()}
+    host_idx = _host_sites(new, carrier, anion_site, contract)
+    # ⭐ BJ2 Q6: max(1, round(...)) 은 요청 농도를 표현 못 할 때 **묵시적으로 1 unit** 을 넣었다.
+    _q = {h: quantize_concentration(x, n_fu, policy=quantize_policy, approved_by=approved_by,
+                                    label=f"halide_excess:{h}")
+          for h, x in halide_excess.items()}
+    n_swap_per_halide = {h: q['n_units'] for h, q in _q.items()}
     total_swap = sum(n_swap_per_halide.values())
     if total_swap > len(host_idx):
         raise ValueError(
@@ -453,7 +533,8 @@ def mixed_halide_swap(atoms: Atoms, halide_excess: dict[str, float],
 
 def halide_rich_swap(atoms: Atoms, halide: str, n_swap: int,
                     anion_site: str, method: str, seed: int,
-                    vacancy_method: str = 'random') -> tuple[Atoms, dict]:
+                    vacancy_method: str = 'random',
+                    carrier=None, contract: str = 'enforce') -> tuple[Atoms, dict]:
     """Type B — replace ``n_swap`` S atoms at ``anion_site`` with ``halide``,
     and remove the same number of Li atoms.
 
@@ -466,7 +547,7 @@ def halide_rich_swap(atoms: Atoms, halide: str, n_swap: int,
     ordered into a superlattice.
     """
     new = atoms.copy()
-    host_idx = find_host_indices_for_site(new, anion_site)
+    host_idx = _host_sites(new, carrier, anion_site, contract)
     if n_swap > len(host_idx):
         raise ValueError(
             f"Need {n_swap} S→{halide} swaps at {anion_site}, but only "
@@ -476,6 +557,8 @@ def halide_rich_swap(atoms: Atoms, halide: str, n_swap: int,
     for i in targets:
         syms[i] = halide
     new.set_chemical_symbols(syms)
+    if carrier is not None:
+        carrier.substitute(targets, halide, syms)
 
     li_idx = find_host_indices(new, 'Li')
     if n_swap >= len(li_idx):
@@ -485,6 +568,8 @@ def halide_rich_swap(atoms: Atoms, halide: str, n_swap: int,
         li_idx, n_swap, vacancy_method, seed + 1, atoms=new)
     keep = [i for i in range(len(new)) if i not in vac_targets]
     new = new[keep]
+    if carrier is not None:
+        carrier.delete(vac_targets)
 
     return new, {
         'halide_rich': halide,
@@ -500,9 +585,75 @@ def composition_summary(atoms: Atoms) -> dict[str, int]:
             zip(*np.unique(syms, return_counts=True))}
 
 
+def _selftest() -> int:
+    """S1 계약 **결선** 시험 (BJ2 #3). 계약 자체는 tools/cascade/s1_contract.py --selftest.
+
+    여기서 보는 것은 "생성기가 계약을 실제로 쓰는가" 다 — 음성 경로 포함.
+    """
+    from ase.io import read as _read
+    ok = bad = 0
+
+    def chk(c, m):
+        nonlocal ok, bad
+        print(("  ⭕ " if c else "  ⛔ ") + m); ok += bool(c); bad += (not c)
+
+    base = _read(str(Path(__file__).resolve().parents[2]
+                     / 'db/structures/lpscl_F43m_24G_canonical.cif'))
+    pm = build_parent_site_map(base)
+    chk(pm['counts'] == {'Cl_4d': 4, 'Li_any': 24, 'P_4b': 4, 'S_16e': 16, 'S_4a': 4},
+        f"부모 지도 동결: {pm['counts']}")
+
+    # ⭐ P0-2 회귀: P 절반을 치환한 뒤 배위로 다시 분류하면 S_16e 가 반토막 난다
+    car = SiteCarrier(pm, base.get_chemical_symbols())
+    tgt = parent_host_indices(car, 'P_4b')[:2]
+    new = base.copy(); sy = new.get_chemical_symbols()
+    for i in tgt:
+        sy[i] = 'Nd'
+    new.set_chemical_symbols(sy); car.substitute(tgt, 'Nd', sy)
+    legacy_16e = len(find_host_indices_for_site(new, 'S_16e'))
+    legacy_4a = len(find_host_indices_for_site(new, 'S_4a'))
+    chk(legacy_16e == 8 and legacy_4a == 12,
+        f"P0-2 재현: 옛 배위 재분류는 S_16e {legacy_16e} (참 16) · S_4a {legacy_4a} (참 4)")
+    chk(len(parent_host_indices(car, 'S_16e')) == 16 and len(parent_host_indices(car, 'S_4a')) == 4,
+        "계약 경로는 부모 자리를 그대로 승계한다 (16 · 4)")
+
+    # ⭐ 음이온 항이 빠지던 수지
+    Q = {'Nd': 3, 'Cl': -1}
+    SQ = {'P_4b': HOST_SITES['P_4b']['charge'], 'S_4a': HOST_SITES['S_4a']['charge']}
+    pl = [{'element': 'Nd', 'site': 'P_4b', 'n': 1}, {'element': 'Cl', 'site': 'S_4a', 'n': 3}]
+    chk(charge_ledger(pl[:1], Q, SQ)['net_charge'] == -2
+        and charge_ledger(pl, Q, SQ)['required'] == {'li_vacancy': 1},
+        "NdCl₃: 양이온만 보면 −2 (Li 침입 2), 음이온까지 보면 +1 (Li 공공 1)")
+
+    # ⛔음성: 계약 enforce 인데 지도를 안 넘기면 시작하지 않는다
+    try:
+        _host_sites(new, None, 'S_16e', 'enforce'); n1 = False
+    except S1ContractError as e:
+        n1 = '부모 자리 지도가 없다' in str(e)
+    chk(n1, "⛔음성: enforce 인데 carrier 가 없으면 멈춘다")
+
+    # ⛔음성: 농도가 정수가 아니면 생성 거부 (묵시적 1 unit 없음)
+    try:
+        quantize_concentration(0.1, 4); n2 = False
+    except S1ContractError:
+        n2 = True
+    chk(n2, "⛔음성: x=0.1·n_fu=4 는 거부 (옛 max(1,round) 이면 1 unit 을 넣었다)")
+
+    # ⛔음성: info['concentration'] 키 충돌 회귀 — 하류가 float 로 읽는 자리를 dict 로 덮지 않는다
+    src = Path(__file__).read_text(encoding='utf-8')
+    _needle = "info['conc" + "entration'] = _q"      # 쪼개 둔다 — 안 그러면 이 줄 자신이 걸린다
+    chk(_needle not in src,
+        "⛔음성: 양자화 기록을 info['concentration'] 에 넣지 않는다 (하류가 float 로 읽는 키)")
+    print(f"selftest: ⭕ {ok} · ⛔ {bad}")
+    return 0 if bad == 0 else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--selftest', action='store_true', help='S1 계약 결선 시험 (음성 경로 포함)')
+    if '--selftest' in sys.argv:
+        raise SystemExit(_selftest())
     parser.add_argument('--base', required=True, help='LPSCl base structure')
     parser.add_argument('--out', required=True, help='Output directory')
     parser.add_argument('--supercell', nargs=3, type=int, default=[1, 1, 1],
@@ -512,6 +663,17 @@ def main():
                             'needed when combining Type A + Type B doping at low '
                             'concentrations so a single integer atom does not '
                             'exceed the requested mole fraction).')
+    parser.add_argument('--s1_contract', choices=['enforce', 'legacy_bypass'], default='enforce',
+                       help="S1 계약 (BJ2 재심 조건 #3). enforce=부모 자리 승계·전체 보상 수지·"
+                            "실패 시 중단. legacy_bypass=옛 배위 재분류 경로 (기록에 낙인 찍힌다)")
+    parser.add_argument('--quantize_policy', choices=['exact', 'approve_nearest', 'refuse'],
+                       default='exact',
+                       help="요청 농도가 유한 셀에서 정수가 아닐 때. exact=생성 거부(기본) · "
+                            "approve_nearest=--quantize_approved_by 와 함께 승인 양자화 · refuse=무조건 거부. "
+                            "옛 max(1,round) 묵시 삽입은 없다 (BJ2 Q6)")
+    parser.add_argument('--quantize_approved_by', default=None, help='양자화 승인자 (사람 이름/역할)')
+    parser.add_argument('--max_quantize_rel_error', type=float, default=None,
+                       help='양자화 상대오차 상한 — 넘으면 거부')
     parser.add_argument('--auto_anion_sites', action='store_true',
                        help='For Type A: generate one structure per available '
                             'anion site (S_16e, S_4a, Cl_4d) instead of using '
@@ -661,11 +823,28 @@ def main():
           f"{len(cation_sites)*len(anion_sites)*len(seeds)} structures")
 
     generated: list[dict] = []
+    refusals: list[dict] = []          # ⭐ 계약 거부는 **물리적 탈락이 아니다** — 따로 센다 (BJ2 Q6)
+    parent_map = None
+    if args.s1_contract == 'enforce':
+        parent_map = build_parent_site_map(base)
+        print(f"S1 계약 enforce — 부모 자리 지도 동결: {parent_map['counts']} · {parent_map['digest'][:23]}…")
+    else:
+        print("⚠⚠ S1 계약 legacy_bypass — 치환 뒤 **현재 배위**로 자리를 다시 분류한다 (BJ2 P0-2 경로). "
+              "이 실행의 산출물은 계약본과 섞지 않는다.")
+
+    def _refuse(kind, detail, **ctx):
+        rec = {'kind': kind, 'detail': str(detail), 'is_physics_elimination': False, **ctx}
+        refusals.append(rec)
+        print(f"  ⛔ 계약거부[{kind}] {detail}")
+
     for cation_site in cation_sites:
       for anion_site in anion_sites:
         for seed in seeds:
             doped = base.copy()
+            carrier = (SiteCarrier(parent_map, doped.get_chemical_symbols())
+                       if parent_map is not None else None)
             info: dict = {
+                's1_contract': args.s1_contract,
                 'seed': seed,
                 'cation_site_used': cation_site,
                 'anion_site_used': anion_site,
@@ -675,15 +854,29 @@ def main():
             # --- Type A ---
             if args.compound:
                 composition = parse_compound(args.compound)
-                n_units = max(1, int(round(n_fu_actual * args.x_compound)))
-                actual_x = n_units / n_fu_actual
+                try:
+                    _q = quantize_concentration(
+                        args.x_compound, n_fu_actual, policy=args.quantize_policy,
+                        approved_by=args.quantize_approved_by,
+                        max_rel_error=args.max_quantize_rel_error, label='x_compound')
+                except S1ContractError as e:
+                    _refuse('concentration_quantization', e, compound=args.compound,
+                            x_request=args.x_compound, n_fu=n_fu_actual, seed=seed)
+                    continue
+                n_units, actual_x = _q['n_units'], _q['x_actual']
+                if not _q['is_doped_candidate']:
+                    _refuse('undoped_control_not_a_doped_candidate',
+                            f"x={args.x_compound} → 0 unit", compound=args.compound, seed=seed)
+                    continue
+                info['concentration_quantization'] = _q   # ⛔ 'concentration' 은 뒤에서 float 로 쓰인다
                 try:
                     doped, log = substitute_compound_at_sites(
                         doped, composition, n_units,
                         cation_site, anion_site,
                         args.method, seed, DOPANT_DB,
                         vacancy_method=args.vacancy_method,
-                        vacancy_cutoff=args.vacancy_cutoff)
+                        vacancy_cutoff=args.vacancy_cutoff,
+                        carrier=carrier, contract=args.s1_contract)
                     info['steps'].append({
                         'type': 'A_compound',
                         'compound': args.compound,
@@ -692,21 +885,35 @@ def main():
                         'actual_x': actual_x,
                         **log,
                     })
-                except ValueError as e:
-                    print(f"  ⚠ skip {args.compound} @ ({cation_site}, "
-                          f"{anion_site}) seed={seed}: {e}")
+                except (ValueError, S1ContractError) as e:
+                    _refuse('generator_contract', e, compound=args.compound,
+                            cation_site=cation_site, anion_site=anion_site, seed=seed)
                     continue
 
             # --- Type B (single halide) ---
             if args.halide_rich:
                 if args.excess_per_fu is None:
                     parser.error("--halide_rich requires --excess_per_fu")
-                n_swap = max(1, int(round(n_fu_actual * args.excess_per_fu)))
+                try:
+                    _qb = quantize_concentration(
+                        args.excess_per_fu, n_fu_actual, policy=args.quantize_policy,
+                        approved_by=args.quantize_approved_by,
+                        max_rel_error=args.max_quantize_rel_error, label='excess_per_fu')
+                except S1ContractError as e:
+                    _refuse('concentration_quantization', e, halide=args.halide_rich,
+                            x_request=args.excess_per_fu, n_fu=n_fu_actual, seed=seed)
+                    continue
+                n_swap = _qb['n_units']
+                if not _qb['is_doped_candidate']:
+                    _refuse('undoped_control_not_a_doped_candidate',
+                            f"excess={args.excess_per_fu} → 0 swap", halide=args.halide_rich, seed=seed)
+                    continue
                 doped, log = halide_rich_swap(
                     doped, args.halide_rich, n_swap,
                     anion_site if anion_site.startswith('S') else 'S_4a',
                     args.method, seed + 50,
-                    vacancy_method=args.vacancy_method)
+                    vacancy_method=args.vacancy_method,
+                    carrier=carrier, contract=args.s1_contract)
                 info['steps'].append({
                     'type': 'B_halide_rich',
                     'halide': args.halide_rich,
@@ -721,11 +928,18 @@ def main():
                 for entry in args.mixed_halides.split(','):
                     h, x = entry.split(':')
                     mix[h.strip()] = float(x)
-                doped, log = mixed_halide_swap(
-                    doped, mix, n_fu_actual,
-                    anion_site if anion_site.startswith('S') else 'S_4a',
-                    args.method, seed + 60,
-                    vacancy_method=args.vacancy_method)
+                try:
+                    doped, log = mixed_halide_swap(
+                        doped, mix, n_fu_actual,
+                        anion_site if anion_site.startswith('S') else 'S_4a',
+                        args.method, seed + 60,
+                        vacancy_method=args.vacancy_method,
+                        carrier=carrier, contract=args.s1_contract,
+                        quantize_policy=args.quantize_policy,
+                        approved_by=args.quantize_approved_by)
+                except S1ContractError as e:
+                    _refuse('concentration_quantization', e, mix=mix, n_fu=n_fu_actual, seed=seed)
+                    continue
                 info['steps'].append({
                     'type': 'B_mixed_halide',
                     'mix': mix,
@@ -734,11 +948,25 @@ def main():
             elif args.also_halide_rich:
                 if args.excess_per_fu is None:
                     parser.error("--also_halide_rich requires --excess_per_fu")
-                n_swap = max(1, int(round(n_fu_actual * args.excess_per_fu)))
+                try:
+                    _qc = quantize_concentration(
+                        args.excess_per_fu, n_fu_actual, policy=args.quantize_policy,
+                        approved_by=args.quantize_approved_by,
+                        max_rel_error=args.max_quantize_rel_error, label='excess_per_fu(chain)')
+                except S1ContractError as e:
+                    _refuse('concentration_quantization', e, halide=args.also_halide_rich,
+                            x_request=args.excess_per_fu, n_fu=n_fu_actual, seed=seed)
+                    continue
+                n_swap = _qc['n_units']
+                if not _qc['is_doped_candidate']:
+                    _refuse('undoped_control_not_a_doped_candidate',
+                            f"excess={args.excess_per_fu} → 0 swap", halide=args.also_halide_rich, seed=seed)
+                    continue
                 doped, log = halide_rich_swap(
                     doped, args.also_halide_rich, n_swap,
                     'S_4a', args.method, seed + 70,
-                    vacancy_method=args.vacancy_method)
+                    vacancy_method=args.vacancy_method,
+                    carrier=carrier, contract=args.s1_contract)
                 info['steps'].append({
                     'type': 'C_chain_halide_rich',
                     'halide': args.also_halide_rich,
@@ -755,22 +983,29 @@ def main():
                 step_seed = seed + 80
                 for cname, x_each in compound_specs:
                     composition = parse_compound(cname)
-                    n_units = max(1, int(round(n_fu_actual * x_each)))
                     try:
+                        _qd = quantize_concentration(
+                            x_each, n_fu_actual, policy=args.quantize_policy,
+                            approved_by=args.quantize_approved_by,
+                            max_rel_error=args.max_quantize_rel_error, label=f'mixed:{cname}')
+                        n_units = _qd['n_units']
+                        if not _qd['is_doped_candidate']:
+                            raise S1ContractError(f"x={x_each} → 0 unit (무도핑 대조군, 도핑 후보 아님)")
                         doped, log = substitute_compound_at_sites(
                             doped, composition, n_units,
                             cation_site, anion_site,
                             args.method, step_seed, DOPANT_DB,
                             vacancy_method=args.vacancy_method,
-                            vacancy_cutoff=args.vacancy_cutoff)
+                            vacancy_cutoff=args.vacancy_cutoff,
+                            carrier=carrier, contract=args.s1_contract)
                         info['steps'].append({
                             'type': 'D_multi_compound',
                             'compound': cname, 'x': x_each,
                             'n_units': n_units,
                             **log,
                         })
-                    except ValueError as e:
-                        print(f"  ⚠ skip {cname} in mixed_compounds: {e}")
+                    except (ValueError, S1ContractError) as e:
+                        _refuse('generator_contract', e, compound=cname, x=x_each, seed=seed)
                     step_seed += 10
 
             # Name + write
@@ -853,6 +1088,8 @@ def main():
                 'n_fu_actual': n_fu_actual,
                 'supercell': args.supercell,
             })
+            if carrier is not None:
+                info['parent_sites'] = carrier.as_record()
             generated.append(info)
             print(f"  ✓ {name}: {len(doped)} atoms, {composition_summary(doped)}")
 
@@ -866,6 +1103,12 @@ def main():
         'cation_sites_tried': cation_sites,
         'anion_sites_tried': anion_sites,
         'structures': generated,
+        's1_contract': args.s1_contract,
+        'parent_site_map': parent_map,
+        'quantize_policy': args.quantize_policy,
+        'contract_refusals': refusals,
+        '⛔_refusal_semantics': ('contract_refusals 는 **코드 계약 실패**다. 물리적으로 나쁜 후보의 탈락으로 '
+                                '세지 않는다 (BJ2 Q6). 무도핑 대조군도 도핑 후보 수에서 분리돼 있다.'),
     }
     summary['provenance'] = get_provenance()  # v4.5.13 NEW-1 fix
     summary_path = out_dir / 'compound_summary.json'
