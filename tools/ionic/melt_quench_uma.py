@@ -213,7 +213,11 @@ def pressure_GPa(atoms):
 
 
 def density_g_cm3(atoms):
-    return float(sum(MASS[s] for s in atoms.get_chemical_symbols()) / 6.02214076e23 / (atoms.get_volume() * 1e-24))
+    """g/cm³. 카드 밖 원소(대조 잡에 아무 결정이나 넣을 수 있다)는 ASE 질량으로 — MASS 는 4원소뿐이라
+    예전 같으면 KeyError 로 죽었다. 생산 런 경로는 MASS 를 그대로 쓰므로 숫자가 안 바뀐다."""
+    sy = atoms.get_chemical_symbols()
+    m = sum(MASS[x] for x in sy) if all(x in MASS for x in sy) else float(atoms.get_masses().sum())
+    return float(m / 6.02214076e23 / (atoms.get_volume() * 1e-24))
 
 
 def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, log=print):
