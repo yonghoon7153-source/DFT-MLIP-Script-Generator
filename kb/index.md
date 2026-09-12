@@ -1,12 +1,13 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-11 · managed-files: 393
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 394
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 198건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 199건)
+- 2026-09-12 · `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB) · 채택
 - 2026-09-12 · `kb/syntheses/cathode_coating_computational_lineage.md` — 양극 코팅 계산 계보 — Wolverton → Ceder → Mo 라인과 우리 LPSCl 산화축의 관계 · 진행
 - 2026-09-11 · `kb/reviews/INDEX.md` — 리뷰 사슬 색인 — 프롬프트↔회신 (자동 생성) · 자동생성
 - 2026-09-11 · `kb/reviews/codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11.md` — codex_BL_prompt_lpsocl_gate_ambiguity_2026_09_11 · 진행
@@ -26,7 +27,6 @@
 - 2026-09-09 · `kb/reviews/codex_BK_reply_2026_09_09.md` — 리뷰 BK 회신 — A 선택 수용 · 정정 다섯을 전부 재현했다 · 우리 규율 둘을 고친다 · 초안
 - 2026-09-09 · `kb/reviews/decisions_pending_first_author_2026_09_09.md` — 1저자 결정 대기 — 2026-09-09 (Codex BI NO-GO + v3 재편 + cascade 재설계) · 대기
 - 2026-09-09 · `kb/reviews/litdb_dopant_sota_2026_09_09.md` — litdb_dopant_sota_2026_09_09 · 진행
-- 2026-09-08 · `kb/methodology/cascade_lessons_transfer_2026_09_08.md` — hold 동안 얻은 것을 cascade 로 옮기기 — 해제조건에 붙는 5건 · 진행
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -53,7 +53,7 @@
 - `kb/physics/vacancy_effects.md` — Vacancy Effects in Argyrodite
 - `kb/physics/vacancy_mechanism_corrected_2026_05_08.md` — Vacancy + Halogen Distribution → Adhesion: Corrected Mechanism
 
-## methodology/ (53)
+## methodology/ (54)
 - `kb/methodology/PHASE1_QUICKSTART_doping.md` — Phase 1 Quickstart Guide
 - `kb/methodology/adhesion_calibration_decision_2026_05_17.md` — Adhesion Calibration Decision — 2026-05-17
 - `kb/methodology/adhesion_energy.md` — Adhesion Energy (Wad) Calculation
@@ -102,6 +102,7 @@
 - `kb/methodology/offline_archive_index_2026_08_20.md` — 오프라인 백업 인덱스 — repo 밖에 있는 원자료가 어디 있나  (2026-08-20 · 실측 인덱스 (2026-08-20 전수조사))
 - `kb/methodology/probe_language_reference.md` — Probe 언어 레퍼런스 — 각 계산이 무엇이고, 어떻게 구하고, 논문/figure에 어떻게 쓰는가
 - `kb/methodology/ps4_libration_dopant_2026_08_28.md` — T16 — PS₄ 는 안 돈다(재확인). 그런데 **+O 가 흔들림 원뿔을 좁힌다**(신규)  (2026-08-28 · 채택)
+- `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB)  (2026-09-12 · 채택)
 - `kb/methodology/selftest_blind_spots_2026_08_28.md` — selftest 를 통과한 채 나간 버그 9건 — 우리 테스트가 못 보는 네 곳  (2026-08-28 · 채택)
 - `kb/methodology/site_preference_protocol_2026_08_11.md` — LiNiO₂(104) 자리 선호 · 자세 스크리닝 프로토콜 v1  (2026-08-11 · 실행 대기 (도구 검증 완료 · 입력 2종 회수 필요))
 - `kb/methodology/terminology_register.md` — 🗣 용어 대장 — 우리 말 → 필드 표준어 → 근거
@@ -456,4 +457,4 @@
 ## elements/ — 118개 (생성물/템플릿, 목록 생략)
 ## templates/ — 3개 (생성물/템플릿, 목록 생략)
 
-## litdb/ — digest 256개 (정본 목록: litdb/INDEX.md)
+## litdb/ — digest 257개 (정본 목록: litdb/INDEX.md)
