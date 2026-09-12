@@ -160,7 +160,11 @@ def indicators(sym, pos, cell):
         out["S_Li8_fraction_Li2S_like"] = float((nLiS >= 8).mean())
         out["S_Li_coord_hist"] = {int(k): int(v) for k, v in zip(*np.unique(nLiS, return_counts=True))}
     vol = abs(np.linalg.det(cell))
-    mass_g = sum(MASS[s] for s in sym) / 6.02214076e23
+    if all(x in MASS for x in sym):
+        mass_g = sum(MASS[x] for x in sym) / 6.02214076e23
+    else:                                    # 카드 밖 원소(B 등) — ASE 질량
+        from ase.data import atomic_masses, atomic_numbers
+        mass_g = sum(atomic_masses[atomic_numbers[x]] for x in sym) / 6.02214076e23
     out["density_g_cm3"] = float(mass_g / (vol * 1e-24))
     out["n_atoms"] = int(len(sym)); out["cell_A"] = cell.tolist()
     return out
@@ -256,7 +260,7 @@ def _flushing_print(*a, **k):
 
 
 def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, min_width_A=9.0,
-                    log=_flushing_print):
+                    cell_relax=True, max_relax_dV=0.10, log=_flushing_print):
     """⭐ 배로스탯 **대조 잡** — 알려진 결정을 같은 NPT 배선에 넣어 밀도를 지키는지 본다.
 
     비정질 밀도가 낮게 나왔을 때 원인이 두 갈래다: (ⓐ 우리 배선·단위가 틀렸다 / ⓑ UMA 또는 구조가 그렇다).
@@ -269,7 +273,7 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     from ase import units
     from ase.md.nptberendsen import NPTBerendsen
     from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
-    from ase.optimize import FIRE
+    from ase.io import write
     out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
     w0 = cell_widths_A(atoms.get_cell())
     log(f"  [대조] {len(atoms)} 원자 · 면간거리 {w0[0]:.2f}/{w0[1]:.2f}/{w0[2]:.2f} Å (최소 {w0.min():.2f})")
@@ -278,13 +282,36 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
             f"drift 가 문턱 근처로 나오면 배로스탯 탓인지 셀 탓인지 **못 가른다**.")
     atoms.calc = calc
     rho_file = density_g_cm3(atoms)
-    try:
-        from ase.filters import FrechetCellFilter as _CF
-    except ImportError:
-        from ase.constraints import ExpCellFilter as _CF        # 구버전 ASE
-    FIRE(_CF(atoms), logfile=str(out / "cellrelax.log")).run(fmax=0.02, steps=500)
-    rho_0K = density_g_cm3(atoms); P_0K = pressure_GPa(atoms)
-    log(f"  [대조] ρ(파일) {rho_file:.3f} → ρ_UMA(0K) {rho_0K:.3f} g/cm³ (P {P_0K:+.3f} GPa)")
+    ind_file = indicators(atoms.get_chemical_symbols(), atoms.get_positions(), np.asarray(atoms.get_cell()))
+    rho_0K = P_0K = None; relax_note = "skipped"
+    if cell_relax:
+        try:
+            from ase.filters import FrechetCellFilter as _CF
+        except ImportError:
+            from ase.constraints import ExpCellFilter as _CF        # 구버전 ASE
+        from ase.optimize import LBFGS
+        # ⛔ FIRE + 셀 필터는 셀 자유도에 큰 걸음을 내딛어 발산한다 (2026-09-12: Li₆PS₅Cl 이
+        #    부피 +34 %, a 10.25 → 11.3 Å). LBFGS + maxstep 제한으로 바꿨다.
+        opt = LBFGS(_CF(atoms), logfile=str(out / "cellrelax.log"), maxstep=0.05)
+        opt.run(fmax=0.02, steps=500)
+        rho_0K = density_g_cm3(atoms); P_0K = pressure_GPa(atoms)
+        dV = rho_file / rho_0K - 1.0
+        write(str(out / "relaxed_0K.xyz"), atoms, format="extxyz")
+        ind_0K = indicators(atoms.get_chemical_symbols(), atoms.get_positions(), np.asarray(atoms.get_cell()))
+        relax_note = f"steps={opt.get_number_of_steps()} fmax_reached={opt.converged()}"
+        log(f"  [대조] ρ(파일) {rho_file:.3f} → ρ_UMA(0K) {rho_0K:.3f} g/cm³ "
+            f"(부피 {100*dV:+.1f} % · P {P_0K:+.3f} GPa · {relax_note})")
+        if ind_file.get("PS4_fraction") is not None:
+            log(f"  [대조] PS₄ 보존 {ind_file['PS4_fraction']:.3f} → {ind_0K.get('PS4_fraction'):.3f}")
+            if ind_0K.get("PS4_fraction", 1.0) < ind_file["PS4_fraction"] - 0.05:
+                raise SystemExit("⛔ 0 K 완화에서 PS₄ 가 깨졌다 — 이 구조로는 밀도 대조가 성립하지 않는다. 멈춘다.")
+        if abs(dV) > max_relax_dV:
+            raise SystemExit(
+                f"⛔ 0 K 완화가 부피를 {100*dV:+.1f} % 바꿨다 (허용 ±{100*max_relax_dV:.0f} %) — "
+                "**이만큼 움직이면 대조가 아니다**. 시작 구조나 최적화를 먼저 고쳐라. "
+                "NPT 만으로 판정하려면 --control_no_cellrelax 를 써라 (그때 기준은 파일 밀도다).")
+    else:
+        log(f"  [대조] ρ(파일) {rho_file:.3f} g/cm³ · 0 K 완화 건너뜀 — 기준은 **파일 밀도**다")
     MaxwellBoltzmannDistribution(atoms, temperature_K=T_K, rng=np.random.default_rng(0)); Stationary(atoms)
     dt = dt_fs * units.fs
     dyn = NPTBerendsen(atoms, dt, temperature_K=T_K, pressure_au=0.0,
@@ -308,15 +335,18 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     tlog.close()
     half = [x for x in rows if x[0] >= rows[-1][0] / 2] or rows
     rho_npt = float(np.mean([x[1] for x in half])); P_npt = float(np.mean([x[2] for x in half]))
-    drift = rho_npt / rho_0K - 1.0
+    ref, ref_name = ((rho_0K, "rho_UMA_0K") if rho_0K is not None else (rho_file, "rho_file"))
+    drift = rho_npt / ref - 1.0
     res = {"kind": "npt_barostat_control", "T_K": T_K, "ps": ps, "dt_fs": dt_fs, "baro": dict(BARO),
            "cell_widths_A": [float(x) for x in w0], "min_cell_width_A": float(w0.min()),
            "min_width_required_A": min_width_A, "cell_wide_enough": bool(w0.min() >= min_width_A),
            "n_atoms": len(atoms), "composition": {e: atoms.get_chemical_symbols().count(e) for e in sorted(set(atoms.get_chemical_symbols()))},
            "rho_file_g_cm3": rho_file, "rho_UMA_0K_g_cm3": rho_0K, "P_UMA_0K_GPa": P_0K,
+           "cell_relax": bool(cell_relax), "cell_relax_note": relax_note,
+           "reference_for_drift": ref_name, "PS4_fraction_file": ind_file.get("PS4_fraction"),
            "rho_NPT_mean_last_half_g_cm3": rho_npt, "P_NPT_mean_last_half_GPa": P_npt,
            "drift_vs_UMA_0K": drift, "tol": tol, "plumbing_ok": bool(abs(drift) <= tol),
-           "UMA_vs_file": rho_0K / rho_file - 1.0,
+           "UMA_vs_file": (rho_0K / rho_file - 1.0) if rho_0K is not None else None,
            "⛔": "판정은 배선(배로스탯·단위)에 한정된다. UMA 자신의 밀도 오차(UMA_vs_file)는 이 판정 밖이다."}
     (out / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
     return res
@@ -560,13 +590,17 @@ def _selftest():
     from ase.build import bulk
     with tempfile.TemporaryDirectory() as td:
         cr = bulk("Li", "fcc", a=4.3, cubic=True).repeat(2)
+        # LJ 파라미터가 Li 격자와 안 맞아 0 K 완화가 20 %대로 움직인다 — 여기선 **배선**만 본다
         res = run_npt_control(cr, LennardJones(sigma=3.0, epsilon=0.20, rc=8.0), td,
-                              T_K=50, ps=0.4, dt_fs=2.0, save_ps=0.02, log=lambda *a: None)
+                              T_K=50, ps=0.4, dt_fs=2.0, save_ps=0.02, max_relax_dV=0.5,
+                              log=lambda *a: None)
         chk(res["baro"] == BARO, "대조 잡이 생산 런과 **같은** BARO 상수를 쓴다 (다르면 아무것도 증명 못 한다)")
         chk(math.isfinite(res["rho_UMA_0K_g_cm3"]) and math.isfinite(res["P_NPT_mean_last_half_GPa"])
             and os.path.isfile(os.path.join(td, "control.json")),
             f"대조 잡 배선: ρ(0K) {res['rho_UMA_0K_g_cm3']:.3f} · P_NPT {res['P_NPT_mean_last_half_GPa']:+.3f} GPa · control.json")
         chk(abs(res["P_UMA_0K_GPa"]) < 0.5, f"가변셀 완화가 0 GPa 근처로 간다 (P_0K {res['P_UMA_0K_GPa']:+.3f} GPa)")
+        chk(res["cell_relax"] and "steps=" in res["cell_relax_note"] and res["reference_for_drift"] == "rho_UMA_0K",
+            f"0 K 완화 기록이 남는다 ({res['cell_relax_note']})")
         chk(res["cell_wide_enough"] is False and abs(res["min_cell_width_A"] - 8.6) < 0.01,
             f"⛔음성: 폭 {res['min_cell_width_A']:.2f} Å < 9 Å 인 셀을 **조건부**로 표시한다 (조용히 통과 안 시킨다)")
     # ⑤ 면간거리 — 원자 수가 아니라 이게 MIC 기준이다
@@ -579,6 +613,25 @@ def _selftest():
     r = auto_repeat(prim, 9.0)
     chk(cell_widths_A((np.diag(r) @ prim)).min() >= 9.0,
         f"auto_repeat 가 폭 문턱을 채운다 ×{r} → {cell_widths_A((np.diag(r) @ prim)).min():.2f} Å")
+    # ⛔음성: 0 K 완화가 부피를 많이 바꾸면 멈춘다 (그만큼 움직이면 대조가 아니다)
+    with tempfile.TemporaryDirectory() as td:
+        cr2 = bulk("Li", "fcc", a=3.2, cubic=True).repeat(2)      # 일부러 압축해 둔 격자
+        try:
+            run_npt_control(cr2, LennardJones(sigma=3.0, epsilon=0.20, rc=8.0), td,
+                            T_K=50, ps=0.2, dt_fs=2.0, save_ps=0.02, max_relax_dV=0.02,
+                            log=lambda *a: None)
+            g = False
+        except SystemExit as e:
+            g = "대조가 아니다" in str(e)
+        chk(g, "⛔음성: 0 K 완화 부피변화가 허용 밖이면 조용히 진행하지 않고 멈춘다")
+    # 0 K 완화를 건너뛰면 기준이 파일 밀도로 바뀐다
+    with tempfile.TemporaryDirectory() as td:
+        cr3 = bulk("Li", "fcc", a=4.3, cubic=True).repeat(2)
+        r3 = run_npt_control(cr3, LennardJones(sigma=3.0, epsilon=0.20, rc=8.0), td,
+                             T_K=50, ps=0.2, dt_fs=2.0, save_ps=0.02, cell_relax=False, log=lambda *a: None)
+        chk(r3["reference_for_drift"] == "rho_file" and r3["rho_UMA_0K_g_cm3"] is None
+            and r3["UMA_vs_file"] is None,
+            "--control_no_cellrelax: 기준이 파일 밀도로 바뀌고 0 K 항목은 None (0 으로 안 채운다)")
     # ⛔음성: 압력을 못 주는 계산기는 0 이 아니라 NaN
     class _NoStress(LennardJones):
         implemented_properties = ["energy", "forces"]
@@ -657,6 +710,10 @@ def main():
     ap.add_argument("--control_min_width", type=float, default=9.0,
                     help="--npt_control 최소 면간거리 [Å] — 원자 수가 아니라 이 폭이 MIC 기준이다 (기본 9.0)")
     ap.add_argument("--control_ps", type=float, default=20.0, help="--npt_control NPT 길이 [ps]")
+    ap.add_argument("--control_no_cellrelax", action="store_true",
+                    help="--npt_control 에서 0 K 가변셀 완화를 건너뛴다 (기준이 **파일 밀도**로 바뀐다)")
+    ap.add_argument("--control_max_relax_dV", type=float, default=0.10,
+                    help="0 K 완화가 부피를 이보다 더 바꾸면 멈춘다 — 그만큼 움직이면 대조가 아니다 (기본 0.10)")
     ap.add_argument("--control_tol", type=float, default=0.03, help="--npt_control 통과 문턱 |Δρ/ρ_UMA(0K)|")
     ap.add_argument("--control_out", help="--npt_control 출력 폴더 (기본 <out_root>/npt_control)")
     ap.add_argument("--dry_run", action="store_true", help="셀만 만들고 계획을 찍는다 (UMA 안 부름)")
@@ -685,15 +742,18 @@ def main():
               f"({'자동' if not a.control_repeat else '손지정'}) · {a.T_final:.0f} K · {a.control_ps:.0f} ps → {cout}", flush=True)
         calc = make_calc(a.device, a.turbo)
         res = run_npt_control(at, calc, cout, T_K=a.T_final, ps=a.control_ps, dt_fs=a.dt_fs,
-                              tol=a.control_tol, min_width_A=a.control_min_width)
+                              tol=a.control_tol, min_width_A=a.control_min_width,
+                              cell_relax=not a.control_no_cellrelax,
+                              max_relax_dV=a.control_max_relax_dV)
         res["repeat"] = list(rep)
         res["uma_inference_mode"] = getattr(calc, "_mq_mode", "default")
         res["structure_file"] = a.npt_control
         (cout / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
         print(json.dumps({k: res[k] for k in ("rho_file_g_cm3", "rho_UMA_0K_g_cm3", "P_UMA_0K_GPa",
                                               "rho_NPT_mean_last_half_g_cm3", "P_NPT_mean_last_half_GPa",
-                                              "drift_vs_UMA_0K", "UMA_vs_file", "plumbing_ok",
-                                              "min_cell_width_A", "cell_wide_enough")},
+                                              "drift_vs_UMA_0K", "reference_for_drift", "UMA_vs_file",
+                                              "plumbing_ok", "min_cell_width_A", "cell_wide_enough",
+                                              "cell_relax", "cell_relax_note", "PS4_fraction_file")},
                          ensure_ascii=False, indent=1))
         if not res["cell_wide_enough"]:
             print(f"⚠ 셀 폭 {res['min_cell_width_A']:.2f} Å < {a.control_min_width} Å — 이 판정은 조건부다")
