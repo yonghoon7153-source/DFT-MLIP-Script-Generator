@@ -48,7 +48,13 @@ fi
 python -m pip install --upgrade pip -q
 
 echo "══ [4/7] python 패키지 (코어 + MPM + STEP4 + 파이프라인) ══"
-python -m pip install -q numpy scipy matplotlib pandas networkx scikit-image pyamg pybamm
+python -m pip install -q numpy scipy matplotlib pandas networkx scikit-image pyamg pybamm \
+                        pyflakes
+#  ★ pyflakes 는 장식이 아니다 (실사고 2026-09-13): 팔 스크립트의 미정의-이름 게이트
+#    (`sdcp_gain_vox015_8arm.sh:584` → `check_undefined_names.py`) 는 pyflakes 가 **없으면**
+#    AST 최소 검사로 떨어지는데, 그쪽은 중첩 함수의 클로저 변수를 못 봐 런 경로 5파일에서
+#    **오탐 114건**을 내고 게이트가 ABORT 한다.  이 스크립트에 pyflakes 가 빠져 있어
+#    V100 Phase A 세 단계가 전부 `팔 0` 으로 죽었다 (`setup_gpu_host.sh:75` 에는 있었다).
 # taichi: 1.7.4(glibc2.32) 시도 → IMPORT 검증(설치성공≠import성공: glibc/py 문제는 import서 터짐)
 #   실패면 1.6.0(glibc2.27, py<=3.11) 재시도.  둘 다 실패면 py3.11 안내 후 STOP.
 python -m pip install -q "taichi==1.7.4" 2>/dev/null || true
@@ -97,6 +103,8 @@ echo "══ [7/7] 검증 (런 전에 모든 GPU 경로 확인) ══"
 python - <<'PY'
 import numpy, scipy, matplotlib, pandas, networkx, skimage, pyamg, pybamm
 print("  ✓ 코어/STEP4/파이프라인 import OK")
+import pyflakes  # 미정의-이름 게이트가 최소-AST 로 떨어지면 오탐 114건으로 런이 선다
+print("  ✓ pyflakes (미정의-이름 게이트 백엔드)", pyflakes.__version__)
 import taichi as ti; ti.init(arch=ti.cuda); print("  ✓ taichi CUDA (MPM GPU)", ti.__version__)
 try:
     import cupy as cp, cupyx.scipy.sparse as sp
