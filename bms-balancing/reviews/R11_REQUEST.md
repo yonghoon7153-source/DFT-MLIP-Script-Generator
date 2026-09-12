@@ -14,7 +14,7 @@ GO 기준: R3 §5 + R5 §4 + R6 출처 결속 + R7 §6 + R8 §6 + R9 최소 조�
 | 정본 | `FINDINGS.md` + `out/` (+ `.meta.json`). **현행 out/ 12 개는 provenance-incomplete** (§4) |
 | 저장소에 없는 것 | 원본 MATLAB · 원자료 xlsx · 문헌 OCP → `BMS_DATA_ROOT` |
 | 10차 대비 새것 | P1-1~8 · P2-1~7 닫음 · 게시 전 완전성 판정(matrix·profile·ne_shape typed status) · 역할을 묶는 receipt · U18 gate 에 env/control/독립성 · `reviews/evidence_gate.py`(러너 공용 봉인) · `D.HALF_CELL_ABSENT` |
-| 증거 커밋 규약 | 러너는 **expected commit 을 materialize** 해서 돈다. 도구 자신도 그 커밋의 blob 이어야 `evidence_eligible: true` 이므로, 증거 JSON 은 **코드 커밋 뒤** 그 커밋에서 만들어 다음 커밋에 얹는다 (`git diff <expected_head> HEAD --stat` 로 코드가 안 바뀐 것을 확인할 수 있다) |
+| 증거 커밋 규약 | 러너는 **expected commit 을 materialize** 해서 돈다. 도구 자신도 그 커밋의 blob 이어야 `evidence_eligible: true` 이므로, 증거는 **코드 커밋 `665c87e` 에서** 만들어 그 다음 커밋들에 얹는다. `git diff 665c87e HEAD --name-only -- '*.py' '*.sh'` 는 **0 개** — 코드는 그대로이고 뒤 커밋은 증거 파일과 그 결과를 적은 문서(`R6_LEDGER.md` · `WORKING_STATE.md` · 이 파일)뿐이다 |
 
 ```bash
 git clone -b claude/bms-alpha-beta-verify https://github.com/yonghoon7153-source/Yonghoon-DEM-DFT
