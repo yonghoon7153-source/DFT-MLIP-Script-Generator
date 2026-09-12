@@ -8,6 +8,27 @@
  ],
  "figures": [
   {
+   "key": "f1",
+   "kind": "figure",
+   "label": "1",
+   "page": 2,
+   "file": "fig_1.png",
+   "caption": "Fig. 1 | Interfaces in cathode composites. Schematic illustration of various interfaces in cathode composites in solid-state batteries with and without cathode coating.",
+   "rotated_deg": 0,
+   "bbox": [
+    148,
+    512,
+    554,
+    716
+   ],
+   "w": 1693,
+   "h": 851,
+   "dpi": 300,
+   "src": "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf",
+   "blank": 0.0,
+   "note": "manual bbox (auto-crop 이 '영역 없음' 으로 건너뛴 그림 — 2026-09-12 digest 작성 중 복구)"
+  },
+  {
    "key": "f2",
    "kind": "figure",
    "label": "2",
@@ -36,16 +57,17 @@
    "caption": "Fig. 3 | (Electro)chemical instability of sulfide solid electrolytes. a | Evolution of four components of the resistance in a Li-In|β-Li3PS4|NCM-811/β-Li4PS4 cell obtained by fitting the impedance spectra in the first and second cycles as a function of the open-circuit voltage. b | Cyclic voltammetry of a Li| Li10GeP2S12 (LGPS)|LGPS+C|Pt cell between 1.0 and 3.5 V. c | S2p X-ray photoelectron spectra of the Li3PS4 glass+carbon composite electrode before and after charge–discharge processes. d | Cross-sectional, high-angle, annular dark-field imaging scanning transmission electron microscope image of the LiCoO2 electrode/Li2S–P2S5 interface after the first charge (top) and cross-sectional energy-dispersive X-ray spectroscopy line profiles for Co, P and S (bottom). RSE,anode, interfacial resistance between the solid electrolyte and the anode; RSE,bulk, bulk resistance of the solid electrol",
    "rotated_deg": 0,
    "bbox": [
-    136.3,
-    230.3,
-    560.2,
-    510.6
+    147,
+    64,
+    557,
+    509
    ],
-   "w": 1768,
-   "h": 1169,
+   "w": 1709,
+   "h": 1855,
    "dpi": 300,
    "src": "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf",
-   "blank": 0.531
+   "blank": 0.0,
+   "note": "manual bbox (auto-crop 이 패널 일부를 잘랐다 — 2026-09-12 digest 작성 중 수정)"
   },
   {
    "key": "f4",
@@ -76,16 +98,38 @@
    "caption": "Fig. 5 | Polyanionic oxides as a bridge between oxides and sulfides for good chemical compatibility. a | Reaction energies at fully lithiated cathode/solid electrolyte (SE), fully lithiated cathode/coating and coating/SE interfaces. b | Pair-wise chemical compatibility between oxides, sulfides and polyanionic oxides. The red-shaded box indicates high reactivity (>100 meV/atom) and the green-shaded boxes indicate low reactivity (<100 meV/atom). LCO, LiCoO2; LFPO, LiFePO4; LGPS, Li10GeP2S12; LLZO, Li7La3Zr2O12; LMO, LiMn2O4; LPS, Li3PS4; LPSCl, Li6PS5Cl; NCM, LiNi1/3Co1/3Mn1/3O2. Panel a is reproduced with permission from ref.67, Elsevier.",
    "rotated_deg": 0,
    "bbox": [
-    127.9,
-    199.7,
-    557.0,
-    253.7
+    87,
+    58,
+    558,
+    252
    ],
-   "w": 1789,
-   "h": 226,
+   "w": 1963,
+   "h": 809,
    "dpi": 300,
    "src": "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf",
-   "blank": 0.621
+   "blank": 0.0,
+   "note": "manual bbox (auto-crop 이 패널 일부를 잘랐다 — 2026-09-12 digest 작성 중 수정)"
+  },
+  {
+   "key": "f6",
+   "kind": "figure",
+   "label": "6",
+   "page": 16,
+   "file": "fig_6.png",
+   "caption": "Fig. 6 | Electrochemical stability windows of common solid electrolytes. Each solid electrolyte is represented by a circle with area proportional to the order of magnitude of its ionic conductivity (in µS cm−1). The stability window is the vertical distance from the centre of the circle to the diagonal line, as illustrated by the arrow. The dashed lines are the contours of the width of the stability window. LiPON, lithium phosphorus oxynitride; NASICON, Na superionic conductor.",
+   "rotated_deg": 0,
+   "bbox": [
+    138,
+    56,
+    345,
+    250
+   ],
+   "w": 863,
+   "h": 809,
+   "dpi": 300,
+   "src": "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf",
+   "blank": 0.0,
+   "note": "manual bbox (auto-crop 이 '영역 없음' 으로 건너뛴 그림 — 2026-09-12 digest 작성 중 복구)"
   },
   {
    "key": "f7",
@@ -96,16 +140,17 @@
    "caption": "Fig. 7 | Trade-offs between ionic conductivity and electrochemical stability upon tuning the solid electrolyte composition. The pie charts represent the effect of individual strategies on the ionic conductivity , reduction stability and oxidation stability of the solid electrolyte. Green indicates that the corresponding property is enhanced by the strategy , whereas red indicates an impairment. White means that the effect of the strategy is not clear. Examples of systems demonstrating the effect of individual strategies are provided in the corresponding sectors. L ATP, Li1+xAlxTi2−x(PO4)3; LGPS, Li10GeP2S12; M, non-Li cation(s); X, anion.",
    "rotated_deg": 0,
    "bbox": [
-    35.7,
-    545.3,
-    345.0,
-    659.1
+    38,
+    369,
+    343,
+    658
    ],
-   "w": 1290,
-   "h": 476,
+   "w": 1272,
+   "h": 1205,
    "dpi": 300,
    "src": "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf",
-   "blank": 0.505
+   "blank": 0.0,
+   "note": "manual bbox (auto-crop 이 패널 일부를 잘랐다 — 2026-09-12 digest 작성 중 수정)"
   },
   {
    "key": "t1",

@@ -198,14 +198,15 @@
    "bbox": [
     51.7,
     43.5,
-    379.0,
-    315.9
+    551.5,
+    318.0
    ],
-   "w": 1365,
-   "h": 1136,
+   "w": 2083,
+   "h": 1144,
    "dpi": 300,
    "src": "111. Nolan2018_Computation_Accelerated_Design_Materials_Interfaces_ASSB_REVIEW.pdf",
-   "blank": 0.491
+   "blank": 0.491,
+   "note": "bbox 수동 확장: 자동 크롭이 3단 그림의 오른쪽(Type 3 SEI 패널)을 잘라냈다 (2026-09-12 digest 작성 중 확인·수정)"
   },
   {
    "key": "f11",
