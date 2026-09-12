@@ -71,13 +71,17 @@ for d in sorted(glob.glob(os.path.join(R, "npt_control*"))):
             c = json.load(open(cj))
         except Exception as e:
             print(f"  {name:22s} ⚠ control.json 못 읽음 ({e})"); continue
+        # ⛔ 옛 판 control.json 은 키가 아예 없다 — None 을 포맷하면 watch 가 죽는다 (2026-09-12)
+        def f(k, fmt="%.3f", dash="—"):
+            v = c.get(k)
+            return dash if v is None else (fmt % v)
         ref = c.get("reference_for_drift", "?"); dr = c.get("drift_vs_UMA_0K")
-        w = c.get("min_cell_width_A"); ok = c.get("plumbing_ok")
-        r0 = c.get("rho_UMA_0K_g_cm3"); rn = c.get("rho_NPT_mean_last_half_g_cm3")
-        print(f"  {name:22s} ✅ 완료  {c.get('n_atoms','?')}원자 폭 {w:.2f} Å  "
-              f"ρ파일 {c.get('rho_file_g_cm3',float('nan')):.3f} → 0K {('%.3f'%r0) if r0 else '—'} → NPT {('%.3f'%rn) if rn else '—'}  "
-              f"P {c.get('P_NPT_mean_last_half_GPa',float('nan')):+.3f} GPa")
-        print(f"  {'':22s}    drift {100*dr:+.2f} % (기준 {ref}) → {'⭕ 배선 정상' if ok else '⛔ 배선 이상'}"
+        ok = c.get("plumbing_ok")
+        print(f"  {name:22s} ✅ 완료  {c.get('n_atoms','?')}원자 폭 {f('min_cell_width_A','%.2f')} Å  "
+              f"ρ파일 {f('rho_file_g_cm3')} → 0K {f('rho_UMA_0K_g_cm3')} → "
+              f"NPT {f('rho_NPT_mean_last_half_g_cm3')}  P {f('P_NPT_mean_last_half_GPa','%+.3f')} GPa")
+        verdict = ("⭕ 배선 정상" if ok else ("⛔ 배선 이상" if ok is not None else "— 판정 없음"))
+        print(f"  {'':22s}    drift {('%+.2f %%' % (100*dr)) if dr is not None else '—'} (기준 {ref}) → {verdict}"
               f"{'' if c.get('cell_wide_enough', True) else '  ⚠ 셀이 얇다 — 조건부'}")
         if c.get("cell_relax_note"): print(f"  {'':22s}    0K 완화: {c['cell_relax_note']}")
     else:
