@@ -3,13 +3,45 @@
 > 세션이 바뀌어도 유지되는 미결 사항 추적. 닫을 때 날짜+근거를 남기고 ✅로 옮긴다.
 > 등록: 2026-07-27 (MAX 감사 후속).
 
-## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-11**)
+## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-12**)
 
 > 순서가 있다. 앞이 끝나야 뒤가 뜻이 있다.
 >
 > ⚠ **이 절의 상태 문장은 실측으로만 쓴다.** 2026-09-07 까지 여기 머리가 "ORCA 8잡 실행 중"
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
+
+### ⏭-NOW. 2026-09-12 기준 상태 (git log · selftest · 회신 원문으로 받침 — 서버 실측은 오전 값)
+
+> ⛔ **오늘의 교훈 — 기록을 먼저 읽는다.** cascade 앵커·게이트를 이틀 붙잡았는데
+> `cascade_pipeline_anatomy_2026_08_13.md`(게이트 2.8 %)·`uma_relax_check_hosts.json`(comp1_k444 가
+> DFT 평형 19.55, UMA 유지 +0.06 %)·`b2o3_ehull_result.json` 2026-09-07 정정(B–O 없음)에 **답이 이미 있었다.**
+> 같은 자리에서 §6→§7→§8→§9→§10→§11→§12 정정 7회. 원인은 매번 "원시 파일 전수 전에 결론".
+
+**cascade — 재건 (수리 아님, 1저자 결정 2026-09-12)**
+- 회신 **BN NO-GO**(카드 v1·v2) → 회신 **BO 조건부 GO**: 정적대조 2 SCF + 한 대비 파일럿 ≤30 런,
+  **'UMA 내부 진단' 한정**. 원문: `kb/reviews/codex_BN_reply_*` · `codex_BO_reply_*`. 카드 정본 **v3**
+  `db/properties/cascade_rebuild_estimand_card_v3_2026_09_12.json` (v1·v2 보존, proposed — **1저자 ratify 대기**).
+- host 교체: canonical(20.71, DFT 평형 **아님**) → **comp1_V0_k444 (DFT k444 평형 19.55)**. 재앵커 산술
+  `cascade_reanchor_comp1k444_2026_09_12.json` — 단 'UMA 편향 ~0'·'가짜 basin'·'B₂O₃만 진짜 basin' 은 **가설**(BO).
+- 도구 3종 준비 (selftest 통과): `run_force_check_scf.sh` 응력 완료검사 **6/6** · `substitute_compound.py`
+  `--index_plan/--emit_index_plan` **16/16** · `generate_dft_inputs.py --static_pair/--compare_static_pair` **47/47**.
+- **⏭ 다음 한 수 = `scratchpad/static_pair_sequence.md` ①→⑤**: gabia 블록(`static_b_geom_gabia.sh`, tmux `sab`)으로
+  (b) 기하 + UMA 단일점 → scp → `--static_pair` → 러너 2점(kgy/gabia, pw.x·UMA 동시 금지) → `--compare_static_pair`
+  → **회신 BP**. 파일럿(P1 Al₂O₃ / P2 Al₂S₃ @ Li_24g·S_16e, 공통 부모 2·속도 2·온도 3)은 ⑤ 뒤.
+  ⚠ 빌더에 '16e O 3개가 서로 다른 P' 규칙 없음 — planA.json 손으로 확인.
+- 강등: v23 3,615행 = 탐색 자료. 4축·front 39·`de_post_anneal` 판정 금지. 681 구조는 자산이나 새 표본 아님.
+  `cascade_base_strain_2026_09_12.json` **superseded**(§12).
+
+**b2o3 — 기전 서술 정정** (`b2o3_mechanism_correction_2026_09_12.json`, proposed)
+- ⛔ 철회 "B 가 사면체를 싫어해 좌절". 실측 B58/B59 = **삼각 BS₃**(S 1.80–1.85, 4번째 이웃 Li), **B–O 0개**, O 는 P 인산염.
+  고친 기전 = **B·O 분리**(열역학은 보레이트를 원함). 협업 md **v2** 발송(`BO-LPSCl 기전 제안 v2.md`) — v1 폐기.
+- 포논 = **Γ점·셀폭 5.7/5.7/57.6 Å** 한계 명시. 전단 −2.87 은 같은 셀 → 아티팩트 의심. gabia `el`(QE 탄성) 결과 대기.
+- cascade 오염과 **격리 확인**: b2o3 는 modelC host·DFT·V/atom 19.03 — canonical 안 거침. cascade 의 B2O3 52원자 행은 별개.
+
+**서버 (오전 실측, 갱신 필요)**: gabia tmux `el`·`qe`·`w` 생존, GPU 100 % 41 GB(QE), UMA 프로세스 0. **⇒ (b) 블록은 QE 끝난 뒤.**
+**논문 에이전트**: 계보 9편 중 **6 완료**, 남은 #7 Nolan 리뷰 · #8 Banerjee · #9 Lu 2024(본문 수령).
+**비준 대기(1저자)**: 카드 v3 · `cascade_axis_global_audit`(BO 정정 반영) · `cascade_reanchor` · `b2o3_mechanism_correction`.
 
 ### ⏭-NOW. 2026-09-11 17:30 기준 **실측** 상태 (ps·nvidia-smi·tmux·git log 로 받침 · 14:40 판을 갱신)
 
