@@ -125,7 +125,8 @@ def raw_ne_capacity(path: pathlib.Path) -> float:
     return float(c.max()) if c.size else float("nan")
 
 
-def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, consumed=None) -> pathlib.Path:
+def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, consumed=None,
+               pairing=None) -> pathlib.Path:
     """표를 그대로 CSV 로. 옆에 `.meta.json` 을 같이 둔다 (run_states.sh 와 같은 규약).
 
     `cap_delta_pct` 를 **반드시 같이** 남긴다 — `(a) 측정변화` 는 정규화 뒤
@@ -185,6 +186,9 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
         # ⚠ Codex R5-05: "코드가 commit 과 같다" 와 "이 입력에서 이 결과가 나왔다" 는 다른 물음이다 —
         #   실제 소비한 matrix 파일(경로·sha256·행)·반쪽전지·문헌 입력의 identity 를 tracked 여부와 무관하게 남긴다.
         "consumed_inputs": consumed or {},
+        # ⚠ Codex R8-03: 측정 통계는 모든 측정 행에서, γ-짝 통계는 requested/paired/missing 을 따로 — 어느 부분집합
+        #   위의 진술인지 산출이 스스로 말한다
+        "pairing": pairing or {},
         "run_id": rid,
         "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
@@ -325,20 +329,32 @@ def main() -> int:
                    else "없음 (격자 기준)")
             print(f"    {r[0]:10}{r[7]:>7.4f}{legal:>20}{r[1]:>9.2f}{fam:>24}{wit:>32}")
         print("    ⚠ 증인은 진폭 크기의 존재이지 모양 일치가 아니다. secant 외삽으로 '필요 Δγ' 를 구하지 않는다.")
+    # ⚠ Codex R8-03: 전 판은 `ok`(γ 짝이 있는 행)만으로 **측정** 최대까지 계산했다 — state200 이 100 mV 인데 matrix 가
+    #   아직 없으면 요약은 "최대 10 mV" 로 끝나고 rc 0 이었다. 측정 통계는 모든 측정 행에서, γ-짝 통계는 짝 있는 행에서,
+    #   그리고 requested/paired/missing 을 산출·stdout·종료 코드로 전파한다.
+    requested = [r[0] for r in rows]
+    paired = [r[0] for r in rows if r[3] == r[3]]
+    missing_pairs = [st for st in requested if st not in paired]
+    pairing = {"requested": requested, "paired": paired, "missing": missing_pairs,
+               "note": "measured_* 는 requested 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다 (Codex R8-03)"}
     if a.write:
         art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
-                         {c[0]: c for c in cwhere}, headroom, consumed)
+                         {c[0]: c for c in cwhere}, headroom, consumed, pairing)
         print(f"\n→ {art}")
 
     print()
     ok = [r for r in rows if r[3] == r[3]]
+    print(f"γ 짝: requested {len(requested)} · paired {len(paired)}/{len(requested)}"
+          + (f" · **missing {missing_pairs}** (matrix_<state>.csv 없음/짝 없음 — 미계산이지 '증인 없음' 이 아니다)"
+             if missing_pairs else ""))
+    if rows:
+        print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in rows):.2f} mV (requested {len(requested)} 개 전부에서),")
     if not ok:
         print("γ 짝을 못 찾았다 — `--out-dir` 에 `ref_gamma_Si` 열이 있는")
         print("matrix_<state>.csv 가 있어야 한다 (v2 이후 산출).")
         return 1
     worst = max(ok, key=lambda r: r[3])
-    print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in ok):.2f} mV,")
-    print(f"γ 가 만들어 낸 모델 변화 최대 {max(r[2] for r in ok):.2f} mV.")
+    print(f"γ 가 만들어 낸 모델 변화 최대 {max(r[2] for r in ok):.2f} mV (paired {len(paired)} 개에서).")
     # ⚠ 아래는 **크기의 기술**이다. 원인 판정(모델 부적합·잡음·보상)은 출력하지 않는다 —
     #   Codex R3-02: 정확히 표현 가능한 곡선에도 같은 비가 나오므로 비로는 가를 수 없다.
     if worst[3] > 3:
@@ -394,6 +410,9 @@ def main() -> int:
     print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
     print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
     print("⚠ 이것은 **크기 비교**다. 방향이 같은지는 따로 봐야 한다.")
+    if missing_pairs:
+        print(f"⚠ **부분** — γ 짝이 없는 상태 {missing_pairs}: 위 γ 통계는 paired {paired} 위의 진술이다 → 종료 코드 3")
+        return 3                                             # 3 = 부분 (eval --compare 와 같은 뜻)
     return 0
 
 

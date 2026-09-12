@@ -1559,8 +1559,13 @@ def cmd_profile(args):
                      "profile_scale": "per-gamma" if per_gamma_scale else "global",
                      "inputs_sha": getattr(obj, "inputs_sha", None),
                      # ⚠ Codex R7-03: LAM 은 기준 적합에도 달려 있다 — 기준 입력이 바뀌면 행이 움직이므로 그
-                     #   서명을 같이 적는다. 전체 identity 는 아래 summary 에 한 벌 (행마다 되풀이하지 않는다).
-                     "ref_inputs_sha": getattr(ref, "inputs_sha", None)})
+                     #   서명을 같이 적는다.
+                     "ref_inputs_sha": getattr(ref, "inputs_sha", None),
+                     # ⚠ Codex R8-04: 전체 identity 를 summary(stdout → `.csv.log`) 에만 두면 다음 정상 재시도가 실패할 때
+                     #   redirect 가 log 를 먼저 잘라 이전 정상 묶음의 출처가 사라진다 — 실행 log 는 durable receipt 가
+                     #   아니다. 검증되는 묶음(CSV) 자체에 둔다 (matrix 행과 같은 모양).
+                     "consumed_inputs": json.dumps(getattr(obj, "consumed_inputs", None), ensure_ascii=False),
+                     "ref_consumed_inputs": json.dumps(getattr(ref, "consumed_inputs", None), ensure_ascii=False)})
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]

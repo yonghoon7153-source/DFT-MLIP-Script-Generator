@@ -63,8 +63,12 @@ def _read_unit(f: pathlib.Path, excluded: list | None = None):
 
 def load_degeneracy(d: pathlib.Path, excluded: list | None = None) -> dict:
     """⚠ Codex R7-01: 뺀 것은 **세어서 돌려줘야** 한다. `excluded` 를 주면 (파일, 이유) 가 쌓인다 — 집계가 "몇 개 중
-    몇 개를 봤는가" 를 말할 수 있어야 남은 부분집합을 전체처럼 인증하지 않는다."""
-    out = {}
+    몇 개를 봤는가" 를 말할 수 있어야 남은 부분집합을 전체처럼 인증하지 않는다.
+
+    ⚠ Codex R8-01: 전 판은 `out[state] = …` 라 같은 state 의 **다른 Si** 정상 묶음이 서로 덮었다 (Li 가 Kunz 를 지워
+      1/1·예). inventory 를 먼저 만들고, state 에 Si 가 하나면 key 는 `state`(옛 소비자 호환), 둘 이상이면 그 state 의
+      항목 전부를 `state|si` 로 둔다 — 아무것도 조용히 사라지지 않는다."""
+    inventory: list = []
     for f in _canon_files(d, "degeneracy_*.json", excluded):
         m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", f.stem)
         if not m:
@@ -79,8 +83,17 @@ def load_degeneracy(d: pathlib.Path, excluded: list | None = None) -> dict:
             if excluded is not None:
                 excluded.append((f.name, "JSON 이 아니다"))
             continue
-        out[m.group(1)] = {"si": m.group(2), "j": j, "file": f.name, "meta": meta,
-                           "run_id": j.get("run_id")}
+        inventory.append((m.group(1), m.group(2), {"si": m.group(2), "j": j, "file": f.name, "meta": meta,
+                                                   "run_id": j.get("run_id")}))
+    per_state: dict = {}
+    for st, si, _ in inventory:
+        per_state.setdefault(st, []).append(si)
+    out = {}
+    for st, si, e in inventory:
+        key = st if len(per_state[st]) == 1 else f"{st}|{si}"
+        if key in out:                                             # 같은 (state, si) 가 둘 — 이름이 다를 수 없다
+            raise RuntimeError(f"{d}: (state={st}, si={si}) 묶음이 둘이다 ({out[key]['file']}, {e['file']})")
+        out[key] = e
     return out
 
 
@@ -131,13 +144,20 @@ def main() -> int:
     #   독자가 미완을 정확히 거부하는 것과, 남은 부분집합을 전체처럼 인증하는 것은 다른 문제다. 후보·검증·제외를
     #   세고, 제외가 있거나 관측이 0 이면 전체 판정을 내지 않는다 (종료 코드도 그것을 말한다).
     ok_llI_narrowest = True
-    census = {"candidates": 0, "verified": 0, "excluded": []}
+    census = {"candidates": 0, "verified": 0, "excluded": [], "roster": {}}
     for label, d in roots.items():
         exc: list = []
+        # ⚠ Codex R8-01: 명시한 root 는 **하나하나** 후보다. 없거나 비어 있으면 그 root 는 관측 0 이고 전체 판정은
+        #   미완이다 — 전 판은 빈 root 가 후보에 안 들어가 `good=… empty=…` 가 1/1·예 rc 0 이었다.
+        if not d.is_dir():
+            census["roster"][label] = {"dir": str(d), "exists": False, "candidates": 0, "verified": 0, "excluded": 0}
+            print(f"\n[{label}] {d} — **디렉터리가 없다** (요청한 root 인데 관측 0)"); continue
         deg = load_degeneracy(d, excluded=exc)
         census["candidates"] += len(deg) + len(exc)
         census["verified"] += len(deg)
         census["excluded"] += [(label, n, why) for n, why in exc]
+        census["roster"][label] = {"dir": str(d), "exists": True, "candidates": len(deg) + len(exc),
+                                   "verified": len(deg), "excluded": len(exc)}
         if not deg:
             print(f"\n[{label}] {d} — degeneracy 산출 없음"
                   + (f" (제외 {len(exc)})" if exc else "")); continue
@@ -200,11 +220,19 @@ def main() -> int:
     print(f"  대조에 쓴 degeneracy 산출: **{n_ok}/{n_cand}** (제외 {len(exc)})")
     for label, name, why in exc:
         print(f"    - [{label}] {name}: {why}")
-    if exc or not n_ok:
+    # 요청한 root roster — 각 root 가 실제로 관측을 냈는가 (Codex R8-01)
+    hollow = [lab for lab, r in census["roster"].items() if not r["exists"] or r["verified"] == 0]
+    print(f"  요청한 root {len(census['roster'])} 개 roster:")
+    for lab, r in census["roster"].items():
+        print(f"    - {lab}: {'있음' if r['exists'] else '**없음**'} · 후보 {r['candidates']} · 검증 {r['verified']}"
+              f" · 제외 {r['excluded']}" + ("  ← 관측 0" if lab in hollow else ""))
+    if exc or not n_ok or hollow:
         # 반례가 빠진 채 "예" 를 내면 그것이 곧 오인증이다 (Codex R7-01). 부분집합에서 본 것은 범위를 붙여 말한다.
         # 판정 줄의 머리는 그대로 둔다 (도구가 이 줄을 잡는다) — 다만 **절대 "예" 로 끝나지 않는다**
         if n_ok:
-            print(f"  A 축에서 LLI 가 **항상 가장 좁은가**: **미완** — 제외 {len(exc)} 건이 있어 전체 조건을 "
+            why = (f"제외 {len(exc)} 건" if exc else "") + (" · " if exc and hollow else "") + \
+                  (f"관측 0 인 요청 root {hollow}" if hollow else "")
+            print(f"  A 축에서 LLI 가 **항상 가장 좁은가**: **미완** — {why} 이 있어 전체 조건을 "
                   f"말할 수 없다. 관측한 {n_ok}/{n_cand} 개 안에서는 LLI 가 "
                   f"{'항상 가장 좁았다' if ok_llI_narrowest else '**항상 가장 좁지는 않았다**'} (그 범위의 진술이다).")
         else:

@@ -15,9 +15,32 @@ def run(k):
     return r.returncode, r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[-300:]
 
 
+def classify(rc, last):
+    """pytest 결과 → CAUGHT / MISSED / 오류.
+
+    ⚠ Codex R8-06: 전 판은 `rc != 0` 을 전부 CAUGHT 로 셌다 — selector 가 시험을 하나도 못 고르면(rc 5, "52 deselected")
+      그것도 CAUGHT 였다. selector 오타·rename·수집 실패는 assertion 검출이 아니라 **감사 오류**다."""
+    import re
+    m = re.search(r"(\d+) (passed|failed)", last)
+    n_sel = sum(int(x) for x in re.findall(r"(\d+) (?:passed|failed)", last))
+    if rc == 5 or n_sel == 0 or "error" in last.lower() or "ERROR" in last:
+        return "오류"
+    if rc == 0:
+        return "MISSED"
+    return "CAUGHT" if m else "오류"
+
+
+def apply(text, old, new):
+    """`old`/`new` 는 문자열 하나 또는 (old, new) 쌍의 튜플 — 한 변이가 두 자리를 함께 바꿀 수 있다 (c6_04)."""
+    pairs = list(zip(old, new)) if isinstance(old, tuple) else [(old, new)]
+    for o, n in pairs:
+        assert text.count(o) == 1, (o[:60], text.count(o))
+        text = text.replace(o, n)
+    return text
+
+
 def mutate(path, old, new):
-    p = ROOT / path; s = p.read_text(encoding="utf-8")
-    assert s.count(old) == 1, (path, old[:60], s.count(old)); p.write_text(s.replace(old, new), encoding="utf-8")
+    p = ROOT / path; p.write_text(apply(p.read_text(encoding="utf-8"), old, new), encoding="utf-8")
 MUTATIONS = [
  ("R6-01 read_unit 이 검증 뒤 경로를 다시 읽는다", "c6_01", "scripts/provenance.py",
   "    ok, why = verify_unit_bytes(p.name, data, meta, rid)\n    return ok, why, data, meta",
@@ -31,11 +54,14 @@ MUTATIONS = [
  ("R6-03 ne_shape: 반쪽전지 identity 를 다시 열어 해시", "c6_03", "scripts/ne_shape.py",
   "                    \"half_cell\": hb[s].identity()}",
   "                    \"half_cell\": {\"path\": hb[s].path, \"sha256\": __import__('hashlib').sha256(pathlib.Path(hb[s].path).read_bytes()).hexdigest()}}"),
- # ⚠ Codex R7 §4: 전 판의 이 변이는 `_vN` 파일명 때문에 state 가 **사라져** KeyError 로 잡혔다 — "옛 값을 실제로
- # 소비했다" 는 반례가 아니었다. 그래서 옛 `_keep_latest` 규칙을 그대로 되살린다 (판 번호를 떼고 최고판을 고른다).
- ("R6-04 옛 규칙: 가장 높은 _vN 을 정본으로 (이름은 unversioned 로 환원)", "c6_04", "scripts/compare_states.py",
-  "    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue",
-  "    best = {}\n    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue\n        m = VER.search(f.stem)\n        key = VER.sub(\"\", f.stem)\n        n = int(m.group(1)) if m else 1\n        if n >= best.get(key, (0, None))[0]:\n            best[key] = (n, f)\n    for key, (n, f) in sorted(best.items()):\n        if n > 1:\n            f = f.rename(f.with_name(key + f.suffix)) if False else f\n        yield f\n    return\n    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue"),
+ # ⚠ Codex R7 §4 · R8 §4: 전 판의 변이는 `_vN` 파일명 때문에 state 가 **사라져** KeyError 로 잡혔다 — "옛 값을 실제로
+ # 소비했다" 는 반례가 아니다. 옛 `_keep_latest` 규칙을 두 자리에 그대로 되살린다: (i) 가장 높은 판을 고르고 (ii) 판
+ # 번호를 뗀 이름으로 state 를 파싱한다 → 독자가 key "100" 아래 `_v2` 의 222 를 돌려주고 값 assertion 이 잡는다.
+ ("R6-04 옛 규칙: 가장 높은 _vN 을 정본으로 (값으로 잡힌다)", "c6_04", "scripts/compare_states.py",
+  ("    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue",
+   '        m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", f.stem)'),
+  ("    best = {}\n    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue\n        m = VER.search(f.stem)\n        key = VER.sub(\"\", f.stem)\n        n = int(m.group(1)) if m else 1\n        if n >= best.get(key, (0, None))[0]:\n            best[key] = (n, f)\n    for key, (n, f) in sorted(best.items()):\n        yield f\n    return\n    for f in sorted(d.glob(pattern)):\n        if f.name.endswith(\".meta.json\"):\n            continue",
+   '        m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", VER.sub("", f.stem))')),
  ("R6-05 -z 경로를 ' -> ' 로 쪼갬", "c6_05", "scripts/provenance.py",
   "        rel = ln[3:]\n", "        rel = ln[3:].split(\" -> \")[-1].strip()\n"),
  ("R6-06 원장이 '적은 시작' 을 산 문장으로", "c6_06", "reviews/R6_LEDGER.md",
@@ -55,9 +81,11 @@ def main() -> int:
         try:
             mutate(path, old, new)
             rc_m, last_m = run(k)
-            ok = rc_m != 0
-            print(("CAUGHT " if ok else "MISSED ") + f"| {what} | {k} | {last_m}")
-            bad += (not ok)
+            verdict = classify(rc_m, last_m)
+            print(f"{verdict:6} | {what} | {k} | {last_m}")
+            if verdict == "오류":
+                print(f"       ! 감사 오류 — 선택된 시험이 0 이거나 수집/실행 오류 (rc {rc_m}); CAUGHT 로 세지 않는다 (Codex R8-06)")
+            bad += (verdict != "CAUGHT")
         finally:
             (ROOT / path).write_bytes(bak)
     rc, last = run("c6_0 or c6_q3")

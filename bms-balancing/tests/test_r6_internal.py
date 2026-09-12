@@ -650,14 +650,25 @@ def _u14_dirs(tmp_path, *, schema=True, bump=None):
         cols = ["half_cell", "si", "w_dqdv", "obj", "LLI_pct"]
         row = ["GITT", "Li", "0", "1.5", str(3.0 + (bump or 0.0) * is_new)]
         if is_new and schema:
-            cols += ["run_id", "inputs_sha", "scale_seed", "n_scale_samples"]; row += ["rid", "abc123abc123", "0", "50"]
+            # R8-02: checker 가 요구하는 열 = producer 가 쓰는 열 (기준/대상 출처 열 포함)
+            cols += ["run_id", "inputs_sha", "scale_seed", "n_scale_samples",
+                     "ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs"]
+            row += ["rid", "abc123abc123", "0", "50", "def456def456", '"{}"', '"{}"']
         (d / "matrix_100.csv").write_text(",".join(cols) + "\n" + ",".join(row) + "\n", encoding="utf-8")
         if is_new and schema:
-            (d / "degeneracy_100_Li.json.meta.json").write_text(json.dumps(
-                {k: "v" for k in ("run_id", "sha256", "artifact", "env", "started_utc", "git_commit_at_start")}
-                | {"git_state_changed_during_run": False}), encoding="utf-8")
-            (d / "matrix_100.csv.meta.json").write_text((d / "degeneracy_100_Li.json.meta.json").read_text(encoding="utf-8"), encoding="utf-8")
+            # ⚠ Codex R8-02 뒤: meta 는 **진짜** 묶음이어야 한다 (전 판 fixture 는 sha256="v" 인 가짜 meta 였고, 그것이
+            #   "data 와 meta 를 따로 읽는" checker 를 가려 주고 있었다 — fixture 가 진실을 가린 통로)
+            for name in ("degeneracy_100_Li.json", "matrix_100.csv"):
+                _u14_sign(d / name, "rid")
     return old, new
+
+
+def _u14_sign(art, rid):
+    """check_u14 의 META_KEYS 를 갖춘, 실제 bytes 에 결속된 meta."""
+    (art.parent / (art.name + ".meta.json")).write_text(json.dumps(
+        {"run_id": rid, "sha256": _prov().sha256_file(art), "artifact": art.name, "env": {"numpy": "2.0"},
+         "started_utc": "2026-09-12T00:00:00Z", "git_commit_at_start": "0" * 40,
+         "git_state_changed_during_run": False}), encoding="utf-8")
 
 
 def _u14_run(old, new, *extra):
@@ -703,6 +714,8 @@ def test_i6u_14_check_script_separates_schema_from_moved_numbers(tmp_path):
         else:
             j = json.loads(f.read_text(encoding="utf-8")); j.pop(drop)
             f.write_text(json.dumps(j), encoding="utf-8")
+        if not fname.endswith(".meta.json"):
+            _u14_sign(f, "rid")                       # R8-02: 산출을 고쳤으면 다시 서명 — 아니면 '묶음 불일치' 가 먼저 잡는다
         r = _u14_run(o, n)
         assert r.returncode == 2 and drop in r.stdout, (fname, drop, r.returncode, r.stdout)
 
@@ -810,9 +823,7 @@ def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(t
                 "env": {"numpy": "2"}, "consumed_inputs": {"full_cell": {"sha256": "x"}},
                 "LLI_percent": {"min": 1.0, "max": 2.0, "is_lower_bound": True, "grid_pct": [1.0, 2.0]}}),
         encoding="utf-8")
-    (new / "degeneracy_300_0009_Li.json.meta.json").write_text(json.dumps(
-        {k: "v" for k in ("run_id", "sha256", "artifact", "env", "started_utc", "git_commit_at_start")}
-        | {"git_state_changed_during_run": False}), encoding="utf-8")
+    _u14_sign(new / "degeneracy_300_0009_Li.json", "r")                 # R8-02: 진짜 묶음 (가짜 meta 는 이제 미완이다)
     r = _u14_run(old, new, "--baseline-policy", "historical")        # 옛 커밋의 out/ 을 손으로 푼 경우 (Codex R7-04)
     assert r.returncode == 0, (r.returncode, r.stdout)               # v2 와 같으므로 숫자는 안 움직였다
     assert "_v2" in r.stdout and "정본에 없던 필드" in r.stdout, r.stdout
@@ -958,15 +969,16 @@ def _c6_matrix(out, rid, width, meta=True, name="matrix_100.csv"):
 def _hook_open(monkeypatch, target_name, k, on_k):
     """`target_name` 파일의 k 번째 **읽기** open 직전에 `on_k()` — 파일 읽기 경계에 다른 정상 게시가 끼는 순서.
     pandas·zipfile·pathlib 이 각각 `builtins.open`/`io.open` 을 쓰므로 둘 다 건다."""
-    real = _io.open; n = {"v": 0}
+    real = _io.open; n = {"v": 0, "published": 0}
     def fake(file, mode="r", *a, **kw):
         if pathlib.Path(str(file)).name == target_name and "r" in str(mode) and "+" not in str(mode):
             n["v"] += 1
             if n["v"] == k:
+                n["published"] += 1                                       # ⚠ Codex R8-08: 읽기 수와 **게시(callback) 수**는 다르다
                 on_k()
         return real(file, mode, *a, **kw)
     monkeypatch.setattr(_io, "open", fake); monkeypatch.setattr(builtins, "open", fake)
-    return n                                                              # 훅이 몇 번째 읽기까지 갔는지 (주입 확인용)
+    return n                                                              # v = 읽기 횟수 · published = callback 실행 횟수
 
 
 def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeypatch):
@@ -1004,25 +1016,31 @@ def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeyp
             counter = _hook_open(mp, target, 10 ** 6, lambda: None)
             read(probe, kind)
         n_reads = counter["v"]
-        assert n_reads >= 1, (kind, target, how)
+        assert n_reads >= 1 and counter["published"] == 0, (kind, target, how, counter)
         cases += [(kind, target, k, how) for k in range(1, n_reads + 1)]
-    seen = set()
+    seen = set(); schedules = {}                                          # schedule 별 (기대 게시 id, 관측) 을 따로 적는다
     for i, (kind, target, k, how) in enumerate(cases):
         out = tmp_path / f"c{i}"; out.mkdir()
         pub_b = setup(out, kind, how)
         with monkeypatch.context() as mp:
             fired = _hook_open(mp, target, k, pub_b)
             got = read(out, kind)
-        # 주입이 실제로 일어났는지 **건별로** 확인한다 — 안 그러면 훅을 꺼도 통과한다 (Codex R7 §4)
+        # ⚠ Codex R7 §4 · R8-08: 읽기 수(`v`)가 아니라 **게시 callback 수**로 주입을 건별 확인한다 — metadata 경계의
+        #   callback 만 꺼도 다른 schedule 의 B/B·미완이 합집합을 채워 통과했다.
         assert fired["v"] >= k, (kind, target, k, how, fired["v"])
+        assert fired["published"] == 1, (kind, target, k, how, fired)
         if "100" not in got:
-            seen.add("미완"); continue                                   # 명시적 미완 — 허용
+            seen.add("미완"); schedules[(kind, target, k, how)] = ("attempt-B", "미완"); continue   # 명시적 미완 — 허용
         e = got["100"]
         rid = e["j"]["run_id"] if kind == "deg" else e["run_id"]
         width = e["j"]["LLI_percent"]["span"] if kind == "deg" else e["per"]["GITT"]["LLI"]
         assert e.get("meta") and e["meta"]["run_id"] == rid, (kind, target, k, how, rid, e.get("meta"))
         assert width == (W_DEG if kind == "deg" else W_MAT)[rid], (kind, target, k, how, rid, width)
-        seen.add(rid)
+        seen.add(rid); schedules[(kind, target, k, how)] = ("attempt-B", rid)
+    # schedule 마다: 게시된 것은 B 이고, 관측은 B/B 아니면 명시적 미완이어야 한다 (A 를 그대로 소비하면 그 schedule 이
+    # 게시를 못 본 것 — 다른 schedule 의 관측이 대신 채우지 못하게 **건별로** 건다)
+    for sched, (expected, observed) in schedules.items():
+        assert observed in (expected, "미완"), (sched, expected, observed)
     # 주입 지점은 전부 **읽기 직전**이라 이 묶음에서 살아남는 것은 B/B 아니면 명시적 미완이다. A/A 는 (a) 아무도
     # 안 끼어든 대조군과 (b) 검증이 **끝난 뒤** 게시하는 순서에서 나온다 — 후자는 적응판 replay 의 `검증_후_게시`.
     assert {"attempt-B", "미완"} <= seen, seen

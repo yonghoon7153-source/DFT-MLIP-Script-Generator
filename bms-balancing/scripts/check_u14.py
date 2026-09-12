@@ -12,14 +12,17 @@ R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`).
 종료 코드: 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락·파일 없음.
 """
 from __future__ import annotations
-import argparse, csv, json, pathlib, re, sys
+import argparse, csv, io, json, pathlib, re, sys
 
 VER = re.compile(r"_v(\d+)$")          # `matrix_300_0009_v2.csv` — 옛 리비전의 out/ 에만 있는 판 번호 (현행 정본은 unversioned, Codex R6-04)
 
 # 산출 종류별 **새 스키마** 필수 필드 (R6 내부 F3·F4·F5 · R5-04·R5-07·R5-08)
 JSON_KEYS = ("run_id", "n_grid", "n_samples", "env", "consumed_inputs", "inputs_sha")
-MATRIX_COLS = ("run_id", "inputs_sha", "scale_seed", "n_scale_samples")
-PROFILE_COLS = ("run_id", "inputs_sha", "profile_scale")
+# ⚠ Codex R8-02: producer 가 쓰는 열과 checker 가 요구하는 열은 **한 정본**이어야 한다. R7-03·R8-04 가 더한 기준/대상
+#   입력 출처 열이 여기 없어서 현행 out/ 이 "전부 갖췄다" 로 통과했다. 그 열이 없는 산출은 provenance-incomplete 다.
+PROVENANCE_COLS = ("ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs")
+MATRIX_COLS = ("run_id", "inputs_sha", "scale_seed", "n_scale_samples") + PROVENANCE_COLS
+PROFILE_COLS = ("run_id", "inputs_sha", "profile_scale") + PROVENANCE_COLS
 META_KEYS = ("run_id", "sha256", "artifact", "env", "started_utc",
              "git_commit_at_start", "git_state_changed_during_run")
 
@@ -28,7 +31,8 @@ JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
             "LAM_PE_percent", "LAM_NE_percent", "LLI_percent",
             "LAM_PE_percent_observed_cloud", "LAM_NE_percent_observed_cloud",
             "LLI_percent_observed_cloud")
-ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref"}
+ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref",
+            "ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs"}      # 출처 문자열은 숫자가 아니다
 
 
 #: 정본 선택 정책 — 두 규칙은 **호출 모드로** 갈린다 (Codex R7-04). docstring 으로만 갈라 두면 현행 디렉터리에도
@@ -67,9 +71,25 @@ def baseline_for(new_file: pathlib.Path, old: pathlib.Path, policy: str = "curre
     return max(cands)[1] if cands else None
 
 
-def _rows(p: pathlib.Path, key):
-    with p.open(encoding="utf-8", newline="") as fh:
-        return {key(r): r for r in csv.DictReader(fh)}
+def _rows_from(data: bytes, key):
+    """(key → 행, 중복 key 목록). ⚠ Codex R8-05: dict comprehension 은 같은 key 의 앞 행을 **조용히** 지운다 —
+    먼저 오는 중복행의 숫자를 바꿔도 마지막 원본행이 덮어 "전부 같다" 가 됐다. 변환 전에 유일성을 센다."""
+    rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
+    seen, dup, out = {}, [], {}
+    for r in rows:
+        k = key(r)
+        seen[k] = seen.get(k, 0) + 1
+        if seen[k] > 1:
+            dup.append(k)
+        out.setdefault(k, r)
+    return out, dup, len(rows)
+
+
+def _unit(f: pathlib.Path):
+    """검증된 (data, meta) snapshot 만 — 경로를 따로 읽지 않는다 (Codex R8-02). → (ok, why, data, meta)"""
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from provenance import read_unit
+    return read_unit(f)
 
 
 def _num_diff(a, b, path="", added=None):
@@ -108,21 +128,24 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
     arts = [f for f in sorted(new.glob("degeneracy_*.json")) + sorted(new.glob("matrix_*.csv"))
             + sorted(new.glob("profile_gamma_*.csv")) if not f.name.endswith(".meta.json")]
+    broken: list = []                                          # 묶음 불일치/미완 — 소비하지 않는다 (fail-closed)
     for f in arts:
         seen += 1
+        # ⚠ Codex R8-02: data 와 meta 를 따로 읽고 필드 존재만 보면, 다른 정상 시도가 data 만 게시한 중단 상태
+        #   (data B / meta A) 가 "전부 갖췄다 · 전부 같다 · rc 0" 이 된다. 검증된 snapshot 만 검사한다.
+        ok, why, data, meta = _unit(f)
+        if ok is False:
+            broken.append(f"{f.name}: 묶음 불일치/미완 — {why}"); continue
         if f.suffix == ".json":
-            j = json.loads(f.read_text(encoding="utf-8"))
+            j = json.loads(data.decode("utf-8"))
             missing += [f"{f.name}: {k}" for k in JSON_KEYS if j.get(k) in (None, "")]
         else:
             need = MATRIX_COLS if f.name.startswith("matrix_") else PROFILE_COLS
-            with f.open(encoding="utf-8", newline="") as fh:
-                hdr = next(csv.reader(fh), [])
+            hdr = next(csv.reader(io.StringIO(data.decode("utf-8-sig"))), [])
             missing += [f"{f.name}: {c}" for c in need if c not in hdr]
-        m = f.with_name(f.name + ".meta.json")
-        if not m.is_file():
+        if meta is None:
             missing.append(f"{f.name}: .meta.json 없음")
         else:
-            meta = json.loads(m.read_text(encoding="utf-8"))
             missing += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
         if schema_only or old is None:
             continue
@@ -130,8 +153,11 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
         if o is None:
             diffs.append((f.name, "정본에 없음", "새 파일만 있다")); continue
         paired.append((f.name, o.name))
+        ook, owhy, odata, _ = _unit(o)
+        if ook is False:
+            diffs.append((f"{o.name}", "정본 묶음 불일치/미완", owhy)); continue
         if f.suffix == ".json":
-            a, b = json.loads(o.read_text(encoding="utf-8")), json.loads(f.read_text(encoding="utf-8"))
+            a, b = json.loads(odata.decode("utf-8")), json.loads(data.decode("utf-8"))
             for k in JSON_NUM:
                 sub = []
                 diffs += [(f"{f.name}:{k}{p and '.' + p}", x, y) for p, x, y in _num_diff(a.get(k), b.get(k), added=sub)]
@@ -139,14 +165,20 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
         else:
             key = ((lambda r: (r["half_cell"], r["si"], r["w_dqdv"])) if f.name.startswith("matrix_")
                    else (lambda r: r["gamma_Si"]))
-            A, B = _rows(o, key), _rows(f, key)
+            A, dupA, nA = _rows_from(odata, key)
+            B, dupB, nB = _rows_from(data, key)
+            for side, dup in (("정본", dupA), ("새 산출", dupB)):
+                for k in dup:
+                    diffs.append((f"{f.name}:{k}", f"{side}에 중복 key", "행을 셀 수 없다 (Codex R8-05)"))
+            if nA != nB:
+                diffs.append((f"{f.name}", f"정본 행 {nA}", f"새 산출 행 {nB}"))
             for k in sorted(set(A) | set(B)):
                 if k not in A or k not in B:
                     diffs.append((f"{f.name}:{k}", "정본에만" if k in A else "새 산출에만", "")); continue
                 added += [f"{f.name}:{c}" for c in sorted(set(B[k]) - set(A[k]) - ROW_SKIP)]
                 for c in sorted(set(A[k]) & set(B[k]) - ROW_SKIP):
                     diffs += [(f"{f.name}:{k}:{c}", x, y) for _, x, y in _num_diff(A[k][c], B[k][c])]
-    return seen, missing, diffs, sorted(set(added)), paired, sorted(set(stale))
+    return seen, missing, diffs, sorted(set(added)), paired, sorted(set(stale)), broken
 
 
 def renormalize(new: pathlib.Path) -> int:
@@ -260,7 +292,7 @@ def main() -> int:
         if not n:
             print("! 그 커밋의 out/ 이 비었다 — 리비전이 맞나?"); return 2
     policy = a.baseline_policy if a.baseline_policy != "auto" else ("historical" if a.old_rev else "current")
-    seen, missing, diffs, added, paired, stale = check(new, old, a.schema_only, policy)
+    seen, missing, diffs, added, paired, stale, broken = check(new, old, a.schema_only, policy)
     print(f"산출 {seen} 개 점검 ({new})")
     if old is not None:
         print(f"  정본 선택 정책: **{policy}** — {POLICY[policy]}")
@@ -272,12 +304,29 @@ def main() -> int:
               + ", ".join(stale[:6]))
     if not seen:
         print("! 점검할 산출이 없다 — 경로가 맞나?"); return 2
+    if broken:
+        # ⚠ Codex R8-02: 묶음이 안 맞는 산출은 스키마도 숫자도 **대조하지 않는다** — 어느 쪽 bytes 인지 모른다
+        print(f"\n■ 묶음 불일치/미완 {len(broken)} — data 와 meta 가 같은 시도의 것이 아니다 (다른 시도가 data 만 게시했거나 "
+              f"게시가 중단됐다). 이 산출은 검사하지 않았다 → 게시를 끝내거나(meta) 다시 돌린 뒤 재검사")
+        for b in broken[:a.max_show]:
+            print(f"  - {b}")
     if missing:
-        print(f"\n■ 새 스키마 누락 {len(missing)} — 옛 코드로 만든 산출이다 (재실행이 이 트리에서 돌았는지 확인)")
-        for m in missing[:a.max_show]:
-            print(f"  - {m}")
-        if len(missing) > a.max_show:
-            print(f"  … 외 {len(missing) - a.max_show}")
+        prov_only = [m for m in missing if m.rsplit(": ", 1)[-1] in PROVENANCE_COLS]
+        rest = [m for m in missing if m not in prov_only]
+        if rest:
+            print(f"\n■ 새 스키마 누락 {len(rest)} — 옛 코드로 만든 산출이거나 묶음이 미완이다 (재실행이 이 트리에서 돌았는지 확인)")
+            for m in rest[:a.max_show]:
+                print(f"  - {m}")
+            if len(rest) > a.max_show:
+                print(f"  … 외 {len(rest) - a.max_show}")
+        if prov_only:
+            print(f"\n■ 기준/대상 입력 **출처 열** 누락 {len(prov_only)} — 이 산출은 **provenance-incomplete** 다 "
+                  f"(R7-03·R8-04 스키마 이전 실행). 수치는 그대로 인용할 수 있으나 기준 입력의 출처는 그 묶음에서 회수되지 "
+                  f"않는다; 실제 재실행(U18)으로 별도 위치에 만들어 비교·승격한다 — 현재 pathname 해시로 소급 채우지 않는다")
+            for m in prov_only[:a.max_show]:
+                print(f"  - {m}")
+            if len(prov_only) > a.max_show:
+                print(f"  … 외 {len(prov_only) - a.max_show}")
     else:
         print("  새 스키마: 전부 갖췄다 (run_id·sha256·env·inputs_sha·시작 시점 git·인자 필드)")
     if old is not None:
@@ -292,9 +341,11 @@ def main() -> int:
                 print(f"  - {p}: 정본 {x} → 새 {y}")
             if len(diffs) > a.max_show:
                 print(f"  … 외 {len(diffs) - a.max_show}")
+        elif broken:
+            print(f"  숫자: 대조 **미완** — 묶음 불일치 {len(broken)} 건을 뺀 나머지만 같다")
         else:
             print(f"  숫자: 정본({old})과 전부 같다 — 게시·서명만 바뀌었다")
-    return 2 if missing else (1 if diffs else 0)
+    return 2 if (missing or broken) else (1 if diffs else 0)
 
 
 if __name__ == "__main__":

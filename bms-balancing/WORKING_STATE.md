@@ -24,7 +24,28 @@
 
 ---
 
-## 지금 상태 — **Codex 7차 NO-GO (P1 3 · P2 3) 여섯 건 전부 닫음 · 8차 요청문 준비됨**
+## 지금 상태 — **Codex 8차 NO-GO (P1 4 · P2 4) 여덟 건 전부 닫음 · 9차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+
+2026-09-12 Codex 8차(대상 `a22da33`, `reviews/R8_CODEX.md`, 패키지 `reviews/r8_repros/codex/`)의 요지: R7 반례는 닫혔지만
+**"검증된 개별 묶음 → 완전한 모집단 → 전체 결론" 의 합성**이 안 이어진다 — 같은 state 의 다른 Si 가 서로 덮고 빈 요청
+root 가 후보에 안 든다(R8-01), `check_u14` 가 data B/meta A 를 인증하고 출처 열을 요구하지 않는다(R8-02), `ne_shape`
+요약이 γ-짝 부분집합에서 측정 최대를 잰다(R8-03), profile 의 전체 입력 identity 가 잘려 나가는 `.log` 에만 있다(R8-04).
+P2: 중복 key 행 소실(R8-05) · 선택 0 을 CAUGHT(R8-06) · post-fix 재생 명령 부재(R8-07) · c6_01 의 callback 계수(R8-08).
+
+여덟 건 전부 수정 전 HEAD 에서 재현(`reviews/r8_repros/replay_ours_a22da33_before/`) → RED(`tests/test_r8_codex.py`
+d8_01~09) → 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "Codex R8" 절, 요청문은 `reviews/R9_REQUEST.md`.
+
+**정본 범위**: 현행 `out/` 12 개는 수치는 R7 과 바이트 동일하고 묶음 12/12 True 이지만 matrix/profile 8 개에
+`ref_inputs_sha`·`consumed_inputs`·`ref_consumed_inputs` 가 없다 — **provenance-incomplete** (기준 입력의 출처는 그
+묶음에서 회수되지 않는다; `check_u14 --new out --schema-only` 가 rc 2 로 말한다). 보강은 **U18**: 사용자 기계에서
+`run_states.sh` 를 별도 `OUT=` 으로 돌려 수치 동일을 확인한 뒤 승격 — pathname 해시로 소급 채우지 않는다. 그때까지
+인용은 "수치 그대로 · 기준 입력 출처 미기록" 으로 범위를 붙인다.
+
+규약이 바뀐 것: `load_degeneracy` 는 Si 충돌 시 `state|si` key 로 전부 보존 · `compare_states` 는 요청 root roster 를
+찍고 관측 0 인 root 가 있으면 미완 rc 2 · `check_u14` 는 검증 snapshot 만 검사하고 출처 열을 필수로 · `ne_shape` 는
+`pairing` 을 남기고 짝이 빠지면 rc 3 · profile 행이 전체 입력 identity 를 실어 나른다 · 변이 감사는 선택 0 을 오류로.
+
+## 직전 상태 — Codex 7차 NO-GO 여섯 건 닫음 (닫힘)
 
 2026-09-12 Codex 7차(대상 `521be85`, `reviews/R7_CODEX.md`)는 **재현 패키지와 함께** 왔다 (`reviews/r7_repros/codex/`,
 sha256 10/10). 판정 요지: R6 반례는 닫혔고, **올바르게 읽은 다음 단계**가 안 이어진다 — 반례 상태가 미완으로 빠지면
@@ -81,7 +102,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 146 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 155 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh

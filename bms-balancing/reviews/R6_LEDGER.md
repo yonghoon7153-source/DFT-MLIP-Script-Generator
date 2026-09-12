@@ -307,3 +307,65 @@ R7 요청문 §6 의 "`run_states.sh` 의 실행 직전 `inputs_sha`" 는 **존�
 0 회고, 실행 전에는 `LAST_PRE_PV` 의 git 상태·시각만 모은다. 입력 서명은 각 `build()` 가 소비 snapshot 으로 만든다.
 없는 두 해시의 충돌을 물은 질문이었다. `test_d7_07` 이 이 사실을 고정한다 (`inputs_sha` 가 `run_states.sh` 에
 생기면 그 테스트가 깨지고 문장을 다시 써야 한다).
+
+---
+
+## Codex R8 (2026-09-12, 대상 `a22da33`) — **NO-GO (P1 4 · P2 4)**, 여덟 건 전부 재현·닫음 (`reviews/R8_CODEX.md`)
+
+패키지(`reviews/r8_repros/codex/`, sha256 10/10 OK)의 세 스크립트를 **수정 전 HEAD 에서 그대로 돌려 전부 재현**했다
+(`reviews/r8_repros/replay_ours_a22da33_before/`). Codex 의 판정 요지: R7 의 반례는 닫혔지만 **"검증된 개별 묶음 →
+완전한 모집단 → 전체 결론" 의 합성**이 안 이어진다. 절차: RED(`tests/test_r8_codex.py` d8_01~09) → 수정 → GREEN.
+
+### 수정 전 재현 (우리 HEAD `a22da33`)
+
+| probe | 관측 |
+|---|---|
+| `aggregate` (R8-01) | state 100 에 Kunz(LLI 폭 9)·Li(폭 1) 둘 다 정상인데 `out[state]` 에서 Li 가 Kunz 를 덮어 **1/1 · 예 rc 0** (Kunz 만이면 아니오). `good=<정상> empty=<빈>`·존재하지 않는 root 를 명시해도 **1/1 · 예 rc 0** |
+| `unit` (R8-02) | 다른 정상 시도 B 가 data 만 게시(`read_unit` False)한 상태를 `check_u14` 가 "스키마 전부 갖춤 · 숫자 전부 같다 · rc 0". 또 `MATRIX_COLS`/`PROFILE_COLS` 가 R7-03 의 출처 열을 요구하지 않아 현행 out/(그 열 없음)이 "전부 갖췄다" |
+| `shape` (R8-03) | state100 10 mV(짝 있음) · state200 100 mV(matrix 없음) → CSV 는 100 을 남기는데 요약은 "측정된 음극 모양 변화 최대 **10.00** mV", rc 0 |
+| `profile` (R8-04) | profile 의 target/ref 전체 identity 는 stdout `SUMMARY` → `.csv.log` 뿐; 다음 정상 재시도가 입력 root 부재로 실패하면 redirect 가 먼저 log 를 잘라 이전 정상 묶음(`read_unit` True)의 출처가 사라진다 |
+| `rows` (R8-05) | 같은 key 의 중복행(먼저 오는 쪽 LLI +3 %p)을 넣어도 dict comprehension 이 앞 행을 지워 "전부 같다" rc 0 (`compare_states` 폭은 1.27 → 3.69 로 움직였는데) |
+| `controls` (R8-06) | selector `c6_DOES_NOT_EXIST` → pytest rc 5 ("52 deselected") 를 **CAUGHT** 로 세고 MISSED 0 rc 0 |
+| R8-07 | 보관한 R7 probe 는 SHA pin 으로 rc 1 (옳다) — 그러나 "수정 뒤 자기 반례 assertion 에서 실패한다" 를 재생할 명령이 없었다 |
+| R8-08 | `_hook_open` 의 `fired["v"]` 는 읽기 수라 metadata 경계 callback 만 꺼도 `test_c6_01` 통과 (다른 schedule 의 B/B·미완이 합집합을 채운다) |
+
+### 수정
+
+| ID | 수정 | 테스트 |
+|---|---|---|
+| **R8-01** (P1) | `load_degeneracy` 가 inventory 를 **먼저** 만들고 같은 state 에 Si 가 둘 이상이면 `state\|si` 로 전부 남긴다(하나면 옛 key 그대로; 같은 (state, si) 둘은 RuntimeError). `main` 이 요청한 root 마다 **roster**(있음/후보/검증/제외)를 찍고, 없거나 관측 0 인 root 가 있으면 전체 판정 대신 미완 + rc 2 | `test_d8_01` (Kunz+Li → 2/2 · 아니오; good+empty · good+absent → 미완 rc 2) |
+| **R8-02** (P1) | `check_u14` 가 `read_unit` 의 검증 snapshot 만 검사(`_unit`) — 묶음 불일치는 **broken** 으로 따로 세어 rc 2, "전부 같다" 를 찍지 않는다. `PROVENANCE_COLS = (ref_inputs_sha, consumed_inputs, ref_consumed_inputs)` 를 matrix/profile 필수 스키마에 넣고, 그 열이 없으면 "**provenance-incomplete** — 재실행(U18)으로 보강, pathname 해시로 소급 채우지 않는다" 로 이름 짓는다. **현행 out/ 12 개는 이 상태다** (아래 "정본 범위") | `test_d8_02` |
+| **R8-03** (P1) | `ne_shape` 측정 통계는 requested 전부에서, γ 통계는 paired 에서; `pairing{requested, paired, missing}` 을 stdout·meta 에; missing 이 있으면 **rc 3(부분)** | `test_d8_03` |
+| **R8-04** (P1) | profile 행마다 `consumed_inputs`·`ref_consumed_inputs`(JSON) — 검증되는 CSV 자체에 (matrix 행과 같은 모양). 실행 log 는 receipt 가 아니다 | `test_d8_04` (log 를 비워도 CSV 에서 회수) |
+| **R8-05** (P2) | `_rows_from` 이 dict 변환 전에 중복 key·행 수를 세고 diff 로 보고 | `test_d8_05` |
+| **R8-06** (P2) | `classify(rc, last)`: rc 5·선택 0·수집 오류 = **오류**(CAUGHT 아님) → rc 1 | `test_d8_06` |
+| **R8-07** (P2) | `reviews/r7_repros/replay_codex_r7.py` — 원본 R7 probe 를 pin 우회로 직접 불러 **도달·상태(재현/반례 소멸/오류)·멈춘_곳**을 따로 기록; R7-05·06 은 현행 API 로 적응한 positive-closure 검사 | `test_d8_07` (R7-01·06: 도달 True · 반례 소멸) |
+| **R8-08** (P2) | `_hook_open` 이 `published`(callback 수)를 따로 세고 `test_c6_01` 이 건마다 `published == 1` 과 schedule 별 (기대 게시 id, 관측) 을 assert | `test_d8_08` |
+
+**c6_04 정정 (R7·R8 이 두 번 짚음)**: "이제 값으로 잡힌다" 는 R8 요청문의 주장은 **틀렸다** — 변이는 여전히 `_v2` 파일명
+때문에 state 가 사라져 `KeyError` 로 잡히고 있었다. 이번엔 옛 `_keep_latest` 규칙을 **두 자리**(최고판 선택 + 판 번호를
+뗀 이름으로 파싱)에 되살려, 독자가 key "100" 아래 `_v2` 의 222 를 돌려주고 값 assertion 이 잡는다 (`test_d8_08` 이 변이를
+사본에 적용해 222 소비를 직접 확인한다; `apply()` 가 두 자리 변이를 지원).
+
+### 정본 범위 — 현행 `out/` 12 개는 provenance-incomplete 다
+
+숫자(matrix 2,240 칸 · degeneracy 12 span · §5 표 35 칸)는 R7 과 바이트 동일하고 data/meta 묶음도 전부 True 다. 그러나
+matrix 4 개에는 `ref_inputs_sha`·`consumed_inputs`·`ref_consumed_inputs` 가, profile 4 개에는 `ref_inputs_sha`·
+`consumed_inputs`·`ref_consumed_inputs` 가 없다 — **기준 입력의 출처는 그 묶음에서 회수되지 않는다**. `check_u14 --new
+out --schema-only` 가 이제 그것을 rc 2 로 말한다. 보강은 실제 재실행 **U18**(사용자 기계, 별도 destination 에 만들어
+비교·승격 — 현재 pathname 해시로 소급 채우지 않는다)이다. 그때까지 정본 인용은 "수치는 그대로, 기준 입력 출처는 미기록" 으로
+범위를 붙인다.
+
+### Codex 질문에 대한 답 (R9 요청문 §3 에 다시 싣는다)
+
+1. 미완 전파가 빠진 소비자 — `compare_states` roster(R8-01) · `ne_shape` paired subset(R8-03) · `check_u14` 묶음/스키마/
+   중복(R8-02·05) 을 닫았다. 정적 문서 표는 생성 경로가 모집단 receipt 를 소비하지 않는 한 코드 회귀만으로 완전성이
+   증명되지 않는다 — 요구서는 관측마다 모집단/roster 를 적는다 (Q6).
+2. 두 번 읽기 — 남은 것은 receipt 내구성(R8-04) 이었고 닫았다. `ne_shape` 가 옛 matrix γ 를 현재 문헌 export 에 대입하는
+   것은 재적합이 아니라 **sensitivity 경계** — 양쪽 직접 입력을 기록하되 "같은 export" 계약은 걸지 않았다 (R9 Q).
+3. target/reference export 정책 — 공통 snapshot 강제는 아직 안 했다 (R9 미결로 올린다).
+4. `--baseline-policy auto` — 손으로 푼 옛 out/ 은 explicit historical 을 요구하는 편이 안전하다: 남긴다.
+5. U16·U17 순서 — U16(옛 조합 재실행, receipt 보존) 먼저, U17 스키마는 다음 계획 실행에. 여기에 **U18**(출처 열 보강
+   재실행)이 더해졌다 — 셋 다 사용자 기계, 어느 것도 current canonical 을 바로 덮지 않는다.
+6. 다섯 관측 → 요구서 — 행마다 모집단/roster·completeness·입력 receipt·관측 범위·후보 변경·대안 가설·구분 실험·임계값·
+   실패/미계산 의미·evidence version 을 둔다.
