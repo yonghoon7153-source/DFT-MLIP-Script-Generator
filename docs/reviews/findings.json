@@ -1971,6 +1971,141 @@
    "evidence_tests": [
     "scripts/phase_a_arms_from_payload.py"
    ]
+  },
+  {
+   "id": "DESC-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "τ 계산 실패가 **기하량** `phi_se`·`phi_am` 까지 삼킨다",
+   "note": "(Codex 판정문 라벨: **P1-DESC-01**)\n`dem_analysis_core.py:938` 이 `phi_se = v_se / v_electrode` 를 **이미 계산해 놓고**, `:941-943` 에서 `tau` 가 없거나 `<= 0` 이면 `return None` 한다.  `analyze_contacts.py:430-434` 는 `if eff_cond:` 안에서만 `phi_se` 와 `phi_am = 1 - phi_se - porosity/100` 을 쓰므로 **두 φ 키가 통째로 사라진다** — 공극률은 정상 저장되는데도.  `webapp/pipeline_service.py` 의 `NET_MERGE_KEYS` 에 `phi` 를 포함하는 키가 **하나도 없어**(전수 확인) 후속 merge 도 복구하지 않는다.\n★ 이 리포에서 독립 확인 완료 (판정문 부록).  Codex 는 합성 dump 로 rc=0 · 공극률 99.9664896784 % 저장 · `phi_se`/`phi_am` 키 부재를 재현했다.\n⚠ 결과: **완전행 필터로 학습 코퍼스를 만들면 연결성이 약한 침대가 구조 타깃째 탈락**한다 = 결측이 물리와 상관된다.\n처방: φ 는 전도도·τ 성공과 **무관하게** 원 dump 기하에서 계산 (수확 계약 2번).",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py",
+    "scripts/analyze_contacts.py"
+   ]
+  },
+  {
+   "id": "DESC-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "τ 가 **관통을 보증하지 않고**, 결측이 **미퍼콜을 뜻하지도 않는다**",
+   "note": "(Codex 판정문 라벨: **P1-DESC-02**)\n두 방향 모두 반례가 있다.\n① `dem_analysis_core.py:502-509` — 바닥판에 닿는 source 가 없으면 **위판에 닿는 성분마다 최저 z 를 새 source 로 승격**한다.  Codex 반례: `percolation_pct = 0` 인데 `tau_mean = tau_recommended = 1`, 유효 표본 3.  같은 graph 의 resistor network 는 σ 를 내지 못한다.\n② 같은 함수 `:517-522` — `src x reach_top` 전수 쌍을 shuffle 해 **앞 200 개만** 남긴다.  서로 다른 연결성분의 무경로 쌍이 그 예산을 먹으므로 **직선 관통 성분 200 개, 모든 유효 τ=1 인 graph 도 표본 0 → τ=None** 이 된다.\n★ 코드 경로는 이 리포에서 확인 (판정문 부록).\n처방: 원자료의 관통 판정과 `NO_VALID_SAMPLED_PAIR`/계산 실패를 **별도 상태로 보존**하고, 유한 τ 는 조건부 목표로만 학습한다.  0 이나 임의 큰 값으로 치환 금지.",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py"
+   ]
+  },
+  {
+   "id": "DESC-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "Physics 피복률이 **확대 DEM 길이와 미확대 5 nm 두께를 혼용**한다 — cap 선택이 뒤집힌다",
+   "note": "(Codex 판정문 라벨: **P1-DESC-03**)\n`coverage_physics_vs_hertzian.py:205-207` 이 `delta_sim`·`r` 를 sim 단위 그대로 `film_area_from_overlap` 에 넘기는데 `plastic_coverage.py:50` 의 `H_FILM_MIN = 5.0e-9` 은 **SI 미터**다.  `:284` 의 `A_volume = V_overlap / H_FILM_MIN` 은 분자만 길이³(1e9)로 스케일되어 **부피 cap 이 1000배 부풀고 사실상 안 걸린다**.\n★★ **이 리포에서 수치까지 독립 재현**: AM/SE 반지름 0.5 um, delta/R* = 0.05 를 실제 함수에 넣으면 binding cap 이 `tabor`(현행 sim) -> `volume`(SI 통일) 로 **뒤집히고** A_physics/A_hertz 가 **2.502607 -> 1.229167** (비의 비 **2.036019**).  요청서의 Hertz 0.312500 % 를 곱하면 **0.782065 % -> 0.384115 %** = 판정문의 두 수치와 일치.\n⇒ 내가 요청서에 쓴 *\"큰 델타는 정의 차이뿐이며 단위 문제는 없다\"* 는 **반증됐다**.\n⚠ **경계**: Hertz 는 두 경우 모두 불변(0.312500 %)이므로 등록 타깃이 Hertz 전용인 한 이 오류는 일곱 열로 **전이되지 않는다**.  화면 델타 세 수치(+281.6/+299.4/+270.3 %)의 원인이 이것이라고 **단정하지 않는다** — 원자료 미확인.\n처방: 표준 scale 에서 Hertz 보존을 확인하고 Physics helper 의 단위를 일관화 (수확 계약 4번).",
+   "evidence_tests": [
+    "scripts/plastic_coverage.py",
+    "scripts/coverage_physics_vs_hertzian.py"
+   ]
+  },
+  {
+   "id": "DESC-04",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "`tortuosity_dijkstra_SE` 라는 **이름만으로 통계량·경계·절단이 정해지지 않는다**",
+   "note": "(Codex 판정문 라벨: **P2-DESC-04**)\n같은 등록 이름 아래 **mean / median / recommended** 세 키가 있고 값이 갈린다.\n· `dem_analysis_core.py:545` — 경로 [1,1,10] -> mean **4**, recommended **1**.\n· `:533` — [1, 20.024984] 에서 `1 <= tau < 20` 절단이 긴 경로를 지워 mean **1** (무절단 평균 10.512492 와 다름).\n· `:404` — 경계가 own-radius x2 -> 벽높이 15/85 % -> **관측 SE z 범위 15/85 %** 로 내려간다.  실제 양판 접촉 0 인 구조도 마지막 fallback 에서 관통 100 %, tau = 1 을 낸다.\n⇒ 수확기가 임의로 recommended 를 고르면 기존 mean 과 **다른 target** 이 된다.  legacy 값과 교정값을 같은 컬럼에 섞지 않는다.  (설계 재추첨 요구가 아니다.)",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py"
+   ]
+  },
+  {
+   "id": "DESC-05",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "`0` · `N/A` · `invalid` 가 한 값으로 접힌다",
+   "note": "(Codex 판정문 라벨: **P2-DESC-05**)\n· 존재하는 P 에 SE 접촉이 없음 -> coverage **0** (참).  없는 S -> 키 부재 = **N/A**.  둘은 다르다.\n· `dem_analysis_core.py:215` — AM-AM 면적합이 커져 free surface <= 0 이 되어도 coverage **0** 을 돌려준다 ⇒ **실제 무접촉과 분모 붕괴가 섞인다**.  cap 횟수 · free<=0 횟수를 함께 내야 한다.\n· `analyze_contacts.py:162` — mono 입력에 없는 type 을 고정 bimodal map 으로 남기면 `np.min(empty)` 에서 **rc=1**.  상 존재를 확인한 map 이 필요하다.\n· CSV-only/일반 AM 에서 P/S 를 직경으로 추정하는 UI fallback 을 정본으로 쓰지 말고 봉인 설계의 block · 실제 type/radius/count 를 대조한다.  ⚠ 130 설계의 현재 직경 범위가 `radius > 0.004` heuristic 을 실제로 넘나든다는 **결함 주장은 아니다**.",
+   "evidence_tests": [
+    "scripts/dem_analysis_core.py",
+    "scripts/analyze_contacts.py"
+   ]
+  },
+  {
+   "id": "DESC-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "덤프를 읽었다고 **같은 최종 프레임**인 것은 아니다",
+   "note": "(Codex 판정문 라벨: **P2-DESC-06**)\n`parse_liggghts.py:243` 의 파일 선택은 atom/contact/mesh **각 종류의 최신 파일을 독립 선택**한다.  Codex: 합성 `atom_100 + contact_200 + mesh_100` 을 **rc=0** 으로 받았다.  다중 프레임 파일은 행을 이어 붙이고, atom loader 는 ID 사전으로 마지막 값을 쓰는 반면 contact 는 중복될 수 있다.\n`dem_analysis_core.py:110` — mesh 가 없으면 **최고 입자 중심으로 벽을 추정**한다.  실제 벽 .020 · 최고 중심 .019 이면 부피 분율에 **5.263 % 상대차**.\n⇒ 수확 계약은 **같은 최종 timestep · 상자/벽 실물 · type map · 완료 압력 · 원파일 해시**를 검사해야 한다.  기본값·추정값으로 조용히 메우지 않는다.  ⚠ 130 배치가 이런 입력을 가진다고 **단정하지 않는다**.",
+   "evidence_tests": [
+    "scripts/parse_liggghts.py",
+    "scripts/dem_analysis_core.py"
+   ]
+  },
+  {
+   "id": "DESC-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "일곱 열을 **일곱 독립 회귀**로 세면 안 된다 — 두 개는 정의 종속",
+   "note": "(Codex 판정문 라벨: **P2-DESC-07**)\n① `eps_sphere(%) = 100(1 - phi_SE - phi_AM)` — AM+SE 만, 동일 프레임/상자일 때.  291 코퍼스 DEM 열에서 최대 절댓값 **2.22e-16** 으로 재현된다(부동소수 오차).\n② `C_total = (N_P C_P + N_S C_S)/(N_P + N_S)` — **실측 입자수까지 주어지면** 전체 피복률에 추가 정보가 없다.  ⚠ 행마다 가중치가 달라지므로 *세 coverage 열의 고정계수 행렬 rank 가 항상 2* 라는 뜻은 **아니다**.\n권고 기본 출력 = `phi_SE`·`phi_AM`, **존재상별** Hertz `C_P`·`C_S`, **검증된 관통** graph 의 Dijkstra tau.  전체 coverage 와 eps 는 파생/QC 로 보관.\n⚠ 예측 시점에 실현 `N_P`/`N_S` 를 모르는 모델이면 관측 N 을 몰래 넣어 total 을 예측했다고 하면 안 된다.  설계 추정 N 과 dump 실측 N 도 구분한다.",
+   "evidence_tests": [
+    "docs/data/design_performance_corpus.csv"
+   ]
+  },
+  {
+   "id": "DESC-08",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "291 코퍼스와 **그대로 합치면 안 된다** — `d_am` 과 MPM/DEM 혼합이 현행에 잔존",
+   "note": "(Codex 판정문 라벨: **P2-DESC-08**)\nCodex 가 실제 `ml_design_structure.py:540` loader 를 호출해 재확인:\n· `d_am = 0` **40 개 전부 학습 입력에 수용**된다 (ps=0 36 · ps=1 2 · ps=.7 2) ⇒ *'ps=0 만 고치기'* 로 부족하다.\n· 추가 **18 행**은 `d_am = 12` 인데 기록된 존재상은 AM_S 반지름 2 um 뿐 (예: `ps=0, fm_n_AM_P` 빈칸, `fm_n_AM_S=1555, fm_r_AM_S=2`) = **존재상 메타자료와 특징의 불일치 확정**.  ⚠ 원 dump 실측 지름이라고 확대하지 않는다.\n· `predictor_engine.py:231` 의 입력 반경 max 경로는 **존재하지 않는 상의 입력 반경까지** 포함할 수 있다.\n· `use_porosity_pct` 를 넣은 closure 235 행: 최대 **10.816 %p**, 잔차 SD **2.975 %p** = eps SD 3.823 %p 의 **77.82 %** ⇒ MPM/DEM 상태 혼합이 저장 파일에 남아 있다 (기존 판정 재확인).\n⇒ **DEM-only 130 에는 MPM·첨가제 단계가 필요 없다**.  대신 '대표값 선택' 규칙을 복사하지 말 것: 첨가제 없음 = **확인된 0** · MPM 미실행 = **NOT_RUN/N-A** (0 % porosity 아님) · 없는 AM 하위상 = 직경/coverage **N-A**, 개수 **0** · 미퍼콜/표본실패/입력누락/추출예외는 **서로 다른 상태**.",
+   "evidence_tests": [
+    "scripts/ml_design_structure.py",
+    "docs/data/design_performance_corpus.csv"
+   ]
+  },
+  {
+   "id": "DESC-09",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "미실행 8개는 **무작위 결측이 아니다** — 한 수준의 관측이 통째로 0",
+   "note": "(Codex 판정문 라벨: **P2-DESC-09**)\n봉인 설계에 join 하면: 8 개 **전부 mono_AM_S** 이고, **mono_AM_S x d_SE = 2 um 다섯 점(105 · 108 · 109 · 110 · 111)이 전부 결측 목록**이다.  남은 mono_AM_S 에 그 수준이 **0 개**.  (로컬 30 전체 BELOW 는 11 개 = 누락 5 + 나머지 6 이므로 *'정확히 5 전부 미실행'* 은 mono_AM_S 에 한정할 때만 맞다.)\n⇒ 공변량/가중치만으로 **관측이 전혀 없는 구간**을 되살릴 수 없다.\n★ 그리고 44/130 은 `phi_se_est` 기반 **사전 추정 BELOW flag 33.846 %** 이지 *'44 %가 실측 sigma_ion = 0'* 이라는 자료가 **아니다** — 일곱 측정 열은 130 행 전부 빈칸이다.\n⚠ `finite_size_flag` 는 진단 라벨로 타당하지만 **설계 변수의 결정론적 함수**라 *'공변량으로 넣으면 유한크기 효과가 제거된다'* 는 보장이 아니다 ⇒ **고정 finite-box 규약 안의 예측**으로 해석한다.",
+   "evidence_tests": [
+    "docs/data/lhs_design_20260818.csv"
+   ]
+  },
+  {
+   "id": "SELF-21",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude",
+   "opened_in": "docs/reviews/codex_verdict_lhs_descriptors_20260913.md",
+   "title": "내가 **같은 문서 뒷부분의 저자 정정을 건너뛰고** 철회된 권고를 인용했다",
+   "note": "`codex_request_descriptor_harvest_20260913.md` 에서 로컬 미실행 8 개 중 *'5 개 제외'* 를 현재 권고처럼 인용했는데, `docs/reviews/lhs_local_gap_verdict_20260903.md:68` 에 **저자 정정 '8개 전부 돌린다.  게이트를 걸지 않는다'** 가 이미 있었다.  같은 파일의 68 행이다.\n그 정정의 **이유까지 그 자리에 적혀 있었다**: `se_percolation` 은 `phi_se_est`(런 **전** 추정) 파생이라 그것으로 실행을 거르는 것이 상주 규칙 *'검사기가 대상의 자기 신고를 읽게 하지 마라'* 위반.\n⇒ 규율 ④ 의 *'정본은 밖으로 강제되지 않으면 새어나간다'* 가 **판정문 안에서** 재현됐다 — 이번엔 낡은 정본이 아니라 **읽다 만 정본**이다.\n처방 후보: 리뷰 요청서를 쓸 때 인용하는 판정문은 **파일 끝까지** 읽고, 정정/철회 배너를 먼저 grep 한다 (`ban-sweep` 은 값만 보고 **권고의 철회**는 못 본다).",
+   "evidence_tests": [
+    "docs/reviews/lhs_local_gap_verdict_20260903.md"
+   ]
   }
  ]
 }
