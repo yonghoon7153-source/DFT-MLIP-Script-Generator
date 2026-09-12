@@ -1744,6 +1744,40 @@
     "decision_digest": "sha256:f1d4b23b21cc792fea0ff4806986e2b08453b0009ef6b409c611d363f74fb362",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-12-cascade-primary-objective",
+   "kind": "estimand",
+   "decision_state": "active",
+   "slot": "cascade_primary_objective",
+   "statement": "cascade 의 **주목적은 `D_rel` 의 설계 간 내부 비교 하나**다(주축 B3, 600 K · 창 2–50 ps · cell-conditioned). **B1 은 주축에서 뺀다** — 분해 후 다른 상의 수송이라 집계식을 골라도 같은 질문이 되지 않는다; 자료는 `{E_a(p)}` 를 상·결함·홉이 표시된 **장벽 목록**으로 보존하되 확률분포라 부르지 않고 스칼라로 집계하지 않는다. **σ 와 3축 가중합 스칼라도 주목적에서 뺀다.** *'예측 점수가 D_rel 을 맞히나'* 는 **별도 축**이며, 점수·힘 검사의 통과를 **물리 순위로 승격하지 않는다**. 정정 셋을 함께 박는다 — 0 K 는 조건부 평형 분해 계수를 준다(못 주는 것은 실제 생성량·속도·미세구조) · 같은 UMA 라서 미정의가 아니라 외부 물리 타당성이 미검증이다 · **같은 조성 안에서만 정의된다는 문장은 삭제**한다(같은 규약의 D* 는 조성이 달라도 비교 가능).",
+   "record": "db/properties/cascade_primary_objective_amendment_2026_09_12.json",
+   "card": "db/properties/cascade_d_rel_estimand_2026_09_08.json",
+   "supersedes": [],
+   "enforcement": "보고·집계 코드는 `기계_판독` 을 읽는다: primary_axis=B3 · excluded_from_primary=[B1, sigma, weighted_sum_scalar] · separate_axis=predictor_score_validation. `forbid` 목록(힘·점수 통과의 물리순위 승격 · B1 스칼라 집계 · E_a 집합을 확률분포라 부르기)은 문서·그림·표 어디서도 위반하지 않는다.",
+   "status_history": [
+    {
+     "at": "2026-09-12",
+     "state": "proposed",
+     "by": "agent",
+     "note": "BJ2 재심 조건 #1. 회신 Q1 권고 (c)+(a) 채택."
+    },
+    {
+     "at": "2026-09-12",
+     "state": "active",
+     "note": "1저자 비준 (scientific_owner). 사전등록 재봉인과 함께."
+    }
+   ],
+   "status": "active",
+   "ratification": {
+    "state": "ratified",
+    "role": "scientific_owner",
+    "actor_id": "yonghoon7153@gmail.com",
+    "timestamp": "2026-09-12T02:36:25Z",
+    "commit": "82fe848a3574cfbbc69825f1db125097ea582f78",
+    "decision_digest": "sha256:715275c4efcc4236e047ef68f00c775593871e47366cdc76db04ededeb458754",
+    "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
+   }
   }
  ]
 }
