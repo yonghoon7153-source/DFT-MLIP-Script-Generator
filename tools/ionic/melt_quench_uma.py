@@ -238,7 +238,12 @@ def density_g_cm3(atoms):
     return float(m / 6.02214076e23 / (atoms.get_volume() * 1e-24))
 
 
-def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, min_width_A=9.0, log=print):
+def _flushing_print(*a, **k):
+    print(*a, **k); sys.stdout.flush()          # ⛔ 로그 리다이렉트 시 블록 버퍼링 (CLAUDE.md 규율)
+
+
+def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, min_width_A=9.0,
+                    log=_flushing_print):
     """⭐ 배로스탯 **대조 잡** — 알려진 결정을 같은 NPT 배선에 넣어 밀도를 지키는지 본다.
 
     비정질 밀도가 낮게 나왔을 때 원인이 두 갈래다: (ⓐ 우리 배선·단위가 틀렸다 / ⓑ UMA 또는 구조가 그렇다).
@@ -272,7 +277,7 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
     dyn = NPTBerendsen(atoms, dt, temperature_K=T_K, pressure_au=0.0,
                        taut=BARO["taut_fs"] * units.fs, taup=BARO["taup_fs"] * units.fs,
                        compressibility_au=BARO["compressibility_au"])
-    n = int(round(ps * 1000 / dt_fs)); save_int = max(1, int(round(save_ps * 1000 / dt_fs)))
+    n = int(round(ps * 1000 / dt_fs)); save_int = max(1, int(round(save_ps * 1000 / dt_fs))); _t0 = time.time()
     tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa\n")
     rows = []
     for step in range(n + 1):
@@ -281,6 +286,9 @@ def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, 
             rows.append((step * dt_fs / 1000, r, P))
             tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_K:.1f},{r:.4f},"
                        f"{atoms.get_volume():.2f},{atoms.get_potential_energy():.4f},{P:.4f}\n"); tlog.flush()
+            if step and step % max(save_int, n // 10 or 1) == 0:
+                log(f"  [대조] {step*dt_fs/1000:6.2f}/{ps:.0f} ps  ρ {r:.4f}  P {P:+.3f} GPa  "
+                    f"({(time.time()-_t0)/60:.1f} min)")
         if step < n:
             dyn.run(1)
     tlog.close()
