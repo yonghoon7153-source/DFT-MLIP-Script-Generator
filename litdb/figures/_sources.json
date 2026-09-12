@@ -404,6 +404,14 @@
    "DFT 먹인 논문/25. Operando analysis of electronic band structure in an all-solid-state thin-film battery.pdf"
   ]
  },
+ "honrao2021_interpretable_ml_sse_anode_coatings": {
+  "figures": 18,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "110. Honrao2021_Interpretable_ML_HT_Screening_Li_SSE_Anode_Coatings.PDF",
+   "110. Sup) Honrao2021_Interpretable_ML_HT_Screening_Li_SSE_Anode_Coatings.PDF"
+  ]
+ },
  "hu2026_foundation_model_surrogates_active_learning": {
   "figures": 11,
   "generated": "2026-09-09",
@@ -1046,10 +1054,11 @@
   ]
  },
  "nolan2021_garnet_cathode_coating": {
-  "figures": 5,
+  "figures": 14,
   "generated": "2026-09-12",
   "pdfs": [
-   "109. Nolan2021_Computation_Guided_Coating_Garnet_SE_High_Energy_Cathodes.PDF"
+   "109. Nolan2021_Computation_Guided_Coating_Garnet_SE_High_Energy_Cathodes.PDF",
+   "109. Sup) Nolan2021_Computation_Guided_Coating_Garnet_SE_High_Energy_Cathodes.docx"
   ]
  },
  "oh2026_bimodal_composite_cathode": {
