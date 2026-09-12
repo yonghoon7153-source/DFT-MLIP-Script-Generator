@@ -134,6 +134,18 @@
    "at": "2026-09-12d",
    "state": "proposed",
    "note": "회신 BO 조건부 GO 5조건 반영. v2 보존. 승인 범위 = 2 SCF + ≤30 런 UMA 내부 진단"
+  },
+  {
+   "at": "2026-09-12e",
+   "state": "proposed",
+   "note": "도구 3종 준비·selftest 통과. 실행은 1저자 ratify + gabia ① 뒤"
   }
- ]
+ ],
+ "9_도구_준비_상태_2026_09_12": {
+  "run_force_check_scf.sh": "_fc_ok 가 tstress 입력이면 응력 블록 요구 · --selftest 6/6 (조건 1)",
+  "substitute_compound.py": "index_plan (cation_sites·anion_sites·vacancy_sites) + --index_plan/--emit_index_plan · selftest 16/16 (조건 2). ⚠ CLI 자리명은 `Li_24g` 로 준다 — 부모지도에서 `Li_any` 로 접힌다(24g/48h 미구분 선언)",
+  "generate_dft_inputs.py": "--static_pair A B (comp1 정본 설정 고정, 조성 불일치 거부, manifest sha256) · --compare_static_pair OUT UMA_JSON (δΔE·힘 벡터/성분/원소별/최대원자·응력 성분차·결측→미검증) · parse_pw_stress · selftest 47/47 (조건 1·3)",
+  "⚠_아직_없는_것": "§1b 표집 규칙 'O 대상 S_16e 3개가 서로 다른 P 에 속하도록' 은 빌더가 강제하지 않는다 — planA.json 을 열어 손으로 확인하거나 seed 를 바꾼다. 다음 패치 후보",
+  "실행_순서": "scratchpad/static_pair_sequence.md ①gabia (b)생성+UMA단일점 → ②scp → ③--static_pair → ④러너 2점 → ⑤--compare_static_pair → 회신 BP"
+ }
 }

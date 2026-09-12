@@ -385,6 +385,137 @@ def parse_pw_out(text):
     return energy, F, {"converged": conv, "job_done": done}
 
 
+def parse_pw_stress(text):
+    """pw.x 출력의 **전체 응력텐서** (3×3, GPa, QE 부호: 압축 +). `tstress=.true.` 가 없으면 예외.
+
+    QE 형식:  `     total   stress  (Ry/bohr**3)                   (kbar)     P=  -12.34`
+              이어서 3줄 × 6열 (앞 3 = Ry/bohr³, 뒤 3 = kbar). kbar 열을 읽어 /10 → GPa.
+    ⛔ 못 하는 것: 응력의 물리적 타당성은 보지 않는다. 한 파일에 응력 블록이 둘 이상이면
+      (실행이 이어 붙음) **읽지 않는다** — parse_pw_out 과 같은 규율(회신 BJ2 P0-3b).
+    """
+    import re as _re
+    blocks = list(_re.finditer(r"total\s+stress\s+\(Ry/bohr\*\*3\)\s+\(kbar\)\s+P=\s*([-\d.Ee+]+)\s*\n"
+                                r"((?:.*\n){3})", text))
+    if not blocks:
+        raise ValueError("응력 블록(`total   stress`)이 없다 — tstress=.true. 를 확인하라")
+    if len(blocks) > 1:
+        raise ValueError(f"응력 블록이 {len(blocks)}개다 — 한 SCF 의 출력이 아니다. 읽지 않는다")
+    P_kbar = float(blocks[0].group(1))
+    rows = []
+    for ln in blocks[0].group(2).splitlines():
+        nums = [float(x) for x in _re.findall(r"[-\d.]+(?:[Ee][-+]?\d+)?", ln)]
+        if len(nums) < 6:
+            raise ValueError(f"응력 행을 못 읽었다: {ln!r}")
+        rows.append([v / 10.0 for v in nums[3:6]])     # kbar → GPa
+    return {"sigma_GPa": rows, "P_GPa": P_kbar / 10.0}
+
+
+# comp1 정본 DFT 설정 (tools/electronic/standard_dos/comp1/comp1_scf.in · eos.json k444) —
+# 정적대조는 **이 설정으로만** 돈다. 생성기 기본값(52/520/2×2×1)을 쓰면 '같은 설정' 이 아니다.
+COMP1_DFT = {"ecutwfc": 60, "ecutrho": 480, "kpoints": "4 4 4", "occupations": "smearing",
+             "smearing": "mv", "degauss": 0.01, "conv_thr": "1.0d-9", "mixing_beta": 0.3,
+             "mixing_mode": "plain", "nosym": True, "calculation": "scf",
+             "pp_names": {"Li": "li_pbe_v1_4_uspp_F.UPF", "P": "P_pbe-n-rrkjus_psl_1_0_0.UPF",
+                          "S": "s_pbe_v1_4_uspp_F.UPF", "Cl": "cl_pbe_v1_4_uspp_F.UPF"}}
+
+STATIC_PAIR_ALARM = {"force_rmse_eV_A_per_atom_vector": 0.05, "stress_component_GPa": 0.3,
+                     "⚠": "진단 **경보선**이지 Ea/B 정확도 보증이 아니다 (회신 BO Q2). "
+                          "basin 판정 없음 — 에너지 높낮이로 최소점을 확정하지 않는다"}
+
+
+def static_pair(a_path, b_path, out_dir, pseudo_dir, settings=None, alarm=None):
+    """정적대조 (카드 v3 §5): 같은 조성의 두 **고정 기하** (a)(b) 에 **같은 DFT 설정**으로
+    scf 입력을 만든다. `<out>/a/scf.in` · `<out>/b/scf.in` · `manifest.json`(기하 sha256·설정·경보선).
+
+    ⛔ 못 하는 것: 돌리지 않는다. UMA 쪽은 gabia 블록이 따로 낸다(uma_ab.json).
+    ⛔ 거부: 두 기하의 조성이 다르면 '같은 조성의 상수 오프셋 제거'(δΔE)가 성립 안 해 만들지 않는다.
+    """
+    import hashlib as _h
+    from ase.io import read as _read
+    from collections import Counter as _C
+    st = dict(COMP1_DFT); st.update(settings or {})
+    al = dict(STATIC_PAIR_ALARM); al.update(alarm or {})
+    A, B = _read(str(a_path)), _read(str(b_path))
+    ca, cb = _C(A.get_chemical_symbols()), _C(B.get_chemical_symbols())
+    if ca != cb:
+        raise ValueError(f"⛔ (a)(b) 조성이 다르다 {dict(ca)} vs {dict(cb)} — δΔE 가 정의되지 않는다")
+    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    man = {"provenance": get_provenance(), "created": _dt_now(), "kind": "static_pair",
+           "settings": {k: v for k, v in st.items() if k != "pp_names"}, "pp_names": st["pp_names"],
+           "alarm": al, "cells": []}
+    for tag, pth, at in (("a", a_path, A), ("b", b_path, B)):
+        d = out / tag; d.mkdir(exist_ok=True)
+        txt = generate_pwin(at, f"sp_{tag}", ecutwfc=st["ecutwfc"], ecutrho=st["ecutrho"],
+                            kpoints=st["kpoints"], pseudo_dir=pseudo_dir, pp_names=st["pp_names"],
+                            calculation="scf", nosym=st["nosym"], occupations=st["occupations"],
+                            conv_thr=st["conv_thr"], mixing_mode=st["mixing_mode"],
+                            mixing_beta=st["mixing_beta"], smearing=st["smearing"], degauss=st["degauss"])
+        assert "tstress     = .true." in txt and "tprnfor     = .true." in txt
+        (d / "scf.in").write_text(txt)
+        man["cells"].append({"tag": tag, "source": str(pth),
+                             "source_sha256": _h.sha256(Path(pth).read_bytes()).hexdigest(),
+                             "scf_in_sha256": _h.sha256(txt.encode()).hexdigest(),
+                             "n_atoms": len(at), "composition": dict(ca),
+                             "V_per_atom": float(at.get_volume() / len(at))})
+    (out / "manifest.json").write_text(json.dumps(man, ensure_ascii=False, indent=1))
+    return man
+
+
+def compare_static_pair(out_dir, uma_json):
+    """(a)(b) 의 DFT scf.out 과 UMA 단일점(uma_ab.json) 을 대조해 카드 v3 §5 보고 항목을 낸다.
+
+      δΔE   = [E_U(b) − E_U(a)] − [E_D(b) − E_D(a)]   (meV/atom)
+      힘     RMSE **원자별 벡터** 기준(성분 기준과 √3 차 명시) · 원소별 · 최대 원자
+      응력   성분별 |Δσ| · (b) 의 DFT 응력 크기
+    ⛔ 하지 않는 판정: basin 확정 · 최소점 존재 · UMA 일반 편향. 숫자만 낸다.
+    """
+    import numpy as _np
+    from ase.io import read as _read
+    out = Path(out_dir); U = json.loads(Path(uma_json).read_text())["uma_singlepoint"]
+    rep = {"alarm": STATIC_PAIR_ALARM, "cells": {}}
+    ED = {}
+    for tag in ("a", "b"):
+        txt = (out / tag / "scf.out").read_text(errors="replace")
+        E, F, fl = parse_pw_out(txt)
+        try:
+            S = parse_pw_stress(txt); stress_ok = True
+        except ValueError as e:
+            S = {"sigma_GPa": None, "P_GPa": None, "error": str(e)}; stress_ok = False
+        Fd = _np.asarray(F); Fu = _np.asarray(U[tag]["F_eV_A"])
+        _, syms, _ = parse_pw_in_positions((out / tag / "scf.in").read_text())
+        dF = Fu - Fd
+        per_atom = _np.linalg.norm(dF, axis=1)
+        rmse_vec = float(_np.sqrt((per_atom ** 2).mean()))
+        rmse_comp = float(_np.sqrt((dF ** 2).mean()))
+        by_el = {el: float(_np.sqrt((per_atom[[i for i, s in enumerate(syms) if s == el]] ** 2).mean()))
+                 for el in sorted(set(syms))}
+        imax = int(per_atom.argmax())
+        n = len(F); ED[tag] = E / n
+        cell = {"n_atoms": n, "E_DFT_eV_per_atom": E / n, "E_UMA_eV_per_atom": U[tag]["E_per_atom_eV"],
+                "converged": fl["converged"], "job_done": fl["job_done"], "stress_ok": stress_ok,
+                "force": {"rmse_per_atom_vector_eV_A": rmse_vec, "rmse_per_component_eV_A": rmse_comp,
+                          "note": "벡터 RMSE ≈ √3 × 성분 RMSE", "by_element": by_el,
+                          "max_atom": {"index": imax, "element": syms[imax], "dF_eV_A": float(per_atom[imax])},
+                          "alarm_exceeded": rmse_vec > STATIC_PAIR_ALARM["force_rmse_eV_A_per_atom_vector"]},
+                "stress": None}
+        if stress_ok:
+            sd = _np.asarray(S["sigma_GPa"]); su = _np.asarray(U[tag]["stress_voigt_GPa"])
+            su3 = _np.array([[su[0], su[5], su[4]], [su[5], su[1], su[3]], [su[4], su[3], su[2]]])
+            dS = _np.abs(su3 - sd)
+            cell["stress"] = {"DFT_GPa": sd.tolist(), "UMA_GPa": su3.tolist(), "P_DFT_GPa": S["P_GPa"],
+                              "max_component_diff_GPa": float(dS.max()),
+                              "DFT_max_abs_component_GPa": float(_np.abs(sd).max()),
+                              "alarm_exceeded": float(dS.max()) > STATIC_PAIR_ALARM["stress_component_GPa"]}
+        rep["cells"][tag] = cell
+    if "a" in ED and "b" in ED:
+        dU = U["b"]["E_per_atom_eV"] - U["a"]["E_per_atom_eV"]; dD = ED["b"] - ED["a"]
+        rep["delta"] = {"dE_UMA_b_minus_a_meV_atom": 1e3 * dU, "dE_DFT_b_minus_a_meV_atom": 1e3 * dD,
+                        "delta_delta_E_meV_atom": 1e3 * (dU - dD),
+                        "⛔": "부호·10–30 meV 구간 전부 보고. basin 판정에 쓰지 않는다"}
+    (out / "compare.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
+    return rep
+
+
 def parse_pw_in_positions(text):
     """scf.in 의 CELL_PARAMETERS(angstrom) + ATOMIC_POSITIONS(crystal) → (cell, symbols, cart)."""
     import re as _re
@@ -661,6 +792,74 @@ def _selftest():
         except Exception:
             chk(True, "\u26d4\uc74c\uc131: pseudo \uc5c6\uc73c\uba74 \uc785\ub825 \uc0dd\uc131 \uac70\ubd80")
 
+    # ── ⭐ 정적대조 (회신 BO 조건 1) ──────────────────────────────────────────────
+    _stress_blk = ("     total   stress  (Ry/bohr**3)                   (kbar)     P=      -1.23\n"
+                   "  -0.00001000   0.00000000   0.00000000          -1.47        0.00        0.00\n"
+                   "   0.00000000  -0.00000800   0.00000000           0.00       -1.18        0.00\n"
+                   "   0.00000000   0.00000000  -0.00000700           0.00        0.00       -1.03\n")
+    _sp = parse_pw_stress("x\n" + _stress_blk + "y\n")
+    chk(abs(_sp["P_GPa"] + 0.123) < 1e-9 and abs(_sp["sigma_GPa"][0][0] + 0.147) < 1e-9
+        and abs(_sp["sigma_GPa"][2][2] + 0.103) < 1e-9, "parse_pw_stress: kbar → GPa, 대각·P 정확")
+    try:
+        parse_pw_stress(_stress_blk + _stress_blk); chk(False, "⛔음성: 응력 블록 2개 → 거부")
+    except ValueError:
+        chk(True, "⛔음성: 응력 블록 2개(이어붙인 실행) → 거부")
+    try:
+        parse_pw_stress("JOB DONE\n"); chk(False, "⛔음성: 응력 블록 없음 → 거부")
+    except ValueError:
+        chk(True, "⛔음성: 응력 블록 없음(tstress 꺼짐) → 거부")
+    with tempfile.TemporaryDirectory() as _td:
+        _d = Path(_td)
+        _A = _At('LiLiSS', positions=[[0, 0, 0], [2.5, 0, 0], [0, 2.5, 0], [2.5, 2.5, 0]], cell=[5, 5, 5], pbc=True)
+        _B = _A.copy(); _B.set_cell([5.4, 5.4, 5.4], scale_atoms=True)
+        _A.write(str(_d / "a.vasp"), format="vasp"); _B.write(str(_d / "b.vasp"), format="vasp")
+        _man = static_pair(_d / "a.vasp", _d / "b.vasp", _d / "sp", "/nope")
+        _ta = (_d / "sp" / "a" / "scf.in").read_text(); _tb = (_d / "sp" / "b" / "scf.in").read_text()
+        chk((_d / "sp" / "manifest.json").exists() and len(_man["cells"]) == 2
+            and all(len(c["source_sha256"]) == 64 for c in _man["cells"]), "static_pair: a/b scf.in + manifest(sha256)")
+        chk("tstress     = .true." in _ta and "tprnfor     = .true." in _tb, "static_pair: 두 입력 다 tstress/tprnfor")
+        def _has(txt, key, val):
+            return re.search(rf"^\s*{key}\s*=\s*{re.escape(val)}\s*$", txt, re.M) is not None
+        chk(_has(_ta, "ecutwfc", "60") and _has(_ta, "ecutrho", "480") and "  4 4 4 0 0 0" in _ta
+            and _has(_ta, "conv_thr", "1.0d-9") and _has(_ta, "mixing_beta", "0.3") and _has(_ta, "smearing", "'mv'")
+            and _has(_ta, "degauss", "0.01"),
+            "static_pair: 설정 = comp1 정본(60/480/k444/mv 0.01/1e-9/β0.3), 생성기 기본값 아님")
+        _sa = re.search(r"&SYSTEM(.*?)/", _ta, re.S).group(1); _sb = re.search(r"&SYSTEM(.*?)/", _tb, re.S).group(1)
+        chk(_sa == _sb, "static_pair: (a)(b) &SYSTEM 동일")
+        _C = _At('LiLiSP', positions=_A.positions, cell=[5, 5, 5], pbc=True); _C.write(str(_d / "c.vasp"), format="vasp")
+        try:
+            static_pair(_d / "a.vasp", _d / "c.vasp", _d / "sp2", "/nope"); chk(False, "⛔음성: 조성 다르면 거부")
+        except ValueError:
+            chk(True, "⛔음성: (a)(b) 조성 다르면 거부 (δΔE 미정의)")
+        def _out(E_ry, F, with_stress):
+            t = ("     Program PWSCF v.7.4.1 starts on 12Sep2026\n     convergence has been achieved in 9 iterations\n"
+                 f"!    total energy              =  {E_ry:.8f} Ry\n\n     Forces acting on atoms (cartesian axes, Ry/au):\n\n")
+            for i, f in enumerate(F, 1):
+                t += f"     atom {i} type 1   force =  {f[0]:12.8f} {f[1]:12.8f} {f[2]:12.8f}\n"
+            t += "\n     Total force =   0.001\n\n"
+            if with_stress:
+                t += _stress_blk
+            return t + "\n     JOB DONE.\n"
+        _F = [[0.001, 0, 0], [0, 0.001, 0], [0, 0, 0.001], [0.001, 0.001, 0]]
+        (_d / "sp" / "a" / "scf.out").write_text(_out(-40.0, _F, True))
+        (_d / "sp" / "b" / "scf.out").write_text(_out(-39.9, _F, False))
+        _FU = [[x * RY_AU_TO_EV_A for x in f] for f in _F]
+        _uma = {"uma_singlepoint": {"a": {"E_per_atom_eV": -10.0 * RY_TO_EV, "F_eV_A": _FU,
+                                           "stress_voigt_GPa": [-0.147, -0.118, -0.103, 0, 0, 0]},
+                                    "b": {"E_per_atom_eV": -9.975 * RY_TO_EV, "F_eV_A": _FU,
+                                           "stress_voigt_GPa": [0, 0, 0, 0, 0, 0]}}}
+        (_d / "uma.json").write_text(json.dumps(_uma))
+        _r = compare_static_pair(_d / "sp", _d / "uma.json")
+        chk(_r["cells"]["a"]["stress_ok"] and _r["cells"]["a"]["stress"]["max_component_diff_GPa"] < 1e-6
+            and _r["cells"]["a"]["force"]["rmse_per_atom_vector_eV_A"] < 1e-9,
+            "compare: (a) UMA=DFT 이면 힘·응력 차 0")
+        chk((not _r["cells"]["b"]["stress_ok"]) and _r["cells"]["b"]["stress"] is None,
+            "⛔음성: (b) 응력 블록 없음 → stress_ok False · **미검증**(추정하지 않음)")
+        chk("delta" in _r and abs(_r["delta"]["delta_delta_E_meV_atom"]) < 1e-6
+            and abs(_r["cells"]["a"]["force"]["rmse_per_component_eV_A"] * (3 ** 0.5)
+                    - _r["cells"]["a"]["force"]["rmse_per_atom_vector_eV_A"]) < 1e-12,
+            "compare: δΔE 산술 + 벡터 RMSE = √3 × 성분 RMSE")
+
     print(f"  selftest: \u2b55 {ok} \u00b7 \u26d4 {fail}")
     return 0 if fail == 0 else 1
 
@@ -824,6 +1023,11 @@ def main():
     # ── 구조 파일 → scf 단일점 (Nd O-모티프 재채점) ─────────────────────────
     p.add_argument('--from_xyz', nargs='+',
                   help='완화된 구조 파일들 → <out>/<name>/scf.in (같은 러너로 순차 실행)')
+    p.add_argument('--static_pair', nargs=2, metavar=('A', 'B'),
+                  help='⭐ 정적대조(카드 v3 §5): 같은 조성의 고정 기하 두 개 → <out>/{a,b}/scf.in + manifest. '
+                       'DFT 설정은 comp1 정본(60/480/k444/mv 0.01/1e-9/β0.3)으로 고정 — 기본값 아님')
+    p.add_argument('--compare_static_pair', nargs=2, metavar=('OUT', 'UMA_JSON'),
+                  help='정적대조 회수: <OUT>/{a,b}/scf.out + gabia uma_ab.json → <OUT>/compare.json (δΔE·힘·응력)')
     p.add_argument('--nspin', type=int, default=1, choices=(1, 2))
     p.add_argument('--start_mag', nargs='*', default=[],
                   help='원소=씨앗자화 (예: Nd=0.3). ⚠ 비교하는 셀 전부 **같은 값**이어야 한다')
@@ -852,6 +1056,28 @@ def main():
         r = collect_results(args.out, args.label, args.seed)
         print(f"✓ {args.label}/{args.seed}: {r['n_ok']}/{r['n_expected']}점 회수 "
               f"· 좌표 최대편차 {max(x['coord_max_dev_A'] for x in r['points']):.2e} Å")
+        return
+    if args.static_pair:
+        if not args.out:
+            p.error('--static_pair 는 --out 이 필요하다')
+        _m = static_pair(args.static_pair[0], args.static_pair[1], args.out, args.pseudo_dir)
+        for c in _m["cells"]:
+            print(f"  {c['tag']}: {c['n_atoms']}원자 · V/atom {c['V_per_atom']:.3f} · src sha256 {c['source_sha256'][:12]}…")
+        print(f"✓ static_pair → {args.out}/{{a,b}}/scf.in · manifest.json (설정 = comp1 정본, tstress/tprnfor 켜짐)")
+        return
+    if args.compare_static_pair:
+        _r = compare_static_pair(args.compare_static_pair[0], args.compare_static_pair[1])
+        for t, c in _r["cells"].items():
+            f = c["force"]; st = c["stress"]
+            print(f"  {t}: 힘 RMSE(벡터) {f['rmse_per_atom_vector_eV_A']:.4f} eV/Å"
+                  f"{' ⚠경보' if f['alarm_exceeded'] else ''} · 최대원자 {f['max_atom']['element']}#{f['max_atom']['index']} "
+                  f"{f['max_atom']['dF_eV_A']:.3f} · 응력 " +
+                  (f"최대성분차 {st['max_component_diff_GPa']:.3f} GPa{' ⚠경보' if st['alarm_exceeded'] else ''}" if st else "**미검증(응력 블록 없음)**"))
+        if "delta" in _r:
+            d = _r["delta"]
+            print(f"  ΔE(b−a): UMA {d['dE_UMA_b_minus_a_meV_atom']:+.1f} · DFT {d['dE_DFT_b_minus_a_meV_atom']:+.1f} "
+                  f"· δΔE {d['delta_delta_E_meV_atom']:+.1f} meV/atom   (basin 판정 없음)")
+        print(f"✓ compare → {args.compare_static_pair[0]}/compare.json")
         return
     if args.from_xyz:
         if not args.out:
