@@ -27,6 +27,14 @@ HALF_FILE = {
     "step_005C": {s: f"{s}_005C.xlsx" for s in STATES},
 }
 
+#: **알려진 의도적 부재** — 그 소스로는 그 상태를 애초에 재지 않았다 (Codex R10 P1-2: "알려진 부재는 source 별
+#: 명시적 allowlist 로 표현한다"). 이 목록에 있으면 모집단에서 **빠지는 것이 맞고**, 없는데 파일이 없으면 그것은
+#: `missing_input` 이다 — 둘을 코드가 구분하지 못하면 축소된 roster 가 complete 를 참칭한다.
+#: 근거(실측, 사용자 기계 U14 산출): `out/matrix_300_0147.csv` 는 step_005C 16 행뿐이고 GITT 행이 없다 ·
+#: `out/degeneracy_300_0147_Li.json` 의 half_cell 은 step_005C · 나머지 세 상태의 matrix 는 두 소스 32 행이다 ·
+#: `run_states.sh` 의 `pick_src` 주석("300_0147 이 GITT 에만 없어서 degeneracy 가 죽었다", 2026-09-10 실측).
+HALF_CELL_ABSENT = frozenset({("GITT", "300_0147")})
+
 SI_SOURCES = ["Baggetto", "Friedrich", "Jiang", "Kunz", "Li", "Lu",
               "Sethuraman", "Wetjen"]
 
@@ -45,6 +53,16 @@ def data_root(explicit: str | None = None) -> Path:
 
 def half_cell_path(root: Path, source: str, state: str) -> Path:
     return root / "data" / "half_cell" / source / HALF_FILE[source][state]
+
+
+def declared_states(source: str, include_pristine: bool = False) -> list:
+    """그 소스의 **정본 roster** — 선언된 상태에서 알려진 부재(`HALF_CELL_ABSENT`)를 뺀 것 (Codex R10 P1-2).
+
+    파일 존재는 보지 않는다. 존재 확인으로 모집단을 줄이면 없는 것이 애초에 요청되지 않은 것처럼 보인다 (R9-04).
+    """
+    return [s for s in STATES
+            if (include_pristine or s != "pristine")
+            and s in HALF_FILE.get(source, {}) and (source, s) not in HALF_CELL_ABSENT]
 
 
 def full_cell_workbook(root: Path) -> Path:

@@ -457,3 +457,91 @@ inline JSON 은 전부 **열 이름의 부분집합 + 가짜 receipt**(`sha256: 
 3. 공통 snapshot 강제 위치 동의 (build 경계) — 미구현, 열어 둔다.
 4. rc 3 은 typed `PARTIAL`(meta `status`) 로 보존하고 canonical 을 덮지 않는다 (R9-06); zero-pair 는 rc 1 + `none` (P2-5).
 5. U18: 명부·receipt·조건·env 를 먼저 강제하고 exact equality — `check_u14` 가 그 순서로 실패한다; 움직인 profile 행은 승격 안 함.
+
+## Codex R10 (2026-09-13, 대상 `bd6ba47` · 코드 정본 `554dad6`) — **NO-GO (P1 8 · P2 7)**, 열다섯 건 전부 재현·닫음 (`reviews/R10_CODEX.md`)
+
+패키지(`reviews/r10_repros/codex/`, sha256 10/10 OK)의 세 스크립트를 **수정 전 clean 트리에서 그대로 돌려 전부 재현**했다
+(`reviews/r10_repros/replay_ours_bd6ba47_before/` — 세 스크립트 rc 0 = bad-state assertion 전부 통과). Codex 의 판정 요지:
+R9 의 열두 수정은 허상이 아니지만 **"모집단을 먼저 세고, 검증 snapshot 만 검사하고, 부분은 부분이라 말한다" 가 게시
+경계·승격 gate·증거 기계에서는 아직 참이 아니다** — 출력이 비교 근거를 덮고, caller 가 roster 를 줄여 complete 를
+참칭하고, `error` 한 칸이 검증을 끄고, 러너가 자기가 실행한 bytes 를 봉인하지 않는다. 절차: RED(`tests/test_r10_codex.py`
+d10_01~16) → 수정 → GREEN.
+
+### 수정 전 재현 (우리 HEAD `bd6ba47`, clean)
+
+| probe | 관측 |
+|---|---|
+| `eval-self-overwrite` (P1-1) | `--out X --compare X` 에서 X 가 `c3dabc9d…` → `3d18405e…` 로 **교체된 뒤** comparator 가 처음 읽는다 → 16/16 앵커·32/32 RMSE `complete` rc 0 (자기대조) |
+| `shape_subset` · `shape_duplicates` (P1-2) | 선언 100·200 의 2 행 complete canonical 을 `--states 100` 이 **1 행으로 교체**하며 rc 0 · status `complete`; `--states 100,100` 은 requested/paired 2/2 · 중복 2 행 · rc 0 |
+| `profile-partial` (P1-3) | γ 2 중 1 실패 → 1 행이 canonical 교체, rc 0, `check_rows` 문제 0, 실제 `write_meta` 서명 + `provenance --verify-unit` 까지 **일치** |
+| `matrix-errors` (P1-4) | 전 조합 실패 → 4 열 error 행 16 개가 canonical 교체, 스키마 문제 36 건, 함수 `None` → process rc 0 |
+| `error-skip` · `error_bypass` (P1-5) | 정상 수치 행에 `error=skip` + receipt 4 칸 공백 → `check_rows` 문제 0, gate "전부 갖췄다 · 전부 같다" rc 0 |
+| `receipt-roles` · `receipt_roles` (P1-6) | half_cell↔full_cell 을 바꿔도 digest 같음(`76be1dcab00e`); `{"decoy":…}` 하나만 든 receipt 도 validator 문제 0 · gate rc 0 |
+| `controls` (P1-7) | candidate meta 의 env 를 alien 으로 바꿔도, `state`·`starts` 를 지워도 rc 0 "전부 같다" · 조건 불일치 0 |
+| `same_root` (P1-8) | 같은 signed 디렉터리를 `--new`/`--old` 에 함께 주면 rc 0 · roster 1/1 · "전부 같다" |
+| `--subset` (P2-1) | "부분 · 승격 아님" 을 찍고도 rc 0 — 자동 소비자는 full equality 와 구분 불가 |
+| `stdout-invalid` (P2-2) | receipt·`inputs_sha` 없는 degeneracy JSON 을 stdout 으로 흘리고 stderr 경고 뒤 rc 0 |
+| `argv` · `argv-flatten-collision` (P2-3) | `['cmd','a b','c']` 와 `['cmd','a','b c']` 가 같은 `cmd a b c` 로 기록 · `argv-binding-mutant`: `LAST_ARGV="FORGED-BY-MUTANT"` 변이가 `test_d9_10` 을 통과 |
+| `optimized-assertions` (P2-4) | `PYTHONOPTIMIZE=1` + 잘못된 `PYTEST_ADDOPTS` → delegated pytest 는 usage error 인데 runner rc 0 · `closed: true` · P2-4 `반례 소멸` |
+| `git-status-error` · `assume-unchanged` · `ignored-pyc` (P2-5) | `GIT_INDEX_FILE=<dir>` 로 status rc 128 인데 `dirty: false · closed: true` · `assume-unchanged` 로 고친 `verify.py` 가 **실행되고**(marker 생성) clean · ignored `__pycache__` 의 위조 bytecode 가 실행되고 clean |
+| `package-enforcement-mutant` (P2-6) | `package_digest()` 를 항상 True 로 만드는 변이가 `test_d9_08` 을 통과(`1 passed`), 실제 파일을 손상시켜도 `package_digest_ok: true · closed: true · rc 0` |
+| `wrapper-coverage` (P2-7) | `ne_shape` 의 rc 1/3·meta status 를 소비하는 production wrapper **0 개** |
+
+### 수정
+
+| ID | 수정 | 테스트 |
+|---|---|---|
+| **P1-1** | `cmd_eval` 이 `--compare` snapshot 을 **모든 쓰기 전에** 한 번 읽고 그 `DdEvalText` 만 comparator 에 넘긴다. `--out` 과 `--compare` 가 **같은 object**(realpath/samefile — symlink·hardlink 포함)면 거부 rc 2 | `test_d10_01` |
+| **P1-2** | `ne_shape` 의 정본 roster(authority) = `D.declared_states(source)` (선언 − **알려진 부재** `D.HALF_CELL_ABSENT`). `--states` 는 그 부분집합만 고를 수 있고 축소 실행은 status `subset` · rc 3 · canonical 금지; 중복·미선언은 rc 2 | `test_d10_02` |
+| **P1-3** | `cmd_profile` 이 γ roster 를 계산 전에 고정하고 `gamma_roster`(요청·성공·누락)를 **행마다 봉인**; complete 만 canonical, 부분은 `partial/` + rc 3 | `test_d10_03` |
+| **P1-4** | `cmd_matrix` 가 기대 조합 roster 를 돌기 전에 정하고(알려진 부재만 제외) typed status 로 게시 — complete 만 canonical, 나머지는 `partial/`; 종료 코드 0/3/1 | `test_d10_04` |
+| **P1-5** | `schema.check_rows` 가 success/error **exact tagged union** — success 행에 `error` 금지, error 행이 하나라도 있으면 그 묶음은 승격 대상 아님, 모르는 열도 문제 | `test_d10_05` |
+| **P1-6** | receipt 에 **역할**을 묶는다: `REQUIRED_ROLES = (full_cell, half_cell, literature.gr, literature.si)` exact, `inputs_digest` 는 `(역할, sha256)` 을 버전 태그와 함께 해시 (역할 swap → 다른 digest) | `test_d10_06` |
+| **P1-7** | `check_u14` 가 `env` 를 **값으로** 대고(`schema.env_problems`, python·numpy·scipy·platform) 필수 control 은 **양쪽에 있어야** 한다 — 지우면 잠들던 검사가 이제 불일치로 잡힌다 | `test_d10_07` |
+| **P1-8** | candidate 와 baseline 이 같은 object 면 rc 2 (자기대조 거부; `--old-rev` 의 immutable bytes 는 별도 경로) | `test_d10_08` |
+| **P2-1** | `--subset` 은 rc 3 이고, 마지막 줄 `PROMOTION {…}` 이 `promotion_eligible`·roster·`blocked_by` 를 machine-readable 로 낸다 | `test_d10_09` |
+| **P2-2** | degeneracy 가 schema 를 어기면 **sink 와 무관하게** rc 2 이고 bare artifact 대신 typed diagnostic(`status: invalid`)을 낸다 | `test_d10_10` |
+| **P2-3** | `run_states.sh` 의 `run()` 이 `"$@"` 를 JSON array 로 직렬화(`LAST_ARGV_JSON`)하고 meta 의 `argv` 는 vector 다; 회귀가 **실제 `run()`** 을 shim producer 로 통과한다 | `test_d10_11` |
+| **P2-4** | 두 러너가 `python -O` 에서 증거를 만들지 않고(`gate.require_assertions`), 자체 판정은 `assert` 가 아니라 `gate.need` 의 명시적 분기; delegated pytest 의 rc 를 **값으로** 최종 술어에 묶는다 | `test_d10_12` |
+| **P2-5** | 증거 gate 를 `reviews/evidence_gate.py` 한 자리로: `git` 의 rc 를 보고, index skip flag 를 거부하고, `__pycache__` 를 읽지 않게 캐시 prefix 를 돌리고, **expected commit 의 sparse detached worktree** 에서 대상 bytes 를 실행한다. 도구 자신도 그 커밋의 blob 과 같아야 `evidence_eligible` 이 true (`instrument_sealed`) | `test_d10_13` |
+| **P2-6** | 회귀가 **실제 패키지 byte 를 손상시켜** 러너가 probe 를 안 돌리는지 본다 (전 판은 source 문자열만 봤다). 행동 자체는 이미 옳았고 빠진 것은 회귀였다 — 변이 감사가 그것을 증명한다 | `test_d10_14` |
+| **P2-7** | `run_states.sh` 에 `shape_step` — `ne_shape` 의 rc 0/1/3 과 meta `status` 를 읽어 typed 로 보고하고 그대로 전파하는 **production caller**; 회귀가 그 함수를 직접 돌린다 | `test_d10_15` |
+
+### 의도적으로 다르게 간 곳 — receipt digest 에 **경로를 넣지 않는다**
+
+Codex 의 P1-6 최소 조건은 "`(role, object identity/path, sha256)` canonical manifest 전체를 hash" 다. 우리는 `(역할, sha256)`
+만 해시하고 **경로는 receipt 안에 남기되 digest 에서 뺐다**. 이유: R6 내부 F4 가 "같은 bytes 면 같은 실행" 을 고정했고
+(`test_i6p_04`: 풀셀 워크북을 이름만 다른 사본으로 바꿔도 digest 가 같아야 한다 — 그 시험이 지금도 돈다), 경로를 넣으면
+byte 가 같은 재-export 가 다른 실행으로 읽힌다. 우리 입력의 object identity 는 bytes 이고 경로는 라벨이다 (R6 내부 F1 의
+결론과 같다). 역할 결속이라는 **결함의 본체**는 닫혔다 — 역할을 바꾸면 digest 가 달라진다. 경로까지 묶어야 한다면 한 줄
+변경이고, R11 §6 Q1 에서 묻는다.
+
+### 알려진 부재 allowlist — `data.HALF_CELL_ABSENT`
+
+P1-2·P1-4 의 "축소된 roster" 를 닫으려면 **없는 것이 요청 밖인지(알려진 부재) 아니면 빠진 것인지(missing_input)** 를
+코드가 갈라야 한다. `HALF_CELL_ABSENT = {("GITT", "300_0147")}` 는 실측에서 왔다: `out/matrix_300_0147.csv` 는 step_005C
+16 행뿐이고 GITT 행이 없다 · `out/degeneracy_300_0147_Li.json` 의 half_cell 은 step_005C · 나머지 세 상태의 matrix 는 두
+소스 32 행 · `run_states.sh` 의 `pick_src` 주석(2026-09-10 실측). `D.declared_states("GITT")` 가 `[100, 200, 300_0009]` 를
+주는데 이는 커밋된 `out/ne_shape_GITT_Li.csv` 의 행 집합과 **정확히 같다**.
+
+### 계약이 바뀐 곳 (이전 라운드 회귀를 같이 고쳤다)
+
+| 전 | 후 | 왜 |
+|---|---|---|
+| `check_u14 --subset` rc 0 | **rc 3** + `PROMOTION` 줄 | P2-1 — 글자로만 "승격 아님" 이면 자동 소비자가 못 읽는다 (`test_d9_02` 갱신) |
+| 러너: dirty 트리 **거부** | dirty 여도 **격리 snapshot 에서** 실행하고 dirty 를 기록 | P2-5 — 실행 bytes 를 commit 에서 가져오면 worktree 상태는 오염원이 아니다 (`test_d9_08` 갱신) |
+| sidecar `argv` = `$*` 문자열 | **JSON array** | P2-3 (`test_d9_10` 갱신, production 결속은 `test_d10_11`) |
+| `check_u14 --new out --old out` (자기 점검) | rc 2 로 **거부** | P1-8 — 자기대조는 승격 근거가 아니다. 현행 정본 점검은 `--schema-only` 로 |
+
+### fixture 가 또 가리고 있었다 (다섯 번째)
+
+`_Ridge`(합성 objective)가 receipt 를 안 들어서 "stdout 이면 스키마를 봐준다" 는 우회로를 가려 주고 있었고,
+`_u14_sign`·`_sign(full=True)`·`i6w_03` 의 inline meta 는 실행 조건(`half_cell_source`·`si_source`·`seed`)이 없어 control
+비교가 **양쪽에 없으면 잠드는** 구조를 가려 줬다. 전부 production 이 실제로 쓰는 모양으로 다시 썼다.
+
+### 열어 둔 것
+
+- **export 계약 (R9 Q3 · R10 Q5)**: 여전히 미구현. 공유 workdbook·문헌을 command/build 경계에서 한 번 읽어 role-keyed
+  typed snapshot 으로 ref/target 양쪽에 주입하는 설계에 합의했고, 다음 라운드 작업이다.
+- **typed `(root, state, si)` identity (R9 Q1)**: 문자열 `state|si` 그대로.
+- **U16 · U17 · U18**: 사용자 기계 실측. U18 승격 gate 는 이번에 명부·내용·역할·조건·환경·독립성까지 강제한다.

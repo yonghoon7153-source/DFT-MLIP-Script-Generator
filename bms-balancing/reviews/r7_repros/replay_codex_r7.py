@@ -22,10 +22,16 @@ R7-05·06 은 원본 probe 가 옛 내부 이름(`M`, baseline 기본값)에 묶
 from __future__ import annotations
 import argparse, contextlib, hashlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import evidence_gate as gate                                              # noqa: E402  — 증거 gate 는 한 자리 (R10 P2-4·P2-5)
 HERE = pathlib.Path(__file__).resolve().parent
 PKG = HERE / "codex"
 PINNED = "521be85e74acef80feec45bd147dd339e25b8d0a"
-SUMS = PKG / "HARNESS_R7_521BE85_SHA256SUMS.txt"
+PKG_REL = "reviews/r7_repros/codex"
+SUMS_NAME = "HARNESS_R7_521BE85_SHA256SUMS.txt"
+SUMS = PKG / SUMS_NAME
+#: 증거를 만드는 **도구** — expected commit 과 같아야 그 증거가 그 커밋의 것이다 (Codex R10 P2-5)
+INSTRUMENT = ("reviews/r7_repros/replay_codex_r7.py", "reviews/evidence_gate.py")
 KNOWN_PROBES = ("R7-01", "R7-02", "R7-03", "R7-04", "R7-05", "R7-06")
 
 # probe 별 "반례 assertion" 의 소스 조각 — 이 줄에서 멈추면 case 에 **도달**한 것이다
@@ -37,38 +43,16 @@ COUNTEREXAMPLE_LINES = {
 }
 
 
-def parse_probes(text: str):
-    """`--probes` → (목록, 문제). 빈 이름·모르는 이름·중복은 전부 거부한다 (Codex R9 P2-1)."""
-    want = [p.strip() for p in str(text).split(",")]
-    problems = []
-    if not str(text).strip() or any(not p for p in want):
-        problems.append("빈 probe 이름")
-    unknown = [p for p in want if p and p not in KNOWN_PROBES]
-    if unknown:
-        problems.append(f"모르는 probe {unknown} (아는 것: {list(KNOWN_PROBES)})")
-    dup = sorted({p for p in want if p and want.count(p) > 1})
-    if dup:
-        problems.append(f"중복 probe {dup}")
-    return want, problems
+def parse_probes(text):
+    return gate.parse_probes(text, KNOWN_PROBES)
 
 
 def package_digest():
-    """보관한 패키지 bytes 가 SHA256SUMS 와 같은가 (Codex R9 P2-2) → (전부 ok, {파일: ok|mismatch|missing})."""
-    status = {}
-    for ln in SUMS.read_text(encoding="utf-8").splitlines():
-        if not ln.strip():
-            continue
-        want, name = ln.split(None, 1)
-        p = PKG / name.strip()
-        status[name.strip()] = ("missing" if not p.is_file()
-                                else ("ok" if hashlib.sha256(p.read_bytes()).hexdigest() == want else "mismatch"))
-    return bool(status) and all(v == "ok" for v in status.values()), status
+    return gate.package_digest(PKG, SUMS)
 
 
-def dirty_paths(target: pathlib.Path) -> list:
-    r = subprocess.run(["git", "-C", str(target), "status", "--porcelain", "--untracked-files=normal", "--", "."],
-                       capture_output=True, text=True)
-    return [ln for ln in r.stdout.splitlines() if ln.strip()]
+def dirty_paths(target):
+    return gate.dirty_paths(target)
 
 
 def _load(name, path):
@@ -118,7 +102,7 @@ def r7_05_adapted(target):
     rep = json.loads(r.stdout) if r.stdout.strip().startswith("{") else {}
     mode = rep.get("mode", "")
     closure = 'assert r.returncode == 0 and mode.startswith("부분")'                # positive closure
-    assert r.returncode == 0 and mode.startswith("부분"), (r.returncode, mode)
+    gate.need(r.returncode == 0 and mode.startswith("부분"), "R7-05 적응 닫힘이 서지 않는다", (r.returncode, mode))
     return {"rc": r.returncode, "mode": mode, "baseline": rep.get("baseline"), "closure_assert": closure}
 
 
@@ -134,7 +118,8 @@ def r7_06_adapted(target):
             "sys.exit(m.main())\n")
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=target)
     closure = 'assert "MISSED: 1" in r.stdout and r.returncode != 0'                 # positive closure
-    assert "MISSED: 1" in r.stdout and r.returncode != 0, (r.returncode, r.stdout[-300:])
+    gate.need("MISSED: 1" in r.stdout and r.returncode != 0, "MISSED 에 비영 종료가 서지 않는다",
+              (r.returncode, r.stdout[-300:]))
     return {"rc": r.returncode, "tail": r.stdout.strip().splitlines()[-2:], "closure_assert": closure}
 
 
@@ -145,28 +130,54 @@ def main() -> int:
     ap.add_argument("--expected-head", required=True, metavar="SHA",
                     help="이 SHA 에서 돌아야 한다 — 대상 HEAD 가 다르면 돌지 않는다 (Codex R9 P2-2)")
     ap.add_argument("--allow-dirty", action="store_true",
-                    help="working tree 가 dirty 여도 돌린다 — dirty 경로 목록을 결과에 남긴다 (기본: 거부)")
+                    help="격리 snapshot 없이 **현재 working tree 에서** 돌린다 (개발용). 결과는 `evidence_eligible: false` "
+                         "로 표시되고 증거로 세지 않는다 (Codex R10 Q4)")
+    ap.add_argument("--keep-materialized", type=pathlib.Path, default=None, metavar="DIR",
+                    help="격리 snapshot 을 지우지 않고 이 자리에 남긴다 (회귀가 들여다본다)")
     ap.add_argument("--output", type=pathlib.Path)
     a = ap.parse_args()
-    target = a.target.resolve()
-    want, problems = parse_probes(a.probes)
-    if problems:
-        print("! --probes 거부: " + "; ".join(problems) + " — 아무것도 돌리지 않았다 (Codex R9 P2-1)", file=sys.stderr)
-        return 2
-    head = subprocess.check_output(["git", "-C", str(target), "rev-parse", "HEAD"], text=True).strip()
-    exp = a.expected_head.strip().lower()
-    if len(exp) < 7 or not head.startswith(exp):
-        print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head}: 이 트리는 요청한 대상이 아니다 (다르다) — "
-              f"돌리지 않았다 (Codex R9 P2-2)", file=sys.stderr)
-        return 2
-    dirty = dirty_paths(target)
-    if dirty and not a.allow_dirty:
-        print(f"! working tree 가 dirty 다 ({len(dirty)} 경로) — `--allow-dirty` 없이는 돌리지 않는다 (Codex R9 P2-2):\n  "
-              + "\n  ".join(dirty[:20]), file=sys.stderr)
+    snapshot = cleanup = None
+    try:
+        gate.require_assertions()                       # Codex R10 P2-4: `-O` 에서는 증거를 만들지 않는다
+        target = a.target.resolve()
+        want, problems = parse_probes(a.probes)
+        if problems:
+            print("! --probes 거부: " + "; ".join(problems) + " — 아무것도 돌리지 않았다 (Codex R9 P2-1)", file=sys.stderr)
+            return 2
+        head = gate.git_head(target)                    # Codex R10 P2-5: git 의 rc 를 본다
+        exp = a.expected_head.strip().lower()
+        if len(exp) < 7 or not head.startswith(exp):
+            print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head}: 이 트리는 요청한 대상이 아니다 (다르다) — "
+                  f"돌리지 않았다 (Codex R9 P2-2)", file=sys.stderr)
+            return 2
+        dirty = gate.dirty_paths(target)
+        skipped = gate.index_skip_flags(target)
+        if skipped:
+            print(f"! index 에 skip flag 가 걸린 tracked 파일이 있다 — 그 bytes 는 status 에 안 잡힌다: "
+                  f"{skipped[:10]} (Codex R10 P2-5)", file=sys.stderr)
+            return 2
+        gate.isolate_bytecode()                         # 이미 놓인 __pycache__ 를 읽지 않는다 (P2-5 반례 C)
+        sealed, seal_detail = gate.instrument_sealed(target, INSTRUMENT)
+        if not a.allow_dirty:
+            # ⚠ Codex R10 P2-5: 대상 bytes 를 expected commit 에서 새로 materialize 한다 — 아래 probe·패키지·
+            #   production 코드는 전부 이 snapshot 것이다.
+            snapshot, cleanup = gate.materialize(target, head, keep=a.keep_materialized)
+            target = snapshot
+            globals()["PKG"] = snapshot / PKG_REL
+            globals()["SUMS"] = snapshot / PKG_REL / SUMS_NAME
+    except gate.EvidenceError as e:
+        print(f"! {e}", file=sys.stderr)
         return 2
     digest_ok, digest = package_digest()
     out = {"target_head": head, "expected_head": a.expected_head, "head_ok": True,
            "dirty": bool(dirty), "dirty_allowed": bool(a.allow_dirty), "dirty_paths": dirty[:50],
+           # ⚠ Codex R10 P2-5 · Q4: 증거로 셀 수 있는 실행은 expected commit 의 격리 snapshot 에서, 도구도 그 커밋의
+           #   bytes 로 돈 것뿐이다. `--allow-dirty` 는 개발용이고 구조적으로 증거가 아니다.
+           "evidence_eligible": bool(snapshot) and digest_ok and sealed,
+           "instrument_sealed": sealed, "instrument": seal_detail,
+           "materialized": ({"path": str(snapshot), "head": head, "mode": "sparse detached worktree",
+                             "kept": bool(a.keep_materialized)} if snapshot else None),
+           "ran_in": "격리 snapshot" if snapshot else "working tree (--allow-dirty)",
            "package_digest_ok": digest_ok, "package_digest": digest,
            "pinned_sha": PINNED, "pin_bypassed": True,
            "설명": "원본 probe 함수를 직접 불러 SHA pin 을 우회한다 — 도달·상태·멈춘_곳을 따로 적는다 (Codex R8-07); "
@@ -199,6 +210,8 @@ def main() -> int:
                 out["probes"][pid] = {"probe": "adapted_runs(적응)", "적응": True, **_run_adapted(lambda: r7_05_adapted(target))}
             elif pid == "R7-06":
                 out["probes"][pid] = {"probe": "missed_exit_control(적응)", "적응": True, **_run_adapted(lambda: r7_06_adapted(target))}
+    if snapshot is not None and not a.keep_materialized:
+        cleanup()
     statuses = {pid: r["상태"] for pid, r in out["probes"].items()}
     out["closed"] = list(out["probes"]) == want and all(s == "반례 소멸" for s in statuses.values())
     out["rc_reason"] = ("모든 요청 probe 가 자기 반례 assertion 에서 멈췄다" if out["closed"]

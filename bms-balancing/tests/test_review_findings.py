@@ -54,9 +54,18 @@ class _Ridge:
     있으므로 eps 가 큰 쪽이 현실에 가깝다.
     """
     c_cell = 1.0
+    # ⚠ Codex R10 P2-2 뒤: production 의 `build()` 는 **항상** receipt 를 들려 보낸다. 합성 objective 가 그것을 안
+    #   들면 산출이 schema 를 어기고(그러면 rc 2 가 맞다), 그 fixture 는 "sink 가 stdout 이면 봐준다" 는 우회로를
+    #   가려 준다. 이 골짜기 시험은 span 수학을 보는 것이므로 receipt 를 갖춘 채로 돈다.
+    consumed_inputs = {"half_cell": {"path": "synthetic-half.xlsx", "sha256": "1" * 64},
+                       "full_cell": {"path": "synthetic-full.xlsx", "sha256": "2" * 64},
+                       "literature": {"gr": {"path": "synthetic-gr.xlsx", "sha256": "3" * 64},
+                                      "si": {"path": "synthetic-si.csv", "sha256": "4" * 64}}}
 
     def __init__(self, eps=1e-2):
         self.eps = eps
+        from bms_balancing import schema as _S
+        self.inputs_sha = _S.inputs_digest(self.consumed_inputs)
 
     def __call__(self, p):
         p = np.asarray(p, float)

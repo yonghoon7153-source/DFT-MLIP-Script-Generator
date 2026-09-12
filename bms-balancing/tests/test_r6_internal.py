@@ -684,7 +684,10 @@ def _u14_dirs(tmp_path, *, schema=True, bump=None):
 def _u14_sign(art, rid):
     """check_u14 의 META_KEYS 를 갖춘, 실제 bytes 에 결속된 meta."""
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps(
-        {"run_id": rid, "sha256": _prov().sha256_file(art), "artifact": art.name, "env": {"numpy": "2.0"},
+        {"run_id": rid, "sha256": _prov().sha256_file(art), "artifact": art.name,
+         # Codex R10 P1-7: 실제 `write_meta` 가 쓰는 실행 조건·환경을 그대로 — 없으면 승격 gate 가 **비교를 못 한다**
+         "env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
+         "state": "100", "half_cell_source": "GITT", "si_source": "Li", "starts": 24, "seed": 0,
          "started_utc": "2026-09-12T00:00:00Z", "git_commit_at_start": "0" * 40,
          "git_state_changed_during_run": False}), encoding="utf-8")
 
@@ -835,12 +838,14 @@ def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(t
     (old / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # v1 — 정본이 아니다
         base | {"LLI_percent": {"min": 9.0, "max": 9.5, "is_lower_bound": True}}), encoding="utf-8")
     (old / "degeneracy_300_0009_Li_v2.json").write_text(json.dumps(base), encoding="utf-8")
-    ci = {"full_cell": {"path": "f.xlsx", "sha256": "1" * 64}}                  # R9-03: receipt 는 진짜 모양이어야 한다
+    # R9-03: receipt 는 진짜 모양이어야 하고, R10 P1-6 뒤로는 **역할 전부**가 있어야 한다 (producer 가 그렇게 쓴다)
+    ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
     (new / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # 재실행 = v2 재현 + 새 필드 (producer 스키마 전부)
         base | {"run_id": "r", "si_source": "Li", "half_cell": "GITT", "w_dqdv": 0.0, "tol_percent_of_best": 1.0,
                 "n_starts": 24, "seed": 0, "n_grid": 21, "n_samples": 400, "env": {"numpy": "2"},
                 "consumed_inputs": ci, "ref_consumed_inputs": ci,
-                "inputs_sha": __import__("hashlib").sha256(("1" * 64).encode()).hexdigest()[:12],
+                "inputs_sha": __import__("bms_balancing.schema", fromlist=["x"]).inputs_digest(ci),
                 "best_p": [1.0], "ref_p": [1.0], "best_modes_percent": {"LLI": 1.5},
                 "LAM_PE_percent": {"min": 0.0, "max": 1.0}, "LAM_NE_percent": {"min": 0.0, "max": 1.0},
                 "LLI_percent": {"min": 1.0, "max": 2.0, "is_lower_bound": True, "grid_pct": [1.0, 2.0]}}),

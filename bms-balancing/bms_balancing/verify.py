@@ -555,16 +555,24 @@ def cmd_degeneracy(args):
         "근최적 집합 {obj ≤ best·(1+tol)} 위에서 (a) mode 등식 제약 프로파일과 "
         "(b) 직접 제약 최적화를 둘 다 돌려 **합집합**을 취한다. 둘 다 국소 "
         "해법이므로 결과는 여전히 **하한**이다 — 정확한 폭도, 신뢰구간도 아니다.")
-    # ⚠ Codex R9-03: producer 가 쓰는 키 == checker 가 요구하는 키 (`schema.DEGENERACY_KEYS`). 게시(`--out`)되는 산출이
-    #   schema 를 어기면 게시하지 않는다 — stdout 모드(진단·시험용 objective)는 경고만 남긴다 (게시 경로가 아니다).
+    # ⚠ Codex R9-03: producer 가 쓰는 키 == checker 가 요구하는 키 (`schema.DEGENERACY_KEYS`).
+    # ⚠ Codex R10 P2-2: 전 판은 그 강제를 `--out` 에만 걸었다 — stdout 모드는 receipt·`inputs_sha` 가 빠진 JSON 을
+    #   그대로 흘리고 stderr 경고 뒤 rc 0 이었다. **sink 는 semantic validity 의 경계가 아니다.** invalid 면 어느 sink
+    #   에서도 비영 종료하고, 소비자가 artifact 로 오해하지 않게 bare artifact 대신 typed diagnostic 을 낸다.
     schema_problems = S.check_degeneracy(out)
+    if schema_problems:
+        print(json.dumps({"status": "invalid", "artifact_kind": "degeneracy", "problems": schema_problems,
+                          "note": "스키마를 어긴 산출은 게시하지도 흘리지도 않는다 (Codex R10 P2-2). 값이 필요하면 "
+                                  "producer 의 입력(receipt)을 갖춰 다시 부를 것",
+                          "run_id": out.get("run_id"), "state": out.get("state")},
+                         ensure_ascii=False, indent=2, default=float))
+        print(f"! degeneracy 산출이 스키마를 어긴다 ({len(schema_problems)} 건) — 게시하지 않는다: {schema_problems[:4]}",
+              file=sys.stderr)
+        return 2
     if getattr(args, "out", None):                   # R6 내부 F01: 게시는 잠금 안 원자적 교체로, stdout 은 로그
-        assert not schema_problems, schema_problems
         atomic_write_json(args.out, out)
         print(f"wrote {args.out}  (run_id {out['run_id']})")
         return 0
-    if schema_problems:
-        print(f"# schema 경고 (stdout 모드 — 게시 아님): {schema_problems}", file=sys.stderr)
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 
@@ -1080,6 +1088,21 @@ def cmd_eval(args):
         lines.append(r)
         print(r)
 
+    # ⚠ Codex R10 P1-1: `--compare` 의 근거는 **어떤 쓰기보다 먼저** 한 번 읽어 snapshot 으로 든다. 전 판은 `--out` 이
+    #   먼저 파일을 교체한 뒤 comparator 가 처음 읽어서, `--out X --compare X` 가 독립 근거 X 를 제 출력으로 덮고
+    #   그것과 자기를 대조해 16/16 앵커·32/32 RMSE `complete` rc 0 을 냈다 (포팅 identity 가 아니라 자기대조다).
+    #   같은 object 인지는 경로 문자열이 아니라 realpath/samefile 로 본다 — symlink·hardlink alias 도 같은 파일이다.
+    snap = None
+    if args.compare:
+        if args.out and same_object(args.out, args.compare):
+            print(f"! `--out` 과 `--compare` 가 **같은 파일**이다 ({args.out}) — 출력이 비교 근거를 덮으면 그 대조는 "
+                  f"자기대조다. 독립 근거를 다른 경로로 두고 다시 부를 것 (Codex R10 P1-1)\n종료 코드 2 (invalid)")
+            return 2
+        try:
+            snap = load_dd_eval(args.compare)
+        except OSError:
+            snap = None                                  # 못 읽는 경우는 비교기가 invalid 로 판정한다
+
     if args.out:
         head = [f"# dd_eval  state={args.state}  halfcell=data/half_cell/{args.source}/  "
                 f"Si={args.si_source}  w_dqdv={args.w_dqdv:g}",
@@ -1094,7 +1117,7 @@ def cmd_eval(args):
         # ⚠ 2026-09-11 Codex R3-07: 전 판은 여기서 dict 를 버리고 None 을 올려 `sys.exit(None)` = 0 —
         #   "rmse 가 갈린다" 를 찍고도 명령은 성공이었다. 판정이 곧 종료 코드다.
         try:
-            result = _compare_dd_eval(dict(anchors), P, vals, args.compare,
+            result = _compare_dd_eval(dict(anchors), P, vals, snap if snap is not None else args.compare,
                                       precision=getattr(args, "precision", None))
         except ValueError as e:                      # 잘못된 --precision 은 대조 미완이다
             print(f"! {e}\n종료 코드 2 (invalid)")
@@ -1112,6 +1135,35 @@ def cmd_eval(args):
         print(f"종료 코드 {rc} ({result['status']}{note})")
         return rc
     return 0
+
+
+#: producer 의 typed 완전성 → 종료 코드 (Codex R9-06 의 ne_shape 규약을 matrix·profile 로 넓힌다, Codex R10 P1-3·P1-4).
+#:   0 complete — 기대 모집단 전부가 성공했다 → canonical 에 원자 교체
+#:   1 none     — 성공이 하나도 없다 (부분이 아니라 없음)
+#:   3 partial  — 일부만 성공했거나 입력이 없는 조합이 있다
+#: none·partial 은 canonical 을 **건드리지 않고** `<out>/partial/` 에만 쓴다 — 완전성 판정이 게시보다 먼저다.
+PRODUCER_EXIT = {"complete": 0, "none": 1, "partial": 3}
+
+
+def publish_target(out, status):
+    """complete 만 canonical 자리로. 나머지는 형제 `partial/` namespace 로 (Codex R10 P1-3·P1-4)."""
+    out = Path(out)
+    dest = out if status == "complete" else out.parent / "partial" / out.name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def same_object(a, b) -> bool:
+    """두 경로가 **같은 object** 인가 — 문자열이 아니라 realpath·samefile 로 (Codex R10 P1-1: symlink·hardlink alias)."""
+    if a is None or b is None:
+        return False
+    pa, pb = Path(a), Path(b)
+    try:
+        if pa.exists() and pb.exists():
+            return os.path.samefile(pa, pb)
+    except OSError:
+        pass
+    return os.path.realpath(pa) == os.path.realpath(pb)
 
 
 #: 대조 판정 → process 종료 코드 (R3-07). 완전한 지원 범위의 일치만 0 이다.
@@ -1139,7 +1191,9 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
               "precision_source": None, "precision_label": "", "precision_declared": None,
               "precision_conflict": False, "precision_override_looser": False, "matlab_sha256": None}
     try:
-        snap = load_dd_eval(matlab_csv)                  # 한 번 읽는다 — 아래 parse·precision·audit 전부 이 snapshot (Codex R9-07)
+        # 한 번 읽은 snapshot 으로 parse·precision·audit 전부 (Codex R9-07). 호출자가 이미 **쓰기 전에** 읽어 두었으면
+        # 그 snapshot 을 그대로 받는다 (Codex R10 P1-1) — 여기서 경로를 다시 열지 않는다.
+        snap = matlab_csv if isinstance(matlab_csv, DdEvalText) else load_dd_eval(matlab_csv)
         m_anchors, m_rows, m_header = read_dd_eval_csv(snap)
         policy = resolve_precision(snap, precision)
     except OSError as e:
@@ -1150,7 +1204,7 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
     result.update(precision_source=prec_source, precision_label=prec_label,
                   precision_declared=policy["declared_raw"], precision_conflict=policy["conflict"])
     result["matlab_sha256"] = snap.sha256
-    print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
+    print(f"\n=== dd_eval.m 대조: {snap.path} ===")
     print(f"  (snapshot sha256 {snap.sha256[:16]}… — 한 번 읽은 text 로 parse·precision·audit·compare 전부; 검증 뒤 경로를 다시 "
           f"열지 않는다, Codex R9-07)")
     print(f"  (정밀도: {prec_label})")
@@ -1389,61 +1443,76 @@ def cmd_matrix(args):
     root = D.data_root(args.data_root)
     rows = []
     sources = ([args.source] if args.only_source else list(D.HALF_FILE))
+    # ⚠ Codex R10 P1-4: 기대 조합 roster 를 **돌기 전에** 정한다. 전 판은 존재하지 않는 입력을 조용히 건너뛰고
+    #   (R9-04 와 같은 축), 전 조합이 실패해도 4 열짜리 error 행 16 개로 기존 complete canonical 을 덮은 뒤
+    #   함수가 None 을 돌려 process rc 0 이었다. 알려진 부재(`D.HALF_CELL_ABSENT`)만 모집단에서 빠진다.
+    weights = [args.w_dqdv] if args.only_wdqdv else [0.0, 1.0]
+    requested, available, missing_input = [], [], []
     for hc in sources:
-        if args.state not in D.HALF_FILE[hc]:
+        if args.state not in D.HALF_FILE.get(hc, {}) or (hc, args.state) in D.HALF_CELL_ABSENT:
+            continue                                     # 선언에 없거나 **알려진 부재** — 요청 자체가 아니다
+        combos = [(hc, si, w) for si in D.SI_SOURCES for w in weights]
+        requested += combos
+        (available if D.half_cell_path(root, hc, args.state).is_file() else missing_input).extend(combos)
+    for hc, si, w in available:
+        try:
+            ro = build(root, hc, "pristine", si, w_dqdv=w, scale_seed=args.seed)
+            rp, _, _ = multistart(ro, n_starts=args.starts, seed=args.seed)
+            o = build(root, hc, args.state, si, w_dqdv=w, scale_seed=args.seed)
+            p, val, _ = multistart(o, n_starts=args.starts, seed=args.seed)
+        except Exception as e:                  # noqa: BLE001
+            rows.append({"half_cell": hc, "si": si, "w_dqdv": w,
+                         "error": f"{type(e).__name__}: {e}"})
             continue
-        if not D.half_cell_path(root, hc, args.state).is_file():
-            continue
-        for si in D.SI_SOURCES:
-            for w in ([args.w_dqdv] if args.only_wdqdv else [0.0, 1.0]):
-                try:
-                    ro = build(root, hc, "pristine", si, w_dqdv=w, scale_seed=args.seed)
-                    rp, _, _ = multistart(ro, n_starts=args.starts, seed=args.seed)
-                    o = build(root, hc, args.state, si, w_dqdv=w, scale_seed=args.seed)
-                    p, val, _ = multistart(o, n_starts=args.starts, seed=args.seed)
-                except Exception as e:                  # noqa: BLE001
-                    rows.append({"half_cell": hc, "si": si, "w_dqdv": w,
-                                 "error": f"{type(e).__name__}: {e}"})
-                    continue
-                m = degradation_modes(rp, ro.c_cell, p, o.c_cell)
-                # ⚠ 리뷰 [B4-4]: 전 판은 `ref_bounds` 만 남겼다. 그러면
-                #   LAM = 1 − state/ref 의 변화가 **기준이 움직인 것인지 대상이
-                #   움직인 것인지 분리할 수 없다** (둘 다 같은 LAM 을 낸다).
-                #   기준 적합의 전체 파라미터·목적함수·c_cell 을 같이 남긴다.
-                aud_t, aud_r = getattr(o, "scale_audit", None), getattr(ro, "scale_audit", None)
-                rows.append({
-                    "half_cell": hc, "si": si, "w_dqdv": w, "run_id": run_id_of(args),
-                    "inputs_sha": getattr(o, "inputs_sha", None),   # R6 내부 F4: 소비 입력 identity
-                    # ⚠ Codex R7-03: 행은 **기준 적합도** 소비한다. 기준 전용 입력(pristine 반쪽전지)만 바뀌어도
-                    #   LAM 이 움직이는데 서명은 대상 것뿐이라 두 실행의 행을 구분할 수 없었다. 양쪽을 남긴다.
-                    "ref_inputs_sha": getattr(ro, "inputs_sha", None),
-                    "consumed_inputs": json.dumps(getattr(o, "consumed_inputs", None), ensure_ascii=False),
-                    "ref_consumed_inputs": json.dumps(getattr(ro, "consumed_inputs", None), ensure_ascii=False),
-                    # ⚠ Codex R5-07: 이 조합이 scale 동치 영역 안인지는 행이 스스로 말해야 한다
-                    "scale_seed": args.seed, "n_scale_samples": getattr(o, "n_scale_samples", None),
-                    "scale_pocv_target": o.scales.get("pocv"), "scale_dvdq_target": o.scales.get("dvdq"),
-                    "scale_dqdv_target": o.scales.get("dqdv"),
-                    "scale_pocv_ref": ro.scales.get("pocv"), "scale_dvdq_ref": ro.scales.get("dvdq"),
-                    "scale_dqdv_ref": ro.scales.get("dqdv"),
-                    "scale_audit_target": json.dumps(aud_t, ensure_ascii=False) if aud_t else "",
-                    "scale_audit_ref": json.dumps(aud_r, ensure_ascii=False) if aud_r else "",
-                    "obj": val, "rmse_pocv": o.rmse_pocv(p),
-                    "a_PE": p[0], "b_PE": p[1], "a_NE": p[2], "b_NE": p[3],
-                    "gamma_Si": p[4], "c_cell": o.c_cell,
-                    "bounds": ",".join(active_bounds(p)) or "-",
-                    "ref_a_PE": rp[0], "ref_b_PE": rp[1], "ref_a_NE": rp[2],
-                    "ref_b_NE": rp[3], "ref_gamma_Si": rp[4],
-                    "ref_obj": float(ro(rp)), "ref_rmse_pocv": ro.rmse_pocv(rp),
-                    "ref_c_cell": ro.c_cell,
-                    "ref_bounds": ",".join(active_bounds(rp)) or "-",
-                    "LAM_PE_pct": m["LAM_PE"] * 100,
-                    "LAM_NE_pct": m["LAM_NE"] * 100,
-                    "LLI_pct": m["LLI"] * 100})
-                assert tuple(rows[-1]) == S.MATRIX_ROW, (tuple(rows[-1]), S.MATRIX_ROW)   # producer == schema (Codex R9-03)
-                print(json.dumps(rows[-1], ensure_ascii=False, default=float),
-                      flush=True)
+        m = degradation_modes(rp, ro.c_cell, p, o.c_cell)
+        # ⚠ 리뷰 [B4-4]: 전 판은 `ref_bounds` 만 남겼다. 그러면
+        #   LAM = 1 − state/ref 의 변화가 **기준이 움직인 것인지 대상이
+        #   움직인 것인지 분리할 수 없다** (둘 다 같은 LAM 을 낸다).
+        #   기준 적합의 전체 파라미터·목적함수·c_cell 을 같이 남긴다.
+        aud_t, aud_r = getattr(o, "scale_audit", None), getattr(ro, "scale_audit", None)
+        rows.append({
+            "half_cell": hc, "si": si, "w_dqdv": w, "run_id": run_id_of(args),
+            "inputs_sha": getattr(o, "inputs_sha", None),   # R6 내부 F4: 소비 입력 identity
+            # ⚠ Codex R7-03: 행은 **기준 적합도** 소비한다. 기준 전용 입력(pristine 반쪽전지)만 바뀌어도
+            #   LAM 이 움직이는데 서명은 대상 것뿐이라 두 실행의 행을 구분할 수 없었다. 양쪽을 남긴다.
+            "ref_inputs_sha": getattr(ro, "inputs_sha", None),
+            "consumed_inputs": json.dumps(getattr(o, "consumed_inputs", None), ensure_ascii=False),
+            "ref_consumed_inputs": json.dumps(getattr(ro, "consumed_inputs", None), ensure_ascii=False),
+            # ⚠ Codex R5-07: 이 조합이 scale 동치 영역 안인지는 행이 스스로 말해야 한다
+            "scale_seed": args.seed, "n_scale_samples": getattr(o, "n_scale_samples", None),
+            "scale_pocv_target": o.scales.get("pocv"), "scale_dvdq_target": o.scales.get("dvdq"),
+            "scale_dqdv_target": o.scales.get("dqdv"),
+            "scale_pocv_ref": ro.scales.get("pocv"), "scale_dvdq_ref": ro.scales.get("dvdq"),
+            "scale_dqdv_ref": ro.scales.get("dqdv"),
+            "scale_audit_target": json.dumps(aud_t, ensure_ascii=False) if aud_t else "",
+            "scale_audit_ref": json.dumps(aud_r, ensure_ascii=False) if aud_r else "",
+            "obj": val, "rmse_pocv": o.rmse_pocv(p),
+            "a_PE": p[0], "b_PE": p[1], "a_NE": p[2], "b_NE": p[3],
+            "gamma_Si": p[4], "c_cell": o.c_cell,
+            "bounds": ",".join(active_bounds(p)) or "-",
+            "ref_a_PE": rp[0], "ref_b_PE": rp[1], "ref_a_NE": rp[2],
+            "ref_b_NE": rp[3], "ref_gamma_Si": rp[4],
+            "ref_obj": float(ro(rp)), "ref_rmse_pocv": ro.rmse_pocv(rp),
+            "ref_c_cell": ro.c_cell,
+            "ref_bounds": ",".join(active_bounds(rp)) or "-",
+            "LAM_PE_pct": m["LAM_PE"] * 100,
+            "LAM_NE_pct": m["LAM_NE"] * 100,
+            "LLI_pct": m["LLI"] * 100})
+        assert tuple(rows[-1]) == S.MATRIX_ROW, (tuple(rows[-1]), S.MATRIX_ROW)   # producer == schema (Codex R9-03)
+        print(json.dumps(rows[-1], ensure_ascii=False, default=float),
+              flush=True)
+
     ok = [r for r in rows if "error" not in r]
+    failed = [r for r in rows if "error" in r]
+    status = ("complete" if ok and not failed and not missing_input and len(ok) == len(requested)
+              else ("none" if not ok else "partial"))
     summary = {"state": args.state, "n_combinations": len(rows),
+               "status": status,
+               # Codex R10 P1-4: 축소 전 모집단을 산출이 스스로 말한다 (요청·입력 있음·입력 없음·실패)
+               "combo_roster": {"requested": len(requested), "available": len(available),
+                                "missing_input": [f"{h}|{s}|{w:g}" for h, s, w in missing_input],
+                                "failed": [f"{r['half_cell']}|{r['si']}|{float(r['w_dqdv']):g}" for r in failed],
+                                "succeeded": len(ok)},
                "n_ok": len(ok),
                "n_with_active_bound": sum(1 for r in ok if r["bounds"] != "-"),
                "n_negative_LAM": sum(1 for r in ok if min(r["LAM_PE_pct"],
@@ -1509,10 +1578,18 @@ def cmd_matrix(args):
                 if matched else None},
             "note": "비대응 비교는 부호가 섞인다 — 대응쌍으로만 말할 것"}
     print("\nSUMMARY " + json.dumps(summary, ensure_ascii=False, default=float))
-    if args.out:
+    if args.out and rows:
+        # ⚠ 완전성 판정이 **게시보다 먼저**다 (Codex R10 P1-4). complete 만 canonical 을 원자 교체하고, error 행이
+        #   하나라도 있거나 입력이 빠진 조합이 있으면 `partial/` 로 간다 — 기존 canonical 은 건드리지 않는다.
         keys = sorted({k for r in rows for k in r})
-        atomic_write_csv(args.out, rows, keys)           # R4-06: 시도별 임시 파일 → 한 번에 게시
-        print(f"wrote {args.out}")
+        dest = publish_target(args.out, status)
+        atomic_write_csv(dest, rows, keys)               # R4-06: 시도별 임시 파일 → 한 번에 게시
+        print(f"wrote {dest}" + ("" if status == "complete" else
+                                 f"  [{status} — canonical {args.out} 은 건드리지 않았다 (Codex R10 P1-4)]"))
+    if status != "complete":
+        print(f"[matrix] status **{status}** — 요청 {len(requested)} · 성공 {len(ok)} · 실패 {len(failed)} · "
+              f"입력 없음 {len(missing_input)} → 종료 코드 {PRODUCER_EXIT[status]}")
+    return PRODUCER_EXIT[status]
 
 
 
@@ -1596,10 +1673,20 @@ def cmd_profile(args):
                      #   redirect 가 log 를 먼저 잘라 이전 정상 묶음의 출처가 사라진다 — 실행 log 는 durable receipt 가
                      #   아니다. 검증되는 묶음(CSV) 자체에 둔다 (matrix 행과 같은 모양).
                      "consumed_inputs": json.dumps(getattr(obj, "consumed_inputs", None), ensure_ascii=False),
-                     "ref_consumed_inputs": json.dumps(getattr(ref, "consumed_inputs", None), ensure_ascii=False)})
+                     "ref_consumed_inputs": json.dumps(getattr(ref, "consumed_inputs", None), ensure_ascii=False),
+                     # ⚠ Codex R10 P1-3: 실패한 γ 는 행에서 빠진다 — 행만으로 모집단을 알 수 없으면 1 행짜리 부분
+                     #   산출이 canonical 을 덮어도 아무도 모른다. loop 뒤에 요청·성공·누락을 채운다 (자리는 여기).
+                     "gamma_roster": None})
         assert tuple(rows[-1]) == S.PROFILE_ROW, (tuple(rows[-1]), S.PROFILE_ROW)   # producer == schema (Codex R9-03)
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
+    # ⚠ Codex R10 P1-3: γ 모집단은 계산 **전에** 정해진 격자다. 요청·성공·누락을 행마다 봉인한다 (사라지는 stdout
+    #   요약이 아니라 검증되는 묶음이 스스로 말한다 — R8-04 와 같은 축).
+    roster = {"requested": int(len(gammas)), "succeeded": len(rows),
+              "missing": [float(g) for g in skipped]}
+    for r in rows:
+        r["gamma_roster"] = json.dumps(roster, ensure_ascii=False)
+    status = "complete" if (rows and not skipped) else ("none" if not rows else "partial")
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]
     obj.scales = global_scales
     summary = {"state": args.state, "si_source": args.si_source,
@@ -1624,6 +1711,7 @@ def cmd_profile(args):
                                     float(max(r["gamma_Si"] for r in inside))]
                if inside else None,
                "n_inside": len(inside),
+               "status": status, "gamma_roster": roster,
                "gamma_all_failed": skipped}
     for k in ("a_NE", "LAM_NE_pct", "LAM_PE_pct", "LLI_pct"):
         if inside:
@@ -1637,9 +1725,15 @@ def cmd_profile(args):
     if args.out and rows:
         # ⚠ Codex R4-06: 고정 이름 `.part` 는 같은 목적지를 쓰는 두 시도가 서로의 행을 게시했다 —
         #   시도별 고유 임시 파일 + 행마다 run_id 로 계산과 게시 bytes 를 묶는다.
-        atomic_write_csv(args.out, rows, list(rows[0]))
-        print(f"wrote {args.out} (run_id {run_id_of(args)})")
-        return 0
+        # ⚠ Codex R10 P1-3: complete 만 canonical. 부분은 `partial/` 로 — 완전성 판정이 게시보다 먼저다.
+        dest = publish_target(args.out, status)
+        atomic_write_csv(dest, rows, list(rows[0]))
+        print(f"wrote {dest} [status {status}] (run_id {run_id_of(args)})"
+              + ("" if status == "complete" else f"  — canonical {args.out} 은 건드리지 않았다"))
+        if status != "complete":
+            print(f"[profile] γ 요청 {roster['requested']} · 성공 {roster['succeeded']} · 누락 {roster['missing']} "
+                  f"→ 종료 코드 {PRODUCER_EXIT[status]} (부분은 승격 대상이 아니다)")
+        return PRODUCER_EXIT[status]
     if not rows:
         print(f"[profile] 저장할 행이 없다 (모든 γ 가 실패)"
               + (f" — {args.out} 를 쓰지 않는다 (기존 파일이 있어도 이번 실행의 산출이 아니다)"

@@ -69,7 +69,7 @@ from bms_balancing.model import LB5, UB5, Blend, HalfCell  # noqa: E402
 #   rc 1 = none     : γ 짝이 하나도 없다 — 부분이 아니라 없음 (missing pair 면 rc 3 보다 먼저 난다)
 #   rc 3 = partial  : 일부만 짝이 있거나 입력이 없는 상태(missing_input)가 있다
 #   none·partial 은 canonical 을 건드리지 않고 <write>/partial/ 에만 쓴다 (완전성 판정이 게시보다 먼저다)
-EXIT_BY_STATUS = {"complete": 0, "none": 1, "partial": 3}
+EXIT_BY_STATUS = {"complete": 0, "none": 1, "partial": 3, "subset": 3}
 
 GRID = np.linspace(0.02, 0.98, 400)     # 양 끝은 외삽이라 뺀다
 GAMMA_GRID = np.linspace(LB5[4], UB5[4], 501)   # (d) 합법 γ 격자 — 0.001 간격
@@ -252,8 +252,9 @@ def main() -> int:
                     help="산출 CSV 를 쓸 곳. 빈 문자열이면 안 쓴다. complete 만 여기(canonical)에; none/partial 은 "
                          "`<DIR>/partial/` 에 (Codex R9-06)")
     ap.add_argument("--states", default="", metavar="S1,S2",
-                    help="requested 명부를 명시한다 (기본: 소스에 선언된 상태 전부, pristine 제외). 명시하면 그 목록이 "
-                         "계약이고 meta 의 pairing.requested_from 에 `--states` 로 남는다")
+                    help="정본 roster 의 **부분집합**만 돌린다 (진단용). 정본 roster 는 `D.declared_states(source)` 이고 "
+                         "이 옵션은 그것을 **좁히기만** 한다 — 축소 실행은 status `subset` 이라 canonical 에 가지 않고 "
+                         "종료 코드 3 이다 (Codex R10 P1-2). 중복·정본에 없는 상태는 거부한다")
     a = ap.parse_args()
 
     root = D.data_root(a.data_root)
@@ -261,12 +262,27 @@ def main() -> int:
     # ⚠ Codex R9-04: 전 판은 `[s for s in D.STATES if half_cell_path(...).is_file()]` — 선언된 상태의 파일이 없으면 그 상태는
     #   requested 에 들기 **전에** 사라져 `{requested:[100], paired:[100], missing:[]}` 1/1 rc 0 이었다. requested 명부는
     #   파일 존재를 보기 전에 고정하고, 입력이 없는 상태는 `missing_input` 으로 따로 센다.
-    declared = [s for s in D.STATES if s != "pristine" and s in D.HALF_FILE.get(a.source, {})]
+    # ⚠ Codex R10 P1-2: **정본 roster(authority)** 는 caller 가 못 바꾼다. 전 판은 `--states 100` 이 requested 를
+    #   통째로 갈아치워 1 행 산출이 status `complete` 로 2 행 canonical 을 덮었고, `--states 100,100` 은 중복을 2/2
+    #   complete 로 셌다. 이제 authority = `D.declared_states(source)` (선언 − 알려진 부재) 이고 `--states` 는 그
+    #   부분집합만 고를 수 있다 — 축소 실행은 `subset` 이라 canonical 승격 대상이 아니다.
+    authority = D.declared_states(a.source)
+    subset = False
     if a.states:
         requested = [s.strip() for s in a.states.split(",") if s.strip()]
-        requested_from = "--states"
+        dup = sorted({s for s in requested if requested.count(s) > 1})
+        unknown = [s for s in requested if s not in authority]
+        if not requested or dup or unknown:
+            print(f"! `--states` 를 받아들일 수 없다 — "
+                  + (f"중복 {dup} · " if dup else "")
+                  + (f"정본 roster 에 **선언되지 않은** 상태 {unknown} · " if unknown else "")
+                  + (f"빈 목록 · " if not requested else "")
+                  + f"정본 roster(authority) = {authority} (Codex R10 P1-2) → 종료 코드 2")
+            return 2
+        subset = list(requested) != list(authority)
+        requested_from = "--states (부분집합)" if subset else "--states (정본 roster 와 같다)"
     else:
-        requested, requested_from = declared, f"D.HALF_FILE[{a.source}] ∩ D.STATES (pristine 제외)"
+        requested, requested_from = list(authority), f"D.declared_states({a.source}) — 선언 − 알려진 부재"
     if not D.half_cell_path(root, a.source, "pristine").is_file():
         raise SystemExit(f"`{a.source}` 에 pristine 이 없다 — 기준이 없으면 못 잰다")
     available = [s for s in requested
@@ -386,18 +402,20 @@ def main() -> int:
     # ⚠ Codex R9-06 · P2-5: 완전성 판정은 **게시보다 먼저**다. typed status 하나로 세 상태를 가른다 — complete 만 canonical,
     #   none/partial 은 `<write>/partial/` 에. 전 판은 rc 3 을 내면서도 canonical CSV/meta 를 부분 묶음으로 교체했다
     #   (read_unit True — 부분이 정본 자리를 차지했다).
-    if paired and not missing_input and not missing_pairs:
-        status = "complete"
-    elif paired:
-        status = "partial"
-    else:
+    if not paired:
         status = "none"
-    pairing = {"requested": requested, "requested_from": requested_from, "available": available,
+    elif subset:
+        status = "subset"                                    # 축소 실행은 완전성 주장을 하지 않는다 (Codex R10 P1-2)
+    elif not missing_input and not missing_pairs:
+        status = "complete"
+    else:
+        status = "partial"
+    pairing = {"authority": authority, "requested": requested, "requested_from": requested_from, "available": available,
                "missing_input": missing_input, "paired": paired, "missing": missing_pairs,
                "note": "measured_* 는 available(입력 있는 requested) 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다; "
                        "missing_input 은 측정조차 없다 (Codex R8-03 · R9-04)"}
     if a.write:
-        dest = pathlib.Path(a.write) if status == "complete" else pathlib.Path(a.write) / "partial"
+        dest = pathlib.Path(a.write) if status == "complete" else pathlib.Path(a.write) / "partial"   # subset 포함
         art = _write_csv(dest, a, rows, cap, base_cap, {c[0]: c for c in cwhere}, headroom, consumed, pairing, status=status)
         print(f"\n→ {art}" + ("" if status == "complete" else
                               f"  [{status} — canonical {pathlib.Path(a.write) / art.name} 은 건드리지 않았다 (Codex R9-06)]"))
@@ -472,6 +490,10 @@ def main() -> int:
     print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
     print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
     print("⚠ 이것은 **크기 비교**다. 방향이 같은지는 따로 봐야 한다.")
+    if status == "subset":
+        print(f"⚠ **부분집합(subset)** — 정본 roster {authority} 중 {requested} 만 돌렸다 (`--states`). 이 산출은 "
+              f"완전성 주장을 하지 않는다: canonical 에 가지 않고 종료 코드 {EXIT_BY_STATUS['subset']} 다 (Codex R10 P1-2)")
+        return EXIT_BY_STATUS["subset"]
     if status == "partial":
         print("⚠ **부분(partial)** — " + (f"입력 없는 상태 {missing_input}" if missing_input else "")
               + (" · " if missing_input and missing_pairs else "")

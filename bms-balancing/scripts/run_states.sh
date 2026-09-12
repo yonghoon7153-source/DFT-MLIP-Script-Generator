@@ -27,6 +27,10 @@ FORCE_SRC="${SRC:-}"
 USED=""            # 상태별로 실제 무엇을 썼는지 — 마지막에 찍는다
 OUT="${OUT:-out}"  # 산출 디렉터리. 시험 실행은 여기를 바꿔서 out/ 을 안 더럽힌다
 
+# ══ DEFS BEGIN ══ 아래부터 `fail=0` 전까지가 **함수 정의**다. 회귀(`tests/test_r10_codex.py`)가 정확히 이 구간을
+#    source 해서 production 함수(`run`·`write_meta`·`shape_step`)를 그대로 부른다 — 그래야 그 줄을 위조하는 변이가
+#    시험에 잡힌다 (Codex R10 P2-3: 전 판 회귀는 `run()` 을 안 부르고 `LAST_ARGV` 를 직접 주입했다).
+
 # ⚠ 산출마다 **설정을 옆에 적는다** (`.meta.json`). 2026-09-10 실측: 합성
 #   데이터로 STARTS=4 짜리 시험을 돌렸더니 `out/matrix_300_0147.csv` 가
 #   생겼는데, **파일 이름만으로는 진짜 산출과 구별이 안 됐다.** 정본이
@@ -49,10 +53,15 @@ write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 �
     return 1
   fi
   if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" \
-        "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" "${LAST_ARGV:-}" <<'PYMETA'
+        "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" "${LAST_ARGV_JSON:-[]}" <<'PYMETA'
 import csv, fcntl, hashlib, io, json, os, sys, datetime, pathlib, tempfile
 art, st, src, starts, si, root, rid, out_dir, pre_json, started = sys.argv[1:11]
-argv = sys.argv[11] if len(sys.argv) > 11 else ""
+try:                                                 # Codex R10 P2-3: argv 는 문자열이 아니라 **vector** 다
+    argv = json.loads(sys.argv[11]) if len(sys.argv) > 11 else []
+    if not isinstance(argv, list):
+        argv = []
+except json.JSONDecodeError:
+    argv = []
 
 
 def roster_of(name, data):
@@ -170,7 +179,10 @@ sys.exit(0 if r and r[0] else 1)' "$f" 2>/dev/null \
 #   있어야** OK 다. 옛 파일은 지우지 않는다 — 보존은 하되 새 결과로 세지 않는다.
 run () {
   local label="$1" art="$2" redir="$3" log="$4"; shift 4
-  LAST_ARGV="$*"                                    # Codex R9 P2-4: sidecar 가 이 시도의 **실제 argv** 를 봉인한다
+  # ⚠ Codex R9 P2-4 → R10 P2-3: sidecar 가 이 시도의 **실제 argv** 를 봉인한다. 전 판의 `"$*"` 는 공백으로 이어 붙인
+  #   문자열이라 `['cmd','a b','c']` 와 `['cmd','a','b c']` 가 같은 줄로 기록됐다 (다른 실행인데 같은 증거).
+  #   `"$@"` 경계를 JSON array 로 직렬화한다 — 이 한 줄이 production 결속이고 회귀(`test_d10_11`)가 여기를 통과한다.
+  LAST_ARGV_JSON="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:], ensure_ascii=False))' "$@")"
   say '\n\033[1m== %s\033[0m\n' "$label"
   local t0=$SECONDS rc=0
   local rid; rid="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
@@ -194,6 +206,34 @@ run () {
   fi
   say '   \033[31mFAIL\033[0m (%d 초) — 로그: %s\n' "$((SECONDS - t0))" "$log"
   return 1
+}
+
+# ── ne_shape 는 typed status 를 낸다 — wrapper 가 그것을 **읽는다** (Codex R9 P2-5 · R10 P1-2 · P2-7) ──────────
+#   0 complete : canonical 에 게시됐다        1 none : γ 짝이 하나도 없다 (부분이 아니라 없음)
+#   3 partial/subset : canonical 은 그대로고 산출은 `<write>/partial/` 에 있다 — 승격 대상이 아니다
+#   전 판은 이 계약을 코드와 문서에만 적어 두고 **소비하는 production path 가 0 개**였다 (Codex R10 P2-7).
+shape_step () {    # shape_step <write-dir> <명령...>
+  local write="$1"; shift
+  local rc=0
+  "$@" || rc=$?
+  local canon partial art status
+  canon="$(ls "$write"/ne_shape_*.csv 2>/dev/null | head -1)"
+  partial="$(ls "$write"/partial/ne_shape_*.csv 2>/dev/null | head -1)"
+  art="${canon:-$partial}"
+  status="$(python3 - "$art" <<'PYSTATUS'
+import json, pathlib, sys
+p = pathlib.Path(sys.argv[1] + ".meta.json") if sys.argv[1] else None
+print(json.loads(p.read_text(encoding="utf-8")).get("status", "?") if p and p.is_file() else "?")
+PYSTATUS
+)"
+  case "$rc" in
+    0) say '   ne_shape: **complete** (meta status %s) → %s\n' "$status" "$canon" ;;
+    3) say '   ne_shape: **부분(%s)** — canonical 은 건드리지 않았다; 이번 산출은 %s 다 (승격 대상 아님)\n' \
+            "$status" "$partial" ;;
+    1) say '   ne_shape: **없음(%s)** — γ 짝이 하나도 없다 (부분이 아니다); %s\n' "$status" "$partial" ;;
+    *) say '   ne_shape: 실행 실패 rc %s (status %s)\n' "$rc" "$status" ;;
+  esac
+  return "$rc"
 }
 
 fail=0
@@ -253,6 +293,16 @@ for st in $STATES; do
       && verify_unit_or_say "$OUT/profile_gamma_${st}_${SI}.csv" "$LAST_RUN_ID" \
       || fail=$((fail+1))
 done
+
+shape_rc=0
+shape_step "$OUT" env PYTHONUNBUFFERED=1 python3 scripts/ne_shape.py \
+  --out-dir "$OUT" --write "$OUT" --source "${SHAPE_SRC:-${SRC:-GITT}}" --si-source "$SI" \
+  > "$OUT/ne_shape.log" 2>&1 || shape_rc=$?
+case "$shape_rc" in
+  0) ;;                                            # complete — 정본 갱신
+  3) say '   (ne_shape 부분 — 위 로그와 %s/partial/ 을 볼 것)\n' "$OUT" ;;
+  *) fail=$((fail+1)) ;;                           # none·실행 실패는 실패로 센다
+esac
 
 say '\n=====================================\n'
 if [ "$fail" -eq 0 ]; then

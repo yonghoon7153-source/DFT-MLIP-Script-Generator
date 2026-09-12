@@ -56,7 +56,10 @@ def test_d9_02_check_u14_compares_the_exact_artifact_roster_not_just_what_new_co
     assert "roster" in out.lower() or "명부" in out, out[-600:]
     assert "degeneracy_200_Li.json" in out and ("없" in out or "missing" in out), out[-600:]
     rc, out, _ = _cli("check_u14.py", "--new", new, "--old", old, "--subset")   # 명시적 부분 계약
-    assert rc == 0 and ("subset" in out or "부분" in out) and "1/2" in out, (rc, out[-600:])
+    # ⚠ Codex R10 P2-1 로 계약이 바뀌었다: 부분은 성공 종료가 아니다 (rc 3) 이고 판정은 machine-readable 로도 나온다.
+    assert rc == 3 and ("subset" in out or "부분" in out) and "1/2" in out, (rc, out[-600:])
+    promo = json.loads(next(l for l in out.splitlines() if l.startswith("PROMOTION "))[len("PROMOTION "):])
+    assert promo["promotion_eligible"] is False and promo["subset"] is True, promo
 
 
 # ── R9-03 ────────────────────────────────────────────────────────────────────────────────────
@@ -261,9 +264,12 @@ def test_d9_08_r7_runner_rejects_unknown_empty_or_duplicate_probes_and_wrong_hea
     assert rc != 0 and "expected-head" in (out + err), (rc, err[-300:])
     rc, out, err = run("--probes", "R7-06", "--expected-head", "0" * 40)   # SHA 불일치
     assert rc != 0 and ("mismatch" in (out + err) or "다르" in (out + err)), (rc, err[-300:])
-    if subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--", "."], capture_output=True, text=True).stdout.strip():
-        rc, out, err = run("--probes", "R7-06", "--expected-head", head)   # dirty 트리는 기본(strict)에서 돌지 않는다
-        assert rc != 0 and "dirty" in (out + err), (rc, err[-300:])
+    # ⚠ Codex R10 P2-5 로 계약이 바뀌었다: dirty 를 **거부**하는 대신 expected commit 의 격리 snapshot 에서 돈다
+    #   (working tree 가 어떻든 실행 bytes 는 그 커밋이다). dirty 여부는 결과에 그대로 기록된다.
+    rc, out, err = run("--probes", "R7-06", "--expected-head", head)
+    assert rc == 0, (rc, err[-400:])
+    snap = json.loads(out)
+    assert snap["ran_in"] == "격리 snapshot" and snap["materialized"]["head"] == head, snap.get("materialized")
     rc, out, err = run("--probes", "R7-06", "--expected-head", head, "--allow-dirty")   # 시험 중 트리는 dirty 다 — 명시하고 기록
     assert rc == 0, (rc, err[-400:])
     d = json.loads(out)
@@ -290,13 +296,16 @@ def test_d9_10_matrix_sidecar_seals_the_exact_roster_and_argv(tmp_path):
     shell = (ROOT / "scripts/run_states.sh").read_text(encoding="utf-8")
     code = shell[shell.index("write_meta ()"):shell.index('\nmkdir -p "$OUT"')]
     code += "\n" + shell[shell.index("\nsay ()") + 1:shell.index("\nfail=0")]
-    code += '\nLAST_RUN_ID="$2"; LAST_ARGV="python3 -m bms_balancing.verify matrix --state 100"; write_meta "$1" 100 GITT\n'
+    # ⚠ Codex R10 P2-3: argv 는 `$*` 문자열이 아니라 **vector** 다. 이 시험은 roster 봉인을 보고, `run()` 을 통한
+    #   production 결속(위조하면 깨지는 자리)은 `test_d10_11` 이 본다.
+    code += ('\nLAST_RUN_ID="$2"; LAST_ARGV_JSON=\'["python3","-m","bms_balancing.verify","matrix","--state","100"]\';'
+             ' write_meta "$1" 100 GITT\n')
     env = dict(os.environ, STARTS="2", SI="Li", BMS_DATA_ROOT="synthetic", OUT=str(tmp_path),
                PATH=str(pathlib.Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""))
     p = subprocess.run(["bash", "-c", code, "r9", str(art), "r9-side"], cwd=ROOT, env=env, capture_output=True, text=True, timeout=60)
     assert p.returncode == 0, (p.stdout, p.stderr)
     meta = json.loads(art.with_name(art.name + ".meta.json").read_text(encoding="utf-8"))
-    assert meta["argv"].startswith("python3 -m bms_balancing.verify matrix"), meta.get("argv")
+    assert meta["argv"][:4] == ["python3", "-m", "bms_balancing.verify", "matrix"], meta.get("argv")
     roster = meta["roster"]
     assert roster["rows"] == 2 and roster["half_cell"] == ["GITT"] and roster["si"] == ["Kunz", "Li"], roster
     assert meta["si_source"] != "Li" or "roster" in meta                    # singular 가 본문을 대신하지 않는다

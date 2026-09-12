@@ -19,10 +19,12 @@ R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`).
   하나이고 (producer 가 같은 것을 assert 한다) 검사는 필수 셀 nonempty · 숫자 파싱 · receipt(역할·path·64-hex·재계산
   digest) · 중복 key · 실행 조건 대조까지다 — `--schema-only` 도 구조 검사는 전부 한다.
 
-종료 코드: 0 = 명부·스키마·조건 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 명부/스키마/내용/조건 불일치 · 묶음 미완 · 파일 없음.
+종료 코드: 0 = 명부·스키마·조건·환경 갖췄고 숫자 동일 (**승격 가능**) · 1 = 숫자가 다름 · 2 = 명부/스키마/내용/조건/환경
+불일치 · 묶음 미완 · 파일 없음 · candidate 와 baseline 이 같은 디렉터리 · 3 = 명시한 부분 재실행(`--subset`)이 정본 명부를
+덜 덮었다. 마지막 줄 `PROMOTION {…}` 이 같은 판정을 machine-readable 로 낸다 (`promotion_eligible` 은 rc 0 에서만 true).
 """
 from __future__ import annotations
-import argparse, csv, io, json, pathlib, re, sys
+import argparse, csv, io, json, os, pathlib, re, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from bms_balancing import schema as S          # noqa: E402  — producer·checker·reader 의 한 정본 (Codex R9-03)
@@ -36,8 +38,8 @@ MATRIX_COLS = S.MATRIX_ROW
 PROFILE_COLS = S.PROFILE_ROW
 META_KEYS = ("run_id", "sha256", "artifact", "env", "started_utc",
              "git_commit_at_start", "git_state_changed_during_run")
-#: meta 에서 "같은 실행" 이려면 같아야 하는 조건 (Codex R9-03 C)
-META_CONTROLS = ("state", "half_cell_source", "si_source", "starts", "seed")
+#: meta 에서 "같은 실행" 이려면 **양쪽에 있고 같아야** 하는 조건 — schema.py 가 정본 (Codex R9-03 C · R10 P1-7)
+META_CONTROLS = S.META_CONTROLS
 
 # 대조할 **수치** 필드 (스키마·provenance 필드는 당연히 다르다 — 숫자만 본다)
 JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
@@ -81,6 +83,16 @@ def baseline_for(new_file: pathlib.Path, old: pathlib.Path, policy: str = "curre
             continue
         cands.append((int(m.group(1)) if m else 1, f))
     return max(cands)[1] if cands else None
+
+
+def _same_dir(a: pathlib.Path, b: pathlib.Path) -> bool:
+    """두 디렉터리가 같은 object 인가 — symlink·`.` 같은 별칭까지 (Codex R10 P1-8)."""
+    try:
+        if a.exists() and b.exists():
+            return os.path.samefile(a, b)
+    except OSError:
+        pass
+    return os.path.realpath(a) == os.path.realpath(b)
 
 
 def _kind(f: pathlib.Path) -> str:
@@ -159,7 +171,7 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
     roster_missing(정본에 있는데 새 산출에 없음) · roster_extra(새 산출에만) · n_old · n_new.
     """
     R: dict = {"seen": 0, "missing": [], "content": [], "diffs": [], "added": [], "paired": [], "stale": [],
-               "broken": [], "controls": [], "roster_missing": [], "roster_extra": [], "n_old": 0, "n_new": 0}
+               "broken": [], "controls": [], "env": [], "roster_missing": [], "roster_extra": [], "n_old": 0, "n_new": 0}
     new_stale: list = []
     # ⚠ `.meta.json` 은 산출이 아니다 — `degeneracy_*.json` glob 이 `degeneracy_100_Li.json.meta.json` 까지
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
@@ -205,11 +217,16 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
         ook, owhy, odata, ometa = _unit(o)
         if ook is False:
             R["diffs"].append((f"{o.name}", "정본 묶음 불일치/미완", owhy)); continue
-        # ⚠ Codex R9-03 C: 실행 조건이 다르면 같은 실행의 재현이 아니다 — 숫자가 같아도 승격 대상이 아니다
+        # ⚠ Codex R9-03 C: 실행 조건이 다르면 같은 실행의 재현이 아니다 — 숫자가 같아도 승격 대상이 아니다.
+        # ⚠ Codex R10 P1-7: 전 판은 **양쪽에 key 가 있을 때만** 댔다 — candidate 에서 `state`·`starts` 를 지우면
+        #   검사가 잠들고 rc 0 "전부 같다" 였다. 필수 control 은 **있어야** 하고, `env` 는 존재가 아니라 **값**을 댄다.
         if meta and ometa:
             for k in META_CONTROLS:
-                if k in meta and k in ometa and _num_diff(ometa[k], meta[k]):
+                if k not in ometa or k not in meta:
+                    R["controls"].append((f"{f.name}.meta:{k}", ometa.get(k, "(없음)"), meta.get(k, "(없음)")))
+                elif _num_diff(ometa[k], meta[k]):
                     R["controls"].append((f"{f.name}.meta:{k}", ometa[k], meta[k]))
+            R["env"] += [f"{f.name}.meta:{x}" for x in S.env_problems(ometa.get("env"), meta.get("env"))]
         if kind == "degeneracy":
             a = json.loads(odata.decode("utf-8"))
             for k in S.DEGENERACY_CONTROLS:
@@ -358,11 +375,18 @@ def main() -> int:
             print("! 그 커밋의 out/ 이 비었다 — 리비전이 맞나?"); return 2
     if old is not None and not old.is_dir():
         print(f"! 정본 디렉터리 {old} 가 없다"); return 2
+    # ⚠ Codex R10 P1-8: candidate 와 baseline 이 **같은 object** 면 그 대조는 자기대조다 — 전 판은 같은 디렉터리를
+    #   둘 다 주면 rc 0 · roster 1/1 · "전부 같다" 를 내서, baseline 을 이미 덮었거나 애초에 없던 상태와 구별되지
+    #   않았다. 경로 문자열이 아니라 samefile/realpath 로 본다 (`--old-rev` 의 immutable bytes 는 별도 임시 경로다).
+    if old is not None and _same_dir(new, old):
+        print(f"! `--new` 와 `--old` 가 **같은 디렉터리**다 ({new}) — 독립 baseline 이 아니면 승격 판정이 성립하지 "
+              f"않는다 (자기대조). 재실행은 별도 destination 으로 받고 정본은 그대로 두거나 `--old-rev` 로 커밋에서 "
+              f"읽을 것 (Codex R10 P1-8)"); return 2
     policy = a.baseline_policy if a.baseline_policy != "auto" else ("historical" if a.old_rev else "current")
     R = check(new, old, a.schema_only, policy)
     seen, missing, content, diffs = R["seen"], R["missing"], R["content"], R["diffs"]
     added, paired, stale, broken = R["added"], R["paired"], R["stale"], R["broken"]
-    controls, r_missing, r_extra = R["controls"], R["roster_missing"], R["roster_extra"]
+    controls, r_missing, r_extra, env_bad = R["controls"], R["roster_missing"], R["roster_extra"], R["env"]
     print(f"산출 {seen} 개 점검 ({new})")
     if old is not None:
         print(f"  정본 선택 정책: **{policy}** — {POLICY[policy]}")
@@ -421,6 +445,12 @@ def main() -> int:
             print(f"  … 외 {len(content) - a.max_show}")
     if not missing and not content:
         print("  새 스키마: 전부 갖췄다 (열·키 이름 + 필수 셀·숫자·receipt·중복 key — `bms_balancing/schema.py` 정본)")
+    if env_bad:
+        print(f"\n■ **환경(env) 불일치** {len(env_bad)} — 정본을 만든 기계와 다른 조합이다 (R6 내부 F3: scipy 1.11↔1.17 "
+              f"에서 savgol 이 ULP 로 갈리고 L-BFGS-B 최적점이 달라진다). 숫자가 같아도 같은 실행의 재현이 아니다 "
+              f"(Codex R10 P1-7)")
+        for e in env_bad[:a.max_show]:
+            print(f"  - {e}")
     if controls:
         print(f"\n■ 실행 조건 불일치 {len(controls)} — 같은 실행의 재현이 아니다 (n_starts · seed · n_grid · n_samples · tol · "
               f"state · 소스; Codex R9-03). 숫자가 같아도 승격 대상이 아니다")
@@ -438,14 +468,27 @@ def main() -> int:
                 print(f"  - {p}: 정본 {x} → 새 {y}")
             if len(diffs) > a.max_show:
                 print(f"  … 외 {len(diffs) - a.max_show}")
-        elif broken or r_extra or controls or (r_missing and not a.subset):
-            print("  숫자: 대조 **미완** — 명부/묶음/조건 문제를 뺀 나머지만 같다 (전체를 말할 수 없다)")
+        elif broken or r_extra or controls or env_bad or missing or content or (r_missing and not a.subset):
+            # ⚠ Codex R10 P1-7: 계약이 깨진 대조에서 "전부 같다" 를 찍으면 그 줄만 인용된다. 숫자가 같아도 **같은
+            #   실행의 재현이 아니다** — 명부·스키마·내용·조건·환경 중 하나라도 깨졌으면 미완이라고 말한다.
+            print("  숫자: 대조 **미완** — 명부/묶음/스키마/내용/조건/환경 문제를 뺀 나머지만 같다 (전체를 말할 수 없다)")
         elif a.subset and r_missing:
             print(f"  숫자: 대조한 {len(paired)}/{R['n_old']} 개는 정본과 같다 — **부분(subset)** 진술, 승격 아님")
         else:
             print(f"  숫자: 정본({old})과 전부 같다 — 게시·서명만 바뀌었다")
-    contract_broken = bool(missing or broken or content or controls or r_extra or (r_missing and not a.subset))
-    return 2 if contract_broken else (1 if diffs else 0)
+    contract_broken = bool(missing or broken or content or controls or env_bad or r_extra
+                           or (r_missing and not a.subset))
+    rc = 2 if contract_broken else (1 if diffs else (3 if (a.subset and r_missing) else 0))
+    # ⚠ Codex R10 P2-1: "부분 · 승격 아님" 을 **글자로만** 말하면 자동 소비자는 full equality 와 구분할 수 없다.
+    #   종료 코드로 가르고(3 = 부분), 판정을 machine-readable 한 줄로 낸다.
+    promotion = {"promotion_eligible": rc == 0, "rc": rc, "subset": bool(a.subset),
+                 "roster": {"old": R["n_old"], "new": R["n_new"], "compared": len(paired),
+                            "missing_in_new": r_missing, "extra_in_new": r_extra},
+                 "blocked_by": {"schema": len(missing), "content": len(content), "unit": len(broken),
+                                "controls": len(controls), "env": len(env_bad), "numbers": len(diffs)},
+                 "policy": policy, "new": str(new), "old": (str(old) if old is not None else None)}
+    print("PROMOTION " + json.dumps(promotion, ensure_ascii=False))
+    return rc
 
 
 if __name__ == "__main__":

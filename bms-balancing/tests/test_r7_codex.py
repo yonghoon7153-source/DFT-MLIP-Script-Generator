@@ -65,8 +65,9 @@ def _deg(state, rid, spans, schema=False):
 def _sign(art, rid, state, full=False):
     prov = _prov()
     meta = {"artifact": art.name, "state": state, "run_id": rid, "sha256": prov.sha256_file(art), "starts": 24}
-    if full:        # check_u14 의 META_KEYS
-        meta |= {"env": {"numpy": "2"}, "started_utc": "2026-09-12T00:00:00Z",
+    if full:        # check_u14 의 META_KEYS + 실행 조건 (Codex R10 P1-7: 실제 `write_meta` 가 쓰는 control 집합)
+        meta |= {"env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
+                 "started_utc": "2026-09-12T00:00:00Z", "half_cell_source": "GITT", "si_source": "Li", "seed": 0,
                  "git_commit_at_start": "0" * 40, "git_state_changed_during_run": False}
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps(meta), encoding="utf-8")
 

@@ -24,7 +24,36 @@
 
 ---
 
-## 지금 상태 — **Codex 9차 NO-GO (P1 7 · P2 5) 열두 건 전부 닫음 · 10차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+## 지금 상태 — **Codex 10차 NO-GO (P1 8 · P2 7) 열다섯 건 전부 닫음 · 11차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+
+2026-09-13 Codex 10차(대상 `bd6ba47`, 코드 정본 `554dad6`, `reviews/R10_CODEX.md`, 패키지 `reviews/r10_repros/codex/`
+sha256 10/10)의 요지: R9 의 열두 수정은 허상이 아니지만 **그 문장이 게시 경계·승격 gate·증거 기계에서는 아직 참이
+아니다** — `eval --out X --compare X` 가 독립 근거를 제 출력으로 덮고 자기대조를 `complete` 로 냈고(P1-1), `ne_shape
+--states` 가 정본 roster 를 줄여 1 행을 complete canonical 로 게시했고(P1-2), profile 의 실패한 γ 와 matrix 의 전
+조합 실패가 canonical 을 부수며 rc 0 이었고(P1-3·4), `error` 한 칸이 행 검증을 전부 껐고(P1-5), receipt 가 역할을
+안 묶어 decoy 하나로 통과했고(P1-6), env·control 이 사실상 검사되지 않았고(P1-7), candidate 와 baseline 이 같은
+디렉터리여도 승격 판정이 났다(P1-8). P2 는 subset 의 rc 0(P2-1) · stdout invalid rc 0(P2-2) · argv 평탄화와 production
+결속 없는 회귀(P2-3) · `python -O` 에서 증거가 다 통과(P2-4) · 실행 bytes 미봉인(P2-5) · package digest 회귀 부재(P2-6)
+· ne_shape typed status 를 쓰는 caller 부재(P2-7).
+
+열다섯 건 전부 수정 전 clean 트리에서 재현(`reviews/r10_repros/replay_ours_bd6ba47_before/`) → RED(`tests/test_r10_codex.py`
+d10_01~16) → 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "Codex R10" 절, 요청문은 `reviews/R11_REQUEST.md`.
+
+**새 규약**: 게시는 **완전성 판정 뒤에만** — matrix·profile·ne_shape 가 typed status(complete/partial/none/subset)를
+내고 complete 만 canonical, 나머지는 `partial/` 에 (`PRODUCER_EXIT` 0/3/1) · 정본 roster 는 `D.declared_states(source)`
+이고 caller 의 `--states` 는 좁히기만 하며 그 실행은 승격 대상이 아니다 · 알려진 부재는 `D.HALF_CELL_ABSENT` 로 명시
+(실측 근거는 원장) · receipt 는 **역할**을 묶는다(`REQUIRED_ROLES`, digest 는 `(역할, sha256)`) · `error` 행이 있는
+묶음은 success 가 아니다 · `check_u14` 는 env 를 값으로 대고 필수 control 이 양쪽에 있어야 하며 candidate·baseline
+독립성을 요구하고 `--subset` 은 rc 3 + `PROMOTION {…}` 줄을 낸다 · degeneracy 는 sink 와 무관하게 invalid 면 rc 2 ·
+증거 러너는 `reviews/evidence_gate.py` 한 자리에서 `-O` 거부 · git rc 확인 · index skip flag 거부 · `__pycache__` 격리 ·
+**expected commit 의 sparse worktree 에서 대상 bytes 실행** · 도구 자신의 봉인(`instrument_sealed`)까지 본 뒤에만
+`evidence_eligible: true`.
+
+**정본 범위 (변화 없음)**: 현행 `out/` 12 개는 여전히 provenance-incomplete (출처 열 24 건 + 이번에 profile 의
+`gamma_roster` 4 건이 더해졌다 — 둘 다 U18 재실행이 채운다). `check_u14 --new out --schema-only` 가 rc 2 로 말한다.
+자기 점검(`--new out --old out`)은 이제 **거부**된다 (P1-8) — 승격 대조는 독립 baseline 으로만.
+
+## 직전 상태 — Codex 9차 NO-GO 열두 건 닫음 (닫힘)
 
 2026-09-12 Codex 9차(대상 `29ef505`, `reviews/R9_CODEX.md`, 패키지 `reviews/r9_repros/codex/` sha256 11/11)의 요지: R8 의 여덟
 수정은 허상이 아니지만 **"모집단을 먼저 세고, 검증 snapshot 만 검사하고, 부분은 부분이라 말한다" 가 아직 production 전체의
@@ -132,7 +161,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 167 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 183 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh
