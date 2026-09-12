@@ -30,8 +30,11 @@
   · 결정화 여부를 못 가른다 — g(r)·배위수만 준다. XRD 지문은 tools/xrd/phase_fingerprint.py.
   · 2층(전도)을 하지 않는다 — 최종 구조를 넘길 뿐이다. 시드 하나만 돌리며, 앙상블 통계는 호출자가 모은다 (G3).
   · Berendsen 은 앙상블이 엄밀하지 않다 — 구조 생성용이지 수송 계산용이 아니다.
+  · **밀도가 낮게 나온 원인을 스스로 못 가른다** — 배선인지 UMA·구조인지는 --npt_control 대조 잡이 가른다.
+    그 대조도 "배로스탯이 ρ_UMA(0K) 를 지키나" 까지만 말한다. UMA 자신의 밀도 오차는 그 판정 밖이다.
 
   python3 tools/ionic/melt_quench_uma.py --system A --seed 1 --quench_rate 1e12 --out_root /data/work/runs/li2s_layer1
+  python3 tools/ionic/melt_quench_uma.py --npt_control db/structures/sei_li2s_mp-1153.vasp --out_root /data/work/runs/li2s_layer1
   python3 tools/ionic/melt_quench_uma.py --selftest
 """
 from __future__ import annotations
@@ -39,6 +42,10 @@ import argparse, json, math, os, pathlib, sys, time
 import numpy as np
 
 MASS = {"Li": 6.94, "P": 30.974, "S": 32.06, "Cl": 35.45}
+EV_A3_TO_GPA = 160.21766208
+# ⭐ 배로스탯 설정은 여기 한 곳에만 있다 — 대조 잡(--npt_control)이 생산 런과 **같은 설정**을 쓰지 않으면
+#    아무것도 증명하지 못한다. 바꾸려면 여기서 바꾸고, 두 경로가 같이 따라간다.
+BARO = {"taut_fs": 100.0, "taup_fs": 1000.0, "compressibility_au": 8.0}   # 8.0 Å³/eV ≈ 1/(20 GPa)
 SYSTEMS = {                       # 식단위 조성 · 기본 n_fu
     "A":              ({"Li": 4, "P": 1, "S": 4, "Cl": 1}, 40),
     "B":              ({"Li": 3, "P": 1, "S": 4, "Cl": 0}, 50),
@@ -196,6 +203,74 @@ def make_calc(device="cuda", turbo=False):
     return calc
 
 
+def pressure_GPa(atoms):
+    """순간 압력 [GPa] = -tr(σ)/3. 응력을 못 주는 계산기면 NaN (조용히 0 으로 적지 않는다)."""
+    try:
+        sig = np.asarray(atoms.get_stress(voigt=True), float)
+    except Exception:
+        return float("nan")
+    return float(-(sig[0] + sig[1] + sig[2]) / 3.0 * EV_A3_TO_GPA)
+
+
+def density_g_cm3(atoms):
+    return float(sum(MASS[s] for s in atoms.get_chemical_symbols()) / 6.02214076e23 / (atoms.get_volume() * 1e-24))
+
+
+def run_npt_control(atoms, calc, out, *, T_K, ps, dt_fs, save_ps=1.0, tol=0.03, log=print):
+    """⭐ 배로스탯 **대조 잡** — 알려진 결정을 같은 NPT 배선에 넣어 밀도를 지키는지 본다.
+
+    비정질 밀도가 낮게 나왔을 때 원인이 두 갈래다: (ⓐ 우리 배선·단위가 틀렸다 / ⓑ UMA 또는 구조가 그렇다).
+    이 잡이 그 둘을 가른다 — 결정을 **UMA 0 K 가변셀로 먼저 완화**해 ρ_UMA(0K) 를 얻고(= UMA 자신의 답),
+    그 구조로 **생산 런과 같은 BARO 설정** NPT 를 돌려 ρ_NPT 를 얻는다.
+      · |ρ_NPT/ρ_UMA(0K) − 1| ≤ tol → 배선 정상. 비정질 밀도는 배로스탯 탓이 아니다.
+      · 벗어나면 → 배선·단위 문제. 비정질 결과를 해석하기 전에 여기를 고친다.
+    ρ_UMA(0K) 와 파일 밀도의 차이는 **UMA 자신의 오차**라 tol 판정에 넣지 않는다 — 따로 찍어서 사람이 본다.
+    """
+    from ase import units
+    from ase.md.nptberendsen import NPTBerendsen
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
+    from ase.optimize import FIRE
+    out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
+    atoms.calc = calc
+    rho_file = density_g_cm3(atoms)
+    try:
+        from ase.filters import FrechetCellFilter as _CF
+    except ImportError:
+        from ase.constraints import ExpCellFilter as _CF        # 구버전 ASE
+    FIRE(_CF(atoms), logfile=str(out / "cellrelax.log")).run(fmax=0.02, steps=500)
+    rho_0K = density_g_cm3(atoms); P_0K = pressure_GPa(atoms)
+    log(f"  [대조] ρ(파일) {rho_file:.3f} → ρ_UMA(0K) {rho_0K:.3f} g/cm³ (P {P_0K:+.3f} GPa)")
+    MaxwellBoltzmannDistribution(atoms, temperature_K=T_K, rng=np.random.default_rng(0)); Stationary(atoms)
+    dt = dt_fs * units.fs
+    dyn = NPTBerendsen(atoms, dt, temperature_K=T_K, pressure_au=0.0,
+                       taut=BARO["taut_fs"] * units.fs, taup=BARO["taup_fs"] * units.fs,
+                       compressibility_au=BARO["compressibility_au"])
+    n = int(round(ps * 1000 / dt_fs)); save_int = max(1, int(round(save_ps * 1000 / dt_fs)))
+    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa\n")
+    rows = []
+    for step in range(n + 1):
+        if step % save_int == 0:
+            r, P = density_g_cm3(atoms), pressure_GPa(atoms)
+            rows.append((step * dt_fs / 1000, r, P))
+            tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_K:.1f},{r:.4f},"
+                       f"{atoms.get_volume():.2f},{atoms.get_potential_energy():.4f},{P:.4f}\n"); tlog.flush()
+        if step < n:
+            dyn.run(1)
+    tlog.close()
+    half = [x for x in rows if x[0] >= rows[-1][0] / 2] or rows
+    rho_npt = float(np.mean([x[1] for x in half])); P_npt = float(np.mean([x[2] for x in half]))
+    drift = rho_npt / rho_0K - 1.0
+    res = {"kind": "npt_barostat_control", "T_K": T_K, "ps": ps, "dt_fs": dt_fs, "baro": dict(BARO),
+           "n_atoms": len(atoms), "composition": {e: atoms.get_chemical_symbols().count(e) for e in sorted(set(atoms.get_chemical_symbols()))},
+           "rho_file_g_cm3": rho_file, "rho_UMA_0K_g_cm3": rho_0K, "P_UMA_0K_GPa": P_0K,
+           "rho_NPT_mean_last_half_g_cm3": rho_npt, "P_NPT_mean_last_half_GPa": P_npt,
+           "drift_vs_UMA_0K": drift, "tol": tol, "plumbing_ok": bool(abs(drift) <= tol),
+           "UMA_vs_file": rho_0K / rho_file - 1.0,
+           "⛔": "판정은 배선(배로스탯·단위)에 한정된다. UMA 자신의 밀도 오차(UMA_vs_file)는 이 판정 밖이다."}
+    (out / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
+    return res
+
+
 def schedule(T_melt, T_final, quench_rate_K_s, dt_fs):
     if quench_rate_K_s is None or quench_rate_K_s <= 0:
         raise SystemExit("⛔ --quench_rate [K/s] 를 주어라 (G2: 담금질 속도는 결과 보기 전에 선언한다). 기본값은 없다.")
@@ -218,19 +293,21 @@ def run_melt_quench(atoms, calc, out, *, seed, T_melt, T_final, melt_ps, quench_
     MaxwellBoltzmannDistribution(atoms, temperature_K=T_melt, rng=np.random.default_rng(seed)); Stationary(atoms)
     dt = dt_fs * units.fs
     dyn = NPTBerendsen(atoms, dt, temperature_K=T_melt, pressure_au=0.0,
-                       taut=100 * units.fs, taup=1000 * units.fs, compressibility_au=8.0)   # ~20 GPa 체적탄성률
+                       taut=BARO["taut_fs"] * units.fs, taup=BARO["taup_fs"] * units.fs,
+                       compressibility_au=BARO["compressibility_au"])
     quench_ps, n_q = schedule(T_melt, T_final, quench_rate, dt_fs)
     n_m = int(round(melt_ps * 1000 / dt_fs)); n_h = int(round(hold_ps * 1000 / dt_fs))
     save_int = max(1, int(round(save_ps * 1000 / dt_fs)))
     trj = out / "traj.xyz"; trj.unlink(missing_ok=True)
-    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV\n")
+    tlog = open(out / "thermo.csv", "w"); tlog.write("t_ps,T_K,T_set_K,density_g_cm3,volume_A3,E_pot_eV,P_GPa\n")
     step = 0; t0 = time.time()
     def record(T_set):
         nonlocal step
         if step % save_int == 0:
             write(str(trj), atoms, format="extxyz", append=True)
             vol = atoms.get_volume(); rho = sum(MASS[s] for s in atoms.get_chemical_symbols()) / 6.02214076e23 / (vol * 1e-24)
-            tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_set:.1f},{rho:.4f},{vol:.2f},{atoms.get_potential_energy():.4f}\n"); tlog.flush()
+            tlog.write(f"{step*dt_fs/1000:.3f},{atoms.get_temperature():.1f},{T_set:.1f},{rho:.4f},{vol:.2f},"
+                       f"{atoms.get_potential_energy():.4f},{pressure_GPa(atoms):.4f}\n"); tlog.flush()
     chunk = 50
     for phase, n_steps, Tfun in (("melt", n_m, lambda i: T_melt),
                                  ("quench", n_q, lambda i: T_melt - (T_melt - T_final) * i / max(1, n_q)),
@@ -349,6 +426,28 @@ def _selftest():
         chk(info["n_steps"]["quench"] == 500 and n_frames >= 5, f"LJ 연기: 담금질 500 스텝 · 궤적 {n_frames} 프레임 기록")
         chk(os.path.isfile(os.path.join(td, "final.xyz")) and os.path.isfile(os.path.join(td, "final.vasp"))
             and os.path.isfile(os.path.join(td, "thermo.csv")), "final.xyz + final.vasp + thermo.csv 생성 (xyz·POSCAR 쌍)")
+        hdr = open(os.path.join(td, "thermo.csv")).readline().strip().split(",")
+        row = open(os.path.join(td, "thermo.csv")).readlines()[1].strip().split(",")
+        chk(hdr[-1] == "P_GPa" and len(row) == len(hdr) and row[-1] not in ("", "nan"),
+            f"thermo.csv 에 배로스탯 제어변수 P_GPa 가 실제 값으로 기록된다 ({row[-1]} GPa)")
+    # ④ 배로스탯 대조 잡 — LJ 결정(fcc)으로 배선만. 같은 BARO 를 쓰는지까지 본다
+    from ase.build import bulk
+    with tempfile.TemporaryDirectory() as td:
+        cr = bulk("Li", "fcc", a=4.3, cubic=True).repeat(2)
+        res = run_npt_control(cr, LennardJones(sigma=3.0, epsilon=0.20, rc=8.0), td,
+                              T_K=50, ps=0.4, dt_fs=2.0, save_ps=0.02, log=lambda *a: None)
+        chk(res["baro"] == BARO, "대조 잡이 생산 런과 **같은** BARO 상수를 쓴다 (다르면 아무것도 증명 못 한다)")
+        chk(math.isfinite(res["rho_UMA_0K_g_cm3"]) and math.isfinite(res["P_NPT_mean_last_half_GPa"])
+            and os.path.isfile(os.path.join(td, "control.json")),
+            f"대조 잡 배선: ρ(0K) {res['rho_UMA_0K_g_cm3']:.3f} · P_NPT {res['P_NPT_mean_last_half_GPa']:+.3f} GPa · control.json")
+        chk(abs(res["P_UMA_0K_GPa"]) < 0.5, f"가변셀 완화가 0 GPa 근처로 간다 (P_0K {res['P_UMA_0K_GPa']:+.3f} GPa)")
+    # ⛔음성: 압력을 못 주는 계산기는 0 이 아니라 NaN
+    class _NoStress(LennardJones):
+        implemented_properties = ["energy", "forces"]
+        def get_stress(self, atoms=None):
+            raise RuntimeError("stress 없음")
+    at2 = bulk("Li", "fcc", a=4.3, cubic=True); at2.calc = _NoStress()
+    chk(math.isnan(pressure_GPa(at2)), "⛔음성: 응력을 못 주면 NaN — 0 GPa 로 조용히 적지 않는다")
     print(f"selftest: ⭕ {ok} · ⛔ {bad}")
     return 0 if bad == 0 else 1
 
@@ -370,10 +469,36 @@ def main():
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--turbo", action="store_true", help="fairchem inference_settings='turbo' 시도 (없으면 기본으로 내려가고 기록)")
     ap.add_argument("--out_root", help="출력 루트 → <out_root>/<system>/seed<seed>/")
+    ap.add_argument("--npt_control", metavar="STRUCT",
+                    help="⭐배로스탯 대조 잡: 결정 구조 파일(.vasp/.cif/.xyz)을 같은 NPT 배선에 넣어 밀도 유지 확인")
+    ap.add_argument("--control_repeat", type=int, default=2, help="--npt_control 셀 반복 (기본 2 → 2×2×2)")
+    ap.add_argument("--control_ps", type=float, default=20.0, help="--npt_control NPT 길이 [ps]")
+    ap.add_argument("--control_tol", type=float, default=0.03, help="--npt_control 통과 문턱 |Δρ/ρ_UMA(0K)|")
+    ap.add_argument("--control_out", help="--npt_control 출력 폴더 (기본 <out_root>/npt_control)")
     ap.add_argument("--dry_run", action="store_true", help="셀만 만들고 계획을 찍는다 (UMA 안 부름)")
     a = ap.parse_args()
     if a.selftest:
         raise SystemExit(_selftest())
+    if a.npt_control:
+        if not os.path.isfile(a.npt_control):
+            raise SystemExit(f"⛔ 구조 파일이 없다: {a.npt_control}")
+        from ase.io import read
+        at = read(a.npt_control)
+        at = at.repeat(a.control_repeat); at.pbc = True
+        cout = pathlib.Path(a.control_out or (pathlib.Path(a.out_root or ".") / "npt_control"))
+        print(f"[대조 잡] {a.npt_control} ×{a.control_repeat}³ = {len(at)} 원자 · {a.T_final:.0f} K · {a.control_ps:.0f} ps → {cout}", flush=True)
+        calc = make_calc(a.device, a.turbo)
+        res = run_npt_control(at, calc, cout, T_K=a.T_final, ps=a.control_ps, dt_fs=a.dt_fs, tol=a.control_tol)
+        res["uma_inference_mode"] = getattr(calc, "_mq_mode", "default")
+        res["structure_file"] = a.npt_control
+        (cout / "control.json").write_text(json.dumps(res, ensure_ascii=False, indent=1))
+        print(json.dumps({k: res[k] for k in ("rho_file_g_cm3", "rho_UMA_0K_g_cm3", "P_UMA_0K_GPa",
+                                              "rho_NPT_mean_last_half_g_cm3", "P_NPT_mean_last_half_GPa",
+                                              "drift_vs_UMA_0K", "UMA_vs_file", "plumbing_ok")},
+                         ensure_ascii=False, indent=1))
+        print("⭕ 배선 정상 — 비정질 밀도는 배로스탯 탓이 아니다" if res["plumbing_ok"]
+              else "⛔ 배선 이상 — 비정질 결과를 해석하기 전에 배로스탯·단위를 고친다")
+        return
     if not (a.system and a.seed is not None and a.out_root):
         ap.error("--system · --seed · --out_root 가 필요하다")
     quench_ps, n_q = schedule(a.T_melt, a.T_final, a.quench_rate, a.dt_fs)

@@ -36,6 +36,7 @@ for plan in sorted(glob.glob(os.path.join(R, "*", "seed*", "plan.json"))):
     last = open(th).read().strip().splitlines()[-1].split(",")
     try:
         t, T, Tset, rho = float(last[0]), float(last[1]), float(last[2]), float(last[3])
+        P = float(last[6]) if len(last) > 6 else float("nan")     # P_GPa (옛 런은 열이 없다)
     except ValueError:
         rows.append(f"  {sysn:16s} {seed:6s} … thermo.csv 헤더만"); continue
     if t >= total - 1e-9:
@@ -46,7 +47,8 @@ for plan in sorted(glob.glob(os.path.join(R, "*", "seed*", "plan.json"))):
     eta = (total - t) / rate / 60 if rate > 0 else float("nan")
     stale = (now - os.path.getmtime(th)) / 60
     flag = f"  ⚠ 갱신 {stale:.0f}분 전" if stale > 10 else ""
-    rows.append(f"  {sysn:16s} {seed:6s} {phase:6s} t {t:7.1f}/{total:.0f} ps  T {T:6.0f}(set {Tset:5.0f}) K  ρ {rho:.3f}  {rate*60:5.1f} ps/h  ETA {eta:4.1f} h{flag}")
+    pstr = f"P {P:+6.3f}" if P == P else "P   —  "            # ⛔ 옛 런은 배로스탯 제어변수를 기록 안 했다
+    rows.append(f"  {sysn:16s} {seed:6s} {phase:6s} t {t:7.1f}/{total:.0f} ps  T {T:6.0f}(set {Tset:5.0f}) K  ρ {rho:.3f}  {pstr}  {rate*60:5.1f} ps/h  ETA {eta:4.1f} h{flag}")
 print("\n".join(rows) if rows else "  (plan.json 없음 — 아직 시작 안 함)")
 if len(modes) > 1:
     print(f"  ⛔ UMA 실행모드가 시드마다 다르다 {sorted(modes)} — 한 묶음으로 못 쓴다")
