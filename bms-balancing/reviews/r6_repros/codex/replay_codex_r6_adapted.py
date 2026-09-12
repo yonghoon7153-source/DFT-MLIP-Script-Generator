@@ -178,9 +178,14 @@ def a4_half_cell_late_identity(cl, target):
             cl.write_half(half, blend, .45, pe_offset=.02)
             return arrays
 
-        with patch.object(ns.D, "load_literature", side_effect=finish_new_half_export):
+        # ⚠ R9-04 뒤 requested 명부는 파일 존재가 아니라 **선언**(`D.HALF_FILE[source] ∩ D.STATES`)에서 온다. 이 합성 소스는
+        #   pristine·100 만 있으므로 선언을 그 둘로 명시한다 — 아니면 200·300_* 이 missing_input 이 되어 status partial(rc 3),
+        #   산출은 `out/partial/` 에 가고 원본 helper(`cl.run_shape`: rc 0 + canonical 경로)의 전제가 깨진다 (hook 만의 적응).
+        with patch.object(ns.D, "STATES", ["pristine", "100"]), \
+                patch.object(ns.D, "load_literature", side_effect=finish_new_half_export):
             raced, raced_meta = cl.run_shape(ns, base, data)
-        normal_B, meta_B = cl.run_shape(ns, base, data)
+        with patch.object(ns.D, "STATES", ["pristine", "100"]):
+            normal_B, meta_B = cl.run_shape(ns, base, data)
         rec = raced_meta["consumed_inputs"]["100"]["half_cell"]
         pe_raced, pe_B = float(raced["pe_shape_max_mV"]), float(normal_B["pe_shape_max_mV"])
         assert pe_raced == 0. and pe_B == 20., (pe_raced, pe_B)   # 값은 A 로 계산됐다 (원본과 같은 관측)

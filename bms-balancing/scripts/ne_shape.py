@@ -40,6 +40,18 @@ pristine 대비 각 상태에서
   값이 아니라 pristine 대비 변화량**을 견준다.
 
     python3 scripts/ne_shape.py --source GITT --si-source Li
+
+## 명부와 종료 코드 계약 (Codex R8-03 · R9-04 · R9-06 · P2-5)
+
+requested 명부는 **파일 존재를 보기 전에** 고정한다 — 소스에 선언된 상태(`D.HALF_FILE[source]` ∩ `D.STATES`,
+pristine 제외) 또는 `--states` 로 명시한 목록. 반쪽전지 파일이 없는 상태는 `missing_input` 으로, matrix 짝이 없는
+상태는 `missing`(pair) 으로 **따로** 남는다. 산출 meta 의 typed `status` 와 종료 코드:
+
+    rc 0  complete — requested 전부에 입력과 γ 짝이 있다 → canonical `<write>/ne_shape_<src>_<si>.csv` 에 게시
+    rc 1  none     — γ 짝이 하나도 없다 (부분이 아니라 **없음**; 『missing pair 면 rc 3』 보다 먼저 난다)
+    rc 3  partial  — 일부만 짝이 있거나 입력이 없는 상태가 있다
+
+none·partial 은 canonical 을 **건드리지 않고** `<write>/partial/` 에만 쓴다 (완전성 판정이 게시보다 먼저다).
 """
 from __future__ import annotations
 import argparse, csv, pathlib, sys
@@ -51,6 +63,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]   # git 출처는 이 스크립트가 속한 저장소 (R6 내부 F7: cwd 무관)
 from bms_balancing import data as D                      # noqa: E402
 from bms_balancing.model import LB5, UB5, Blend, HalfCell  # noqa: E402
+
+# ── 종료 코드 계약 (Codex R8-03 · R9-06 · P2-5) — meta 의 typed status 와 1:1 ──────────────────────────────
+#   rc 0 = complete : requested 전부에 입력과 γ 짝이 있다 → canonical <write>/ne_shape_<src>_<si>.csv 에 게시
+#   rc 1 = none     : γ 짝이 하나도 없다 — 부분이 아니라 없음 (missing pair 면 rc 3 보다 먼저 난다)
+#   rc 3 = partial  : 일부만 짝이 있거나 입력이 없는 상태(missing_input)가 있다
+#   none·partial 은 canonical 을 건드리지 않고 <write>/partial/ 에만 쓴다 (완전성 판정이 게시보다 먼저다)
+EXIT_BY_STATUS = {"complete": 0, "none": 1, "partial": 3}
 
 GRID = np.linspace(0.02, 0.98, 400)     # 양 끝은 외삽이라 뺀다
 GAMMA_GRID = np.linspace(LB5[4], UB5[4], 501)   # (d) 합법 γ 격자 — 0.001 간격
@@ -105,15 +124,27 @@ def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
         ok, why, data, _meta = read_unit(f)
         if ok is False:
             raise RuntimeError(f"{f.name}: 묶음 불일치/미완 ({why}) — 섞인 산출을 소비하지 않는다 (R6 내부 F07 · Codex R6-01·02)")
-        for idx, r in enumerate(csv.DictReader(io.StringIO(data.decode("utf-8-sig")))):
-            if (r.get("half_cell") == src and r.get("si") == si
-                    and float(r.get("w_dqdv", 1)) == 0):
-                if not r.get("ref_gamma_Si"):
-                    return None          # 옛 판 산출 — ref_* 열이 없다
-                return {"gamma_target": float(r["gamma_Si"]), "gamma_ref": float(r["ref_gamma_Si"]),
-                        "file": str(f), "sha256": hashlib.sha256(data).hexdigest(),
-                        "row": {"index": idx, "half_cell": r.get("half_cell"), "si": r.get("si"),
-                                "w_dqdv": r.get("w_dqdv"), "run_id": r.get("run_id")}}
+        rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
+        # ⚠ Codex R9-05: 전 판은 첫 match 를 **즉시** 반환했다 — 서명된 matrix 에 (GITT, Li, 0) 이 두 행이면 행 순서가 γ 를
+        #   정했다 (0.10 ↔ 0.40, γ 변화 17.59 ↔ 35.73 mV, 둘 다 paired 1/1 rc 0). checker 와 같은 typed validator
+        #   (`schema.unique_rows` · 정규화 key: w_dqdv 는 숫자라 "0" 과 "0.0" 은 같은 행) 로 파일 전체의 key 유일성을
+        #   먼저 강제한다 — 중복이면 그 파일은 소비하지 않는다.
+        from bms_balancing import schema as S
+        _, dup, _ = S.unique_rows(rows, S.matrix_key)
+        if dup:
+            raise RuntimeError(f"{f.name}: 중복 key {dup} — 같은 (half_cell, si, w_dqdv) 행이 둘 이상이다; 첫 행을 고르지 "
+                               f"않는다 (Codex R9-05). 재실행으로 유일한 묶음을 만들 것")
+        hits = [(i, r) for i, r in enumerate(rows) if S.matrix_key(r) == (src, si, 0.0)]
+        if len(hits) > 1:                                   # unique_rows 가 놓칠 수 없지만 계약은 여기에도 적는다
+            raise RuntimeError(f"{f.name}: ({src}, {si}, 0) 행이 {len(hits)} 개 — 중복 (Codex R9-05)")
+        if hits:
+            idx, r = hits[0]
+            if not r.get("ref_gamma_Si"):
+                return None          # 옛 판 산출 — ref_* 열이 없다
+            return {"gamma_target": float(r["gamma_Si"]), "gamma_ref": float(r["ref_gamma_Si"]),
+                    "file": str(f), "sha256": hashlib.sha256(data).hexdigest(),
+                    "row": {"index": idx, "half_cell": r.get("half_cell"), "si": r.get("si"),
+                            "w_dqdv": r.get("w_dqdv"), "run_id": r.get("run_id")}}
     return None
 
 
@@ -126,7 +157,7 @@ def raw_ne_capacity(path: pathlib.Path) -> float:
 
 
 def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, consumed=None,
-               pairing=None) -> pathlib.Path:
+               pairing=None, status="complete") -> pathlib.Path:
     """표를 그대로 CSV 로. 옆에 `.meta.json` 을 같이 둔다 (run_states.sh 와 같은 규약).
 
     `cap_delta_pct` 를 **반드시 같이** 남긴다 — `(a) 측정변화` 는 정규화 뒤
@@ -189,6 +220,8 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
         # ⚠ Codex R8-03: 측정 통계는 모든 측정 행에서, γ-짝 통계는 requested/paired/missing 을 따로 — 어느 부분집합
         #   위의 진술인지 산출이 스스로 말한다
         "pairing": pairing or {},
+        # ⚠ Codex R9-06 · P2-5: typed 완전성 — complete 만 canonical 에, none/partial 은 `<write>/partial/` 에 (호출부가 정한다)
+        "status": status,
         "run_id": rid,
         "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
@@ -216,15 +249,30 @@ def main() -> int:
     #   FINDINGS 에 적어도 테스트가 재계산할 수 없고, 그건 이 저장소가
     #   반복해서 당한 드리프트 구조다 (정본은 artifact). 그래서 남긴다.
     ap.add_argument("--write", default="out", metavar="DIR",
-                    help="산출 CSV 를 쓸 곳. 빈 문자열이면 안 쓴다")
+                    help="산출 CSV 를 쓸 곳. 빈 문자열이면 안 쓴다. complete 만 여기(canonical)에; none/partial 은 "
+                         "`<DIR>/partial/` 에 (Codex R9-06)")
+    ap.add_argument("--states", default="", metavar="S1,S2",
+                    help="requested 명부를 명시한다 (기본: 소스에 선언된 상태 전부, pristine 제외). 명시하면 그 목록이 "
+                         "계약이고 meta 의 pairing.requested_from 에 `--states` 로 남는다")
     a = ap.parse_args()
 
     root = D.data_root(a.data_root)
     out_dir = pathlib.Path(a.out_dir)
-    states = [s for s in D.STATES
-              if D.half_cell_path(root, a.source, s).is_file()]
-    if "pristine" not in states:
+    # ⚠ Codex R9-04: 전 판은 `[s for s in D.STATES if half_cell_path(...).is_file()]` — 선언된 상태의 파일이 없으면 그 상태는
+    #   requested 에 들기 **전에** 사라져 `{requested:[100], paired:[100], missing:[]}` 1/1 rc 0 이었다. requested 명부는
+    #   파일 존재를 보기 전에 고정하고, 입력이 없는 상태는 `missing_input` 으로 따로 센다.
+    declared = [s for s in D.STATES if s != "pristine" and s in D.HALF_FILE.get(a.source, {})]
+    if a.states:
+        requested = [s.strip() for s in a.states.split(",") if s.strip()]
+        requested_from = "--states"
+    else:
+        requested, requested_from = declared, f"D.HALF_FILE[{a.source}] ∩ D.STATES (pristine 제외)"
+    if not D.half_cell_path(root, a.source, "pristine").is_file():
         raise SystemExit(f"`{a.source}` 에 pristine 이 없다 — 기준이 없으면 못 잰다")
+    available = [s for s in requested
+                 if s in D.HALF_FILE.get(a.source, {}) and D.half_cell_path(root, a.source, s).is_file()]
+    missing_input = [s for s in requested if s not in available]
+    states = ["pristine"] + available
 
     # ⚠ Codex R6-03: 반쪽전지 워크북은 상태마다 **한 번 읽은 bytes** 로 HalfCell·raw 용량·identity 를 다 한다.
     #   전 판은 세 번 열었다 — 세 번째(identity) 직전에 재-export 되면 A 로 계산하고 B 의 서명을 적었다.
@@ -239,7 +287,8 @@ def main() -> int:
     si_c, si_v, gr_c, gr_v = D.load_literature(root, a.si_source, identity=lit_id)
     blend = Blend(si_c, si_v, gr_c, gr_v, window=11, poly_order=3)
 
-    print(f"반쪽전지 {a.source} · 문헌 Si {a.si_source} · 상태 {len(states)}개")
+    print(f"반쪽전지 {a.source} · 문헌 Si {a.si_source} · requested {len(requested)} 개 ({requested_from}) · 입력 있음 "
+          f"{len(available)}" + (f" · **입력 없음(missing_input) {missing_input}**" if missing_input else ""))
     print(f"기준은 pristine. 격자 x={GRID[0]:.2f}~{GRID[-1]:.2f} ({GRID.size}점)\n")
 
     base_m, base_cap = meas["pristine"], cap["pristine"]
@@ -332,27 +381,40 @@ def main() -> int:
     # ⚠ Codex R8-03: 전 판은 `ok`(γ 짝이 있는 행)만으로 **측정** 최대까지 계산했다 — state200 이 100 mV 인데 matrix 가
     #   아직 없으면 요약은 "최대 10 mV" 로 끝나고 rc 0 이었다. 측정 통계는 모든 측정 행에서, γ-짝 통계는 짝 있는 행에서,
     #   그리고 requested/paired/missing 을 산출·stdout·종료 코드로 전파한다.
-    requested = [r[0] for r in rows]
     paired = [r[0] for r in rows if r[3] == r[3]]
-    missing_pairs = [st for st in requested if st not in paired]
-    pairing = {"requested": requested, "paired": paired, "missing": missing_pairs,
-               "note": "measured_* 는 requested 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다 (Codex R8-03)"}
+    missing_pairs = [st for st in available if st not in paired]
+    # ⚠ Codex R9-06 · P2-5: 완전성 판정은 **게시보다 먼저**다. typed status 하나로 세 상태를 가른다 — complete 만 canonical,
+    #   none/partial 은 `<write>/partial/` 에. 전 판은 rc 3 을 내면서도 canonical CSV/meta 를 부분 묶음으로 교체했다
+    #   (read_unit True — 부분이 정본 자리를 차지했다).
+    if paired and not missing_input and not missing_pairs:
+        status = "complete"
+    elif paired:
+        status = "partial"
+    else:
+        status = "none"
+    pairing = {"requested": requested, "requested_from": requested_from, "available": available,
+               "missing_input": missing_input, "paired": paired, "missing": missing_pairs,
+               "note": "measured_* 는 available(입력 있는 requested) 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다; "
+                       "missing_input 은 측정조차 없다 (Codex R8-03 · R9-04)"}
     if a.write:
-        art = _write_csv(pathlib.Path(a.write), a, rows, cap, base_cap,
-                         {c[0]: c for c in cwhere}, headroom, consumed, pairing)
-        print(f"\n→ {art}")
+        dest = pathlib.Path(a.write) if status == "complete" else pathlib.Path(a.write) / "partial"
+        art = _write_csv(dest, a, rows, cap, base_cap, {c[0]: c for c in cwhere}, headroom, consumed, pairing, status=status)
+        print(f"\n→ {art}" + ("" if status == "complete" else
+                              f"  [{status} — canonical {pathlib.Path(a.write) / art.name} 은 건드리지 않았다 (Codex R9-06)]"))
 
     print()
     ok = [r for r in rows if r[3] == r[3]]
-    print(f"γ 짝: requested {len(requested)} · paired {len(paired)}/{len(requested)}"
+    print(f"γ 짝: requested {len(requested)} · 입력 있음 {len(available)}"
+          + (f" · **입력 없음(missing_input) {missing_input}**" if missing_input else "")
+          + f" · paired {len(paired)}/{len(available)}"
           + (f" · **missing {missing_pairs}** (matrix_<state>.csv 없음/짝 없음 — 미계산이지 '증인 없음' 이 아니다)"
-             if missing_pairs else ""))
+             if missing_pairs else "") + f" · status **{status}**")
     if rows:
-        print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in rows):.2f} mV (requested {len(requested)} 개 전부에서),")
+        print(f"측정된 음극 모양 변화 최대 {max(r[1] for r in rows):.2f} mV (입력 있는 {len(available)} 개 전부에서),")
     if not ok:
         print("γ 짝을 못 찾았다 — `--out-dir` 에 `ref_gamma_Si` 열이 있는")
-        print("matrix_<state>.csv 가 있어야 한다 (v2 이후 산출).")
-        return 1
+        print("matrix_<state>.csv 가 있어야 한다 (v2 이후 산출). status none → 종료 코드 1 (부분이 아니라 없음)")
+        return EXIT_BY_STATUS["none"]
     worst = max(ok, key=lambda r: r[3])
     print(f"γ 가 만들어 낸 모델 변화 최대 {max(r[2] for r in ok):.2f} mV (paired {len(paired)} 개에서).")
     # ⚠ 아래는 **크기의 기술**이다. 원인 판정(모델 부적합·잡음·보상)은 출력하지 않는다 —
@@ -410,10 +472,13 @@ def main() -> int:
     print("   가로로 늘어나 그것만으로도 모양이 바뀐 것처럼 보인다. 용량 변화가")
     print("   큰 상태에서는 (a) 를 순수한 OCP 모양 변화로 읽으면 안 된다.")
     print("⚠ 이것은 **크기 비교**다. 방향이 같은지는 따로 봐야 한다.")
-    if missing_pairs:
-        print(f"⚠ **부분** — γ 짝이 없는 상태 {missing_pairs}: 위 γ 통계는 paired {paired} 위의 진술이다 → 종료 코드 3")
-        return 3                                             # 3 = 부분 (eval --compare 와 같은 뜻)
-    return 0
+    if status == "partial":
+        print("⚠ **부분(partial)** — " + (f"입력 없는 상태 {missing_input}" if missing_input else "")
+              + (" · " if missing_input and missing_pairs else "")
+              + (f"γ 짝이 없는 상태 {missing_pairs}" if missing_pairs else "")
+              + f": 위 γ 통계는 paired {paired} 위의 진술이다 → 종료 코드 3 (canonical 승격 아님)")
+        return EXIT_BY_STATUS["partial"]                     # 3 = 부분 (eval --compare 와 같은 뜻)
+    return EXIT_BY_STATUS["complete"]
 
 
 if __name__ == "__main__":

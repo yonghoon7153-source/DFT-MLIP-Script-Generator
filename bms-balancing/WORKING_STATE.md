@@ -24,7 +24,37 @@
 
 ---
 
-## 지금 상태 — **Codex 8차 NO-GO (P1 4 · P2 4) 여덟 건 전부 닫음 · 9차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+## 지금 상태 — **Codex 9차 NO-GO (P1 7 · P2 5) 열두 건 전부 닫음 · 10차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+
+2026-09-12 Codex 9차(대상 `29ef505`, `reviews/R9_CODEX.md`, 패키지 `reviews/r9_repros/codex/` sha256 11/11)의 요지: R8 의 여덟
+수정은 허상이 아니지만 **"모집단을 먼저 세고, 검증 snapshot 만 검사하고, 부분은 부분이라 말한다" 가 아직 production 전체의
+불변식이 아니다** — 같은 root label 이 앞 요청을 지우고(R9-01), `check_u14` 가 new 에 있는 파일만 세어 1/12 도 전수로 승인하며
+(R9-02) 열 이름만 보고 내용·과학 열·실행 조건을 안 보고(R9-03), `ne_shape` 가 없는 반쪽전지 상태를 requested 전에 지우고(R9-04)
+중복 matrix key 의 첫 행을 쓰고(R9-05) rc 3 을 내기 전에 완전 canonical 을 부분으로 덮고(R9-06), `eval --compare` 가 경로를 세 번
+읽는다(R9-07). P2: 러너의 공허 성공(P2-1) · evidence identity 미집행(P2-2) · rc 2/3/4 를 CAUGHT(P2-3) · matrix sidecar 의
+singular 범위(P2-4) · zero-pair 1 vs partial 3 계약(P2-5).
+
+열두 건 전부 수정 전 HEAD 에서 재현(`reviews/r9_repros/replay_ours_29ef505_before/`) → RED(`tests/test_r9_codex.py` d9_01~12)
+→ 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "Codex R9" 절, 요청문은 `reviews/R10_REQUEST.md`. 수정 뒤 패키지 재실행과 닫힘
+재생기(`reviews/r9_repros/replay_codex_r9.py`, R7 러너와 같은 `--expected-head`·dirty·digest 계약)는 `reviews/r9_repros/
+replay_ours_after_fixes/`.
+
+**새 규약**: 스키마의 정본은 `bms_balancing/schema.py` 하나 (producer 가 쓰기 직전에 assert, checker·reader 가 같은 함수) ·
+`check_u14` 는 명부(정본 ∪ 새 산출)·필수 셀·receipt 내용·중복 key·실행 조건까지 보고 부분 재실행은 `--subset` 계약으로만
+(k/N 표시, 승격 아님) · `compare_states` 는 중복 root label 을 판정 전에 거부 · `ne_shape` 는 requested 를 파일 존재 전에 고정하고
+typed `status`(complete 0 / none 1 / partial 3) 로 complete 만 canonical 에, 나머지는 `<write>/partial/` 에 · `eval --compare`
+는 한 번 읽은 `DdEvalText` snapshot 만 소비 · 두 러너(R7·R9)는 `--expected-head` 필수 + dirty 기본 거부 + 패키지 digest · 변이
+감사 CAUGHT 는 rc 1 ∧ `N failed` 만 · `run_states.sh` sidecar 에 `argv`·`roster`.
+
+**fixture 정정**: `_full_matrix_rows`·`_deg(schema=True)`·`_u14_dirs`·i6w_03 의 inline JSON 은 열 이름의 부분집합 + 가짜 receipt
+였다 (checker 가 내용을 안 본다는 사실을 가려 줌 — 이 저장소 네 번째 실측). 전부 producer 스키마 + 진짜 receipt 로 다시 썼다.
+
+**정본 범위 (변화 없음)**: 현행 `out/` 12 개는 내용·조건·자기 대조 숫자는 새 검사를 통과하지만 matrix/profile 8 개에 출처 열
+3 개가 없다 — **provenance-incomplete** (`check_u14 --new out --schema-only` rc 2, 24 건). 보강은 U18 (사용자 기계, 별도 `OUT=`,
+이제 `check_u14` 가 명부 12/12·스키마 내용·조건·수치 exact equality 를 강제한 뒤에만 승격). 열어 둔 것: export 공통 snapshot
+계약(Codex Q3) · typed (root, state, si) identity (Q1).
+
+## 직전 상태 — Codex 8차 NO-GO 여덟 건 닫음 (닫힘)
 
 2026-09-12 Codex 8차(대상 `a22da33`, `reviews/R8_CODEX.md`, 패키지 `reviews/r8_repros/codex/`)의 요지: R7 반례는 닫혔지만
 **"검증된 개별 묶음 → 완전한 모집단 → 전체 결론" 의 합성**이 안 이어진다 — 같은 state 의 다른 Si 가 서로 덮고 빈 요청
@@ -102,7 +132,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 155 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 167 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh

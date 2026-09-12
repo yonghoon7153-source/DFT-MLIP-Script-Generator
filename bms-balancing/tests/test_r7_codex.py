@@ -51,9 +51,14 @@ def _deg(state, rid, spans, schema=False):
     obj = {"run_id": rid, "state": state, "si_source": "Li", "half_cell": "GITT", "n_starts": 24,
            "best_modes_percent": {k: 1.0 for k in spans},
            **{f"{k}_percent": {"min": 0.0, "max": v, "span": v, "is_lower_bound": True} for k, v in spans.items()}}
-    if schema:      # check_u14 가 숫자 대조까지 가려면 현행 스키마 필드가 다 있어야 한다
-        obj |= {"n_grid": 21, "n_samples": 400, "env": {"numpy": "2"}, "inputs_sha": "a" * 12,
-                "consumed_inputs": {"full_cell": {"sha256": "x"}}}
+    if schema:      # check_u14 가 숫자 대조까지 가려면 producer 스키마(`schema.DEGENERACY_KEYS`)와 **진짜 receipt** 가 다 있어야 한다 (R9-03)
+        from bms_balancing import schema as S
+        ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
+              "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
+        rci = {"half_cell": {"path": "p.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"], "literature": ci["literature"]}
+        obj |= {"w_dqdv": 0.0, "tol_percent_of_best": 1.0, "seed": 0, "n_grid": 21, "n_samples": 400, "env": {"numpy": "2"},
+                "consumed_inputs": ci, "ref_consumed_inputs": rci, "inputs_sha": S.inputs_digest(ci),
+                "n_accepted": 5, "best_obj": 1.5, "best_p": [1.0, 0.0, 1.0, 0.0, 0.2], "ref_p": [1.0, 0.0, 1.0, 0.0, 0.2]}
     return obj
 
 

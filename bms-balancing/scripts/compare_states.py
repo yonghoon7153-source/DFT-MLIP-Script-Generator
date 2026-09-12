@@ -132,10 +132,22 @@ def load_matrix_axis(d: pathlib.Path, excluded: list | None = None) -> dict:
 
 def main() -> int:
     args = sys.argv[1:] or ["out"]
-    roots = {}
+    # ⚠ Codex R9-01: 전 판은 `roots[label] = path` 라 같은 label(암묵적 `out` 포함)의 뒤 인자가 앞 요청을 **지웠다** —
+    #   `same=<없는 root> same=<정상 root>` 가 "요청한 root 1 개 · 1/1 · 예 rc 0" 이었고 label 없는 인자 여럿은 전부 `out`
+    #   이 됐다. 인자는 순서 있는 목록이고, 중복 label 은 합치지 않고 **판정 전에** 거부한다 (무엇을 요청했는지 모르는
+    #   채 판정하지 않는다).
+    roots: list = []
+    seen: dict = {}
     for a in args:
         label, _, path = a.partition("=")
-        roots[label if path else "out"] = pathlib.Path(path or label).expanduser()
+        if not path:
+            label, path = "out", label
+        if label in seen:
+            print(f"! root label `{label}` 이 중복이다 — 앞 {seen[label]} · 뒤 {path}. 두 요청을 하나로 합치지 않는다; "
+                  f"root 마다 다른 label 을 줄 것 (`a=<dir> b=<dir>`) (Codex R9-01) → 판정 없음, 종료 코드 2")
+            return 2
+        seen[label] = path
+        roots.append((label, pathlib.Path(path).expanduser()))
 
     print("=" * 78)
     print("A. 근최적 집합 위의 폭 — **모델을 고정**했을 때 데이터가 못 가르는 만큼")
@@ -145,7 +157,7 @@ def main() -> int:
     #   세고, 제외가 있거나 관측이 0 이면 전체 판정을 내지 않는다 (종료 코드도 그것을 말한다).
     ok_llI_narrowest = True
     census = {"candidates": 0, "verified": 0, "excluded": [], "roster": {}}
-    for label, d in roots.items():
+    for label, d in roots:
         exc: list = []
         # ⚠ Codex R8-01: 명시한 root 는 **하나하나** 후보다. 없거나 비어 있으면 그 root 는 관측 0 이고 전체 판정은
         #   미완이다 — 전 판은 빈 root 가 후보에 안 들어가 `good=… empty=…` 가 1/1·예 rc 0 이었다.
@@ -196,7 +208,7 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("B. 모델 선택(Si 8 종)이 만드는 폭 — **다른 축**이다. 위와 합치지 말 것")
     print("=" * 78)
-    for label, d in roots.items():
+    for label, d in roots:
         mx_exc: list = []
         mx = load_matrix_axis(d, excluded=mx_exc)
         census["excluded"] += [(label, n, why) for n, why in mx_exc]

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""U14 재실행 점검 — 새 산출이 (a) 새 스키마를 담고 (b) 정본과 **같은 숫자**인가.
+"""U14/U18 재실행 점검 — 새 산출이 (a) producer 스키마를 **내용까지** 담고 (b) 정본과 같은 명부·같은 실행 조건이며
+(c) **같은 숫자**인가.
 
 R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`). 계산 경로는 안 건드렸으므로 재실행의 숫자는
 정본과 **비트 단위로 같아야 한다**. 다르면 그것이 발견이다 — 먼저 볼 축은 F3(라이브러리 버전)이고, 새 meta 의
@@ -7,32 +8,43 @@ R6 내부 리뷰가 게시·서명 경로를 고쳤다 (`reviews/R6_LEDGER.md`).
 정본을 교체한다 (정본을 먼저 덮으면 비교 대상이 사라진다).
 
     python3 scripts/check_u14.py --new out_u14            # 정본 out/ 과 대조
-    python3 scripts/check_u14.py --new out_u14 --old out --schema-only   # 스키마만
+    python3 scripts/check_u14.py --new out_u14 --old out --schema-only   # 스키마만 (구조 검사는 전부 한다)
+    python3 scripts/check_u14.py --new out_part --subset  # 명시적 부분 재실행 — 범위(k/N)를 찍고, 승격 근거가 아니다
 
-종료 코드: 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락·파일 없음.
+⚠ Codex R9-02: 전 판은 **new 에 있는 파일만** 순회했다 — 정본 12 개 중 1 개만 재실행해도 "산출 1 개 · 전부 같다 · rc 0".
+  명부(roster)는 정본과 새 산출의 canonical 이름 **합집합**이고, 정본에 있는데 새 산출에 없는 것은 실패다. 부분
+  재실행은 `--subset` 으로 계약을 명시해야 하고, 그때도 범위(k/N)를 찍으며 승격 대상이 아니다.
+⚠ Codex R9-03: 전 판은 열 **이름**만 봤다 — 과학 열(`LLI_pct`)이 사라져도, 출처 열 값이 전부 비어도, 실행 조건(n_starts·
+  seed·n_grid·n_samples·tol)이 바뀌어도 "전부 갖췄다 · 게시·서명만 바뀌었다". 스키마의 정본은 `bms_balancing/schema.py`
+  하나이고 (producer 가 같은 것을 assert 한다) 검사는 필수 셀 nonempty · 숫자 파싱 · receipt(역할·path·64-hex·재계산
+  digest) · 중복 key · 실행 조건 대조까지다 — `--schema-only` 도 구조 검사는 전부 한다.
+
+종료 코드: 0 = 명부·스키마·조건 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 명부/스키마/내용/조건 불일치 · 묶음 미완 · 파일 없음.
 """
 from __future__ import annotations
 import argparse, csv, io, json, pathlib, re, sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from bms_balancing import schema as S          # noqa: E402  — producer·checker·reader 의 한 정본 (Codex R9-03)
+
 VER = re.compile(r"_v(\d+)$")          # `matrix_300_0009_v2.csv` — 옛 리비전의 out/ 에만 있는 판 번호 (현행 정본은 unversioned, Codex R6-04)
 
-# 산출 종류별 **새 스키마** 필수 필드 (R6 내부 F3·F4·F5 · R5-04·R5-07·R5-08)
-JSON_KEYS = ("run_id", "n_grid", "n_samples", "env", "consumed_inputs", "inputs_sha")
-# ⚠ Codex R8-02: producer 가 쓰는 열과 checker 가 요구하는 열은 **한 정본**이어야 한다. R7-03·R8-04 가 더한 기준/대상
-#   입력 출처 열이 여기 없어서 현행 out/ 이 "전부 갖췄다" 로 통과했다. 그 열이 없는 산출은 provenance-incomplete 다.
-PROVENANCE_COLS = ("ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs")
-MATRIX_COLS = ("run_id", "inputs_sha", "scale_seed", "n_scale_samples") + PROVENANCE_COLS
-PROFILE_COLS = ("run_id", "inputs_sha", "profile_scale") + PROVENANCE_COLS
+# 산출 종류별 필수 필드 — **schema.py 가 정본**이고 여기는 이름만 빌린다 (Codex R8-02 · R9-03)
+JSON_KEYS = S.DEGENERACY_KEYS
+PROVENANCE_COLS = S.PROVENANCE_COLS
+MATRIX_COLS = S.MATRIX_ROW
+PROFILE_COLS = S.PROFILE_ROW
 META_KEYS = ("run_id", "sha256", "artifact", "env", "started_utc",
              "git_commit_at_start", "git_state_changed_during_run")
+#: meta 에서 "같은 실행" 이려면 같아야 하는 조건 (Codex R9-03 C)
+META_CONTROLS = ("state", "half_cell_source", "si_source", "starts", "seed")
 
 # 대조할 **수치** 필드 (스키마·provenance 필드는 당연히 다르다 — 숫자만 본다)
 JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
             "LAM_PE_percent", "LAM_NE_percent", "LLI_percent",
             "LAM_PE_percent_observed_cloud", "LAM_NE_percent_observed_cloud",
             "LLI_percent_observed_cloud")
-ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref",
-            "ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs"}      # 출처 문자열은 숫자가 아니다
+ROW_SKIP = S.ROW_SKIP                  # 출처 문자열은 숫자가 아니다
 
 
 #: 정본 선택 정책 — 두 규칙은 **호출 모드로** 갈린다 (Codex R7-04). docstring 으로만 갈라 두면 현행 디렉터리에도
@@ -71,18 +83,35 @@ def baseline_for(new_file: pathlib.Path, old: pathlib.Path, policy: str = "curre
     return max(cands)[1] if cands else None
 
 
-def _rows_from(data: bytes, key):
-    """(key → 행, 중복 key 목록). ⚠ Codex R8-05: dict comprehension 은 같은 key 의 앞 행을 **조용히** 지운다 —
-    먼저 오는 중복행의 숫자를 바꿔도 마지막 원본행이 덮어 "전부 같다" 가 됐다. 변환 전에 유일성을 센다."""
-    rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
-    seen, dup, out = {}, [], {}
-    for r in rows:
-        k = key(r)
-        seen[k] = seen.get(k, 0) + 1
-        if seen[k] > 1:
-            dup.append(k)
-        out.setdefault(k, r)
-    return out, dup, len(rows)
+def _kind(f: pathlib.Path) -> str:
+    return "degeneracy" if f.suffix == ".json" else ("matrix" if f.name.startswith("matrix_") else "profile")
+
+
+def canonical_names(d: pathlib.Path, policy: str = "current", stale: list | None = None) -> set:
+    """디렉터리의 산출 **명부** — canonical basename 집합 (Codex R9-02).
+
+    `current` 는 unversioned 이름만 (`_vN` 은 `stale` 에 적고 명부에서 뺀다), `historical` 은 `_vN` 을 뗀 이름으로 센다
+    (그 리비전의 정본이 `_v2` 여도 명부의 항목은 하나다). `.meta.json` 은 산출이 아니다.
+    """
+    names = set()
+    if not d.is_dir():
+        return names
+    for f in sorted(d.glob("degeneracy_*.json")) + sorted(d.glob("matrix_*.csv")) + sorted(d.glob("profile_gamma_*.csv")):
+        if f.name.endswith(".meta.json"):
+            continue
+        if VER.search(f.stem) and policy == "current":
+            if stale is not None:
+                stale.append(f.name)
+            continue
+        names.add(VER.sub("", f.stem) + f.suffix)
+    return names
+
+
+def _csv_rows(data: bytes):
+    """검증된 bytes → (행 목록, 헤더). 헤더 순서는 producer 가 정렬해 쓰므로 검사는 이름으로만 한다."""
+    rd = csv.DictReader(io.StringIO(data.decode("utf-8-sig")))
+    rows = list(rd)
+    return rows, list(rd.fieldnames or [])
 
 
 def _unit(f: pathlib.Path):
@@ -122,63 +151,96 @@ def _num_diff(a, b, path="", added=None):
     return out
 
 
-def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy: str = "current"):
-    missing, diffs, seen, added, paired, stale = [], [], 0, [], [], []
+def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy: str = "current") -> dict:
+    """새 산출을 명부·스키마·내용·조건·숫자로 대조한다 → 결과 dict (main 이 찍고 종료 코드를 정한다).
+
+    키: seen · missing(열/키 이름 누락) · content(값이 스키마가 아님 — 빈 셀·숫자 아님·receipt·중복 key) · diffs(숫자) ·
+    added(정본에 없던 필드) · paired · stale · broken(묶음 불일치/미완) · controls(실행 조건 불일치) ·
+    roster_missing(정본에 있는데 새 산출에 없음) · roster_extra(새 산출에만) · n_old · n_new.
+    """
+    R: dict = {"seen": 0, "missing": [], "content": [], "diffs": [], "added": [], "paired": [], "stale": [],
+               "broken": [], "controls": [], "roster_missing": [], "roster_extra": [], "n_old": 0, "n_new": 0}
+    new_stale: list = []
     # ⚠ `.meta.json` 은 산출이 아니다 — `degeneracy_*.json` glob 이 `degeneracy_100_Li.json.meta.json` 까지
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
-    arts = [f for f in sorted(new.glob("degeneracy_*.json")) + sorted(new.glob("matrix_*.csv"))
-            + sorted(new.glob("profile_gamma_*.csv")) if not f.name.endswith(".meta.json")]
-    broken: list = []                                          # 묶음 불일치/미완 — 소비하지 않는다 (fail-closed)
-    for f in arts:
-        seen += 1
+    new_names = canonical_names(new, "current", new_stale)
+    R["stale"] += [f"{n} (새 산출 디렉터리)" for n in new_stale]
+    R["n_new"] = len(new_names)
+    if old is not None:
+        # ⚠ Codex R9-02: 명부는 new 가 아니라 **정본 ∪ new** 다. 정본에 있는데 new 에 없는 것은 "안 본 것" 이지 "같은 것" 이
+        #   아니다 — 전 판은 new 의 1 개만 돌고 "전부 같다" 였다.
+        old_names = canonical_names(old, policy, R["stale"])
+        R["n_old"] = len(old_names)
+        R["roster_missing"] = sorted(old_names - new_names)
+        R["roster_extra"] = sorted(new_names - old_names)
+    for name in sorted(new_names):
+        f = new / name
+        R["seen"] += 1
         # ⚠ Codex R8-02: data 와 meta 를 따로 읽고 필드 존재만 보면, 다른 정상 시도가 data 만 게시한 중단 상태
         #   (data B / meta A) 가 "전부 갖췄다 · 전부 같다 · rc 0" 이 된다. 검증된 snapshot 만 검사한다.
         ok, why, data, meta = _unit(f)
         if ok is False:
-            broken.append(f"{f.name}: 묶음 불일치/미완 — {why}"); continue
-        if f.suffix == ".json":
+            R["broken"].append(f"{f.name}: 묶음 불일치/미완 — {why}"); continue
+        kind = _kind(f)
+        j = rows = hdr = None
+        if kind == "degeneracy":
             j = json.loads(data.decode("utf-8"))
-            missing += [f"{f.name}: {k}" for k in JSON_KEYS if j.get(k) in (None, "")]
+            R["missing"] += [f"{f.name}: {k}" for k in JSON_KEYS if j.get(k) in (None, "")]
+            R["content"] += [f"{f.name}: {p}" for p in S.check_degeneracy(j) if not p.startswith("키 없음")]
         else:
-            need = MATRIX_COLS if f.name.startswith("matrix_") else PROFILE_COLS
-            hdr = next(csv.reader(io.StringIO(data.decode("utf-8-sig"))), [])
-            missing += [f"{f.name}: {c}" for c in need if c not in hdr]
+            rows, hdr = _csv_rows(data)
+            R["missing"] += [f"{f.name}: {c}" for c in S.required_columns(kind) if c not in hdr]
+            # ⚠ Codex R9-03: 열 이름 다음은 **값**이다 — 필수 셀 nonempty · 숫자 파싱 · receipt · 중복 key (schema-only 에서도)
+            R["content"] += [f"{f.name}: {p}" for p in S.check_rows(kind, rows, hdr) if not p.startswith("열 없음")]
         if meta is None:
-            missing.append(f"{f.name}: .meta.json 없음")
+            R["missing"].append(f"{f.name}: .meta.json 없음")
         else:
-            missing += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
+            R["missing"] += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
         if schema_only or old is None:
             continue
-        o = baseline_for(f, old, policy, stale)
+        o = baseline_for(f, old, policy, R["stale"])
         if o is None:
-            diffs.append((f.name, "정본에 없음", "새 파일만 있다")); continue
-        paired.append((f.name, o.name))
-        ook, owhy, odata, _ = _unit(o)
+            continue                                            # roster_extra 가 이미 말한다
+        R["paired"].append((f.name, o.name))
+        ook, owhy, odata, ometa = _unit(o)
         if ook is False:
-            diffs.append((f"{o.name}", "정본 묶음 불일치/미완", owhy)); continue
-        if f.suffix == ".json":
-            a, b = json.loads(odata.decode("utf-8")), json.loads(data.decode("utf-8"))
+            R["diffs"].append((f"{o.name}", "정본 묶음 불일치/미완", owhy)); continue
+        # ⚠ Codex R9-03 C: 실행 조건이 다르면 같은 실행의 재현이 아니다 — 숫자가 같아도 승격 대상이 아니다
+        if meta and ometa:
+            for k in META_CONTROLS:
+                if k in meta and k in ometa and _num_diff(ometa[k], meta[k]):
+                    R["controls"].append((f"{f.name}.meta:{k}", ometa[k], meta[k]))
+        if kind == "degeneracy":
+            a = json.loads(odata.decode("utf-8"))
+            for k in S.DEGENERACY_CONTROLS:
+                if k in a and k in j and _num_diff(a[k], j[k]):
+                    R["controls"].append((f"{f.name}:{k}", a[k], j[k]))
             for k in JSON_NUM:
-                sub = []
-                diffs += [(f"{f.name}:{k}{p and '.' + p}", x, y) for p, x, y in _num_diff(a.get(k), b.get(k), added=sub)]
-                added += [f"{f.name}:{k}.{x}" for x in sub]
+                if k not in a and k in j:                        # 정본에 없던 필드 = 스키마 추가분 (U14-02)
+                    R["added"].append(f"{f.name}:{k}"); continue
+                sub: list = []
+                R["diffs"] += [(f"{f.name}:{k}{p and '.' + p}", x, y) for p, x, y in _num_diff(a.get(k), j.get(k), added=sub)]
+                R["added"] += [f"{f.name}:{k}.{x}" for x in sub]
         else:
-            key = ((lambda r: (r["half_cell"], r["si"], r["w_dqdv"])) if f.name.startswith("matrix_")
-                   else (lambda r: r["gamma_Si"]))
-            A, dupA, nA = _rows_from(odata, key)
-            B, dupB, nB = _rows_from(data, key)
+            # ⚠ Codex R8-05: dict comprehension 은 같은 key 의 앞 행을 **조용히** 지운다 — 변환 전에 유일성을 센다.
+            #   reader(ne_shape)·checker 가 같은 typed validator 를 쓴다 (Codex R9-05: w_dqdv 는 숫자 key).
+            key = S.matrix_key if kind == "matrix" else S.profile_key
+            orows, _ = _csv_rows(odata)
+            A, dupA, nA = S.unique_rows(orows, key)
+            B, dupB, nB = S.unique_rows(rows, key)
             for side, dup in (("정본", dupA), ("새 산출", dupB)):
                 for k in dup:
-                    diffs.append((f"{f.name}:{k}", f"{side}에 중복 key", "행을 셀 수 없다 (Codex R8-05)"))
+                    R["diffs"].append((f"{f.name}:{k}", f"{side}에 중복 key", "행을 셀 수 없다 (Codex R8-05)"))
             if nA != nB:
-                diffs.append((f"{f.name}", f"정본 행 {nA}", f"새 산출 행 {nB}"))
-            for k in sorted(set(A) | set(B)):
+                R["diffs"].append((f"{f.name}", f"정본 행 {nA}", f"새 산출 행 {nB}"))
+            for k in sorted(set(A) | set(B), key=str):
                 if k not in A or k not in B:
-                    diffs.append((f"{f.name}:{k}", "정본에만" if k in A else "새 산출에만", "")); continue
-                added += [f"{f.name}:{c}" for c in sorted(set(B[k]) - set(A[k]) - ROW_SKIP)]
+                    R["diffs"].append((f"{f.name}:{k}", "정본에만" if k in A else "새 산출에만", "")); continue
+                R["added"] += [f"{f.name}:{c}" for c in sorted(set(B[k]) - set(A[k]) - ROW_SKIP)]
                 for c in sorted(set(A[k]) & set(B[k]) - ROW_SKIP):
-                    diffs += [(f"{f.name}:{k}:{c}", x, y) for _, x, y in _num_diff(A[k][c], B[k][c])]
-    return seen, missing, diffs, sorted(set(added)), paired, sorted(set(stale)), broken
+                    R["diffs"] += [(f"{f.name}:{k}:{c}", x, y) for _, x, y in _num_diff(A[k][c], B[k][c])]
+    R["added"] = sorted(set(R["added"])); R["stale"] = sorted(set(R["stale"]))
+    return R
 
 
 def renormalize(new: pathlib.Path) -> int:
@@ -267,7 +329,10 @@ def main() -> int:
     ap.add_argument("--old-rev", default=None, metavar="REV",
                     help="정본을 디렉터리 대신 **git 커밋**에서 읽는다 (예: `HEAD^`) — 재실행이 out/ 을 이미 "
                          "덮었을 때. 손으로 `git show` 를 엮지 않게 한다")
-    ap.add_argument("--schema-only", action="store_true", help="숫자 대조 없이 새 스키마만")
+    ap.add_argument("--schema-only", action="store_true", help="숫자 대조 없이 스키마·내용(구조) 검사만")
+    ap.add_argument("--subset", action="store_true",
+                    help="명시적 **부분** 재실행 계약 (Codex R9-02): 정본 명부 중 일부만 새로 만들었다. 없는 항목을 실패로 세지 "
+                         "않는 대신 범위(k/N)를 찍고, 결과는 승격 근거가 아니다")
     ap.add_argument("--max-show", type=int, default=20)
     ap.add_argument("--baseline-policy", choices=("auto", "current", "historical"), default="auto",
                     help="정본 선택 규칙 (Codex R7-04). auto = `--old-rev` 면 historical, 아니면 current. "
@@ -291,11 +356,18 @@ def main() -> int:
         print(f"정본을 `{a.old_rev}` 에서 읽었다 — 산출 {n} 개")
         if not n:
             print("! 그 커밋의 out/ 이 비었다 — 리비전이 맞나?"); return 2
+    if old is not None and not old.is_dir():
+        print(f"! 정본 디렉터리 {old} 가 없다"); return 2
     policy = a.baseline_policy if a.baseline_policy != "auto" else ("historical" if a.old_rev else "current")
-    seen, missing, diffs, added, paired, stale, broken = check(new, old, a.schema_only, policy)
+    R = check(new, old, a.schema_only, policy)
+    seen, missing, content, diffs = R["seen"], R["missing"], R["content"], R["diffs"]
+    added, paired, stale, broken = R["added"], R["paired"], R["stale"], R["broken"]
+    controls, r_missing, r_extra = R["controls"], R["roster_missing"], R["roster_extra"]
     print(f"산출 {seen} 개 점검 ({new})")
     if old is not None:
         print(f"  정본 선택 정책: **{policy}** — {POLICY[policy]}")
+        print(f"  명부(roster): 정본 {R['n_old']} · 새 산출 {R['n_new']} · 대조 {len(paired)}"
+              + (f" — **부분 계약(subset) {len(paired)}/{R['n_old']}**" if a.subset else ""))
     for n, o in paired:
         if n != o:
             print(f"  정본 선택: {n} ↔ **{o}** ({POLICY[policy].split('— ')[-1]})")
@@ -304,6 +376,19 @@ def main() -> int:
               + ", ".join(stale[:6]))
     if not seen:
         print("! 점검할 산출이 없다 — 경로가 맞나?"); return 2
+    if r_missing and not a.subset:
+        print(f"\n■ 명부(roster) 불일치 — 정본에 있는데 새 산출에 **없음** {len(r_missing)}/{R['n_old']} (Codex R9-02). 부분 "
+              f"재실행이면 `--subset` 으로 계약을 명시할 것 — 그래도 승격 대상은 명부 전부({R['n_old']} 개)를 다시 만든 묶음뿐이다")
+        for n in r_missing[:a.max_show]:
+            print(f"  - {n}: 새 산출에 없음")
+        if len(r_missing) > a.max_show:
+            print(f"  … 외 {len(r_missing) - a.max_show}")
+    elif r_missing:
+        print(f"\n  부분 계약(subset): 정본 명부 {R['n_old']} 개 중 {len(paired)} 개만 대조 ({len(paired)}/{R['n_old']}) — "
+              f"새 산출에 없음 {len(r_missing)}: {', '.join(r_missing[:a.max_show])}\n"
+              f"  → 이 결과는 **부분** 진술이고 승격 근거가 아니다 (전부를 다시 만든 묶음만 정본을 대신한다)")
+    if r_extra:
+        print(f"\n■ 명부(roster) 불일치 — 새 산출에만 있음 {len(r_extra)} (정본에 없음): {', '.join(r_extra[:a.max_show])}")
     if broken:
         # ⚠ Codex R8-02: 묶음이 안 맞는 산출은 스키마도 숫자도 **대조하지 않는다** — 어느 쪽 bytes 인지 모른다
         print(f"\n■ 묶음 불일치/미완 {len(broken)} — data 와 meta 가 같은 시도의 것이 아니다 (다른 시도가 data 만 게시했거나 "
@@ -327,8 +412,20 @@ def main() -> int:
                 print(f"  - {m}")
             if len(prov_only) > a.max_show:
                 print(f"  … 외 {len(prov_only) - a.max_show}")
-    else:
-        print("  새 스키마: 전부 갖췄다 (run_id·sha256·env·inputs_sha·시작 시점 git·인자 필드)")
+    if content:
+        print(f"\n■ 내용 검사 실패 {len(content)} — 열은 있는데 값이 스키마가 아니다 (빈 필수 셀 · 숫자 아님 · receipt 의 역할/path/"
+              f"64-hex/재계산 digest · 중복 key) (Codex R9-03)")
+        for c in content[:a.max_show]:
+            print(f"  - {c}")
+        if len(content) > a.max_show:
+            print(f"  … 외 {len(content) - a.max_show}")
+    if not missing and not content:
+        print("  새 스키마: 전부 갖췄다 (열·키 이름 + 필수 셀·숫자·receipt·중복 key — `bms_balancing/schema.py` 정본)")
+    if controls:
+        print(f"\n■ 실행 조건 불일치 {len(controls)} — 같은 실행의 재현이 아니다 (n_starts · seed · n_grid · n_samples · tol · "
+              f"state · 소스; Codex R9-03). 숫자가 같아도 승격 대상이 아니다")
+        for p, x, y in controls[:a.max_show]:
+            print(f"  - {p}: 정본 {x} → 새 {y}")
     if old is not None:
         if added:
             print(f"\n  정본에 없던 필드 {len(added)} — 스키마 추가분이다 (숫자가 움직인 것이 아니다): "
@@ -341,11 +438,14 @@ def main() -> int:
                 print(f"  - {p}: 정본 {x} → 새 {y}")
             if len(diffs) > a.max_show:
                 print(f"  … 외 {len(diffs) - a.max_show}")
-        elif broken:
-            print(f"  숫자: 대조 **미완** — 묶음 불일치 {len(broken)} 건을 뺀 나머지만 같다")
+        elif broken or r_extra or controls or (r_missing and not a.subset):
+            print("  숫자: 대조 **미완** — 명부/묶음/조건 문제를 뺀 나머지만 같다 (전체를 말할 수 없다)")
+        elif a.subset and r_missing:
+            print(f"  숫자: 대조한 {len(paired)}/{R['n_old']} 개는 정본과 같다 — **부분(subset)** 진술, 승격 아님")
         else:
             print(f"  숫자: 정본({old})과 전부 같다 — 게시·서명만 바뀌었다")
-    return 2 if (missing or broken) else (1 if diffs else 0)
+    contract_broken = bool(missing or broken or content or controls or r_extra or (r_missing and not a.subset))
+    return 2 if contract_broken else (1 if diffs else 0)
 
 
 if __name__ == "__main__":

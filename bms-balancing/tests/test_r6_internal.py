@@ -7,7 +7,7 @@ ID 규약 — V: validator 우회 · T: 순서/TOCTOU · D: 파생 보고서·�
 `%.2g` 로 찍으면 두 값이 같은 문자열 — 형식이 실제보다 거칠다고 **주장**하기만 하면 차이가 사라진다.
 """
 from __future__ import annotations
-import json, pathlib, shutil, sys
+import csv, json, pathlib, shutil, sys
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -637,24 +637,42 @@ def test_i6p_10_atomic_writers_keep_the_computed_rows_when_the_lock_fails(tmp_pa
 # ═══════════════════════════════════════════════════════════════════════════════════════════════════════
 
 def _u14_dirs(tmp_path, *, schema=True, bump=None):
-    """정본(old)과 재실행(new) 한 쌍. `schema=False` 면 new 가 옛 스키마, `bump` 면 그만큼 숫자를 옮긴다."""
+    """정본(old)과 재실행(new) 한 쌍. `schema=False` 면 new 가 옛 스키마, `bump` 면 그만큼 숫자를 옮긴다.
+
+    ⚠ R9-03 뒤: new 는 producer 스키마(`schema.DEGENERACY_KEYS`·`MATRIX_ROW`)를 **전부** 갖추고 receipt 는 진짜 모양이다 —
+      열 이름만 맞는 부분집합 fixture 는 checker 가 내용을 안 본다는 사실을 가리고 있었다."""
+    from bms_balancing import schema as S
     old, new = tmp_path / "out", tmp_path / "out_u14"
     old.mkdir(parents=True); new.mkdir(parents=True)
+    ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
+    rci = {"half_cell": {"path": "p.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"], "literature": ci["literature"]}
     for d, is_new in ((old, False), (new, True)):
         j = {"state": "100", "n_accepted": 5, "best_obj": 1.5, "best_p": [1.0, 2.0],
              "LLI_percent": {"min": 1.0, "max": 2.0 + (bump or 0.0) * is_new, "is_lower_bound": True}}
         if is_new and schema:
-            j |= {"run_id": "rid", "n_grid": 21, "n_samples": 400, "inputs_sha": "abc123abc123",
-                  "env": {"numpy": "2.0"}, "consumed_inputs": {"full_cell": {"sha256": "x"}}}
+            j |= {"run_id": "rid", "si_source": "Li", "half_cell": "GITT", "w_dqdv": 0.0, "tol_percent_of_best": 1.0,
+                  "n_starts": 24, "seed": 0, "n_grid": 21, "n_samples": 400, "env": {"numpy": "2.0"},
+                  "consumed_inputs": ci, "ref_consumed_inputs": rci, "inputs_sha": S.inputs_digest(ci),
+                  "ref_p": [1.0, 2.0], "best_modes_percent": {"LLI": 1.5},
+                  "LAM_PE_percent": {"min": 0.0, "max": 1.0}, "LAM_NE_percent": {"min": 0.0, "max": 1.0}}
         (d / "degeneracy_100_Li.json").write_text(json.dumps(j), encoding="utf-8")
-        cols = ["half_cell", "si", "w_dqdv", "obj", "LLI_pct"]
-        row = ["GITT", "Li", "0", "1.5", str(3.0 + (bump or 0.0) * is_new)]
         if is_new and schema:
-            # R8-02: checker 가 요구하는 열 = producer 가 쓰는 열 (기준/대상 출처 열 포함)
-            cols += ["run_id", "inputs_sha", "scale_seed", "n_scale_samples",
-                     "ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs"]
-            row += ["rid", "abc123abc123", "0", "50", "def456def456", '"{}"', '"{}"']
-        (d / "matrix_100.csv").write_text(",".join(cols) + "\n" + ",".join(row) + "\n", encoding="utf-8")
+            # R8-02: checker 가 요구하는 열 = producer 가 쓰는 열 — R9-03: 값까지 (진짜 receipt·숫자·nonempty)
+            v = dict(half_cell="GITT", si="Li", w_dqdv="0", run_id="rid", inputs_sha=S.inputs_digest(ci),
+                     ref_inputs_sha=S.inputs_digest(rci), consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
+                     scale_seed="0", n_scale_samples="50", scale_pocv_target="1.0", scale_dvdq_target="1.0",
+                     scale_dqdv_target="1.0", scale_pocv_ref="1.0", scale_dvdq_ref="1.0", scale_dqdv_ref="1.0",
+                     scale_audit_target="", scale_audit_ref="", obj="1.5", rmse_pocv="0.002", a_PE="1.0", b_PE="0.0",
+                     a_NE="1.1", b_NE="0.0", gamma_Si="0.3", c_cell="1.0", bounds="-", ref_a_PE="1.0", ref_b_PE="0.0",
+                     ref_a_NE="1.0", ref_b_NE="0.0", ref_gamma_Si="0.2", ref_obj="1.0", ref_rmse_pocv="0.002",
+                     ref_c_cell="1.0", ref_bounds="-", LAM_PE_pct="1.0", LAM_NE_pct="2.0",
+                     LLI_pct=str(3.0 + (bump or 0.0) * is_new))
+            verify.atomic_write_csv(d / "matrix_100.csv", [{k: v[k] for k in S.MATRIX_ROW}], list(S.MATRIX_ROW))
+        else:
+            cols = ["half_cell", "si", "w_dqdv", "obj", "LLI_pct"]
+            row = ["GITT", "Li", "0", "1.5", str(3.0 + (bump or 0.0) * is_new)]
+            (d / "matrix_100.csv").write_text(",".join(cols) + "\n" + ",".join(row) + "\n", encoding="utf-8")
         if is_new and schema:
             # ⚠ Codex R8-02 뒤: meta 는 **진짜** 묶음이어야 한다 (전 판 fixture 는 sha256="v" 인 가짜 meta 였고, 그것이
             #   "data 와 meta 를 따로 읽는" checker 를 가려 주고 있었다 — fixture 가 진실을 가린 통로)
@@ -706,11 +724,10 @@ def test_i6u_14_check_script_separates_schema_from_moved_numbers(tmp_path):
         o, n = _u14_dirs(tmp_path / f"d{i}")
         f = n / fname
         if fname.endswith(".csv"):
-            hdr, row = f.read_text(encoding="utf-8").splitlines()
-            k = hdr.split(",").index(drop)
-            cols, vals = hdr.split(","), row.split(",")
-            del cols[k]; del vals[k]
-            f.write_text(",".join(cols) + "\n" + ",".join(vals) + "\n", encoding="utf-8")
+            rows_ = list(csv.DictReader(f.open(encoding="utf-8", newline="")))      # receipt 열은 JSON 이라 쉼표가 있다
+            for r_ in rows_:
+                r_.pop(drop)
+            verify.atomic_write_csv(f, rows_, list(rows_[0]))
         else:
             j = json.loads(f.read_text(encoding="utf-8")); j.pop(drop)
             f.write_text(json.dumps(j), encoding="utf-8")
@@ -818,9 +835,14 @@ def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(t
     (old / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # v1 — 정본이 아니다
         base | {"LLI_percent": {"min": 9.0, "max": 9.5, "is_lower_bound": True}}), encoding="utf-8")
     (old / "degeneracy_300_0009_Li_v2.json").write_text(json.dumps(base), encoding="utf-8")
-    (new / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # 재실행 = v2 재현 + 새 필드
-        base | {"run_id": "r", "n_grid": 21, "n_samples": 400, "inputs_sha": "a" * 12,
-                "env": {"numpy": "2"}, "consumed_inputs": {"full_cell": {"sha256": "x"}},
+    ci = {"full_cell": {"path": "f.xlsx", "sha256": "1" * 64}}                  # R9-03: receipt 는 진짜 모양이어야 한다
+    (new / "degeneracy_300_0009_Li.json").write_text(json.dumps(      # 재실행 = v2 재현 + 새 필드 (producer 스키마 전부)
+        base | {"run_id": "r", "si_source": "Li", "half_cell": "GITT", "w_dqdv": 0.0, "tol_percent_of_best": 1.0,
+                "n_starts": 24, "seed": 0, "n_grid": 21, "n_samples": 400, "env": {"numpy": "2"},
+                "consumed_inputs": ci, "ref_consumed_inputs": ci,
+                "inputs_sha": __import__("hashlib").sha256(("1" * 64).encode()).hexdigest()[:12],
+                "best_p": [1.0], "ref_p": [1.0], "best_modes_percent": {"LLI": 1.5},
+                "LAM_PE_percent": {"min": 0.0, "max": 1.0}, "LAM_NE_percent": {"min": 0.0, "max": 1.0},
                 "LLI_percent": {"min": 1.0, "max": 2.0, "is_lower_bound": True, "grid_pct": [1.0, 2.0]}}),
         encoding="utf-8")
     _u14_sign(new / "degeneracy_300_0009_Li.json", "r")                 # R8-02: 진짜 묶음 (가짜 meta 는 이제 미완이다)
@@ -1131,8 +1153,10 @@ def test_c6_03_build_and_ne_shape_hash_the_bytes_they_computed_with(tmp_path, mo
             mp.setattr(sys, "argv", ["ne_shape", "--data-root", str(src), "--out-dir", str(outd), "--write", str(outd)])
             with contextlib.redirect_stdout(_io.StringIO()):
                 ne.main()
-        meta = json.loads((outd / "ne_shape_GITT_Li.csv.meta.json").read_text(encoding="utf-8"))
-        rows = {r["state"]: r for r in csv.DictReader((outd / "ne_shape_GITT_Li.csv").open(encoding="utf-8"))}
+        sub = outd / "partial"                                            # γ 짝이 없는 실행(status none)은 canonical 에 안 쓴다 (Codex R9-06)
+        meta = json.loads((sub / "ne_shape_GITT_Li.csv.meta.json").read_text(encoding="utf-8"))
+        rows = {r["state"]: r for r in csv.DictReader((sub / "ne_shape_GITT_Li.csv").open(encoding="utf-8"))}
+        assert meta["status"] == "none" and not (outd / "ne_shape_GITT_Li.csv").exists()
         return meta["consumed_inputs"]["100"]["half_cell"]["sha256"], float(rows["100"]["pe_shape_max_mV"])
     hc_a_bytes = hc.read_bytes()
     rec_a, pe_a = run_ne(tmp_path / "ne_out_a", hook=False)              # 깨끗한 A 의 기준 (합성 100 은 자체 PE 편차가 있다)

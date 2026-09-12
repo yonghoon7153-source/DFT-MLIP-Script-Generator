@@ -369,3 +369,91 @@ out --schema-only` 가 이제 그것을 rc 2 로 말한다. 보강은 실제 재
    재실행)이 더해졌다 — 셋 다 사용자 기계, 어느 것도 current canonical 을 바로 덮지 않는다.
 6. 다섯 관측 → 요구서 — 행마다 모집단/roster·completeness·입력 receipt·관측 범위·후보 변경·대안 가설·구분 실험·임계값·
    실패/미계산 의미·evidence version 을 둔다.
+
+## Codex R9 (2026-09-12, 대상 `29ef505`) — **NO-GO (P1 7 · P2 5)**, 열두 건 전부 재현·닫음 (`reviews/R9_CODEX.md`)
+
+패키지(`reviews/r9_repros/codex/`, sha256 11/11 OK)의 세 스크립트와 classify probe 를 **수정 전 HEAD 에서 그대로 돌려 전부
+재현**했다 (`reviews/r9_repros/replay_ours_29ef505_before/` — `r9_root_repros.py` 다섯 묶음 assertion 전부 통과
+`R9_ROOT_REPROS_PASSED` · `r9_aggregation_repros.py` 12 case 기록 · `r9_provenance_repro.py` `raced_status: complete`,
+`read_count: 3`, U18 gate 세 case 전부 rc 0). Codex 의 판정 요지: R8 의 여덟 수정은 허상이 아니지만 **"모집단을 먼저 세고,
+검증 snapshot 만 검사하고, 부분은 부분이라 말한다" 가 아직 production 전체의 불변식이 아니다** — 인자 파싱·U18 승격·
+`ne_shape` 입력/게시·`dd_eval` 검증에서 각각 우회된다. 절차: RED(`tests/test_r9_codex.py` d9_01~12, 12 failed 로 시작) →
+수정 → GREEN.
+
+### 수정 전 재현 (우리 HEAD `29ef505`)
+
+| probe | 관측 |
+|---|---|
+| `root_alias` (R9-01) | `same=<빈> same=<정상>` → "요청한 root 1 개 · 검증 1 · 예" rc 0; label 없는 `<빈> <정상>` 도 둘 다 `out` 이 되어 뒤가 앞을 지운다 (반대 순서만 rc 2) |
+| `u18_gate.one_of_twelve` (R9-02) | 정본 12 개 중 `degeneracy_100_Li.json` 한 묶음만 new 에 두고 대조 → "산출 1 개 · 전부 갖췄다 · 전부 같다" rc 0 |
+| `blank_provenance` · `u18_gate.blank_receipts` · `config_mismatch` · `u14_dropped_numeric_column` · `u14_duplicate_schema_only` (R9-03) | 출처 열 값을 전부 비워도 `read_unit` True + "전부 갖췄다" rc 0; `ref_inputs_sha="f"*64`·`consumed_inputs="{}"` 도 "전부 같다" rc 0; `LLI_pct` 를 지워도 rc 0; 실행 조건 `{24,0,21,400,1%}→{1,731,999,1,50%}` 도 "게시·서명만 바뀌었다" rc 0; `--schema-only` 는 중복 key 를 안 본다 rc 0 |
+| `shape_missing_halfcell` (R9-04) | 선언 pristine·100·200 에서 200 반쪽전지만 없으면 `{requested:[100], paired:[100], missing:[]}` · rc 0 — 200 은 모집단에 들기 전에 사라진다 |
+| `shape_duplicate_matrix_rows(+reversed)` (R9-05) | 서명된 matrix 에 (GITT, Li, 0) 두 행(γ 0.10 / 0.40) → 행 순서가 γ 를 정하고 둘 다 paired 1/1 rc 0 |
+| `shape_partial_overwrites_complete` (R9-06) | 완전 실행(100·200) 게시 뒤 200 짝을 없애고 다시 돌리면 rc 3 인데 canonical CSV/meta 가 부분 묶음으로 **교체**됐고 그 묶음도 `read_unit` True |
+| `eval_verified_bytes_race` (R9-07) | `_compare_dd_eval` 이 경로를 **3 번** 읽는다 — 첫 read 가 malformed A(중복 헤더), 직후 정상 B 로 교체되면 단독 A 는 invalid 인데 race 는 32/32 `complete` |
+| `replay_vacuity` (P2-1) | `replay_codex_r7.py --probes DOES_NOT_EXIST` → `probes: {}` rc 0 |
+| P2-2 | 러너가 expected SHA·clean·패키지 bytes 를 대조하지 않는다 (임의 HEAD 에서도 rc 0) |
+| `r9_evidence_classify_probe` (P2-3) | 같은 `1 failed` summary 에 rc 2·3·4 도 CAUGHT (5 만 오류) |
+| P2-4 | `run_states.sh` sidecar 가 matrix 에도 singular `si_source: Li` 를 적는데 본문은 2 반쪽전지 × 8 Si × 2 가중 = 32 행 |
+| P2-5 | 짝이 전부 없으면 rc 1 이 rc 3 보다 먼저 — 요청문의 "missing pair 면 rc 3" 계약과 wrapper 가 1/3 을 구분하지 않았다 |
+
+### 수정
+
+| ID | 수정 | 테스트 |
+|---|---|---|
+| **R9-01** (P1) | `compare_states.main` 이 인자를 **순서 있는 목록**으로 들고 중복 label(암묵적 `out` 포함)을 **판정 전에** 거부한다 (rc 2, 판정 줄 없음) | `test_d9_01` |
+| **R9-02** (P1) | `check_u14` 의 명부(roster) = 정본 ∪ 새 산출의 canonical basename (`canonical_names`; historical 은 `_vN` 을 뗀 이름). 정본에 있는데 새 산출에 없으면 "명부 불일치" rc 2; 부분 재실행은 `--subset` 으로 계약을 명시해야 하고 그때도 `k/N` 을 찍으며 "승격 근거가 아니다" | `test_d9_02` |
+| **R9-03** (P1) | 스키마의 **한 정본** `bms_balancing/schema.py` (아래). checker 가 열 이름 다음에 **값**을 본다 — 필수 셀 nonempty·숫자 파싱·receipt(역할·path·64-hex·재계산 aggregate digest)·중복 key — `--schema-only` 에서도; degeneracy 는 `DEGENERACY_CONTROLS` 와 meta `state/half_cell_source/si_source/starts/seed` 를 정본과 대조해 다르면 "실행 조건 불일치" rc 2 | `test_d9_03` (A 열 삭제 · B 빈/가짜 receipt · 진짜 receipt 대조군 · C 조건 · D schema-only 중복) |
+| **R9-04** (P1) | `ne_shape` 의 requested 명부는 **파일 존재를 보기 전에** 고정 (`D.HALF_FILE[source] ∩ D.STATES`, 또는 `--states`); `pairing{requested, requested_from, available, missing_input, paired, missing}` 을 meta·stdout 에 | `test_d9_04` |
+| **R9-05** (P1) | `fitted_pair_info` 가 checker 와 같은 typed validator(`schema.unique_rows` · `matrix_key`: w_dqdv 는 숫자)로 파일 전체 key 유일성을 강제 — 중복이면 `RuntimeError(중복)`, 첫 행을 고르지 않는다 | `test_d9_05` |
+| **R9-06** (P1) | 완전성 판정이 **게시보다 먼저**: typed `status` complete/partial/none. complete 만 canonical `<write>/`; partial·none 은 `<write>/partial/` 에만 (canonical bytes 불변, `read_unit` True 유지) | `test_d9_06` |
+| **R9-07** (P1) | `load_dd_eval` 이 경로를 **정확히 한 번** 읽어 `DdEvalText(path, text, sha256)` 를 만들고 parse·precision·audit·compare 가 전부 그 snapshot 을 소비한다 (`_dd_eval_lines`); 결과에 `matlab_sha256` | `test_d9_07` (`Path.read_text` 1 회 · race 판정 invalid) |
+| **P2-1** (P2) | `replay_codex_r7.py`: `--probes` 빈/오타/중복/valid+unknown 거부 rc 2, JSON 없음; 출력 key == 요청 집합 | `test_d9_08` |
+| **P2-2** (P2) | 같은 러너: `--expected-head` 필수(불일치 rc 2), dirty 트리는 기본 거부(`--allow-dirty` 는 목록 기록), 패키지 bytes 를 `HARNESS_R7_521BE85_SHA256SUMS.txt` 와 대조(`package_digest_ok`), 재현/오류/mismatch 면 rc ≠ 0 | `test_d9_08` |
+| **P2-3** (P2) | `classify`: CAUGHT 는 rc 1 ∧ `N failed` 일 때만, MISSED 는 rc 0 ∧ `N passed`(failed 없음) 일 때만, 나머지 전부 오류 | `test_d9_09` |
+| **P2-4** (P2) | `run_states.sh`: `run` 이 `LAST_ARGV="$*"` 를 남기고 `write_meta` 가 잠금 안 **한 번 읽은 bytes** 로 id 재확인·sha256·`roster`(본문에서 유도: 행 수·half_cell·si·w_dqdv·γ 범위)·`argv` 를 sidecar 에 봉인 (`si_source` 는 wrapper 환경값이라는 note) | `test_d9_10` |
+| **P2-5** (P2) | 종료 코드 계약을 코드에 적었다 (`EXIT_BY_STATUS = {complete: 0, none: 1, partial: 3}`): 짝 0 은 rc 1 + typed `status: none` (partial/ 에), 일부는 rc 3 + `partial`; wrapper 가 meta 의 status 로 가른다 | `test_d9_11` |
+
+### 스키마의 정본 — `bms_balancing/schema.py`
+
+producer(`cmd_matrix`·`cmd_profile`·`cmd_degeneracy`)가 쓰는 키와 checker(`check_u14`)·reader(`ne_shape`)가 요구하는 키가
+한 파일에서 나온다: `MATRIX_ROW` 39 열 · `PROFILE_ROW` 20 열 · `DEGENERACY_KEYS` 22 키 · `DEGENERACY_CONTROLS` · `PROVENANCE_COLS`
+· `MAY_BE_EMPTY`(scale_audit_*) · `inputs_digest`(verify 는 여기서 빌린다) · `matrix_key`/`profile_key`/`unique_rows` ·
+`validate_receipt` · `check_rows` · `check_degeneracy`. producer 는 행/키 집합을 `assert tuple(row) == MATRIX_ROW` 처럼 **쓰기
+직전에** 대조한다 (degeneracy 는 `--out` 게시 경계에서; stdout 모드는 경고만 — 시험용 objective 가 거기서 돈다).
+
+**fixture 가 진실을 가리고 있었다 (네 번째 실측)**: `_full_matrix_rows`(R8)·`_deg(schema=True)`(R7)·`_u14_dirs`(R6)·i6w_03 의
+inline JSON 은 전부 **열 이름의 부분집합 + 가짜 receipt**(`sha256: "x"`, `inputs_sha: "a"*12`)였다 — checker 가 내용을 안 본다는
+사실을 fixture 가 가려 주고 있었다. 전부 producer 스키마 + 진짜 receipt(64-hex·재계산 digest)로 다시 썼고, 그 뒤에야 d9_03
+의 대조군(진짜 receipt 는 rc 0)이 의미를 가진다. c6_03·d8_03 은 짝 없는/부분 실행의 산출을 `partial/` 에서 읽도록 옮겼다
+(R9-06 의 결과). 현행 `out/` 12 개는 이 검사에서 **출처 열 24 건만** 빠지고(provenance-incomplete, 전과 같은 판정) 내용·조건·
+숫자(자기 대조)는 전부 통과한다.
+
+### 수정 뒤 패키지 재실행 (`reviews/r9_repros/replay_ours_after_fixes/`)
+
+| 스크립트 | 결과 |
+|---|---|
+| `r9_root_repros.py --case roots / provenance / shape-overwrite` | 각각 **자기 반례 assertion** 에서 rc 1 (`assert missing_first.returncode == 0` · `assert checked.returncode == 0 and "전부 갖췄다"` · `assert rc2 == 3 and meta2["pairing"]["missing"] == ["200"]` — 세 번째는 canonical meta 가 완전 묶음 그대로라 깨진다) |
+| `--case shape-roster` · `--case replay-vacuity` | 반례 assertion **앞에서** 죽는다 — 전제가 바뀌었다 (partial 은 `<write>/partial/` 에 있고, 러너는 거부 rc 2 에 JSON 을 내지 않는다) → 적응 probe 로 positive closure |
+| `r9_aggregation_repros.py` | compare/u14 다섯 case 뒤 `shape_missing_input_state` 에서 canonical 부재로 죽는다 (같은 이유) → helper 그대로 적응 |
+| `r9_provenance_repro.py` | rc 0 (기록형): `dd_eval_reread.read_count` 3 → **1**, `raced_status` complete → **invalid**, `raced_compared` 32 → 0; `u18_gate.one_of_twelve`·`blank_receipts`·`config_mismatch` rc 0 → **2** (셋 다); `production_paths.shared_full_cell_mismatch_accepted` 는 **true 그대로** (export 계약, 아래 "열어 둔 것") |
+| `r9_evidence_classify_probe.py .` | rc=1 CAUGHT · rc=2·3·4·5 오류 |
+| R6 적응판 `replay_codex_r6_adapted.py` (R6-03a) · R7 러너의 R7-05 · `mutation_adapted.py` baseline | R9-04 뒤 requested 명부가 **선언**에서 오므로 pristine·100 만 있는 합성 소스에서 200·300_* 이 missing_input → status partial(rc 3) → 산출이 `out/partial/` 로 가서 원본 helper(`cl.run_shape`: rc 0 + canonical)의 전제가 깨졌다 (`R6-03a: 열림`, mode 실패, R7-05 재현). 적응판 a4 가 `D.STATES=[pristine, 100]` 을 명시하도록 hook 만 고쳤다 — 판정은 그대로 (A 값이면 A 서명) |
+| `reviews/r9_repros/replay_codex_r9.py` (닫힘 재생기, R7 러너와 같은 계약) | 12 probe **전부 도달 True · 반례 소멸** — 원본 함수 직접 호출 5(R9-01·03·06 은 자기 반례 assertion 에서, R9-05·R9-07 은 패키지 함수/helper 그대로 판정만 뒤집어) + 적응 7. clean 트리 실행은 `replay_codex_r9_after_fixes.json` (expected-head 는 그 파일의 값) |
+
+### 열어 둔 것
+
+- **export 계약 (Codex Q3)**: `shared_full_cell_mismatch_accepted: true` 그대로다 — 기준(pristine)과 대상이 같은 workbook 을 각자
+  읽어 두 identity 를 기록만 한다. Codex 의 위치 제안(command/build 경계에서 한 번 읽은 typed snapshot 을 양쪽에 전달, 다른
+  export 는 명시적 sensitivity 모드 + A/B digest)을 채택하되 이번 라운드에는 넣지 않았다 — R10 §6.
+- **typed (root, state, si) identity (Codex Q1)**: 아직 문자열 `state|si` 다. 중복 label 은 이제 그 전에 거부된다.
+- **U18 승격 규칙 (Codex Q5)**: exact 명부 + 스키마 내용 + 조건/env + 수치 exact equality 는 `check_u14` 가 강제한다. profile 행이
+  움직이면 rc 1 로 승격되지 않는다; "후보 evidence version 보존 + pinned 옛 환경 재현 + U16 attribution" 은 절차(문서)다.
+
+### Codex 질문에 대한 답 (R10 요청문 §3 에 다시 싣는다)
+
+1. `state|si` 는 유지하되 중복 label 을 사전에 거부한다 (R9-01). typed 3-tuple identity 는 다음 라운드.
+2. 다섯 관측은 "provenance-incomplete 탐색적·잠정" 으로만 요구서 초안에 옮긴다 — GO·승격·원인·출처 주장의 근거로 쓰지 않는다.
+3. 공통 snapshot 강제 위치 동의 (build 경계) — 미구현, 열어 둔다.
+4. rc 3 은 typed `PARTIAL`(meta `status`) 로 보존하고 canonical 을 덮지 않는다 (R9-06); zero-pair 는 rc 1 + `none` (P2-5).
+5. U18: 명부·receipt·조건·env 를 먼저 강제하고 exact equality — `check_u14` 가 그 순서로 실패한다; 움직인 profile 행은 승격 안 함.

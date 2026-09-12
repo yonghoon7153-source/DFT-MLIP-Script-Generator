@@ -9,14 +9,24 @@
 R7-05·06 은 원본 probe 가 옛 내부 이름(`M`, baseline 기본값)에 묶여 있어 현행 API 로 **적응**한 positive-closure
 검사를 같이 둔다 (`적응` 필드가 True 인 항목). 원본 파일은 건드리지 않는다.
 
-    python3 reviews/r7_repros/replay_codex_r7.py --target <bms-balancing> [--probes R7-01,R7-06] [--output x.json]
+⚠ Codex R9 P2-1: 전 판은 `--probes DOES_NOT_EXIST` 를 조용히 버리고 `probes: {}` rc 0 — 아무것도 안 돌린 실행이
+  "반례 소멸" 로 읽혔다. 빈 이름·오타·중복·valid+unknown 은 전부 거부하고, 출력의 probe 집합은 요청 집합과 같아야 한다.
+⚠ Codex R9 P2-2: 전 판은 대상 SHA·clean 여부·패키지 bytes 를 대조하지 않아 임의 HEAD 의 임의 트리에서도 rc 0 이었다.
+  `--expected-head` 가 필수이고(불일치면 돌지 않는다), working tree 가 dirty 면 기본으로 거부한다(`--allow-dirty` 는
+  목록을 기록하고 돌린다), 패키지 파일은 `HARNESS_R7_521BE85_SHA256SUMS.txt` 와 대조한다. 종료 코드는 재현·오류·
+  mismatch·digest 불일치 중 하나라도 있으면 0 이 아니다.
+
+    python3 reviews/r7_repros/replay_codex_r7.py --target <bms-balancing> --expected-head <sha> \\
+        [--probes R7-01,R7-06] [--allow-dirty] [--output x.json]
 """
 from __future__ import annotations
-import argparse, contextlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
+import argparse, contextlib, hashlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
 
 HERE = pathlib.Path(__file__).resolve().parent
 PKG = HERE / "codex"
 PINNED = "521be85e74acef80feec45bd147dd339e25b8d0a"
+SUMS = PKG / "HARNESS_R7_521BE85_SHA256SUMS.txt"
+KNOWN_PROBES = ("R7-01", "R7-02", "R7-03", "R7-04", "R7-05", "R7-06")
 
 # probe 별 "반례 assertion" 의 소스 조각 — 이 줄에서 멈추면 case 에 **도달**한 것이다
 COUNTEREXAMPLE_LINES = {
@@ -25,6 +35,40 @@ COUNTEREXAMPLE_LINES = {
     "R7-03": ('assert not any("ref" in k', 'assert A["inputs_sha"]==B["inputs_sha"]'),
     "R7-04": ('assert p.returncode == 0',),
 }
+
+
+def parse_probes(text: str):
+    """`--probes` → (목록, 문제). 빈 이름·모르는 이름·중복은 전부 거부한다 (Codex R9 P2-1)."""
+    want = [p.strip() for p in str(text).split(",")]
+    problems = []
+    if not str(text).strip() or any(not p for p in want):
+        problems.append("빈 probe 이름")
+    unknown = [p for p in want if p and p not in KNOWN_PROBES]
+    if unknown:
+        problems.append(f"모르는 probe {unknown} (아는 것: {list(KNOWN_PROBES)})")
+    dup = sorted({p for p in want if p and want.count(p) > 1})
+    if dup:
+        problems.append(f"중복 probe {dup}")
+    return want, problems
+
+
+def package_digest():
+    """보관한 패키지 bytes 가 SHA256SUMS 와 같은가 (Codex R9 P2-2) → (전부 ok, {파일: ok|mismatch|missing})."""
+    status = {}
+    for ln in SUMS.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        want, name = ln.split(None, 1)
+        p = PKG / name.strip()
+        status[name.strip()] = ("missing" if not p.is_file()
+                                else ("ok" if hashlib.sha256(p.read_bytes()).hexdigest() == want else "mismatch"))
+    return bool(status) and all(v == "ok" for v in status.values()), status
+
+
+def dirty_paths(target: pathlib.Path) -> list:
+    r = subprocess.run(["git", "-C", str(target), "status", "--porcelain", "--untracked-files=normal", "--", "."],
+                       capture_output=True, text=True)
+    return [ln for ln in r.stdout.splitlines() if ln.strip()]
 
 
 def _load(name, path):
@@ -97,17 +141,43 @@ def r7_06_adapted(target):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", type=pathlib.Path, required=True)
-    ap.add_argument("--probes", default="R7-01,R7-02,R7-03,R7-04,R7-05,R7-06")
+    ap.add_argument("--probes", default=",".join(KNOWN_PROBES))
+    ap.add_argument("--expected-head", required=True, metavar="SHA",
+                    help="이 SHA 에서 돌아야 한다 — 대상 HEAD 가 다르면 돌지 않는다 (Codex R9 P2-2)")
+    ap.add_argument("--allow-dirty", action="store_true",
+                    help="working tree 가 dirty 여도 돌린다 — dirty 경로 목록을 결과에 남긴다 (기본: 거부)")
     ap.add_argument("--output", type=pathlib.Path)
     a = ap.parse_args()
     target = a.target.resolve()
+    want, problems = parse_probes(a.probes)
+    if problems:
+        print("! --probes 거부: " + "; ".join(problems) + " — 아무것도 돌리지 않았다 (Codex R9 P2-1)", file=sys.stderr)
+        return 2
+    head = subprocess.check_output(["git", "-C", str(target), "rev-parse", "HEAD"], text=True).strip()
+    exp = a.expected_head.strip().lower()
+    if len(exp) < 7 or not head.startswith(exp):
+        print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head}: 이 트리는 요청한 대상이 아니다 (다르다) — "
+              f"돌리지 않았다 (Codex R9 P2-2)", file=sys.stderr)
+        return 2
+    dirty = dirty_paths(target)
+    if dirty and not a.allow_dirty:
+        print(f"! working tree 가 dirty 다 ({len(dirty)} 경로) — `--allow-dirty` 없이는 돌리지 않는다 (Codex R9 P2-2):\n  "
+              + "\n  ".join(dirty[:20]), file=sys.stderr)
+        return 2
+    digest_ok, digest = package_digest()
+    out = {"target_head": head, "expected_head": a.expected_head, "head_ok": True,
+           "dirty": bool(dirty), "dirty_allowed": bool(a.allow_dirty), "dirty_paths": dirty[:50],
+           "package_digest_ok": digest_ok, "package_digest": digest,
+           "pinned_sha": PINNED, "pin_bypassed": True,
+           "설명": "원본 probe 함수를 직접 불러 SHA pin 을 우회한다 — 도달·상태·멈춘_곳을 따로 적는다 (Codex R8-07); "
+                 "요청 집합·대상 SHA·clean·패키지 digest 를 대조한다 (Codex R9 P2-1·2)",
+           "requested": want, "probes": {}}
+    if not digest_ok:
+        out["오류"] = "패키지 bytes 가 SHA256SUMS 와 다르다 — probe 를 돌리지 않았다"
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 2
     sys.path.insert(0, str(target)); sys.path.insert(0, str(target / "scripts"))
     os.environ["PATH"] = str(pathlib.Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
-    head = subprocess.check_output(["git", "-C", str(target), "rev-parse", "HEAD"], text=True).strip()
-    want = [p.strip() for p in a.probes.split(",") if p.strip()]
-    out = {"target_head": head, "pinned_sha": PINNED, "pin_bypassed": True,
-           "설명": "원본 probe 함수를 직접 불러 SHA pin 을 우회한다 — 도달·상태·멈춘_곳을 따로 적는다 (Codex R8-07)",
-           "probes": {}}
     ex = _load("r7c_exec", PKG / "harness_r7_execution_repros.py")
     cl = _load("r7c_claims", PKG / "harness_r7_claims_repros.py")
     inf = _load("r7c_inf", PKG / "harness_r7_inference_repros.py")
@@ -129,11 +199,15 @@ def main() -> int:
                 out["probes"][pid] = {"probe": "adapted_runs(적응)", "적응": True, **_run_adapted(lambda: r7_05_adapted(target))}
             elif pid == "R7-06":
                 out["probes"][pid] = {"probe": "missed_exit_control(적응)", "적응": True, **_run_adapted(lambda: r7_06_adapted(target))}
+    statuses = {pid: r["상태"] for pid, r in out["probes"].items()}
+    out["closed"] = list(out["probes"]) == want and all(s == "반례 소멸" for s in statuses.values())
+    out["rc_reason"] = ("모든 요청 probe 가 자기 반례 assertion 에서 멈췄다" if out["closed"]
+                        else f"닫히지 않음: { {p: s for p, s in statuses.items() if s != '반례 소멸'} }")
     text = json.dumps(out, ensure_ascii=False, indent=2)
     print(text)
     if a.output:
         a.output.write_text(text + "\n", encoding="utf-8")
-    return 0
+    return 0 if out["closed"] else 1
 
 
 if __name__ == "__main__":

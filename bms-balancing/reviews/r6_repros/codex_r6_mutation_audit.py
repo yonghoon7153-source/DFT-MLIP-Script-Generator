@@ -19,15 +19,20 @@ def classify(rc, last):
     """pytest 결과 → CAUGHT / MISSED / 오류.
 
     ⚠ Codex R8-06: 전 판은 `rc != 0` 을 전부 CAUGHT 로 셌다 — selector 가 시험을 하나도 못 고르면(rc 5, "52 deselected")
-      그것도 CAUGHT 였다. selector 오타·rename·수집 실패는 assertion 검출이 아니라 **감사 오류**다."""
+      그것도 CAUGHT 였다. selector 오타·rename·수집 실패는 assertion 검출이 아니라 **감사 오류**다.
+    ⚠ Codex R9 P2-3: 그 다음 판도 `1 failed` summary 만 있으면 rc 2·3·4 를 CAUGHT 로 셌다 — pytest 의 2(interrupted) ·
+      3(internal error) · 4(usage error) 는 assertion 검출이 아니다. CAUGHT 는 **rc 1 과 `N failed` fingerprint 가 함께**
+      있을 때만, MISSED 는 **rc 0 과 `N passed`(failed 없음)** 일 때만, 나머지(다른 rc · fingerprint 불일치 · error)는
+      전부 오류다."""
     import re
-    m = re.search(r"(\d+) (passed|failed)", last)
-    n_sel = sum(int(x) for x in re.findall(r"(\d+) (?:passed|failed)", last))
-    if rc == 5 or n_sel == 0 or "error" in last.lower() or "ERROR" in last:
-        return "오류"
-    if rc == 0:
+    failed = re.search(r"(\d+) failed", last)
+    passed = re.search(r"(\d+) passed", last)
+    errored = re.search(r"(\d+) error", last) or "ERROR" in last
+    if rc == 1 and failed and int(failed.group(1)) > 0 and not errored:
+        return "CAUGHT"
+    if rc == 0 and passed and int(passed.group(1)) > 0 and not failed and not errored:
         return "MISSED"
-    return "CAUGHT" if m else "오류"
+    return "오류"
 
 
 def apply(text, old, new):

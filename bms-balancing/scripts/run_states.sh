@@ -49,25 +49,52 @@ write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 �
     return 1
   fi
   if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" \
-        "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" <<'PYMETA'
-import fcntl, json, os, sys, datetime, pathlib, tempfile
+        "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" "${LAST_ARGV:-}" <<'PYMETA'
+import csv, fcntl, hashlib, io, json, os, sys, datetime, pathlib, tempfile
 art, st, src, starts, si, root, rid, out_dir, pre_json, started = sys.argv[1:11]
+argv = sys.argv[11] if len(sys.argv) > 11 else ""
+
+
+def roster_of(name, data):
+    """산출 **본문**에서 유도한 exact 명부 (Codex R9 P2-4): sidecar 의 singular `si_source` 는 wrapper 의 SI 환경값이지
+    본문의 명부가 아니다 — matrix 는 반쪽전지 × Si 8 × 가중 2 를 돈다. 본문 bytes 가 곧 sha256 에 들어간 bytes 다."""
+    if name.endswith(".json"):
+        j = json.loads(data.decode("utf-8"))
+        return {"kind": "degeneracy", "state": j.get("state"),
+                "half_cell": [j["half_cell"]] if j.get("half_cell") else [],
+                "si": [j["si_source"]] if j.get("si_source") else [],
+                "w_dqdv": [j["w_dqdv"]] if j.get("w_dqdv") is not None else []}
+    rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
+    r = {"kind": "matrix" if name.startswith("matrix_") else "profile", "rows": len(rows)}
+    for c in ("half_cell", "si", "w_dqdv", "profile_scale", "state"):
+        if rows and c in rows[0]:
+            r[c] = sorted({row.get(c) or "" for row in rows})
+    if rows and "gamma_Si" in rows[0]:
+        g = [float(row["gamma_Si"]) for row in rows if row.get("gamma_Si") not in (None, "")]
+        r["gamma_Si"] = [min(g), max(g), len(g)] if g else []
+    return r
+
 try:
     pre = json.loads(pre_json) if pre_json else {}
 except json.JSONDecodeError:
     pre = {}
 sys.path.insert(0, "scripts")
-from provenance import git_provenance, check_run_id, sha256_file, env_signature   # R4-07 · R5-08 · R5-04 · R6 F3
+from provenance import git_provenance, check_run_id_bytes, env_signature   # R4-07 · R5-08 · R5-04 · R6 F3
 with open(art + ".lock", "a+") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)                                  # verify.py 의 게시와 같은 잠금
-    ok, why = check_run_id(art, rid)
+    with open(art, "rb") as fh:
+        data = fh.read()                                              # 잠금 안 **한 번** 읽은 bytes — id 재확인·sha256·roster 전부
+    ok, why = check_run_id_bytes(os.path.basename(art), data, rid)
     if not ok:
         print(f"run id 재확인 실패: {why}", file=sys.stderr); sys.exit(1)
     pv = git_provenance(artifact=art, output_roots=(out_dir, "out"))
     meta = {
         "artifact": pathlib.Path(art).name, "state": st, "half_cell_source": src,
         "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
-        "data_root": root, "run_id": rid, "sha256": sha256_file(art),
+        "data_root": root, "run_id": rid, "sha256": hashlib.sha256(data).hexdigest(),
+        # Codex R9 P2-4: 실제 argv 와 본문에서 유도한 exact 명부 — `si_source`(SI 환경값)·`starts` 는 명부가 아니다
+        "argv": argv, "roster": roster_of(pathlib.Path(art).name, data),
+        "si_source_note": "wrapper 의 SI 환경값 — 본문의 exact 명부는 roster (matrix 는 Si 전부를 돈다)",
         "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
         "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
         # R6 내부 F04: 계산 **전** 상태도 적고 둘이 다르면 표시한다 — 뒤에서 한 번 샘플한 값은 "돌린 코드가
@@ -143,6 +170,7 @@ sys.exit(0 if r and r[0] else 1)' "$f" 2>/dev/null \
 #   있어야** OK 다. 옛 파일은 지우지 않는다 — 보존은 하되 새 결과로 세지 않는다.
 run () {
   local label="$1" art="$2" redir="$3" log="$4"; shift 4
+  LAST_ARGV="$*"                                    # Codex R9 P2-4: sidecar 가 이 시도의 **실제 argv** 를 봉인한다
   say '\n\033[1m== %s\033[0m\n' "$label"
   local t0=$SECONDS rc=0
   local rid; rid="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"

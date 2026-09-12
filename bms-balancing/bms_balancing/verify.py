@@ -58,16 +58,8 @@ def _provenance():
     return _PROV
 
 
-def inputs_digest(consumed: dict) -> str:
-    """소비한 입력 파일들의 sha256 을 정렬해 이어 붙인 것의 sha256 앞 12 자리 (R6 내부 F1·F4: 라벨이 아니라 identity)."""
-    import hashlib
-    shas = []
-    for v in consumed.values():
-        if isinstance(v, dict) and "sha256" in v:
-            shas.append(v["sha256"])
-        elif isinstance(v, dict):
-            shas.extend(w["sha256"] for w in v.values() if isinstance(w, dict) and "sha256" in w)
-    return hashlib.sha256("".join(sorted(shas)).encode()).hexdigest()[:12]
+from .schema import inputs_digest                       # noqa: E402  — producer·checker 의 한 정본 (Codex R9-03)
+from . import schema as S                                # noqa: E402
 
 
 def scale_audit_line(root, args, audit: dict, inputs_sha: str | None = None) -> str:
@@ -563,10 +555,16 @@ def cmd_degeneracy(args):
         "근최적 집합 {obj ≤ best·(1+tol)} 위에서 (a) mode 등식 제약 프로파일과 "
         "(b) 직접 제약 최적화를 둘 다 돌려 **합집합**을 취한다. 둘 다 국소 "
         "해법이므로 결과는 여전히 **하한**이다 — 정확한 폭도, 신뢰구간도 아니다.")
+    # ⚠ Codex R9-03: producer 가 쓰는 키 == checker 가 요구하는 키 (`schema.DEGENERACY_KEYS`). 게시(`--out`)되는 산출이
+    #   schema 를 어기면 게시하지 않는다 — stdout 모드(진단·시험용 objective)는 경고만 남긴다 (게시 경로가 아니다).
+    schema_problems = S.check_degeneracy(out)
     if getattr(args, "out", None):                   # R6 내부 F01: 게시는 잠금 안 원자적 교체로, stdout 은 로그
+        assert not schema_problems, schema_problems
         atomic_write_json(args.out, out)
         print(f"wrote {args.out}  (run_id {out['run_id']})")
         return 0
+    if schema_problems:
+        print(f"# schema 경고 (stdout 모드 — 게시 아님): {schema_problems}", file=sys.stderr)
     print(json.dumps(out, ensure_ascii=False, indent=2, default=float))
 
 
@@ -636,6 +634,34 @@ def dd_eval_anchors(obj: Objective, p1=None) -> list[tuple[str, float]]:
     ]
 
 
+from typing import NamedTuple
+
+
+class DdEvalText(NamedTuple):
+    """dd_eval CSV 의 **한 번 읽은** immutable snapshot — parse·precision·audit·compare 가 전부 이것을 소비한다 (Codex R9-07)."""
+    path: str
+    text: str
+    sha256: str      # 디코드한 text(utf-8) 의 sha256 — 어느 bytes 를 판정했는지 결과에 남긴다
+
+
+def load_dd_eval(path) -> DdEvalText:
+    """경로를 **정확히 한 번** 연다. 이후 어떤 단계도 pathname 을 다시 열지 않는다.
+
+    ⚠ Codex R9-07: 전 판은 `_compare_dd_eval` 이 같은 경로를 세 번 열었다 (parse · precision · audit). 첫 read 가 malformed
+      A(중복 헤더) 이고 직후 정상 B 로 원자 교체되면 A 의 32 셀이 B 의 precision/audit 로 승인돼 complete 였다 — 단독 A 는
+      invalid 인데. 검증과 사용이 같은 bytes 여야 한다 (R6 내부 F03·F07 과 같은 축, 이번엔 MATLAB 산출 쪽)."""
+    import hashlib
+    text = Path(path).read_text(encoding="utf-8-sig")
+    return DdEvalText(str(path), text, hashlib.sha256(text.encode("utf-8")).hexdigest())
+
+
+def _dd_eval_lines(src) -> list:
+    """snapshot 이면 그 text 를, 경로면 (호환 — 단독 호출용) 한 번 읽는다. 비교기는 항상 snapshot 을 준다."""
+    if isinstance(src, DdEvalText):
+        return src.text.splitlines()
+    return Path(src).read_text(encoding="utf-8-sig").splitlines()
+
+
 def read_dd_eval_csv(path):
     """dd_eval.m 산출(`# 이름,값` 앞머리 + 헤더 + 파라미터 행)을 읽는다.
 
@@ -644,7 +670,7 @@ def read_dd_eval_csv(path):
       있는 열만 대조한다 — 그래야 옛 산출 4개(104 값 일치)가 무효가 되지 않는다.
     """
     anchors, rows, header = {}, [], []
-    for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+    for line in _dd_eval_lines(path):
         line = line.strip()
         if line.startswith("#") and "," in line:
             k, _, v = line.lstrip("# ").partition(",")
@@ -679,7 +705,7 @@ def dd_eval_csv_audit(path, spec=None, spec_label="선언 형식") -> list[str]:
     n_decl, known = 0, {k for k, _ in ANCHOR_STAGE}
     tokens = []                                    # (행, 열 이름, 토큰) — 선언 형식과의 일치 검사용
     try:
-        lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
+        lines = _dd_eval_lines(path)
     except OSError as e:
         return [f"읽기 실패: {e}"]
     for line in lines:
@@ -793,7 +819,7 @@ def printed_abs_tols(path, default_decimals: int = 10) -> dict:
     """
     cols, decs, sigs = None, {}, {}
     try:
-        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        for line in _dd_eval_lines(path):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -839,7 +865,7 @@ def read_dd_eval_meta(path) -> dict:
       meta 리더에도: 역할은 이름으로 먼저)."""
     meta = {}
     try:
-        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        for line in _dd_eval_lines(path):
             line = line.strip()
             if line.startswith("#") and "," in line:
                 k, _, v = line.lstrip("# ").partition(",")
@@ -930,7 +956,7 @@ def _infer_column_specs(path) -> dict:
     """선언이 없을 때 값의 자리수에서 열별 (kind, N) 을 **추정**한다 — 탐색용이지 증거가 아니다."""
     cols, decs, sigs = None, {}, {}
     try:
-        for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        for line in _dd_eval_lines(path):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -1111,10 +1137,11 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
               "anchors_expected": len(ANCHOR_STAGE), "anchors_compared": 0, "missing_anchors": [],
               "partial": False, "partial_reasons": [],
               "precision_source": None, "precision_label": "", "precision_declared": None,
-              "precision_conflict": False, "precision_override_looser": False}
+              "precision_conflict": False, "precision_override_looser": False, "matlab_sha256": None}
     try:
-        m_anchors, m_rows, m_header = read_dd_eval_csv(matlab_csv)
-        policy = resolve_precision(matlab_csv, precision)
+        snap = load_dd_eval(matlab_csv)                  # 한 번 읽는다 — 아래 parse·precision·audit 전부 이 snapshot (Codex R9-07)
+        m_anchors, m_rows, m_header = read_dd_eval_csv(snap)
+        policy = resolve_precision(snap, precision)
     except OSError as e:
         # ⚠ R6 내부 V6-07: 전 판은 여기서 traceback 으로 죽어 종료 1 = "갈림" 이었다. 못 읽은 파일은 미완이다.
         print(f"\n=== dd_eval.m 대조: {matlab_csv} ===\n  ! 읽을 수 없다: {e}\n판정: **대조 미완 (invalid)**")
@@ -1122,7 +1149,10 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
     prec_source, prec_label = policy["source"], policy["label"]
     result.update(precision_source=prec_source, precision_label=prec_label,
                   precision_declared=policy["declared_raw"], precision_conflict=policy["conflict"])
+    result["matlab_sha256"] = snap.sha256
     print(f"\n=== dd_eval.m 대조: {matlab_csv} ===")
+    print(f"  (snapshot sha256 {snap.sha256[:16]}… — 한 번 읽은 text 로 parse·precision·audit·compare 전부; 검증 뒤 경로를 다시 "
+          f"열지 않는다, Codex R9-07)")
     print(f"  (정밀도: {prec_label})")
     if prec_source == "inferred":
         print("  ⚠ 한계는 **추정**이다 — 값의 길이는 producer 형식의 증거가 아니다 (Codex R3-06·R4-02)."
@@ -1145,9 +1175,9 @@ def _compare_dd_eval(py_anchors, py_P, py_vals, matlab_csv, precision=None):
     # 이라는 주장이므로 그 형식으로 검사한다 (R6 내부 V6-02: 전 판은 옵션을 토큰과 대조하지 않아 선언 없는
     # 파일이 선언된 파일보다 관대했다). 선언과 옵션이 둘 다 있으면 선언으로 검사하고 충돌은 R4-02 Q3 대로 기록.
     if policy["declared_spec"] is not None:
-        malformed = dd_eval_csv_audit(matlab_csv, spec=policy["declared_spec"])
+        malformed = dd_eval_csv_audit(snap, spec=policy["declared_spec"])
     else:
-        malformed = dd_eval_csv_audit(matlab_csv, spec=policy["spec"], spec_label="옵션 형식")
+        malformed = dd_eval_csv_audit(snap, spec=policy["spec"], spec_label="옵션 형식")
     if prec_source == "invalid":
         malformed.append(f"{PRINTED_FORMAT_KEY} 선언 해석 불가: {policy['declared_raw']!r}")
     if malformed:
@@ -1409,6 +1439,7 @@ def cmd_matrix(args):
                     "LAM_PE_pct": m["LAM_PE"] * 100,
                     "LAM_NE_pct": m["LAM_NE"] * 100,
                     "LLI_pct": m["LLI"] * 100})
+                assert tuple(rows[-1]) == S.MATRIX_ROW, (tuple(rows[-1]), S.MATRIX_ROW)   # producer == schema (Codex R9-03)
                 print(json.dumps(rows[-1], ensure_ascii=False, default=float),
                       flush=True)
     ok = [r for r in rows if "error" not in r]
@@ -1566,6 +1597,7 @@ def cmd_profile(args):
                      #   아니다. 검증되는 묶음(CSV) 자체에 둔다 (matrix 행과 같은 모양).
                      "consumed_inputs": json.dumps(getattr(obj, "consumed_inputs", None), ensure_ascii=False),
                      "ref_consumed_inputs": json.dumps(getattr(ref, "consumed_inputs", None), ensure_ascii=False)})
+        assert tuple(rows[-1]) == S.PROFILE_ROW, (tuple(rows[-1]), S.PROFILE_ROW)   # producer == schema (Codex R9-03)
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]

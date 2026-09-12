@@ -74,12 +74,24 @@ def test_d8_01_aggregate_keeps_every_verified_unit_and_counts_every_requested_ro
 
 # ── R8-02 ────────────────────────────────────────────────────────────────────────────────────
 def _full_matrix_rows(rid, lli=1.0):
-    """check_u14 의 필수 스키마를 다 갖춘 matrix 행 (R8 이후: 기준 입력 출처 열 포함)."""
-    ci = json.dumps({"half_cell": {"path": "h", "sha256": "1"}})
-    return [dict(half_cell="GITT", si=s, w_dqdv="0", LAM_PE_pct="1.0", LAM_NE_pct="2.0", LLI_pct=str(lli + i),
-                 bounds="-", ref_bounds="-", gamma_Si="0.3", ref_gamma_Si="0.2", run_id=rid, inputs_sha="a" * 12,
-                 scale_seed="0", n_scale_samples="50", ref_inputs_sha="b" * 12, consumed_inputs=ci,
-                 ref_consumed_inputs=ci) for i, s in enumerate(("Li", "Kunz"))]
+    """producer 스키마(`schema.MATRIX_ROW` 39 열)를 **전부** 갖춘 matrix 행 — 진짜 receipt(역할·path·64-hex·재계산 digest)
+    포함. R9-03 전의 이 fixture 는 열 이름만 맞는 부분집합이라 checker 가 내용을 안 본다는 사실을 가리고 있었다."""
+    from bms_balancing import schema as S
+    ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
+    rci = {"half_cell": {"path": "p.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"], "literature": ci["literature"]}
+    rows = []
+    for i, s in enumerate(("Li", "Kunz")):
+        v = dict(half_cell="GITT", si=s, w_dqdv="0", run_id=rid, inputs_sha=S.inputs_digest(ci), ref_inputs_sha=S.inputs_digest(rci),
+                 consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci), scale_seed="0", n_scale_samples="50",
+                 scale_pocv_target="1.0", scale_dvdq_target="1.0", scale_dqdv_target="1.0", scale_pocv_ref="1.0",
+                 scale_dvdq_ref="1.0", scale_dqdv_ref="1.0", scale_audit_target="{}", scale_audit_ref="{}", obj="0.01",
+                 rmse_pocv="0.002", a_PE="1.0", b_PE="0.0", a_NE="1.1", b_NE="0.0", gamma_Si="0.3", c_cell="1.0", bounds="-",
+                 ref_a_PE="1.0", ref_b_PE="0.0", ref_a_NE="1.0", ref_b_NE="0.0", ref_gamma_Si="0.2", ref_obj="0.01",
+                 ref_rmse_pocv="0.002", ref_c_cell="1.0", ref_bounds="-", LAM_PE_pct="1.0", LAM_NE_pct="2.0", LLI_pct=str(lli + i))
+        assert set(v) == set(S.MATRIX_ROW), set(v) ^ set(S.MATRIX_ROW)
+        rows.append({k: v[k] for k in S.MATRIX_ROW})
+    return rows
 
 
 def test_d8_02_check_u14_consumes_only_the_verified_unit_and_requires_the_provenance_schema(tmp_path):
@@ -170,17 +182,18 @@ def test_d8_03_ne_shape_reports_measured_over_all_states_and_marks_missing_pairs
     ns = _shape_harness(monkeypatch, base, {"pristine": 0.0, "100": 0.01, "200": 0.1})
     _pair(matrix, "100")
 
-    def run():
+    def run(sub=""):
         buf = io.StringIO()
         monkeypatch.setattr(sys, "argv", ["ne_shape.py", "--out-dir", str(matrix), "--write", str(out)])
         with contextlib.redirect_stdout(buf):
             rc = ns.main()
-        f = out / "ne_shape_GITT_Li.csv"
+        f = (out / sub / "ne_shape_GITT_Li.csv") if sub else (out / "ne_shape_GITT_Li.csv")   # R9-06: partial 은 별도 namespace
         rows = {r["state"]: r for r in csv.DictReader(io.StringIO(f.read_text(encoding="utf-8")))}
         meta = json.loads(f.with_name(f.name + ".meta.json").read_text(encoding="utf-8"))
         return rc, buf.getvalue(), rows, meta
 
-    rc, text, rows, meta = run()
+    rc, text, rows, meta = run("partial")
+    assert not (out / "ne_shape_GITT_Li.csv").exists(), "부분 실행이 canonical 자리에 게시됐다 (Codex R9-06)"
     assert float(rows["200"]["measured_shape_mV"]) == 100.0 and rows["200"]["gamma_target"] == ""
     assert "측정된 음극 모양 변화 최대 100.00 mV" in text, text[-1200:]        # 모든 측정 행에서
     assert rc != 0, "γ 짝이 빠졌는데 rc 0"
@@ -285,7 +298,9 @@ def test_d8_07_r7_closure_runner_records_whether_each_probe_reached_its_countere
     도달했는지 · 반례 assertion 에서 실패했는지 · positive closure 가 성립했는지를 **별도 상태**로 기록한다."""
     runner = ROOT / "reviews/r7_repros/replay_codex_r7.py"
     assert runner.is_file(), "R7 closure runner 가 없다"
-    r = subprocess.run([sys.executable, str(runner), "--target", str(ROOT), "--probes", "R7-01,R7-06"],
+    head = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
+    r = subprocess.run([sys.executable, str(runner), "--target", str(ROOT), "--probes", "R7-01,R7-06",
+                        "--expected-head", head, "--allow-dirty"],              # R9 P2-2: 대상 SHA 를 명시, 시험 중 트리는 dirty
                        cwd=ROOT, capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr[-800:]
     d = json.loads(r.stdout)
