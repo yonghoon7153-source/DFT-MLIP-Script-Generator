@@ -24,7 +24,23 @@
 
 ---
 
-## 지금 상태 — **Codex 6차 NO-GO (P1 3 · P2 3) 여섯 건 전부 닫음 · 7차 요청문 준비됨**
+## 지금 상태 — **Codex 7차 NO-GO (P1 3 · P2 3) 여섯 건 전부 닫음 · 8차 요청문 준비됨**
+
+2026-09-12 Codex 7차(대상 `521be85`, `reviews/R7_CODEX.md`)는 **재현 패키지와 함께** 왔다 (`reviews/r7_repros/codex/`,
+sha256 10/10). 판정 요지: R6 반례는 닫혔고, **올바르게 읽은 다음 단계**가 안 이어진다 — 반례 상태가 미완으로 빠지면
+집계가 "아니오"를 "예"로 뒤집고(R7-01, 빈 디렉터리도 "예"), 잡음 진단이 적합과 **다른 snapshot** 으로 σ 를 재고
+(R7-02), matrix/profile 행이 **기준** 입력 출처를 안 남긴다(R7-03). P2 셋은 `check_u14` 의 정책 혼선(R7-04),
+우리 재생 스크립트의 baseline 기본값(R7-05), 변이 감사의 rc 0(R7-06).
+
+여섯 건 전부 수정 전 트리에서 재현 → RED(`tests/test_r7_codex.py` d7_01~07) → 수정 → GREEN. 수정 뒤에는 패키지
+probe 가 **자기 반례 assertion 에서** 멈춘다 (`reviews/r7_repros/replay_ours_*.json`). 원장은 `reviews/R6_LEDGER.md`
+"Codex R7" 절, 요청문은 `reviews/R8_REQUEST.md`.
+
+규약이 바뀐 것: 집계는 **후보/검증/제외**를 세고 제외가 있으면 전체 판정 대신 미완 + rc 2 · `cmd_noise` 는
+`build` 가 소비한 원시 배열(`obj.full_cell_raw`)로만 σ 를 잰다 · matrix/profile 행이 `ref_inputs_sha`(+identity)를
+남긴다 · `check_u14 --baseline-policy` 로 현행/역사 규칙을 **호출 모드로** 가른다.
+
+## 직전 상태 — Codex 6차 NO-GO 여섯 건 닫음 (닫힘)
 
 2026-09-12 Codex 6차 리뷰(대상 `d431404`, `reviews/R6_CODEX.md`)는 출처 결속 세 조건을 P1 으로 짚었다 — 독자가
 검증한 snapshot 이 아니라 경로를 다시 읽는다(R6-01), 현행 산출에 meta 가 없으면 옛 산출로 흘러 들어간다(R6-02),
@@ -51,8 +67,9 @@ GREEN). 그 뒤 사용자 기계 실측 셋이 붙었다 — U13(scale 동치 18
 
 **U14 판정: 결론 숫자는 전부 재현됐다.** matrix 세 상태와 degeneracy 세 mode 폭이 **0.00e+00**, §5-1 문턱 표의
 n 과 최악 비도 동일. 움직인 것은 γ 프로파일의 개별 행(LAM_NE 최대 2.8e-2)뿐이고 §5-1 폭은 넷째 자리에서만
-바뀐다 — F3(라이브러리 판)이 야생에서 확인됐으나 **어떤 결론도 뒤집히지 않았다**. 정본을 만든 라이브러리
-조합은 모른다(그 산출에 `env` 가 없다) — "scipy 판 때문" 은 가설이고 U16(옛 조합 재실행)이 닫는다.
+바뀐다. 두 산출 모두 γ당 25 회를 썼고 **같은 예산 아래 일부 행이 달랐다 — 원인은 U16 미확정**이다 (Codex
+R7 §5). 정본을 만든 라이브러리 조합은 모른다(그 산출에 `env` 가 없다) — "scipy 판 때문" 은 가설이고 U16(옛 조합
+재실행)이 닫는다. **어떤 결론도 뒤집히지 않았다.**
 
 U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨짐 · 02 도구의 정본 선택 · 03 새 열을 소비 helper 가
 못 읽음 · 04 충돌 표식 · 05 재실행이 §4-0 의 역사 자료를 덮음)은 전부 닫았다.
@@ -64,7 +81,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 139 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 146 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh

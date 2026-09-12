@@ -16,6 +16,20 @@ from unittest.mock import patch
 HERE = pathlib.Path(__file__).resolve().parent
 
 
+def baseline_from_env(env=None):
+    """`R6_OLD_OUT` → 과거 baseline 디렉터리. **없거나 빈 문자열이면 None** 이다 (Codex R7-05).
+
+    전 판은 `Path(os.environ.get("R6_OLD_OUT", ""))` 였다 — 빈 문자열은 `Path("")` = `.` 이고 그 디렉터리는 늘
+    존재하므로 **현재 트리를 과거 baseline 으로** 삼아 full 재생을 불렀다 (요청문에 적은 기본 호출이 5/6·rc 1).
+    """
+    env = os.environ if env is None else env
+    raw = (env.get("R6_OLD_OUT") or "").strip()
+    if not raw:
+        return None
+    p = pathlib.Path(raw).expanduser()
+    return p.resolve() if p.is_dir() else None
+
+
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
@@ -104,8 +118,8 @@ def a2_matrix_snapshot(ex, target, root, v, pv, reader):
     ex.write_meta(target, root, art, "attempt-A")
     original, switched = reader._read_unit, []
 
-    def scheduled(p):
-        out = original(p)
+    def scheduled(p, *a, **k):                                   # `_read_unit(f, excluded)` 로 늘었다 (Codex R7-01)
+        out = original(p, *a, **k)
         if p == art and not switched:                            # A 를 검증·스냅샷한 직후 B 의 데이터만 먼저 게시
             switched.append(True)
             v.atomic_write_csv(art, rows_b, list(rows_b[0]))
@@ -219,20 +233,29 @@ def a6_inference_closure(target):
     new = (old + "\n"
            '        if not (root / "out" / filename).is_file():\n'
            "            continue                                  # 적응: `_vN` 은 out/archive/ 로 갔다 (Codex R6-04)")
-    baseline = pathlib.Path(os.environ.get("R6_OLD_OUT", ""))
+    # 적응 ②: 이 스크립트는 **옛 리비전의 out/** 을 읽는다 → 정본 선택은 historical 규칙이다. `baseline_for` 의
+    #   기본값이 current 로 바뀌어(Codex R7-04) 그대로 부르면 그 시절 정본(`_v2`)이 아니라 v1 을 짝지어 버린다.
+    import re as _re
+    src, n_calls = _re.subn(r"check\.baseline_for\((new_[a-z]), old\)",
+                            r'check.baseline_for(\1, old, "historical")', src)
+    assert n_calls == 3, n_calls
+    baseline = baseline_from_env()
     with tempfile.TemporaryDirectory(prefix="r6-adapted-inference-") as tmp:
         copy = pathlib.Path(tmp) / "inference_adapted.py"
         copy.write_text(src.replace(old, new), encoding="utf-8")
         cmd = [sys.executable, str(copy), "--target", str(target)]
-        if baseline.is_dir():
+        if baseline is not None:
             cmd += ["--old", str(baseline)]
         else:
-            cmd += ["--case", "derived"]                          # --old 없으면 u14/table 은 못 돈다
+            cmd += ["--case", "derived"]                          # baseline 없이는 u14/table 을 못 돈다 → **부분**
         r = subprocess.run(cmd, capture_output=True, text=True)
         assert r.returncode == 0, (r.returncode, r.stderr.strip().splitlines()[-3:])
         keys = [l.split(" ", 1)[0] for l in r.stdout.splitlines() if l and not l.startswith(" ")]
-        return {"rc": 0, "cases": keys, "baseline_used": baseline.is_dir(),
-                "note": "한 줄 적응: 없는 `_vN` 이름은 건너뛴다"}
+        return {"rc": 0, "cases": keys, "baseline_used": baseline is not None, "partial": baseline is None,
+                "note": ("두 줄 적응: 없는 `_vN` 이름은 건너뛴다 · 옛 리비전 baseline 은 historical 정책으로 짝짓는다"
+                 if baseline is not None else
+                         "한 줄 적응 + **부분 재생** — `R6_OLD_OUT=<bfc4623^ 의 out>` 이 없어 derived 만 돌렸다 "
+                         "(full 6/6 이 아니다, Codex R7-05)")}
 
 
 def _sign(path):
@@ -270,12 +293,18 @@ def main() -> int:
             ("R6-04 inference 닫힘 확인(정본 이름으로)", lambda: a6_inference_closure(target)),
         ):
             st, detail = _guard(fn)
+            if st == "닫힘" and isinstance(detail, dict) and detail.get("partial"):
+                st = "부분"                                       # full 재생과 구분한다 (Codex R7-05)
             out["probes"][name] = {"상태": st, "세부": detail}
+    out["baseline"] = str(baseline_from_env() or "") or None
+    out["mode"] = "full" if all(p["상태"] == "닫힘" for p in out["probes"].values()) else (
+        "부분 (R6_OLD_OUT 미지정 — `R6_OLD_OUT=<bfc4623^ 의 out>` 을 주면 full)"
+        if all(p["상태"] in ("닫힘", "부분") for p in out["probes"].values()) else "실패")
     text = json.dumps(out, ensure_ascii=False, indent=2)
     print(text)
     if a.output:
         a.output.write_text(text + "\n", encoding="utf-8")
-    return 0 if all(p["상태"] == "닫힘" for p in out["probes"].values()) else 1
+    return 0 if out["mode"] != "실패" else 1
 
 
 if __name__ == "__main__":

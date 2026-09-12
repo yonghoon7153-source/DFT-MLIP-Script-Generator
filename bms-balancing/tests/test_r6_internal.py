@@ -813,9 +813,12 @@ def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(t
     (new / "degeneracy_300_0009_Li.json.meta.json").write_text(json.dumps(
         {k: "v" for k in ("run_id", "sha256", "artifact", "env", "started_utc", "git_commit_at_start")}
         | {"git_state_changed_during_run": False}), encoding="utf-8")
-    r = _u14_run(old, new)
+    r = _u14_run(old, new, "--baseline-policy", "historical")        # 옛 커밋의 out/ 을 손으로 푼 경우 (Codex R7-04)
     assert r.returncode == 0, (r.returncode, r.stdout)               # v2 와 같으므로 숫자는 안 움직였다
     assert "_v2" in r.stdout and "정본에 없던 필드" in r.stdout, r.stdout
+    # 같은 디렉터리라도 **현행 정책**(기본)에서는 `_v2` 를 쓰지 않는다 — 그래서 v1 과 대조해 숫자가 움직인다
+    cur = _u14_run(old, new)
+    assert "current" in cur.stdout and "쓰지 않았다" in cur.stdout and cur.returncode == 1, (cur.returncode, cur.stdout)
 
 
 def test_i6w_04_renormalize_resigns_only_when_the_cells_are_identical(tmp_path):
@@ -963,6 +966,7 @@ def _hook_open(monkeypatch, target_name, k, on_k):
                 on_k()
         return real(file, mode, *a, **kw)
     monkeypatch.setattr(_io, "open", fake); monkeypatch.setattr(builtins, "open", fake)
+    return n                                                              # 훅이 몇 번째 읽기까지 갔는지 (주입 확인용)
 
 
 def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeypatch):
@@ -975,24 +979,42 @@ def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeyp
     끼든 결과는 A/A · B/B · 명시적 미완 뿐이어야 한다 (A/B 나 검증 안 한 B 의 성공 소비 금지).
     """
     W_DEG = {"attempt-A": 1.0, "attempt-B": 20.0}; W_MAT = {"attempt-A": 3.0, "attempt-B": 79.0}
+
+    def setup(out, kind, how):
+        if kind == "deg":
+            _c6_deg(out, "attempt-A", W_DEG["attempt-A"])
+            return lambda: _c6_deg(out, "attempt-B", W_DEG["attempt-B"], meta=True)
+        _c6_matrix(out, "attempt-A", W_MAT["attempt-A"])
+        return lambda: _c6_matrix(out, "attempt-B", W_MAT["attempt-B"], meta=(how == "full"))
+
+    def read(out, kind):
+        m = _cs()
+        return m.load_degeneracy(out) if kind == "deg" else m.load_matrix_axis(out)
+
+    # ⚠ Codex R7 §4: 전 판은 k 를 1~4 로 **가정**했는데 degeneracy 데이터는 한 번만 열린다 — k≥2 인 건들은 훅이
+    #   아예 안 걸린 채 통과했다. 경계 수를 먼저 **세고** 그 수만큼만 돈다 (그리고 매 건 주입을 확인한다).
     cases = []
-    for k in (1, 2, 3, 4):
-        cases += [("deg", "degeneracy_100_Li.json", k, "full"), ("mat", "matrix_100.csv", k, "csv-only"),
-                  ("mat", "matrix_100.csv", k, "full")]
-    cases += [("deg", "degeneracy_100_Li.json.meta.json", 1, "full"), ("mat", "matrix_100.csv.meta.json", 1, "full")]
+    for kind, target, how in (("deg", "degeneracy_100_Li.json", "full"),
+                              ("mat", "matrix_100.csv", "csv-only"), ("mat", "matrix_100.csv", "full"),
+                              ("deg", "degeneracy_100_Li.json.meta.json", "full"),
+                              ("mat", "matrix_100.csv.meta.json", "full")):
+        probe = tmp_path / f"probe-{len(cases)}"; probe.mkdir()
+        setup(probe, kind, how)
+        with monkeypatch.context() as mp:
+            counter = _hook_open(mp, target, 10 ** 6, lambda: None)
+            read(probe, kind)
+        n_reads = counter["v"]
+        assert n_reads >= 1, (kind, target, how)
+        cases += [(kind, target, k, how) for k in range(1, n_reads + 1)]
     seen = set()
     for i, (kind, target, k, how) in enumerate(cases):
         out = tmp_path / f"c{i}"; out.mkdir()
-        if kind == "deg":
-            _c6_deg(out, "attempt-A", W_DEG["attempt-A"])
-            pub_b = lambda o=out: _c6_deg(o, "attempt-B", W_DEG["attempt-B"], meta=True)
-        else:
-            _c6_matrix(out, "attempt-A", W_MAT["attempt-A"])
-            pub_b = lambda o=out, h=how: _c6_matrix(o, "attempt-B", W_MAT["attempt-B"], meta=(h == "full"))
+        pub_b = setup(out, kind, how)
         with monkeypatch.context() as mp:
-            _hook_open(mp, target, k, pub_b)
-            m = _cs()
-            got = m.load_degeneracy(out) if kind == "deg" else m.load_matrix_axis(out)
+            fired = _hook_open(mp, target, k, pub_b)
+            got = read(out, kind)
+        # 주입이 실제로 일어났는지 **건별로** 확인한다 — 안 그러면 훅을 꺼도 통과한다 (Codex R7 §4)
+        assert fired["v"] >= k, (kind, target, k, how, fired["v"])
         if "100" not in got:
             seen.add("미완"); continue                                   # 명시적 미완 — 허용
         e = got["100"]
@@ -1001,7 +1023,18 @@ def test_c6_01_readers_consume_only_the_snapshot_they_verified(tmp_path, monkeyp
         assert e.get("meta") and e["meta"]["run_id"] == rid, (kind, target, k, how, rid, e.get("meta"))
         assert width == (W_DEG if kind == "deg" else W_MAT)[rid], (kind, target, k, how, rid, width)
         seen.add(rid)
-    assert {"attempt-A", "attempt-B"} & seen, seen                        # 훅이 실제로 두 결과를 다 만들었다
+    # 주입 지점은 전부 **읽기 직전**이라 이 묶음에서 살아남는 것은 B/B 아니면 명시적 미완이다. A/A 는 (a) 아무도
+    # 안 끼어든 대조군과 (b) 검증이 **끝난 뒤** 게시하는 순서에서 나온다 — 후자는 적응판 replay 의 `검증_후_게시`.
+    assert {"attempt-B", "미완"} <= seen, seen
+    for kind, how in (("deg", "full"), ("mat", "full")):
+        out = tmp_path / f"ctl-{kind}"; out.mkdir()
+        setup(out, kind, how)
+        got = read(out, kind)                                             # 대조군: 아무도 안 끼어들면 A/A
+        e = got["100"]
+        rid = e["j"]["run_id"] if kind == "deg" else e["run_id"]
+        assert rid == "attempt-A" and e["meta"]["run_id"] == "attempt-A", (kind, rid, e.get("meta"))
+        seen.add(rid)
+    assert {"attempt-A", "attempt-B", "미완"} <= seen, seen                # 세 결과가 다 관측됐다
 
 
 def test_c6_02_modern_artifact_without_meta_is_incomplete_not_legacy(tmp_path):

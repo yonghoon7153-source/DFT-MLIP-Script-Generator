@@ -182,6 +182,10 @@ def build(root: Path, source: str, state: str, si_source: str,
                     use_peak_weight=use_peak_weight, scale_seed=scale_seed)
     # ⚠ R6 내부 F4: 풀셀 워크북은 폴더의 이름순 첫 xlsx 라 사본 하나로 조용히 바뀌는데 이름·sha256 이 어디에도
     #   없었다 (R5-05 는 ne_shape 만). 소비한 입력 셋의 identity 를 Objective 가 들고 다니고 산출마다 적는다.
+    # ⚠ Codex R7-02: 잡음 진단은 **원시** capacity/voltage 가 필요한데 (Objective 는 평균·정규화한다) 전 판은
+    #   경로를 다시 열어 다시 읽었다 — 그 사이 정상 재-export 가 있으면 분자는 A 의 부적합, 분모는 B 의 σ 가 된다.
+    #   같은 snapshot 의 원시 배열을 여기서 들려 보낸다.
+    obj.full_cell_raw = (c, v)
     obj.consumed_inputs = {"half_cell": hb.identity(), "full_cell": fc_id, "literature": lit_id}
     obj.inputs_sha = inputs_digest(obj.consumed_inputs)
     return obj
@@ -1380,6 +1384,11 @@ def cmd_matrix(args):
                 rows.append({
                     "half_cell": hc, "si": si, "w_dqdv": w, "run_id": run_id_of(args),
                     "inputs_sha": getattr(o, "inputs_sha", None),   # R6 내부 F4: 소비 입력 identity
+                    # ⚠ Codex R7-03: 행은 **기준 적합도** 소비한다. 기준 전용 입력(pristine 반쪽전지)만 바뀌어도
+                    #   LAM 이 움직이는데 서명은 대상 것뿐이라 두 실행의 행을 구분할 수 없었다. 양쪽을 남긴다.
+                    "ref_inputs_sha": getattr(ro, "inputs_sha", None),
+                    "consumed_inputs": json.dumps(getattr(o, "consumed_inputs", None), ensure_ascii=False),
+                    "ref_consumed_inputs": json.dumps(getattr(ro, "consumed_inputs", None), ensure_ascii=False),
                     # ⚠ Codex R5-07: 이 조합이 scale 동치 영역 안인지는 행이 스스로 말해야 한다
                     "scale_seed": args.seed, "n_scale_samples": getattr(o, "n_scale_samples", None),
                     "scale_pocv_target": o.scales.get("pocv"), "scale_dvdq_target": o.scales.get("dvdq"),
@@ -1548,13 +1557,21 @@ def cmd_profile(args):
                      "n_ok": n_ok, "n_tried": n_tried, "run_id": run_id_of(args),
                      # R6 내부 F5: 같은 run_id·같은 스키마에 숫자만 달랐던 인자와 소비 입력 identity 를 행에
                      "profile_scale": "per-gamma" if per_gamma_scale else "global",
-                     "inputs_sha": getattr(obj, "inputs_sha", None)})
+                     "inputs_sha": getattr(obj, "inputs_sha", None),
+                     # ⚠ Codex R7-03: LAM 은 기준 적합에도 달려 있다 — 기준 입력이 바뀌면 행이 움직이므로 그
+                     #   서명을 같이 적는다. 전체 identity 는 아래 summary 에 한 벌 (행마다 되풀이하지 않는다).
+                     "ref_inputs_sha": getattr(ref, "inputs_sha", None)})
         print(json.dumps(rows[-1], ensure_ascii=False, default=float), flush=True)
 
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]
     obj.scales = global_scales
     summary = {"state": args.state, "si_source": args.si_source,
                "half_cell": args.source, "best_obj": best_val,
+               # Codex R7-03: 이 실행이 실제로 소비한 대상·기준 입력 (행의 `inputs_sha`·`ref_inputs_sha` 의 원본)
+               "consumed_inputs": getattr(obj, "consumed_inputs", None),
+               "ref_consumed_inputs": getattr(ref, "consumed_inputs", None),
+               "inputs_sha": getattr(obj, "inputs_sha", None),
+               "ref_inputs_sha": getattr(ref, "inputs_sha", None),
                "profile_scale": "per-gamma" if per_gamma_scale else "global",
                "ratio_comparable_across_rows": not per_gamma_scale,
                "scale_note": (
@@ -1700,7 +1717,8 @@ def cmd_noise(args):
     obj = build(root, args.source, args.state, args.si_source,
                 w_dqdv=args.w_dqdv, scale_seed=args.seed)
 
-    cap_raw, vol_raw = D.load_full_cell(root, args.state)
+    # ⚠ Codex R7-02: 경로를 다시 열지 않는다 — `build` 가 적합에 쓴 **그 bytes** 의 원시 배열을 그대로 쓴다.
+    cap_raw, vol_raw = obj.full_cell_raw
     cap_ad, vol_ad = average_duplicates(cap_raw, vol_raw)
     order = np.argsort(cap_ad)
     v_ad = vol_ad[order]
@@ -1728,6 +1746,9 @@ def cmd_noise(args):
         "misfit_over_sigma_if_raw_data": misfit / s_k1 if s_k1 > 0 else float("inf"),
         "diagnosis": diag,
         "best_p": [float(x) for x in best], "best_obj": float(best_val),
+        # 분자(부적합)와 분모(σ)가 **같은 입력**에서 나왔다는 것을 산출이 스스로 말한다 (Codex R7-02)
+        "consumed_inputs": getattr(obj, "consumed_inputs", None),
+        "inputs_sha": getattr(obj, "inputs_sha", None),
     }
     # lag-1 자기상관은 **단독으로는 판정 못 한다** (noise_diagnosis 머리말).
     # 판정은 스트라이드 스캔이 한다. 자기상관은 참고로만 남긴다.

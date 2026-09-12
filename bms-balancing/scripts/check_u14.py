@@ -31,13 +31,23 @@ JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
 ROW_SKIP = {"run_id", "inputs_sha", "scale_audit_target", "scale_audit_ref"}
 
 
-def baseline_for(new_file: pathlib.Path, old: pathlib.Path) -> pathlib.Path | None:
-    """`new_file` 에 대응하는 **옛 정본** — `old` 가 옛 리비전(`--old-rev`) 이면 같은 이름이 아니라 가장 높은 판이다
-    (`_v2` 가 있으면 그것). 현행 out/ 은 unversioned 하나가 정본이고 `_vN` 은 `out/archive/` 로 간다 (Codex R6-04) —
-    이 규칙은 **옛 리비전을 읽을 때만** 뜻이 있다.
+#: 정본 선택 정책 — 두 규칙은 **호출 모드로** 갈린다 (Codex R7-04). docstring 으로만 갈라 두면 현행 디렉터리에도
+#: 역사 규칙이 걸린다: 현행 독자는 `_v2` 를 경고·제외하고 A 를 쓰는데 이 도구는 `_v2`(B) 를 골라 "전부 같다" rc 0 을
+#: 냈다 (`_v2` 를 지우면 같은 대조가 차이 2 건 rc 1). `--old-rev` 로 **명시한 역사 리비전**에서만 최고판을 쓴다.
+POLICY = {"current": "현행 디렉터리 — 정본은 unversioned 이름 하나, 판 번호가 붙은 형제는 쓰지 않는다 (Codex R6-04·R7-04)",
+          "historical": "역사 리비전 — 그 커밋 당시의 정본, 즉 가장 높은 판 (`--old-rev` 로 명시했을 때만)"}
+
+
+def baseline_for(new_file: pathlib.Path, old: pathlib.Path, policy: str = "current",
+                 stale: list | None = None) -> pathlib.Path | None:
+    """`new_file` 에 대응하는 옛 정본. `policy`:
+
+    - `current`   : 같은(unversioned) 이름 하나. `_vN` 형제는 **쓰지 않고** `stale` 에 적어 보고한다.
+    - `historical`: 그 리비전 당시의 정본 = 가장 높은 판 (`_v2` 가 있으면 그것).
 
     ⚠ U14-02: 전 판은 이름으로만 골라 `degeneracy_300_0009_Li.json`(v1, 힌트 격자 이전)과 댔다. 그 리비전의 정본은
       `_v2` 였고, 그래서 재실행이 v2 를 그대로 재현했는데도 span 0.0908 → 2.5826 이 "숫자가 움직였다" 로 나왔다.
+    ⚠ Codex R7-04: 그 규칙이 현행 디렉터리에도 걸려 있었다 — 그래서 정책을 **인자로** 받는다 (주석이 아니라).
     """
     stem, suffix = new_file.stem, new_file.suffix
     base = VER.sub("", stem)
@@ -49,6 +59,10 @@ def baseline_for(new_file: pathlib.Path, old: pathlib.Path) -> pathlib.Path | No
         if st != base:
             continue
         m = VER.search(f.stem)
+        if m and policy == "current":
+            if stale is not None:
+                stale.append(f.name)
+            continue
         cands.append((int(m.group(1)) if m else 1, f))
     return max(cands)[1] if cands else None
 
@@ -88,8 +102,8 @@ def _num_diff(a, b, path="", added=None):
     return out
 
 
-def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
-    missing, diffs, seen, added, paired = [], [], 0, [], []
+def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy: str = "current"):
+    missing, diffs, seen, added, paired, stale = [], [], 0, [], [], []
     # ⚠ `.meta.json` 은 산출이 아니다 — `degeneracy_*.json` glob 이 `degeneracy_100_Li.json.meta.json` 까지
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
     arts = [f for f in sorted(new.glob("degeneracy_*.json")) + sorted(new.glob("matrix_*.csv"))
@@ -112,7 +126,7 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
             missing += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
         if schema_only or old is None:
             continue
-        o = baseline_for(f, old)
+        o = baseline_for(f, old, policy, stale)
         if o is None:
             diffs.append((f.name, "정본에 없음", "새 파일만 있다")); continue
         paired.append((f.name, o.name))
@@ -132,7 +146,7 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False):
                 added += [f"{f.name}:{c}" for c in sorted(set(B[k]) - set(A[k]) - ROW_SKIP)]
                 for c in sorted(set(A[k]) & set(B[k]) - ROW_SKIP):
                     diffs += [(f"{f.name}:{k}:{c}", x, y) for _, x, y in _num_diff(A[k][c], B[k][c])]
-    return seen, missing, diffs, sorted(set(added)), paired
+    return seen, missing, diffs, sorted(set(added)), paired, sorted(set(stale))
 
 
 def renormalize(new: pathlib.Path) -> int:
@@ -223,6 +237,10 @@ def main() -> int:
                          "덮었을 때. 손으로 `git show` 를 엮지 않게 한다")
     ap.add_argument("--schema-only", action="store_true", help="숫자 대조 없이 새 스키마만")
     ap.add_argument("--max-show", type=int, default=20)
+    ap.add_argument("--baseline-policy", choices=("auto", "current", "historical"), default="auto",
+                    help="정본 선택 규칙 (Codex R7-04). auto = `--old-rev` 면 historical, 아니면 current. "
+                         "옛 커밋의 out/ 을 **손으로 풀어** `--old` 로 줄 때는 historical 을 명시할 것 — 그 시절 "
+                         "정본은 가장 높은 `_vN` 이다 (U14-02)")
     ap.add_argument("--renormalize", action="store_true",
                     help="U14-01 뒷수습: CRLF 로 게시된 CSV 를 LF 로 고치고 meta 를 다시 서명한다 "
                          "(파싱한 셀이 완전히 같을 때만 — 아니면 그 파일은 건드리지 않는다)")
@@ -241,11 +259,17 @@ def main() -> int:
         print(f"정본을 `{a.old_rev}` 에서 읽었다 — 산출 {n} 개")
         if not n:
             print("! 그 커밋의 out/ 이 비었다 — 리비전이 맞나?"); return 2
-    seen, missing, diffs, added, paired = check(new, old, a.schema_only)
+    policy = a.baseline_policy if a.baseline_policy != "auto" else ("historical" if a.old_rev else "current")
+    seen, missing, diffs, added, paired, stale = check(new, old, a.schema_only, policy)
     print(f"산출 {seen} 개 점검 ({new})")
+    if old is not None:
+        print(f"  정본 선택 정책: **{policy}** — {POLICY[policy]}")
     for n, o in paired:
         if n != o:
-            print(f"  정본 선택: {n} ↔ **{o}** (가장 높은 판 — compare_states 가 표에 쓰는 것과 같은 규칙)")
+            print(f"  정본 선택: {n} ↔ **{o}** ({POLICY[policy].split('— ')[-1]})")
+    if stale:
+        print(f"  ! 정본 디렉터리에 판 번호가 붙은 형제 {len(stale)} 개 — 쓰지 않았다 (`out/archive/` 로 옮길 것): "
+              + ", ".join(stale[:6]))
     if not seen:
         print("! 점검할 산출이 없다 — 경로가 맞나?"); return 2
     if missing:

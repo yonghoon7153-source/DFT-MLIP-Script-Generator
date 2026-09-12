@@ -27,7 +27,7 @@ MODES = ("LAM_PE", "LAM_NE", "LLI")
 VER = re.compile(r"_v(\d+)$")   # `_vN` = 옛 판 (역사 자료) — 정본이 아니다 (Codex R6-04)
 
 
-def _canon_files(d: pathlib.Path, pattern: str):
+def _canon_files(d: pathlib.Path, pattern: str, excluded: list | None = None):
     """정본은 **unversioned 이름 하나**다. `_vN` 이 붙은 파일이 out/ 에 남아 있으면 시끄럽게 건너뛴다.
 
     ⚠ Codex R6-04: "가장 높은 `_vN`" 규칙 때문에 U14 가 정본을 다시 만든 뒤에도 옛 `_v2`(meta 없음)를 골랐다 —
@@ -38,11 +38,13 @@ def _canon_files(d: pathlib.Path, pattern: str):
         if VER.search(f.stem):
             print(f"  ! {f.name}: 판 번호가 붙은 옛 산출 — 정본은 unversioned 이름 하나다; `out/archive/` 로 옮길 것 "
                   f"(Codex R6-04)", file=sys.stderr)
+            if excluded is not None:
+                excluded.append((f.name, "판 번호가 붙은 옛 산출 (정본 아님)"))
             continue
         yield f
 
 
-def _read_unit(f: pathlib.Path):
+def _read_unit(f: pathlib.Path, excluded: list | None = None):
     """산출 bytes 와 meta 를 한 번씩 읽어 서로 대조한 snapshot → (data, meta). 소비 금지면 (None, None).
 
     ⚠ R6 내부 F07 · Codex R6-01·02: 경로를 따로 검사하고 따로 읽으면 그 사이 끼어든 정상 게시가 검사를 통과해
@@ -53,36 +55,42 @@ def _read_unit(f: pathlib.Path):
     ok, why, data, meta = read_unit(f)
     if ok is False:
         print(f"  ! {f.name}: 묶음 불일치/미완 ({why}) — 표에서 뺀다 (R6 내부 F07 · Codex R6-01·02)", file=sys.stderr)
+        if excluded is not None:
+            excluded.append((f.name, why))
         return None, None
     return data, meta
 
 
-def load_degeneracy(d: pathlib.Path) -> dict:
+def load_degeneracy(d: pathlib.Path, excluded: list | None = None) -> dict:
+    """⚠ Codex R7-01: 뺀 것은 **세어서 돌려줘야** 한다. `excluded` 를 주면 (파일, 이유) 가 쌓인다 — 집계가 "몇 개 중
+    몇 개를 봤는가" 를 말할 수 있어야 남은 부분집합을 전체처럼 인증하지 않는다."""
     out = {}
-    for f in _canon_files(d, "degeneracy_*.json"):
+    for f in _canon_files(d, "degeneracy_*.json", excluded):
         m = re.match(r"degeneracy_(.+)_([A-Za-z]+)$", f.stem)
         if not m:
             continue
-        data, meta = _read_unit(f)
+        data, meta = _read_unit(f, excluded)
         if data is None:
             continue
         try:
             j = json.loads(data.decode("utf-8"))
         except json.JSONDecodeError:
             print(f"  ! {f.name} 이 JSON 이 아니다 — 중간에 죽은 산출인가?", file=sys.stderr)
+            if excluded is not None:
+                excluded.append((f.name, "JSON 이 아니다"))
             continue
         out[m.group(1)] = {"si": m.group(2), "j": j, "file": f.name, "meta": meta,
                            "run_id": j.get("run_id")}
     return out
 
 
-def load_matrix_axis(d: pathlib.Path) -> dict:
+def load_matrix_axis(d: pathlib.Path, excluded: list | None = None) -> dict:
     """`matrix_<state>.csv` 에서 **한 축만** 꺼낸다: 반쪽전지 하나 · dQ/dV 끔 · Si 8 종."""
     import io
     out = {}
-    for f in _canon_files(d, "matrix_*.csv"):
+    for f in _canon_files(d, "matrix_*.csv", excluded):
         st = f.stem[len("matrix_"):]
-        data, meta = _read_unit(f)
+        data, meta = _read_unit(f, excluded)
         if data is None:
             continue
         all_rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
@@ -119,11 +127,20 @@ def main() -> int:
     print("=" * 78)
     print("A. 근최적 집합 위의 폭 — **모델을 고정**했을 때 데이터가 못 가르는 만큼")
     print("=" * 78)
+    # ⚠ Codex R7-01: 이 플래그는 True 로 시작해서, 반례인 상태가 **미완으로 빠지면** "예" 로 뒤집혔다 (rc 0).
+    #   독자가 미완을 정확히 거부하는 것과, 남은 부분집합을 전체처럼 인증하는 것은 다른 문제다. 후보·검증·제외를
+    #   세고, 제외가 있거나 관측이 0 이면 전체 판정을 내지 않는다 (종료 코드도 그것을 말한다).
     ok_llI_narrowest = True
+    census = {"candidates": 0, "verified": 0, "excluded": []}
     for label, d in roots.items():
-        deg = load_degeneracy(d)
+        exc: list = []
+        deg = load_degeneracy(d, excluded=exc)
+        census["candidates"] += len(deg) + len(exc)
+        census["verified"] += len(deg)
+        census["excluded"] += [(label, n, why) for n, why in exc]
         if not deg:
-            print(f"\n[{label}] {d} — degeneracy 산출 없음"); continue
+            print(f"\n[{label}] {d} — degeneracy 산출 없음"
+                  + (f" (제외 {len(exc)})" if exc else "")); continue
         print(f"\n[{label}] {d}")
         srcs = set()
         # ⚠ 2026-09-11 Codex R2-04: `best ± span/2` 는 best 를 중점처럼 보이게 한다.
@@ -160,7 +177,9 @@ def main() -> int:
     print("B. 모델 선택(Si 8 종)이 만드는 폭 — **다른 축**이다. 위와 합치지 말 것")
     print("=" * 78)
     for label, d in roots.items():
-        mx = load_matrix_axis(d)
+        mx_exc: list = []
+        mx = load_matrix_axis(d, excluded=mx_exc)
+        census["excluded"] += [(label, n, why) for n, why in mx_exc]
         if not mx:
             print(f"\n[{label}] matrix 산출 없음"); continue
         print(f"\n[{label}]")
@@ -177,6 +196,24 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("판정")
     print("=" * 78)
+    n_cand, n_ok, exc = census["candidates"], census["verified"], census["excluded"]
+    print(f"  대조에 쓴 degeneracy 산출: **{n_ok}/{n_cand}** (제외 {len(exc)})")
+    for label, name, why in exc:
+        print(f"    - [{label}] {name}: {why}")
+    if exc or not n_ok:
+        # 반례가 빠진 채 "예" 를 내면 그것이 곧 오인증이다 (Codex R7-01). 부분집합에서 본 것은 범위를 붙여 말한다.
+        # 판정 줄의 머리는 그대로 둔다 (도구가 이 줄을 잡는다) — 다만 **절대 "예" 로 끝나지 않는다**
+        if n_ok:
+            print(f"  A 축에서 LLI 가 **항상 가장 좁은가**: **미완** — 제외 {len(exc)} 건이 있어 전체 조건을 "
+                  f"말할 수 없다. 관측한 {n_ok}/{n_cand} 개 안에서는 LLI 가 "
+                  f"{'항상 가장 좁았다' if ok_llI_narrowest else '**항상 가장 좁지는 않았다**'} (그 범위의 진술이다).")
+        else:
+            print("  A 축에서 LLI 가 **항상 가장 좁은가**: **미완** — 검증된 관측이 0 개다 "
+                  "(빈 디렉터리이거나 전부 제외됐다).")
+        print("  미완을 닫는 법: 제외된 산출의 게시를 끝내거나(meta 포함) 다시 돌린 뒤 이 명령을 다시 부른다.")
+        print("  ⚠ 상대 불확실성(폭/최적값)은 열화가 쌓이면 분모가 커져 작아진다.")
+        print("     상태를 가로질러 말할 때는 **절대 폭(%p)** 으로 말할 것.")
+        return 2                                    # 2 = 미완 (eval --compare 와 같은 뜻)
     print(f"  A 축에서 LLI 가 **항상 가장 좁은가**: "
           f"{'예' if ok_llI_narrowest else '**아니오** — 상태에 따라 뒤집힌다'}")
     print("  ⚠ 상대 불확실성(폭/최적값)은 열화가 쌓이면 분모가 커져 작아진다.")
