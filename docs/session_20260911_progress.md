@@ -197,3 +197,41 @@ VGCF 는 항상 1-voxel tube 라 실제 Ø0.15 µm 대비 단면이 `h = .15/.20
 v2 헤더 표는 `phase_a_plan.py` 를 **폐기(실행 거부)** 로 적고 *"정본은 킷 `run_mpm.sh`"* 라
 하는데, 같은 문서 §8-1 은 그 도구를 **실행 도구 3종의 하나**로 적고 `--emit sh` 사용법까지
 보여준다.  ⇒ 어느 쪽이 정본인지 확정하고 한쪽을 지워야 한다.
+
+## 9. Codex 적대 리뷰 — 어댑터가 P1 8건으로 기각됐다 (2026-09-12 저녁)
+
+판정 전문 = `docs/reviews/codex_verdict_phase_a_adapter_20260912.md` · 원장 `PA12-01~09`.
+**결론: 현재 어댑터를 판정용 입력의 검증 경계로 신뢰할 수 없다.**
+⚠ 런 계획은 안 바뀐다 — 기존 32팔이 잘못 계산됐다는 뜻이 아니고 (σ·vox·shift·라벨 대조
+불일치 0 · protocol ID 32/32 · receipt 32/32 재현), 돌고 있는 h020·h025 도 그대로 간다.
+
+### 가장 아픈 것 — 전부 **규율 ① 위반**
+`conv_ok` · `receipt_match` · `protocol_ok` · `expected_origins_for` 가 `run_contract.py` 에
+**이미 있는데** 부르지 않고 새로 짰다.  그 결과:
+- 생산자가 잔차를 **`cg_resid`** 로 쓰는데 `CONV_KEYS` 에 없어 **잔차를 버렸다**.  게다가
+  manifest 가 step3 의 `unconverged=True` 를 **덮어쓴다**.
+- receipt 만 보고 payload 와 대조를 안 해 **p1 plate 팔도 통과**한다.
+- origin 이 그 h 의 `{0,h/2}³` 인지 검사하지 않아 **잘못된 격자의 shift 를 8팔로 승인**하고,
+  receipt 번호 둘만 바꾸면 `UNRESOLVED` → `ROBUST` 로 **뒤집힌다**.
+- `role` 이 항상 `primary` 라 **QC 를 넣으면 primary 를 덮어쓴다** ⇒ ⛔ QC 변환은 수정 후에.
+- 음성대조 ⑨ 가 **장식**이었다 (origin 검사를 퇴행시켜도 15/15).  셈도 틀렸다 —
+  11개가 아니라 정상 5 + 음성대조 10.
+
+### 내 오진 정정
+요청서의 *"STEP2 에도 `add_rng_per_phase` 기록 코드가 없다"* 는 **틀렸다**.
+`mpm3d_compaction.py:2156`(시딩)·`:3448`(metrics 기록)에 있다.  끊긴 곳은 **STEP3 manifest 로의
+전달**이다.
+
+### ★ 잔차 회수 — 러너 로그에 살아 있었다
+내가 오후에 payload 4.6 GB 를 지워 `cg_resid` 가 사라졌는데, `~/pa/phaseA_h015.log` 에
+`STEP3 σ_e_eff = …` 줄이 **정확히 32개** 남아 있었다.  전수 보존 =
+`docs/data/phase_a_h015_arms/resid_from_runner_log_20260912.tsv`.
+**잔차 전부 `[9.8e-09, 1.0e-08]`** · `n_dof` 32개 전부 유일하고 8개씩 네 무리
+(46.9/48.1/49.3/50.5 M)로 갈려 VGCF 1<2<3<4 wt% 와 단조 대응 · 합 22.6 h · **42 분/팔**.
+⛔ 그러나 **팔별 귀속은 안 된다** — 로그의 σ 는 봉인돼 있고 팔 JSON 에 dof 가 없다.
+⇒ Codex 후속 질문 **Q7** 로 등록 (요청서 §7): batch-level 잔차를 이관 증서로 쓸 수 있나,
+아니면 0.15 재실행(22.6 h)인가.  **내가 지운 탓을 내가 면제할 수 없어 스스로 정하지 않는다.**
+
+### 재발 방지 (적용 중)
+⛔ `~/pa/phaseA_h020` · `~/pa/phaseA_h025` 는 **변환·검증이 끝나기 전에 지우지 않는다.**
+수정된 어댑터는 `cg_info`·`unconverged`·`cg_resid` 셋을 **손실 없이** 옮긴다.
