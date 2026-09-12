@@ -123,6 +123,77 @@ Clamped-ion(원자 고정)은 argyrodite 탄성을 ~2.3× 과대평가(comp1 cla
 
 > B0(hydrostatic)는 elastic B_VRH(harmonic)와 다른 양 — 둘 다 보고하되 혼동 금지 (comp1 B_VRH 25.51 vs B0_EOS 26.23).
 
+### 3-1. 🆕 왜 **고정셀 + EOS** 인가 — vc-relax 를 쓰지 않는 진짜 이유 (2026-09-13 정리)
+
+이 캠페인은 **vc-relax 를 쓰지 않는다.** 부피는 등방 스케일 + BM3 E(V) 적합으로 잡고,
+그 V₀ 에서 **이온만** `calculation='relax'` 한다. 규약은 네 곳에 이미 박혀 있다:
+
+| 출처 | 문구 |
+|---|---|
+| `kb/projects/cascade_v23_review_2026_07_11.md:28` | *"파이프라인 v2 원칙: **vc-relax 없음.** … (승격 시) KISTI **고정셀** volume grid"* |
+| `db/compositions/modelc_nd_doped.json:80` | *"**vc-relax NOT used (distorts argyrodite)**"* |
+| `kb/results/b2o3_champion_coordination_2026_06_29.md:13` | *"V₀ 로 셀 등방 스케일 + 이온만 relax … **argyrodite 입방 골격 보존**"* |
+| `db/structures/lpsocl_candidates/README.md:24` | *"**NO vc-relax, DFT = fixed-cell only**"* |
+
+**⚠ 그런데 "cubic 구조를 보존하려고" 는 이유의 절반이다.** 더 정확한 이유는 이것이다 —
+
+> **우리 셀은 애초에 cubic 이 아니다.** 진짜 Li₆PS₅Cl 이 cubic 인 것은 Li 가 48h/24g 를
+> **동적으로** 돌아다녀 **시간평균**이 cubic 이기 때문이다. 0 K 정적 계산에 Li 배치 하나를
+> 얼려 넣으면 그 구성이 cubic 일 이유가 없다. vc-relax 를 걸면 **그 스냅숏의 최소점**으로 가고,
+> 그러면 셀 뒤틀림은 *"어떤 배치를 골랐나"* 의 인공물이 된다.
+
+⇒ 셀 고정은 **구조가 가진 대칭의 보존**이 아니라, **정적 계산이 알 수 없는 평균 대칭을
+사람이 넣어 주는 것**이다. 그리고 이 서술은 우리 원장이 이미 받치고 있다 —
+`db/properties/elastic.json` 의 `_Zener_A_convention` 이 *"The cell is not perfectly cubic,
+so the three symmetry-equivalent estimates differ"* 라 적고, comp1 relaxed 의 대칭동등
+삼중항이 **1.144 / 0.751 / 0.918** 로 갈린다(산포가 인용하려던 문헌 간극 0.17 보다 크다).
+
+**EOS 경로는 타협이 아니라 정공법이다.** 등방 스케일 + E(V) BM 적합은 *cubic 을 강제한 채
+셀을 최적화하는 것*과 같은 일인데, 유한 기저에서 응력을 직접 최소화할 때 생기는
+**Pulay stress** 를 피해 간다 (ecutwfc 60 USPP 에서 vc-relax 로 부피를 찾으면 그 함정에 걸린다).
+
+#### 대가 — **잔류 편차응력**. 없앨 수 없고, 그러니 적는다
+
+고정셀의 대가는 **편차(deviatoric) 응력이 남는 것**이다. 등방 성분은 EOS 가 0 으로 맞추지만
+전단은 남는다 — 없애려면 cubic 을 깨야 하기 때문이다.
+
+**실측 (comp1_V0_k444, 2026-09-13):** 평균압 **−0.002 GPa**(등방은 0) 인데
+편차성분 **±1.3 GPa**, **yz 전단 1.08 GPa**.
+출처 `db/properties/static_pair_dft_2026_09_13.json` `응력_GPa` — ⚠ 이 기록은 아직
+**`status: proposed`**(1저자 비준 전)다. 값은 실측이고 산술은 확인됐으나 **정본이 아니다.**
+comp1 relaxed-ion **C₄₄ = 18.98 GPa**(`elastic.json`) 로 나누면 **전단변형 ~5.7 % 어치**다 — 작지 않다.
+
+⛔ 이것은 **고칠 결함이 아니라 명시할 사실**이다. 값을 인용할 때 "0 GPa 완화" 라고 쓰면
+**등방 성분만**을 뜻한다고 좁혀 읽어야 한다.
+
+> 곁가지 관측: 같은 기하에서 **UMA 가 그 편차응력을 0.193 GPa 안에서 재현**한다
+> (전단 1.057 vs 1.080 GPa). 대리모델이 **방법 자신의 인공물까지 따라간다**는 뜻이고,
+> 파이프라인 내부용 대리모델로는 바람직한 성질로 읽을 여지가 있다 — 단 이 해석은
+> 외부 리뷰(회신 BP Q4)에 물어 둔 상태다.
+
+#### ★ 이 대가가 실제로 무는 자리 — **탄성 Cij**
+
+편차응력을 진 기준상태에서 stress–strain 으로 Cij 를 뽑으면 그것은 **표준 Cij 가 아니다.**
+응력을 진 기준계에는 보정항(Wallace 류)이 붙는데 관행적으로 무시된다. 1 GPa 는 무시하기에
+애매한 크기다.
+
+그리고 이것이 **b2o3 전단 실패와 겹친다.** `elastic.json` 은 원인을 이렇게 적었다 —
+*"SHEAR BROKEN: ±shear relaxed into **DIFFERENT local minima** of the disordered 128-atom cell
+→ C66 collapsed (5.15), eigenvalue **−2.87**, E_VRH −107.7 = unphysical, **WITHHELD**"*.
+
+> ⛔ **그 `−2.87`·`5.15`·`−107.7` 은 인용 불가다** — 원장이 스스로 `WITHHELD` 로 표시한 값이고,
+> 여기서는 *"탄성 계산이 깨졌다"* 는 **사실의 근거로만** 쓴다. b2o3 의 탄성 물성값으로
+> 옮겨 적으면 안 된다. 조성 간 탄성 비교에는 `citation_hazards.json` 의
+> **`HZ-elastic-cross-composition` (CONDITIONAL)** 도 함께 걸린다.
+
+기준상태가 이미 전단응력을 지고 있으면
+±변형이 서로 다른 골로 굴러가기 **더 쉬워진다.** 둘은 경쟁 가설이 아니라 **겹치는 메커니즘**이다.
+
+⇒ **gabia `el`(modelc_2x) 이 "셀이냐 조성이냐" 를 가릴 때 세 번째 갈래를 같이 본다:
+"기준상태 편차응력이냐".** 재는 값은 **`V0_relax.out` 의 응력 블록 한 줄**이고 —
+이미 돌아간 계산이라 **추가 계산이 0** 이다. 12점 fit 때 같이 회수한다.
+
+
 ---
 
 ## 4. Band gap (DFT fixed-occ nscf **eigenvalue** = canonical)
