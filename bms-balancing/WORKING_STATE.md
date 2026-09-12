@@ -48,7 +48,7 @@ V6-09 (음수 rmse 도달 불가). **R5-01 의 MATLAB sprintf 전제는 U15 로 
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 128 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 130 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh
@@ -62,14 +62,16 @@ OUT=out_u14 STATES='100 200 300_0009 300_0147' ./scripts/run_states.sh 2>&1 | te
 
 # ── 3. 대조 — 새 스키마 + 정본과 같은 숫자인가 ───────────────────────────────────────────────────
 python3 scripts/check_u14.py --new out_u14        # 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락
+#    out/ 을 이미 덮었으면 정본을 git 에서 읽는다 (손으로 `git show` 를 엮지 말 것 — `--name-only` 는 트리가 아니다):
+#      python3 scripts/check_u14.py --new out --old-rev <재실행 커밋>^
 #    ★ 1 이면 그것이 발견이다. 계산 경로는 안 고쳤으니 같아야 한다. 출력과 함께 이것도 붙여 줘:
 python3 -c "import json;print(json.load(open('out_u14/matrix_100.csv.meta.json'))['env'])"
 
-# ── 3b. U14-01 뒷수습 (2026-09-12 실행에서 드러남) — 게시된 CSV 가 CRLF 면 LF 로 다시 서명 ────────
+# ── 3b. U14-01 뒷수습 (2026-09-12 실행에서 드러남) — 줄끝 때문에 서명이 깨진 산출을 다시 서명 ──────
 #    writer 가 CRLF 를 썼고 git 은 LF 로 저장한다 → fresh clone 에서 meta 의 sha256 이 안 맞고, reader(F07)가
-#    그 상태를 표에서 뺀다. 지금 코드는 LF 로 쓰지만 **이미 게시된 것**은 이 명령으로 (셀이 같을 때만 다시 서명):
+#    그 상태를 표에서 뺀다. 지금 코드는 LF 로 쓰지만 **이미 게시된 것**은 이 명령으로. 기록된 해시가 지금
+#    bytes 의 줄끝 변형과 맞을 때만 다시 서명하고(=내용이 같다는 증명), 아니면 손대지 않는다.
 python3 scripts/check_u14.py --new out --renormalize
-git diff --stat out/ | tail -3        # 줄끝만 바뀌었으면 git 은 변화를 거의 안 본다 (이미 LF 로 저장돼 있다)
 
 # ── 4. 0 이었을 때만 정본 교체 ───────────────────────────────────────────────────────────────────
 for f in out_u14/*; do mv "$f" out/; done && rmdir out_u14

@@ -141,50 +141,105 @@ def renormalize(new: pathlib.Path) -> int:
     하나라도 다르면 그 파일은 건드리지 않는다 — 그때는 재실행이 답이다. 무엇을 했는지는 meta 에 적는다.
     """
     import datetime, hashlib
-    touched, refused = [], []
+    touched, refused, skipped = [], [], []
     for f in sorted(new.glob("*.csv")):
         raw = f.read_bytes()
-        if b"\r\n" not in raw:
-            continue
         lf = raw.replace(b"\r\n", b"\n")
-        before = list(csv.reader(raw.decode("utf-8").splitlines()))
-        after = list(csv.reader(lf.decode("utf-8").splitlines()))
-        if before != after:                         # 줄끝 말고 다른 것이 바뀐다 → 손대지 않는다
-            refused.append(f.name); continue
+        if lf != raw:                               # 디스크가 CRLF 면 먼저 LF 로 (셀이 같을 때만)
+            if list(csv.reader(raw.decode("utf-8").splitlines())) != list(csv.reader(lf.decode("utf-8").splitlines())):
+                refused.append(f"{f.name} (줄끝 말고 다른 것이 바뀐다)"); continue
         m = f.with_name(f.name + ".meta.json")
-        meta = json.loads(m.read_text(encoding="utf-8")) if m.is_file() else None
-        if meta is None or meta.get("sha256") != hashlib.sha256(raw).hexdigest():
-            refused.append(f"{f.name} (meta 가 지금 bytes 를 서명한 것이 아니다)"); continue
+        if not m.is_file():
+            skipped.append(f"{f.name} (meta 없음 — 옛 산출)")
+            if lf != raw:
+                f.write_bytes(lf); touched.append(f"{f.name} (줄끝만, 서명 없음)")
+            continue
+        meta = json.loads(m.read_text(encoding="utf-8"))
+        want = meta.get("sha256")
+        if not want:                                # 옛 meta (R5 이전) — 서명이 없으니 다시 서명할 것도 없다
+            skipped.append(f"{f.name} (옛 meta — sha256 없음)")
+            if lf != raw:
+                f.write_bytes(lf); touched.append(f"{f.name} (줄끝만, 서명 없음)")
+            continue
+        # ⚠ 기록된 해시가 **어느 줄끝**의 것이든, 지금 bytes 의 줄끝 변형 중 하나와 맞으면 "줄끝만 다르다" 가
+        #   증명된다 (git 정규화는 CRLF→LF, Windows 체크아웃은 LF→CRLF — 양쪽 다 본다).
+        crlf = lf.replace(b"\n", b"\r\n")
+        if want not in {hashlib.sha256(x).hexdigest() for x in (raw, lf, crlf)}:
+            refused.append(f"{f.name} (meta 의 sha256 이 줄끝 변형 어느 것과도 안 맞는다 — 내용이 다르다)"); continue
+        if want == hashlib.sha256(lf).hexdigest() and lf == raw:
+            continue                                # 이미 LF 이고 서명도 그것 — 할 일 없음
         f.write_bytes(lf)
         meta["sha256"] = hashlib.sha256(lf).hexdigest()
         meta["bytes_renormalized"] = {
             "what": "CRLF→LF", "why": "U14-01 — writer 가 CRLF 를 썼고 git 은 LF 로 저장한다 (서명이 fresh clone 에서 깨진다)",
-            "verified": "파싱한 셀이 완전히 같다 (줄끝만 다르다)",
+            "verified": "기록된 sha256 이 지금 bytes 의 줄끝 변형과 맞는다 (내용은 같고 줄끝만 다르다)",
             "utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
         m.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         touched.append(f.name)
-    print(f"줄끝 정규화: {len(touched)} 개 다시 서명" + (f" — {', '.join(touched)}" if touched else " (CRLF 인 파일 없음)"))
+    print(f"줄끝 정규화: {len(touched)} 개 처리" + (f" — {', '.join(touched)}" if touched else " (고칠 것이 없다)"))
+    if skipped:
+        print(f"  meta 없는 옛 산출 {len(skipped)} — 서명이 없어 다시 서명할 것도 없다: {', '.join(skipped[:6])}")
     if refused:
-        print(f"! 손대지 않음 {len(refused)} — 줄끝 말고 다른 것이 다르거나 meta 가 안 맞는다: {', '.join(refused)}")
-        print("  그 파일은 재실행이 답이다 (bytes 를 손으로 고치면 서명의 뜻이 사라진다).")
+        print(f"! 손대지 않음 {len(refused)}: {', '.join(refused)}")
+        print("  내용이 다르다는 뜻이다 — 재실행이 답이다 (bytes 를 손으로 고치면 서명의 뜻이 사라진다).")
     return 1 if refused else 0
+
+
+def extract_rev(rev: str, dest: pathlib.Path, repo: pathlib.Path) -> int:
+    """`<rev>` 의 `out/` 을 `dest` 로 꺼낸다 — 정본을 git 에서 직접 읽는다.
+
+    ⚠ 2026-09-12: `git show <rev> --name-only` 는 그 커밋이 **바꾼** 파일을 주지 트리를 주지 않는다. 그걸로
+      정본을 모으면 디렉터리가 비고 전부 "정본에 없음" 으로 나온다. 트리는 `git ls-tree -r` 다.
+    """
+    import subprocess
+    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        names = subprocess.run(["git", "ls-tree", "-r", "--name-only", rev, "--", "out"],
+                               cwd=repo, capture_output=True, text=True, check=True).stdout.split()
+    except subprocess.CalledProcessError as e:
+        print(f"! `{rev}` 를 읽지 못했다: {e.stderr.strip()}"); return 0
+    n = 0
+    for name in names:
+        rel = pathlib.PurePosixPath(name)
+        # `out/` **바로 아래**의 산출만 — `out/bms97/`·`out/recompare/`·`out/cells_*/` 는 다른 축이고,
+        # basename 만 떼면 이름이 부딪친다.
+        if len(rel.parts) != 2 or rel.suffix not in (".json", ".csv"):
+            continue
+        # ⚠ `<rev>:<path>` 는 **저장소 루트** 기준이다. cwd 가 하위 디렉터리면 `:./` 를 써야 여기 기준이 된다.
+        r = subprocess.run(["git", "show", f"{rev}:./{name}"], cwd=repo, capture_output=True)
+        if r.returncode != 0:
+            continue
+        (dest / rel.name).write_bytes(r.stdout); n += 1
+    return n
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--new", required=True, help="재실행 산출 디렉터리 (예: out_u14)")
     ap.add_argument("--old", default="out", help="정본 디렉터리 (기본 out)")
+    ap.add_argument("--old-rev", default=None, metavar="REV",
+                    help="정본을 디렉터리 대신 **git 커밋**에서 읽는다 (예: `HEAD^`) — 재실행이 out/ 을 이미 "
+                         "덮었을 때. 손으로 `git show` 를 엮지 않게 한다")
     ap.add_argument("--schema-only", action="store_true", help="숫자 대조 없이 새 스키마만")
     ap.add_argument("--max-show", type=int, default=20)
     ap.add_argument("--renormalize", action="store_true",
                     help="U14-01 뒷수습: CRLF 로 게시된 CSV 를 LF 로 고치고 meta 를 다시 서명한다 "
                          "(파싱한 셀이 완전히 같을 때만 — 아니면 그 파일은 건드리지 않는다)")
     a = ap.parse_args()
-    new, old = pathlib.Path(a.new), (None if a.schema_only else pathlib.Path(a.old))
+    import tempfile
+    new = pathlib.Path(a.new)
     if not new.is_dir():
         print(f"! {new} 가 없다"); return 2
     if a.renormalize:
         return renormalize(new)
+    old = None if a.schema_only else pathlib.Path(a.old)
+    tmp = None
+    if a.old_rev and not a.schema_only:
+        tmp = tempfile.TemporaryDirectory(); old = pathlib.Path(tmp.name)
+        n = extract_rev(a.old_rev, old, pathlib.Path(__file__).resolve().parents[1])
+        print(f"정본을 `{a.old_rev}` 에서 읽었다 — 산출 {n} 개")
+        if not n:
+            print("! 그 커밋의 out/ 이 비었다 — 리비전이 맞나?"); return 2
     seen, missing, diffs, added, paired = check(new, old, a.schema_only)
     print(f"산출 {seen} 개 점검 ({new})")
     for n, o in paired:

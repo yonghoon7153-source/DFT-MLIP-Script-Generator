@@ -832,3 +832,43 @@ def test_i6w_04_renormalize_resigns_only_when_the_cells_are_identical(tmp_path):
     meta = json.loads((out / "matrix_100.csv.meta.json").read_text(encoding="utf-8"))
     assert meta["bytes_renormalized"]["what"] == "CRLF→LF" and meta["bytes_renormalized"]["utc"], meta
     assert b"\r\n" in stale.read_bytes() and "matrix_200.csv" in r.stdout, r.stdout   # 거절된 쪽은 그대로
+
+
+def test_i6w_05_renormalize_resigns_when_git_already_normalized_the_file(tmp_path):
+    """[U14-01 뒷수습 ②] 실제로 난 순서는 반대였다 — git 이 **이미** LF 로 정규화해 체크아웃했고 meta 에는 CRLF
+    시절의 sha256 이 남았다. 그때 디스크에는 CRLF 가 없으니 "고칠 것 없음" 으로 지나가면 서명이 영영 안 맞는다.
+    기록된 해시가 지금 bytes 의 줄끝 변형 중 하나와 맞으면 그것이 "내용은 같다" 의 증명이다."""
+    prov = _prov(); out = tmp_path / "out"; out.mkdir()
+    f = out / "matrix_100.csv"
+    lf = b"a,run_id\n1,rid\n"
+    f.write_bytes(lf)                                            # 디스크는 LF (git 이 정규화함)
+    crlf_hash = hashlib.sha256(lf.replace(b"\n", b"\r\n")).hexdigest()
+    (out / "matrix_100.csv.meta.json").write_text(json.dumps(
+        {"artifact": "matrix_100.csv", "run_id": "rid", "sha256": crlf_hash}), encoding="utf-8")
+    assert prov.verify_unit(f)[0] is False
+    r = subprocess.run([sys.executable, str(ROOT / "scripts/check_u14.py"), "--new", str(out), "--renormalize"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, (r.returncode, r.stdout)
+    assert prov.verify_unit(f) == (True, "일치"), (prov.verify_unit(f), r.stdout)
+    assert f.read_bytes() == lf                                  # 내용은 손대지 않는다
+    # 내용이 진짜 다르면 거절한다 (줄끝 변형 어느 것과도 안 맞는다)
+    f.write_bytes(b"a,run_id\n9,rid\n")
+    bad = subprocess.run([sys.executable, str(ROOT / "scripts/check_u14.py"), "--new", str(out), "--renormalize"],
+                         capture_output=True, text=True, timeout=60)
+    assert bad.returncode == 1 and "내용이 다르다" in bad.stdout, bad.stdout
+
+
+def test_i6w_06_baseline_can_be_read_from_a_git_revision(tmp_path):
+    """[2026-09-12] 재실행이 `out/` 을 이미 덮었으면 정본은 git 에만 있다. 손으로 `git show` 를 엮다가
+    `git show <rev> --name-only`(그 커밋이 **바꾼** 파일)를 트리로 착각해 빈 디렉터리와 대조했다 — 14 건이 전부
+    "정본에 없음" 으로 나왔다. 트리는 `git ls-tree -r` 고, 그 엮음을 도구가 한다."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cu14", ROOT / "scripts" / "check_u14.py")
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    dest = tmp_path / "base"
+    n = m.extract_rev("HEAD", dest, ROOT)
+    assert n >= 10, n
+    for name in ("degeneracy_300_0147_Li.json", "matrix_300_0009_v2.csv"):
+        assert (dest / name).is_file(), sorted(p.name for p in dest.iterdir())[:5]
+    assert json.loads((dest / "degeneracy_300_0147_Li.json").read_text(encoding="utf-8"))["state"] == "300_0147"
+    assert m.extract_rev("nonexistent-rev-xyz", tmp_path / "b2", ROOT) == 0     # 없는 리비전은 0
