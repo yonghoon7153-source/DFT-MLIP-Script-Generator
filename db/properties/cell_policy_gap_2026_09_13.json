@@ -2,7 +2,7 @@
  "schema": "property_record_v1",
  "kind": "code_policy_gap",
  "date": "2026-09-13",
- "status": "proposed",
+ "status": "ratified",
  "제목": "셀 정책 불일치 3건 — 문서의 '고정셀' 과 실제 코드 경로가 다르다 (회신 BP 지적, 우리가 실물 확인)",
  "출처": "kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md §Q4③",
  "확인방법": "리뷰어 지적을 받아 적지 않고 repo 실물에서 직접 재확인했다. 아래 각 항목의 근거는 우리가 읽은 줄이다.",
@@ -47,5 +47,16 @@
   "카드 v4 — 보고량 재정의 + 셀 정책 선결조건 5 + Q6 운영 판정 기록",
   "GAP-1~3 이행 (코드) + selftest",
   "1저자 비준"
- ]
+ ],
+ "ratification": {
+  "state": "ratified",
+  "actor_id": "yonghoon",
+  "role": "scientific_owner",
+  "timestamp": "2026-09-12T23:50:56Z",
+  "commit": "13ece6e97f5c025af5b8b28089b6518d1e858503",
+  "decision_ref": "D-2026-09-13-cascade-pilot-estimand-v4",
+  "_note": "1저자 비준 2026-09-13, 세션 중 구두 일괄 지시(\"비준 ㄱㄱ\"). ⚠ **일괄이었고 1저자가 각 문서를 축자 검토했다는 기록은 없다** — 그 사실을 여기 적어 둔다. 선행: agent 제안(claude) + 외부 리뷰 3라운드(BN NO-GO → BO 조건부 GO → BP 조건1 이행 인정). 앞의 둘은 독립 승인 두 표가 아니다.",
+  "⛔_승인_범위": "UMA 내부 진단 한정 (최대 30런 + 정적대조 2 SCF). 실물 효과·DFT 정확도·족 일반화는 포함되지 않는다.",
+  "status_before": "proposed"
+ }
 }

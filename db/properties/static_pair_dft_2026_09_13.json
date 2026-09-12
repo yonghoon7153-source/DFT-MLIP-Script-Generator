@@ -2,7 +2,7 @@
  "schema": "property_record_v1",
  "kind": "static_pair_dft",
  "date": "2026-09-13",
- "status": "proposed",
+ "status": "ratified",
  "제목": "정적대조 ④⑤ — comp1_V0_k444(a) vs canonical-UMA(b) 의 DFT 2점 + UMA 단일점 대조",
  "카드": "db/properties/cascade_rebuild_estimand_card_v3_2026_09_12.json §5",
  "실행": {
@@ -204,5 +204,16 @@
    "응력 부호 규약은 리뷰어가 확인했다 — `static_b_geom_gabia.sh:24` 가 이미 ASE 응력에 음수를 곱해 QE 규약으로 맞췄으므로 최대성분차 0.1926 GPa 와 전단 1.057 vs 1.080 비교는 **유효**하다."
   ],
   "PP_계보_미입증_유지": "현재 a/b 의 PP 일치와 **과거 comp1 EOS 원실행의 PP 동일성은 별개**다. manifest 가 이미 미입증으로 명시하고 있으므로 그대로 둔다 — 현재 쌍의 진단을 다시 계산할 이유는 아니다. (회신 BP Q1)"
+ },
+ "ratification": {
+  "state": "ratified",
+  "actor_id": "yonghoon",
+  "role": "scientific_owner",
+  "timestamp": "2026-09-12T23:50:56Z",
+  "commit": "13ece6e97f5c025af5b8b28089b6518d1e858503",
+  "decision_ref": "D-2026-09-13-cascade-pilot-estimand-v4",
+  "_note": "1저자 비준 2026-09-13, 세션 중 구두 일괄 지시(\"비준 ㄱㄱ\"). ⚠ **일괄이었고 1저자가 각 문서를 축자 검토했다는 기록은 없다** — 그 사실을 여기 적어 둔다. 선행: agent 제안(claude) + 외부 리뷰 3라운드(BN NO-GO → BO 조건부 GO → BP 조건1 이행 인정). 앞의 둘은 독립 승인 두 표가 아니다.",
+  "⛔_승인_범위": "UMA 내부 진단 한정 (최대 30런 + 정적대조 2 SCF). 실물 효과·DFT 정확도·족 일반화는 포함되지 않는다.",
+  "status_before": "proposed"
  }
 }

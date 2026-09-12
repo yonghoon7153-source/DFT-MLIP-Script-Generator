@@ -2,7 +2,7 @@
  "schema": "estimand_card/v4",
  "kind": "estimand",
  "date": "2026-09-13",
- "status": "proposed — 회신 BP 반영판. v1·v2·v3 보존. 1저자 ratify 대기. **정적대조는 이행 인정됨(BP Q1). 파일럿은 조건부 GO — 단 §4b 셀 정책 선결조건이 코드로 이행돼야 실행 가능**",
+ "status": "ratified — 회신 BP 반영판. v1·v2·v3 보존. 1저자 비준 완료 2026-09-13. **정적대조는 이행 인정됨(BP Q1). 파일럿은 조건부 GO — 단 §4b 셀 정책 선결조건이 코드로 이행돼야 실행 가능**",
  "supersedes": "cascade_rebuild_estimand_card_v3_2026_09_12.json",
  "제목": "cascade 재건 — 보고량 카드 v4: 정적대조(완료) + 한 대비 파일럿 (진단 한정 · 셀 정책 명시)",
  "0_v2에서_바뀐_것_회신BO": {
@@ -218,5 +218,16 @@
    "factorial 자동 승격 금지"
   ],
   "⚠_이_절은_결과를_보기_전에_쓴다": "파일럿 실행 전에 확정한다. 실행 후 이 문단을 고치면 사전등록이 아니다."
+ },
+ "ratification": {
+  "state": "ratified",
+  "actor_id": "yonghoon",
+  "role": "scientific_owner",
+  "timestamp": "2026-09-12T23:50:56Z",
+  "commit": "13ece6e97f5c025af5b8b28089b6518d1e858503",
+  "decision_ref": "D-2026-09-13-cascade-pilot-estimand-v4",
+  "_note": "1저자 비준 2026-09-13, 세션 중 구두 일괄 지시(\"비준 ㄱㄱ\"). ⚠ **일괄이었고 1저자가 각 문서를 축자 검토했다는 기록은 없다** — 그 사실을 여기 적어 둔다. 선행: agent 제안(claude) + 외부 리뷰 3라운드(BN NO-GO → BO 조건부 GO → BP 조건1 이행 인정). 앞의 둘은 독립 승인 두 표가 아니다.",
+  "⛔_승인_범위": "UMA 내부 진단 한정 (최대 30런 + 정적대조 2 SCF). 실물 효과·DFT 정확도·족 일반화는 포함되지 않는다.",
+  "status_before": "proposed — 회신 BP 반영판. v1·v2·v3 보존. 1저자 ratify 대기. **정적대조는 이행 인정됨(BP Q1). 파일럿은 조건부 GO — 단 §4b 셀 정책 선결조건이 코드로 이행돼야 실행 가능**"
  }
 }

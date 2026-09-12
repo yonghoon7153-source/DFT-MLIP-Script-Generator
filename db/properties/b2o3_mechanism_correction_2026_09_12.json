@@ -1,7 +1,7 @@
 {
  "schema": "audit/v1",
  "date": "2026-09-12",
- "status": "proposed — 1저자 ratify 대기",
+ "status": "ratified — 1저자 비준 완료 2026-09-13",
  "제목": "b2o3 기전 서술 정정 + cascade 오염과의 격리 확인",
  "1_정정한_서술": {
   "⛔_철회": "'B³⁺ 가 사면체 PS₄ 자리를 싫어해서 그 좌절이 destabilization 의 정체' — 이 세션(2026-09-12)에 모델이 쓴 서술. 실측이 반증했다.",
@@ -45,5 +45,15 @@
   ]
  },
  "7_산출물": "/scratchpad/BO-LPSCl 기전 제안 v2.md — 협업자(Yeokyung Lee, Battery Materials lab) 전달용. v1 의 §2 기전을 통째로 교체하고 ¹¹B NMR 예측·포논 한계·분해산물 정확화·셀 의심을 추가",
- "8_교훈": "기전 서술을 지을 때 **b2o3_ehull_result.json 의 2026-09-07 정정과 kb/results/b2o3_champion_coordination_2026_06_29.md 를 먼저 읽었어야 했다.** 두 문서가 이미 'B–O 없음 · 삼각 BS₃' 를 못박아 뒀고, 그 카드는 우리 DB 의 종전 'BS4/BS3O-rich' 예측을 이미 한 번 정정한 이력이 있다. 같은 자리에서 두 번째다."
+ "8_교훈": "기전 서술을 지을 때 **b2o3_ehull_result.json 의 2026-09-07 정정과 kb/results/b2o3_champion_coordination_2026_06_29.md 를 먼저 읽었어야 했다.** 두 문서가 이미 'B–O 없음 · 삼각 BS₃' 를 못박아 뒀고, 그 카드는 우리 DB 의 종전 'BS4/BS3O-rich' 예측을 이미 한 번 정정한 이력이 있다. 같은 자리에서 두 번째다.",
+ "ratification": {
+  "state": "ratified",
+  "actor_id": "yonghoon",
+  "role": "scientific_owner",
+  "timestamp": "2026-09-12T23:50:56Z",
+  "commit": "13ece6e97f5c025af5b8b28089b6518d1e858503",
+  "_note": "1저자 비준 2026-09-13, 세션 중 구두 일괄 지시(\"비준 ㄱㄱ\"). ⚠ **일괄이었고 1저자가 각 문서를 축자 검토했다는 기록은 없다** — 그 사실을 여기 적어 둔다. 선행: agent 제안(claude) + 외부 리뷰 3라운드(BN NO-GO → BO 조건부 GO → BP 조건1 이행 인정). 앞의 둘은 독립 승인 두 표가 아니다.",
+  "⛔_승인_범위": "UMA 내부 진단 한정 (최대 30런 + 정적대조 2 SCF). 실물 효과·DFT 정확도·족 일반화는 포함되지 않는다.",
+  "status_before": "proposed — 1저자 ratify 대기"
+ }
 }
