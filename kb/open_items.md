@@ -3,13 +3,75 @@
 > 세션이 바뀌어도 유지되는 미결 사항 추적. 닫을 때 날짜+근거를 남기고 ✅로 옮긴다.
 > 등록: 2026-07-27 (MAX 감사 후속).
 
-## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-12**)
+## ⏭ 다음 세션이 **바로 이어서 할 것** (2026-08-28 등록 · **최종 갱신 2026-09-13**)
 
 > 순서가 있다. 앞이 끝나야 뒤가 뜻이 있다.
 >
 > ⚠ **이 절의 상태 문장은 실측으로만 쓴다.** 2026-09-07 까지 여기 머리가 "ORCA 8잡 실행 중"
 > 이었는데 같은 날 실측은 **프로세스 0개**였다 — 워처·기억이 아니라 `ps`·receipt·git log 로
 > 받친다(`kb/projects/restart_runbook_2026_09_07.md`). 세션을 닫을 때 이 절을 갱신한다.
+
+### ⏭-NOW. 2026-09-13 기준 (git log · selftest · 회신 원문 · 서버 화면 실측)
+
+> 하루에 바뀐 게 많다. **막고 있는 것은 딱 둘**이다 — 1저자 비준, 그리고 빌더 규칙 하나.
+
+**cascade 재건 — 회신 BP 수령, 파일럿은 "실행 전"**
+- **정적대조 ④⑤ 완료.** V100(Tesla V100-32GB)에 QE 7.4.1 GPU 를 새로 세워 돌렸다
+  (NVHPC 24.11 · `-gpu=cc70,cuda12.6` · hpcx · 랭크1/`-nk 1` · 점당 7~10분).
+  결과 `db/properties/static_pair_dft_2026_09_13.json` · 원본 `runs/static_ab/{a,b}/scf.out` + `compare.json`.
+  **δΔE +6.13 meV/atom** · 힘 벡터 RMSE 0.0655/0.0971 **⚠경보 0.05 초과** · 응력차 0.193/0.215 ✅.
+  **(a) 고정셀 원자 정상점 후보**(|F_DFT| 0.00093) · **(b) 는 DFT 정상점 아님**(0.0888, S 최대 0.160, 등방압 0.402).
+  **오차가 S 에 몰린다** — (b) 에서 DFT 가 S 를 10.6배 세게 당기고 방향은 반대(전체 cos −0.979).
+- **회신 BP: 조건 1 이행 인정**(리뷰어가 해시 대조 + δΔE·힘 RMSE 독립 재현). **파일럿 조건부 GO**,
+  ⛔ **"지금 코드 그대로의 즉시 실행 승인은 아니다"**. 원문 `kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md`.
+- **카드 v4** `db/properties/cascade_rebuild_estimand_card_v4_2026_09_13.json` (v1·v2·v3 보존).
+  보고량이 **"형상 제약을 포함한 처방 총효과"** 로 바뀌었다 — 전단은 P1·P2 에서 **상쇄되지 않는다**.
+  §4b 셀 정책 선결조건 5 · §4c Q6 운영 판단(실행 **전에** 기록) 신설.
+- **거버넌스 등록** `D-2026-09-13-cascade-pilot-estimand-v4` (proposed). ⚠ 카드 v1·v2·v3 는
+  **결정으로 등록된 적이 없었다** — CLAUDE.md 가 요구하는데 빠져 있었고 v4 에서 처음 붙였다.
+- ⛔ **셀 정책 3간극** `db/properties/cell_policy_gap_2026_09_13.json` (BP 지적 → 우리가 실물 확인):
+  GAP-1 'fixed-cell' 은 **DFT 에만** 걸린 정책(바로 다음 줄이 `UMA full relax`) ·
+  GAP-2 UMA 기본 경로가 형상 무제한 `CellFilter` ·
+  **GAP-3 `eos_sweep` 이 `atoms_ref` 를 안 바꿔 EOS V₀ 가 후속 탄성에 전달되지 않는다**(post-anneal 구조가 들어간다).
+  → GAP-2·3 코드 이행 (`run_mlip_postproc.py --apply_eos_v0 --fixed_shape_relax`, selftest **14/14** 음성 5).
+  GAP-1 은 README 에 적용범위 명시. **기본 동작은 안 바꿨다** — 미적용 시 record 에 경고가 박힌다.
+- **BO 조건 감사** `db/properties/bo_conditions_audit_2026_09_13.json` — 카드에 **적힌 것**과 코드에 **있는 것**을 갈랐다.
+  #1 ✅ · #5 ✅ · #3 🟡(독립 홉 사건 정의를 기존 도구와 **대조 안 함**) · #4 ⬜(분석 단계, 지금 불필요)
+  · 🔴 **#2 — 카드 §1b 의 'O 3개가 서로 다른 P 에' 규칙이 빌더에 없다**(grep 0건).
+- **⏭ 막고 있는 것 = 이 #2 하나.** 빌더 강제(패치) vs `planA.json` 수동 확인 — **1저자 선택**.
+- **⏭ 비준 대기 8건**: 카드 v4 · `D-2026-09-13-…`(결정) · `cell_policy_gap` · `bo_conditions_audit` ·
+  `static_pair_dft` · `static_pair_uma` · `cascade_axis_global_audit` · `cascade_reanchor` · `b2o3_mechanism_correction`.
+
+**논문 에이전트 — 계보 9/9 완료 + MERGE 완료**
+- #7 Nolan **2018**(*Joule* 2, 2016–2046) · #8 **Xiao** 2020(*Nat. Rev. Mater.* 5, 105–126) · #9 Lu 2024 digest 작성.
+- ⚠ **계보 카드 #8 행의 서지가 틀렸었다** — 1저자는 **Yihan Xiao**, 교신은 **Ceder**(Meng 아님),
+  "Wang" 은 **Samsung**. ⇒ *"Cronk 2026 과 같은 Meng 그룹"* 연결 **무효**. inbox #104 `Bai2026` 에 이은 **두 번째 파일명 오기**.
+- ⚠ **#7 은 2018 이라 #4(2019)·#5(2021)의 *조상*이다** — "방법 교과서" 는 후속이 아니다.
+- ★ 우리 `interface_reactivity` 산물 5종이 전부 #8 에 예측으로 있고 **4종은 실험 관측까지** 붙는다 — 계보 8편 중 첫 지점.
+- MERGE 완료 (INDEX 3행 · comparison Reference key 3 + 축 A4·B3·E1·F1 + J-7 블록 3 · 계보 카드 3행, `⏳ 대기` 0).
+- 🔴 **형제 digest 충돌 3건은 합치지 않고 카드로 뺐다** — `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md`.
+  제일 위험한 것: **1.717 vs 1.72 가 우연인가** (#6 은 우리 1.717 이, #7 은 우리 1.242 가 문헌 limit 자리라 한다).
+  **⏭ 다음 수는 계산 0** — 레지스트리에서 `reduction_limit_V`·`ocv_self_decomposition_V` 의 `method` 를 읽는 것.
+
+**화면(webapp)**
+- **`/cascade/rebuild` 신설** — `kb/projects/cascade_rebuild_log_2026_09.md` 누적 일지(발표용). `md_html` 서버 렌더라 결속 자동.
+- `/methods` **§3-1 신설** + 용어집 `fixed_cell_eos` — 고정셀+EOS 규약, 대가인 편차응력, 탄성 Cij 에 무는 자리.
+  ⚠ 초판에 *"모든 구조가 공유하는 성질"* 이라 썼다가 **BP 정정으로 철회**(허용할 뿐 강제 아님).
+- ⛔ **webapp 테스트를 못 돌렸다** — 이 컨테이너에 flask 가 없고 V100 sparse checkout 에도 `webapp/` 이 없다.
+  **새 화면이라 음성시험을 꼭 통과시켜야 한다.**
+
+**서버 (2026-09-13 03:30 화면 실측)**
+- **gabia** `el`(modelc_2x 탄성): **strain 2/12 완료**, `strain_22_p` 진행, 대기 9. **~15 h/점** · GPU **31,824 MiB**.
+  ⇒ 남은 ~9점 ≈ **6일**. ⛔ **다른 GPU 작업을 얹지 마라** — 러너 `MINFREE=32000` 가드에 걸려 다음 점이 멈춘다.
+- **kgy** `li2s_layer1_g2` seed1 quench 153/1050 ps (23.9 ps/h, ETA 37.5 h, 담금질 **1e+12 K/s**) + `modelc_box331_400ps` 2/9.
+  ⚠ **gabia 의 `/data/work/runs/li2s_layer1`(담금질 5e+12) 은 대체된 옛 세대다** — 거기 seed2 가 멈춰 있는 것은 정상이다.
+  (2026-09-13 에 이것으로 헛경보를 한 번 울렸다.)
+- **V100** (runyour, `ssh v100`): 32코어·125 GB·**V100-PCIE-32GB**·901 GB 여유. QE 7.4.1 GPU + repo `~/lldvar`(sparse) +
+  pseudo 4종 해시검증본 `~/work/pseudo`. **GPU 유휴.** ⛔ 탄성은 못 받는다(31.8 GB 필요, 총 32.8 GB) ·
+  UMA turbo 도 못 쓴다(Volta 라 bf16/TF32 없음) · SEI 큐 = li3nd(37.7 GB) 도 못 받는다.
+
+**규율 점검**: kb lint **0 errors** · canonical validator **0 위반** · `convention_check` **0 위반** ·
+selftest `generate_dft_inputs` 51 · `run_mlip_postproc` 14 · `run_force_check_scf` 6 · `build_qe_neb_gpu` 11 · `nav` 통과.
 
 ### ⏭-NOW. 2026-09-12 기준 상태 (git log · selftest · 회신 원문으로 받침 — 서버 실측은 오전 값)
 
