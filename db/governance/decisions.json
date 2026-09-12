@@ -1836,6 +1836,55 @@
     "decision_digest": "sha256:b006c018566ef59e996654cc8f3bb48e36f2a948c245d7dd28df98640e6638e5",
     "⚠_digest_의_뜻": "`ratification` 을 뺀 결정 내용의 sha256 이다."
    }
+  },
+  {
+   "id": "D-2026-09-13-cascade-pilot-estimand-v4",
+   "schema_version": 2,
+   "kind": "estimand",
+   "scope": "cascade.pilot_o_substitution",
+   "slot": "cascade_pilot_estimand",
+   "applies_to": {
+    "systems": [
+     "lpscl*"
+    ],
+    "tasks": [
+     "cascade_pilot_md",
+     "cascade_pilot_elastic"
+    ],
+    "methods": [
+     "uma*"
+    ],
+    "use_cases": [
+     "*"
+    ]
+   },
+   "title": "cascade 파일럿 보고량 v4 — 형상 제약을 포함한 처방 총효과 (UMA 내부 진단 한정)",
+   "statement": "cascade 한 대비 파일럿이 재는 것은 **동일한 셀 형상 제약 아래, comp1_V0_k444 2×2×1 에서 Al 2 + Li 공공 4 를 공유하는 두 처방(P1 Al₂O₃ / P2 Al₂S₃) 사이에 16e 자리 S₃→O₃ 치환과 그 뒤 원자·등방 부피 완화가 만드는 **UMA 의 조건부 응답**(Ea·탄성)** 이다. **제약의 조성별 영향이 이 응답에 포함된다** — 전단은 두 처방에서 상쇄되지 않는다(공통인 것은 제약이지 그 제약이 만드는 응답이 아니다). 따라서 이것은 '전단을 제거한 O 효과' 가 아니라 **'형상 제약을 포함한 처방 총효과'** 이고, 결과 서술은 '지정된 UMA·배열·셀 정책에서 치환 처방에 대한 모델의 응답과 관측 산포를 예비 진단한다' 를 넘지 않는다. 실물의 O 치환 효과·동등성·DFT 정확도·족 일반화는 **답하지 않는다**. 방법 간 Ea·탄성률 오차는 **미측정**이다 — 정적대조의 δΔE(6.13 meV/atom)는 두 고정 기하의 에너지 차일 뿐 기울기·곡률·이동 경로를 검증하지 않았고 MD 산포·Ea 오차막대로 환산할 수 없다. 셀 정책의 정확한 표현은 '셀 각도와 길이비를 고정하고 등방 E(V) 경로에서 부피를 최적화한다. 목표 평균압은 0 GPa 이며 실제 잔류 평균압과 편차응력을 별도로 보고한다' 이며 '전체 응력 0'·'자유 영응력 평형' 과 다르다. 이 결정은 보고량과 허용 서술 범위만 정하며 **캠페인 실행을 승인하지 않는다**.",
+   "record": "db/properties/cascade_rebuild_estimand_card_v4_2026_09_13.json",
+   "card": "db/properties/cascade_rebuild_estimand_card_v4_2026_09_13.json",
+   "supersedes": [],
+   "enforcement": "파일럿 실행 전 선결조건(카드 §4b): ① H0·P1·P2 에 같은 형상 정책 ② 각자의 V₀ 를 **실제로 적용**(기록만 금지) ③ 그 V₀ 에서 고정셀 원자 완화 ④ 실제 잔류 평균압·편차응력을 별도 기록 ⑤ ①~④ 가 후속 계산까지 연결되는지 확인. 도구: `run_mlip_postproc.py --apply_eos_v0 --fixed_shape_relax` (selftest 14/14, 음성 5 — 갈림길 OFF 가 post-anneal 부피를 넘기는지·두 갈래가 실제로 다른 구조인지 포함). 미적용 시 record 에 경고가 박힌다. ⛔ **미충족 선결조건**: 카드 §1b 의 'O 대상 S_16e 3개가 서로 다른 P 에 속하도록' 규칙이 빌더에 없다 (`substitute_compound.py` grep 0건, 2026-09-13) — 빌더 강제 또는 planA.json 수동 확인 절차 확정 전까지 실행 금지. 운영 판단(카드 §4c)은 실행 **전에** 확정한다: 힘 경보 0.05 초과를 알고도 UMA 내부 진단만 수행하며, 0.05 를 사전 하드게이트로 소급하지 않고, 결과에 '실제 O 효과 아님·DFT 정확도 주장 아님·factorial 자동승격 금지' 를 붙인다.",
+   "decision_state": "proposed",
+   "proposed_by": [
+    {
+     "actor_type": "agent",
+     "actor_id": "claude",
+     "date": "2026-09-13"
+    }
+   ],
+   "status_history": [
+    {
+     "at": "2026-09-13",
+     "state": "proposed",
+     "note": "회신 BO 조건부 GO → 정적대조 실행 → 회신 BP(조건 1 이행 인정·파일럿 조건부 GO) 반영판. CLAUDE.md 가 '보고량 판정은 decisions.json 에 등록' 을 요구하는데 카드 v2·v3 는 등록돼 있지 않았다 — v4 에서 붙인다. 1저자 ratify 대기."
+    }
+   ],
+   "근거_회신": [
+    "kb/reviews/codex_BN_reply_cascade_rebuild_2026_09_12.md",
+    "kb/reviews/codex_BO_reply_cascade_rebuild_v2_2026_09_12.md",
+    "kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md"
+   ],
+   "카드_계보": "cascade_rebuild_estimand_card_2026_09_12(v1) → v2 → v3 → **v4(2026-09-13, 이 결정의 record)**. ⚠ v1·v2·v3 는 **결정으로 등록된 적이 없다** — CLAUDE.md 가 '보고량 판정은 decisions.json 에 등록' 을 요구하는데 빠져 있었고 v4 에서 처음 붙인다. 그래서 이 결정의 `supersedes` 는 비어 있다(대체할 **결정**이 없다). 카드 파일 사이의 계승 관계는 각 카드의 `supersedes` 필드에 있다."
   }
  ]
 }

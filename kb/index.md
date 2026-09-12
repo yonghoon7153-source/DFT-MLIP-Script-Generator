@@ -1,14 +1,15 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 404
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 405
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
 값 = `db/properties/canonical_registry.json` · 금지 = `db/properties/citation_hazards.json` · 판정 = `db/governance/decisions.json` · 리뷰 = `kb/reviews/INDEX.md`
 
-## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 206건)
+## 최근 갱신 상위 20 (frontmatter `updated` 기준 · 전체 207건)
 - 2026-09-13 · `kb/reviews/codex_BP_prompt_static_pair_result_2026_09_13.md` — 회신 BP 요청 — 정적대조 2 SCF 실행 결과 (BO 조건 1 이행) · 파일럿 보고량 재질의 · 발송대기
 - 2026-09-13 · `kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md` — 회신 BP 접수 — 조건 1 이행 인정 · 파일럿 조건부 GO (셀 정책 구현 불일치로 즉시 실행 승인은 아님) · 접수
+- 2026-09-13 · `kb/projects/cascade_rebuild_log_2026_09.md` — cascade 재건 일지 — 2026-09 (누적) · open
 - 2026-09-13 · `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` — 코팅 계보 #6·#7·#8 digest 가 서로 다른 말을 하는 세 자리 — 우리 값이 문헌의 어느 양인가 · open [open]
 - 2026-09-12 · `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB) · 채택
 - 2026-09-12 · `kb/reviews/codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 프롬프트 — LPSCl@Li₂S 1층: 비정질 밀도 게이트의 기준을 무엇에 두는가 · 발송대기
@@ -26,7 +27,6 @@
 - 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
 - 2026-09-09 · `kb/reviews/codex_BI4_reply_2026_09_09.md` — 리뷰 BI-4 회신 — P0 셋 전면 수용 · 지적의 공통 축을 우리가 못 봤다 · 초안
 - 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
-- 2026-09-09 · `kb/reviews/codex_BJ2_prompt_cascade_redesign_2026_09_09.md` — 리뷰 요청 BJ2 — cascade 재설계 A′: 설계 다섯 칸부터 다시 · 깔때기는 계획칸만 · GO 전까지 안 돌립니다 · 초안
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -339,12 +339,13 @@
 - `kb/reports/sdcp_preliminary_final_2026_08_03.md` — SDCP 예비 최종 보고서 (2026-08-03)
 - `kb/reports/sdcp_review_action_plan_2026_08_03.md` — SDCP 파이프라인 — 리뷰 2건 통합 실행계획 (2026-08-03)
 
-## projects/ (24)
+## projects/ (25)
 - `kb/projects/HANDOFF_2026_08_31_session.md` — 인수인계 — 2026-08-31 세션 (외주 C-12 AR→AV · 폴라론 S0 · nscf 사고)  (2026-09-03 · 활성)
 - `kb/projects/MULTI_CATEGORY_BATCH_PLAN_v22.md` — Multi-Category Multi-Compound Batch Plan — Paper #2 (v4.5.18)
 - `kb/projects/MUST_READ_digital_twin_north_star.md` — 🚨🚨🚨 MUST READ — AI 계산 스크리닝 플랫폼 North Star (구: Digital Twin)
 - `kb/projects/PRESENTATION_digital_twin_overview.md` — AI 계산 기반 스크리닝 플랫폼 — 발표용 종합 정리 (구: Digital Twin)
 - `kb/projects/cascade_pipeline_fixes_2026_08_19.md` — cascade 파이프라인 수정 목록 — codex 교차리뷰용 (2026-08-19 전수 정독 산물)  (2026-08-19 · 진행 — 진단 확정, 수정 미착수 (내일 codex 교차리뷰 예정))
+- `kb/projects/cascade_rebuild_log_2026_09.md` — cascade 재건 일지 — 2026-09 (누적)  (2026-09-13 · open)
 - `kb/projects/cascade_v23_review_2026_07_11.md` — Cascade v23 전체 리뷰 — 의도 지도 · 빠진 것 점검 · 후보군 구축 (2026-07-11)
 - `kb/projects/collab_rietveld_request_2026_07.md` — 협업자 Rietveld 데이터 요청 문안 + stable phase 사용현황 정리 — 2026-07-28
 - `kb/projects/decision_registry_design_2026_08_20.md` — 결정 레지스트리 설계 v2.1 — codex 3차 P0 반영 (MVP core 4결정)  (2026-08-20 · 설계 v2.1 — codex 3차 P0 3건 닫음 (구현 착수 대상 …)

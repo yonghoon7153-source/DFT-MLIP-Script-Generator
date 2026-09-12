@@ -795,6 +795,32 @@ def methods():
                            subtitle="kb/methodology/computational_methods_canonical.md · 값 인용 전 단일 기준")
 
 
+@app.route("/cascade/rebuild")
+def cascade_rebuild():
+    """cascade 재건 **누적 일지** — 발표·원고 서사가 여기서 나온다 (2026-09-13 신설).
+
+    왜 새 화면인가
+      `/cascade` 는 옛 v23 산출물의 **감사 화면**이다(승인 랭킹 0종, 보관함 게이트 3종).
+      재건은 그 자료를 판정에 쓰지 않기로 한 **다른 캠페인**이라 같은 화면에 얹으면
+      "강등된 자료" 와 "지금 하는 일" 이 한 표에 섞인다.
+
+    왜 마크다운을 서버에서 렌더하나
+      `md_html()` 이 끝에서 `_bind_claims()` 를 부른다 — 즉 **결속이 서버 한 곳에서**
+      붙는다. 브라우저에서 다시 파싱하면 판정이 둘로 갈린다(Codex BI P0-2b 실측 14건).
+
+    ⛔ 이 화면이 **하지 않는 것**
+      · 판정하지 않는다. 숫자·판정의 정본은 `db/properties/` 와 `decisions.json` 이고
+        이 문서는 그것을 옮겨 적은 것이다. 충돌하면 **원장이 이긴다**.
+      · 게이트를 걸지 않는다 — 강등된 v23 산출물을 싣지 않으므로 가릴 것이 없다.
+    """
+    md = (D.KB / "projects" / "cascade_rebuild_log_2026_09.md").read_text(encoding="utf-8")
+    html = md_html(md, ("tables", "fenced_code", "toc"))
+    return render_template("doc.html", active="cascade", title="cascade 재건 일지 (누적)",
+                           content=html, docmeta=doc_badges(split_frontmatter(md)[0]), toc=True,
+                           subtitle="kb/projects/cascade_rebuild_log_2026_09.md · "
+                                    "판정 정본은 db/properties · decisions.json — 충돌하면 원장이 이긴다")
+
+
 @app.route("/sdcp")
 def sdcp_wave1():
     """SDCP wave1 — NCM(104) 표면 위 바인더/SDCP 흡착 (VASP 외주 회신 해석).
