@@ -73,6 +73,8 @@ c_i = FREE_SURFACE_INVALID                                    [F_i ≤ 0]
 - **fallback source 승격 없음.**  source = 아래 슬래브의 SE **이면서** 위 슬래브에 닿는
   성분의 구성원.  없으면 `NOT_PERCOLATING` 이고 **유한 τ 를 내지 않는다**.
 - **쌍은 같은 성분 안에서만** 뽑는다 ⇒ 예산이 무경로 쌍에 소진되지 않는다.
+- **간선 가중치와 경로 길이는 xy 최소영상**(`_mi_dist`) — 쌍 찾기와 **같은 규약**이다.
+  (`P1-HARV-01`: 초판은 raw 좌표차를 써서 평행이동만으로 τ 가 9.66배 바뀌었다.)
 - 슬래브 = 고체(AM ∪ SE) z 범위 `[min(z−r), max(z+r)]` 의 양 끝, 두께 = `r_SE,max`.
   (`lhs_perc_extract` ④ 와 같은 사고 — AM 만의 범위를 쓰면 희박한 침대에서 판정이 쉬워진다.)
 - 통계량을 **이름으로 가른다**: `tau_mean`(절단본, legacy 호환) · `tau_median` ·
@@ -301,6 +303,20 @@ def coverage_hertz(ids, labels, radius, c1, c2, carea):
                 n_capped=n_cap, n_free_surface_invalid=n_bad)
 
 
+def _mi_dist(p, q, lx, ly):
+    """xy **주기** · z 개방의 최소영상 거리.
+
+    ⚠ `P1-HARV-01` (L4/L5 판정, 2026-09-13): 초판은 쌍 찾기만 주기로 하고 **간선 가중치와
+    경로 길이는 raw 좌표차**로 계산했다.  그래서 **같은 침대를 평행이동만 해도** τ 가
+    9.850888284819803 → 1.0198039027185568 (**9.6596배**) 로 바뀌었다.
+    `_pairs_within` 이 minimum-image 로 이웃을 찾는 한, 길이도 같은 규약이어야 한다.
+    """
+    d = p - q
+    d[0] -= lx * round(d[0] / lx)
+    d[1] -= ly * round(d[1] / ly)
+    return float(np.linalg.norm(d))
+
+
 def tortuosity_se(atoms, labels, box_lo, box_hi, n_pairs=N_TAU_PAIRS, seed=42):
     """계약③ — fallback source 승격 **없음**, 쌍은 **같은 성분 안에서만**."""
     import networkx as nx
@@ -326,7 +342,7 @@ def tortuosity_se(atoms, labels, box_lo, box_hi, n_pairs=N_TAU_PAIRS, seed=42):
     G = nx.Graph()
     G.add_nodes_from(range(sel.size))
     for i, j in pairs:
-        d = float(np.linalg.norm(xyz[i] - xyz[j]))
+        d = _mi_dist(xyz[i].copy(), xyz[j].copy(), lx, ly)   # ★ P1-HARV-01
         G.add_edge(int(i), int(j), distance=d)
 
     bot = set(np.flatnonzero((xyz[:, 2] - rad) <= z_lo + t).tolist())
@@ -355,8 +371,8 @@ def tortuosity_se(atoms, labels, box_lo, box_hi, n_pairs=N_TAU_PAIRS, seed=42):
             path = nx.shortest_path(G, s, tt, weight='distance')
         except nx.NetworkXNoPath:                   # 같은 성분이라 원래 안 난다
             continue
-        plen = sum(float(np.linalg.norm(xyz[path[m]] - xyz[path[m + 1]]))
-                   for m in range(len(path) - 1))
+        plen = sum(_mi_dist(xyz[path[m]].copy(), xyz[path[m + 1]].copy(), lx, ly)
+                   for m in range(len(path) - 1))              # ★ P1-HARV-01
         dz = abs(float(xyz[tt, 2] - xyz[s, 2]))
         if dz > 0:
             taus.append(plen / dz)
@@ -680,6 +696,32 @@ def selftest():
         M.last_timestep = keep
         chk('⑫ PA12-09: TIMESTEP 가드를 퇴행시키면 ⑧ 이 실제로 뚫린다 (대조가 살아있다)',
             not broke)
+
+        # ── ⑬a P1-HARV-01: τ 가 **평행이동에 불변**인가 ─────────────────────
+        #  L4/L5 판정 반례: 쌍 찾기는 주기인데 길이를 raw 좌표차로 재면 같은 침대를
+        #  옮기기만 해도 τ 가 9.850888284819803 → 1.0198039027185568 (9.6596배).
+        def _chain(xs):
+            n = len(xs)
+            at = dict(x=np.array(xs, float), y=np.full(n, 5.0),
+                      z=np.arange(1.0, n + 1.0), radius=np.full(n, 0.55),
+                      type=np.full(n, 2, dtype=np.int64))
+            return at, np.array(['SE'] * n, dtype=object)
+
+        _lo, _hi = np.array([0., 0., 0.]), np.array([10., 10., 10.])
+        _xs = [0.1, 9.9, 0.1, 9.9, 0.1]
+        _t1 = tortuosity_se(*_chain(_xs), _lo, _hi)['tau_mean']
+        _t2 = tortuosity_se(*_chain([(x + 5.0) % 10.0 for x in _xs]), _lo, _hi)['tau_mean']
+        chk('⑬a P1-HARV-01: τ 가 xy 평행이동에 불변',
+            _t1 is not None and _t2 is not None and abs(_t1 - _t2) < 1e-12)
+        #  참값은 minimum-image 로 독립 계산한 것
+        def _mi_ref(p, q):
+            d = np.asarray(p, float) - np.asarray(q, float)
+            d[0] -= 10.0 * round(d[0] / 10.0); d[1] -= 10.0 * round(d[1] / 10.0)
+            return float(np.linalg.norm(d))
+        _pts = np.column_stack([_xs, [5.] * 5, np.arange(1., 6.)])
+        _ref = sum(_mi_ref(_pts[k], _pts[k + 1]) for k in range(4)) / 4.0
+        chk('⑬a τ 가 minimum-image 해석값과 일치 (1.019803903)',
+            _t1 is not None and abs(_t1 - _ref) < 1e-12 and abs(_ref - 1.019803903) < 1e-9)
 
         # ── ⑬b L1-04: 면적 채널 라벨이 매 행에 박히는가 ─────────────────────
         chk('⑬b L1-04: area_channel 이 출력에 있다',
