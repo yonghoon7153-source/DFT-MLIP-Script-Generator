@@ -448,7 +448,12 @@ def _plan_or_select(plan, key, elem, host_idx, n, fallback):
     v = plan[key]
     if isinstance(v, dict):
         if elem not in v:
-            raise S1ContractError(f"⛔ index_plan[{key!r}] 에 {elem} 항목이 없다")
+            raise S1ContractError(
+                f"⛔ index_plan[{key!r}] 에 {elem} 항목이 없다 — 있는 것은 {sorted(v)}. "
+                f"P1/P2 짝(같은 **자리**에 다른 원소, 예: O₃ ↔ no-op S₃)을 만들려는 것이면 "
+                f"이 표는 **원소 고정(by_element)** 이라 못 쓴다. "
+                f"부모 쪽을 `--emit_plan_shape positional` 로 다시 떨궈라 — 리스트 형식은 "
+                f"원소 무관이라 양쪽이 같은 파일을 쓴다 (카드 §1b 공통 부모 배열)")
         v = v[elem]
     v = [int(x) for x in v]
     if len(v) != n:
@@ -611,15 +616,31 @@ def substitute_compound_at_sites(atoms: Atoms, composition: dict[str, int],
         placement_log['li_vacancies'] = {'n': 0, 'indices': []}
 
     # ⭐ 회신 BO: 실제로 쓴 인덱스 표. `--emit_index_plan` 이 이걸 떨궈 짝 처방이 재사용한다.
+    _cat = {pl['element']: list(pl['targets']) for pl in placement_log['placements']
+            if pl['site'] == cation_site}
+    _an = {pl['element']: list(pl['targets']) for pl in placement_log['placements']
+           if pl['site'] == anion_site}
     placement_log['index_plan_used'] = {
-        'cation_sites': {pl['element']: list(pl['targets']) for pl in placement_log['placements']
-                         if pl['site'] == cation_site},
-        'anion_sites': {pl['element']: list(pl['targets']) for pl in placement_log['placements']
-                        if pl['site'] == anion_site},
+        'cation_sites': _cat,
+        'anion_sites': _an,
         'vacancy_sites': list(placement_log['li_vacancies']['indices']),
         'index_basis': '치환 전 host 원자 순서 · 공공은 삭제 전 인덱스',
         'from_plan': bool(index_plan),
     }
+    # ⭐ P1/P2 짝용 **원소 무관** 판(positional). 자리 하나에 원소가 정확히 하나일 때만 만든다 —
+    #   둘 이상이면 리스트로 접는 순간 어느 인덱스가 어느 원소였는지 잃는다.
+    #   ⛔ 이게 없으면 `--emit_index_plan` 이 자기 목적(P1/P2 가 같은 파일을 쓴다)을 못 한다:
+    #     by_element 표는 O 로 굳어 있어 no-op S₃ 처방이 계약거부로 막힌다 (2026-09-13 실측).
+    if len(_cat) <= 1 and len(_an) <= 1:
+        placement_log['index_plan_used_positional'] = {
+            'cation_sites': list(next(iter(_cat.values()), [])),
+            'anion_sites': list(next(iter(_an.values()), [])),
+            'vacancy_sites': list(placement_log['li_vacancies']['indices']),
+            'index_basis': '치환 전 host 원자 순서 · 공공은 삭제 전 인덱스',
+            'from_plan': bool(index_plan),
+            '_shape': 'positional — 원소 무관. 같은 자리에 다른 원소를 놓는 짝 처방용',
+            '_emitted_for': {'cation': sorted(_cat), 'anion': sorted(_an)},
+        }
     return new, placement_log
 
 
@@ -814,6 +835,63 @@ def _selftest() -> int:
             "index_plan: 두 구조의 심볼 차이가 정확히 3 (O₃ vs S₃)")
     except Exception as _e:
         chk(False, f"index_plan 양성 경로 예외: {_e}")
+    # ⭐ 2026-09-13 — positional(원소 무관) 판. `--emit_index_plan` 이 by_element 만 떨구면
+    #   그 표는 O 로 굳어 있어 **no-op S₃ 짝이 계약거부로 막힌다** (파일럿 실행 중 실측).
+    #   이 자리가 P1/P2 가 실제로 같은 파일을 쓰는 경로다.
+    try:
+        _cf = SiteCarrier(pm, base.get_chemical_symbols())
+        _dp, _lp = substitute_compound_at_sites(base.copy(), {'Al': 2, 'O': 3}, 1, 'Li_24g', 'S_16e',
+                                                'random', 7, DOPANT_DB, carrier=_cf,
+                                                contract='enforce')
+        _pos = _lp.get('index_plan_used_positional')
+        chk(isinstance(_pos, dict) and isinstance(_pos['anion_sites'], list)
+            and isinstance(_pos['cation_sites'], list),
+            "positional: 자리당 원소 1개면 리스트 판을 같이 낸다")
+        chk(_pos['anion_sites'] == _lp['index_plan_used']['anion_sites']['O']
+            and _pos['cation_sites'] == _lp['index_plan_used']['cation_sites']['Al'],
+            "positional: by_element 판과 **같은 인덱스**다 (다른 자리를 고르지 않는다)")
+        # 그 리스트 판으로 no-op S₃ 를 실제로 만든다 — 이게 막혔던 그 경로다
+        _c2 = SiteCarrier(pm, base.get_chemical_symbols())
+        _d2, _l2 = substitute_compound_at_sites(base.copy(), {'Al': 2, 'S': 3}, 1, 'Li_24g', 'S_16e',
+                                                'random', 7, DOPANT_DB, carrier=_c2,
+                                                contract='enforce', index_plan=_pos)
+        chk(_l2['index_plan_used']['anion_sites']['S'] == _pos['anion_sites'],
+            "positional: O 로 떨군 표로 **S no-op 짝**이 같은 자리에 만들어진다")
+        chk(sum(a != b for a, b in zip(_dp.get_chemical_symbols(),
+                                       _d2.get_chemical_symbols())) == 3,
+            "positional: 두 구조 차이가 정확히 3 (O₃ ↔ S₃)")
+    except Exception as _e:
+        chk(False, f"positional 양성 경로 예외: {_e}")
+
+    # ⛔음성: by_element 표로 다른 원소를 놓으려 하면 거부하고, **positional 을 이름으로 댄다**
+    try:
+        _cb = SiteCarrier(pm, base.get_chemical_symbols())
+        substitute_compound_at_sites(base.copy(), {'Al': 2, 'S': 3}, 1, 'Li_24g', 'S_16e',
+                                     'random', 7, DOPANT_DB, carrier=_cb, contract='enforce',
+                                     index_plan={'cation_sites': {'Al': _li[:2]},
+                                                 'anion_sites': {'O': _s16[:3]},
+                                                 'vacancy_sites': _li[2:6]})
+        chk(False, "⛔음성: by_element 표 + 다른 원소 → 거부해야 한다")
+    except S1ContractError as _e:
+        chk('positional' in str(_e),
+            "⛔음성: 거부 문구가 **positional 경로를 이름으로 댄다** (막다른 골목이 아니다)")
+    except Exception as _e:
+        chk(False, f"⛔음성: 예상과 다른 예외 {type(_e).__name__}: {_e}")
+
+    # ⛔음성: 한 자리에 원소가 둘이면 positional 판을 **안 만든다** (접으면 원소를 잃는다)
+    try:
+        _cm = SiteCarrier(pm, base.get_chemical_symbols())
+        _dm, _lm = substitute_compound_at_sites(base.copy(), {'Al': 2, 'O': 2, 'S': 1}, 1,
+                                                'Li_24g', 'S_16e', 'random', 7, DOPANT_DB,
+                                                carrier=_cm, contract='enforce')
+        _multi = len(_lm['index_plan_used']['anion_sites']) > 1
+        chk(_multi and 'index_plan_used_positional' not in _lm,
+            "⛔음성: 음이온 자리에 원소 2종이면 positional 판을 만들지 않는다")
+    except S1ContractError:
+        chk(True, "⛔음성: 혼합 음이온 처방 자체가 계약에서 거부된다 (그래도 조용한 접힘은 없다)")
+    except Exception as _e:
+        chk(False, f"⛔음성: 혼합 음이온에서 예상 밖 예외 {type(_e).__name__}: {_e}")
+
     for _bad_plan, _msg in (
         ({**_plan, 'vacancy_sites': [-1, 0, 1, 2]}, "⛔음성: 허용 집합 밖 인덱스 → 거부"),
         ({**_plan, 'cation_sites': _li[:1]}, "⛔음성: 길이 불일치(1≠2) → 거부"),
@@ -1015,6 +1093,11 @@ def main():
                         help='부모 판정 거리 컷오프 Å (기본 2.6). 컷오프 안에 부모가 0개거나 2개 이상이면 멈춘다')
     parser.add_argument('--emit_index_plan', default=None,
                         help='첫 성공 구조가 실제로 쓴 인덱스 표를 이 JSON 으로 떨군다 — 짝 처방이 --index_plan 으로 재사용')
+    parser.add_argument('--emit_plan_shape', choices=['by_element', 'positional'],
+                        default='by_element',
+                        help='--emit_index_plan 의 모양. by_element(기본) = {"O": [...]} 원소 고정. '
+                             'positional = [...] 원소 무관 — **P1/P2 짝(같은 자리·다른 원소)은 이것을 쓴다**. '
+                             '자리 하나에 원소가 둘 이상이면 positional 은 만들 수 없어 거부한다')
     parser.add_argument('--n_seeds', type=int, default=1,
                        help='Ensemble size (only meaningful with --method random)')
     args = parser.parse_args()
@@ -1152,10 +1235,20 @@ def main():
                         anion_parent_symbol=args.anion_parent_symbol,
                         anion_parent_cutoff=args.anion_parent_cutoff)
                     if args.emit_index_plan and not _index_plan_emitted[0]:
+                        _key = ('index_plan_used_positional'
+                                if args.emit_plan_shape == 'positional' else 'index_plan_used')
+                        if _key not in log:
+                            raise S1ContractError(
+                                f"⛔ --emit_plan_shape positional 을 요청했는데 만들 수 없다 — "
+                                f"한 자리에 원소가 둘 이상이다 "
+                                f"(cation {sorted(log['index_plan_used']['cation_sites'])} · "
+                                f"anion {sorted(log['index_plan_used']['anion_sites'])}). "
+                                f"리스트로 접으면 어느 인덱스가 어느 원소였는지 잃는다 — "
+                                f"by_element 로 떨구고 짝 처방 쪽을 다르게 풀어라")
                         Path(args.emit_index_plan).write_text(
-                            json.dumps(log['index_plan_used'], ensure_ascii=False, indent=1))
+                            json.dumps(log[_key], ensure_ascii=False, indent=1))
                         _index_plan_emitted[0] = True
-                        print(f"  index_plan → {args.emit_index_plan}")
+                        print(f"  index_plan[{args.emit_plan_shape}] → {args.emit_index_plan}")
                     info['steps'].append({
                         'type': 'A_compound',
                         'compound': args.compound,
