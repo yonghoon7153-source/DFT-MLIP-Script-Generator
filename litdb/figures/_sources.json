@@ -795,6 +795,20 @@
    "DFT 먹인 논문/09. Engineering high-performance argyrodite sulfide electrolytes via metal halide doping for all-solid-state lithium metal batteries.pdf"
   ]
  },
+ "li2026_functionally_differentiated_interphase": {
+  "figures": 6,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "115. Li_FunctionallyDifferentiatedCompositeInterphase_MAIN.pdf"
+  ]
+ },
+ "li2026_na_sulfide_halide_interface_review": {
+  "figures": 15,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "116. InterfacialChemistry_Sulfide_Halide_SE_AllSolidState_Sodium_REVIEW.pdf"
+  ]
+ },
  "liang2025_quasilayered_argyrodite_li_migration": {
   "figures": 4,
   "generated": "2026-08-05",
@@ -956,6 +970,13 @@
   "generated": "2026-09-09",
   "pdfs": [
    "2a48d75b-82._Best_practices_for_computing_transport_properties_1._Selfdiffusivity_and_viscosity_from_equilibrium_MD.pdf"
+  ]
+ },
+ "makino2026_mlip_battery_materials_review": {
+  "figures": 12,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "117. MLIP_MACHIN1_MAIN.pdf"
   ]
  },
  "matthews2024_ptfe_nanofibril_network": {
@@ -1536,7 +1557,7 @@
   ]
  },
  "xiao2020_interface_stability_ssb_review": {
-  "figures": 6,
+  "figures": 8,
   "generated": "2026-09-12",
   "pdfs": [
    "112. Banerjee2020_Understanding_Interface_Stability_in_Solid_State_Batteries_REVIEW.pdf"
@@ -1576,6 +1597,14 @@
   "generated": "2026-08-05",
   "pdfs": [
    "이용민 교수님/01. Porosity-Gradient Dry-Processed Graphite Electrode with Deformable Primer Layer for Boosting Fast-Charging Capability of Lithium-ion Batteries.pdf"
+  ]
+ },
+ "yu2026_pvdf_mos2_anion_solvent_confinement": {
+  "figures": 34,
+  "generated": "2026-09-12",
+  "pdfs": [
+   "114. AdvEnergyMater_aenm71556_MAIN.pdf",
+   "114. Sup) AdvEnergyMater_aenm71556_SI.pdf"
   ]
  },
  "yun2023_deciphering_degradation_halide_vs_sulfide": {
