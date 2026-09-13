@@ -21,7 +21,7 @@ Usage:
   python3 scripts/extract_se_network_diagnostics.py --no-plot
 """
 from __future__ import annotations
-import argparse, csv, json, math, os, sys
+import argparse, csv, hashlib as _hashlib, json, math, os, sys
 from pathlib import Path
 
 ROOT   = Path(__file__).resolve().parent.parent
@@ -61,9 +61,31 @@ def _is_timestamp_name(name: str) -> bool:
     return bool(_TS_PAT.match(name))
 
 
+def _pair_digest(d: Path) -> str:
+    """atoms.csv + contacts.csv 의 **내용** 지문.
+
+    ★ L4-06 — 옛 중복제거 키는 `(atoms 바이트, contacts 바이트)` 였다.  **같은 크기는
+    같은 자료의 증거가 아니다**: 이 리포에서 재현했다 — 자리수만 맞춘 서로 다른 두
+    사례(atoms 84 B · contacts 33 B 로 동일)를 넣으면 `discover_cases` 가 **하나만**
+    돌려준다 (어느 쪽이 살아남는지는 rglob 순서에 달렸다 = 조용한 자료 손실).
+    코퍼스가 grade 의 **백분위 기준**이 되므로 여기서 빠지면 그 기준까지 옮겨간다.
+
+    ⚠ 크기 묶음이 **1개면 해시하지 않는다** — 흔한 경우의 비용을 0 으로 두고,
+    실제로 충돌 후보가 생긴 묶음에서만 내용을 읽는다.
+    """
+    h = _hashlib.blake2b(digest_size=16)
+    for fn in ('atoms.csv', 'contacts.csv'):
+        h.update(fn.encode()); h.update(b'\0')
+        with (d / fn).open('rb') as f:
+            for chunk in iter(lambda: f.read(1 << 20), b''):
+                h.update(chunk)
+        h.update(b'\0')
+    return h.hexdigest()
+
+
 def discover_cases() -> list[Path]:
-    """Walk both results/ and archive/, dedup by (atoms.csv size,
-    contacts.csv size).  Prefer NAMED case_ids (input_*, etc.) over
+    """Walk both results/ and archive/, dedup by the **content digest** of
+    (atoms.csv, contacts.csv).  Prefer NAMED case_ids (input_*, etc.) over
     timestamp-style IDs when both exist for the same analysis.
     """
     # Pass 1: collect every candidate dir
@@ -85,11 +107,21 @@ def discover_cases() -> list[Path]:
                 continue
             cands.append((d, size, ct_size))
 
-    # Pass 2: dedup by (atoms size, contacts size); within a key, prefer
+    # Pass 2: dedup by the **content** digest; within a key, prefer
     # non-timestamp names (i.e., human-readable input_* over hex IDs).
+    #  L4-06 — 크기가 겹치는 묶음에서만 내용을 읽는다 (묶음 1개 = 해시 불필요).
+    _size_groups: dict[tuple, int] = {}
+    for _d, _a, _c in cands:
+        _size_groups[(_a, _c)] = _size_groups.get((_a, _c), 0) + 1
     by_key: dict[tuple, Path] = {}
     for d, asize, csize in cands:
-        key = (asize, csize)
+        if _size_groups[(asize, csize)] > 1:
+            try:
+                key = (asize, csize, _pair_digest(d))
+            except OSError:
+                continue
+        else:
+            key = (asize, csize, None)
         if key not in by_key:
             by_key[key] = d
         else:
@@ -101,17 +133,49 @@ def discover_cases() -> list[Path]:
     return sorted(by_key.values())
 
 
-def load_case(case_dir: Path):
-    """Returns (atoms_by_id, type_map, scale, meta)."""
-    meta = {}
+class MetaConflict(ValueError):
+    """두 메타데이터 파일이 같은 필드를 **다르게** 말한다 — 추측하지 않고 거부한다."""
+
+
+def load_meta_merged(case_dir: Path):
+    """`input_params.json` ∪ `meta.json` — **필드별 병합, 충돌은 거부**.
+
+    ★ L4-07 — 옛 코드는 존재하는 **첫 파일을 읽자마자 `break`** 했다.  그래서
+    `input_params.json` 에 `scale` 만 있고 `meta.json` 에 `1:AM_P, 2:SE` 가 있는
+    정상적인 배치에서 **상 지도를 아예 못 본다**.  이 리포에서 재현: 실제 입자 5개가
+    전부 type 2 인데 3-type 기본 지도가 들어가 `type_map = {1:AM_P, 2:AM_S, 3:SE}` ·
+    **추론 SE = 0개**.
+    ⚠ *'모든 mono 가 잘못된다'* 는 얘기가 아니다 — **정상적으로 표현 가능한 메타데이터
+    배치에서 상이 사라진다**는 반례다.
+
+    병합 뒤 같은 키를 두 파일이 다르게 말하면 `MetaConflict` 로 **거부**한다 —
+    한쪽을 조용히 이기게 하면 어느 쪽을 계산했는지 사후에 알 수 없다.
+    """
+    merged: dict = {}
+    origin: dict = {}
     for fname in ('input_params.json', 'meta.json'):
         p = case_dir / fname
-        if p.exists():
-            try:
-                meta = json.loads(p.read_text())
-                break
-            except Exception:
-                pass
+        if not p.exists():
+            continue
+        try:
+            got = json.loads(p.read_text())
+        except Exception:
+            continue
+        if not isinstance(got, dict):
+            continue
+        for k, v in got.items():
+            if k in merged and merged[k] != v:
+                raise MetaConflict(
+                    f'{case_dir.name}: 필드 {k!r} 를 {origin[k]} 는 {merged[k]!r} 로, '
+                    f'{fname} 는 {v!r} 로 말한다 — 어느 쪽을 계산했는지 알 수 없어 거부한다')
+            merged[k] = v
+            origin.setdefault(k, fname)
+    return merged, origin
+
+
+def load_case(case_dir: Path):
+    """Returns (atoms_by_id, type_map, scale, meta)."""
+    meta, _meta_origin = load_meta_merged(case_dir)
     scale = float(meta.get('scale') or 1000.0)
     # type_map: prefer "1:AM_P,2:AM_S,3:SE" string format
     type_map = {}
@@ -420,6 +484,105 @@ def make_figure(rows: list[dict], out_path: Path):
 
 
 # ────────────────────────────────────────────────────────────────────────
+def _selftest() -> int:
+    """★ L4-06 · L4-07 — **코퍼스가 코퍼스인가**.
+
+    둘 다 *"조용히 줄어드는"* 부류다: 하나는 사례가 사라지고(중복제거), 다른 하나는
+    상이 사라진다(메타 병합).  어느 쪽도 오류를 내지 않고, 뒤의 표는 정상으로 보인다.
+    ⚠ 대조 없이는 이 검사도 거짓 초록이 된다 — 중복제거를 **아예 꺼도** ①②는 통과한다.
+    그래서 ①c 가 *"같은 자료는 여전히 하나로 접힌다"* 를 잡는다.
+    """
+    import tempfile
+    global WEBAPP
+    ok = True
+
+    def chk(name, cond, extra=''):
+        nonlocal ok
+        print(('  ✓ ' if cond else '  ✗ ') + name + (f'   {extra}' if extra else ''))
+        ok = ok and bool(cond)
+
+    def _mk(root: Path, nm: str, atoms: str, contacts: str, **files):
+        d = root / 'results' / nm
+        d.mkdir(parents=True, exist_ok=True)
+        (d / 'atoms.csv').write_text(atoms)
+        (d / 'contacts.csv').write_text(contacts)
+        for fn, obj in files.items():
+            (d / f'{fn}.json').write_text(json.dumps(obj))
+        return d
+
+    print('SE 진단 코퍼스 계약 (L4-06 · L4-07)')
+    _saved = WEBAPP
+    try:
+        # ── ① L4-06: 크기는 같고 내용은 다른 두 사례 ────────────────────────
+        tmp = Path(tempfile.mkdtemp())
+        A = ("id,type,radius,x,y,z\n"
+             "1,3,0.50,1.0,1.0,1.0\n2,3,0.50,1.0,1.0,2.0\n3,3,0.50,1.0,1.0,3.0\n")
+        B = A.replace('1.0,1.0,', '9.0,9.0,')
+        CA = "id1,id2,area\n1,2,0.100\n2,3,0.100\n"
+        CB = CA.replace('0.100', '0.900')
+        chk('① 픽스처가 **바이트 수까지 같다** (옛 키가 못 가르는 조건)',
+            len(A) == len(B) and len(CA) == len(CB) and A != B,
+            f'atoms {len(A)} B · contacts {len(CA)} B')
+        _mk(tmp, 'case_a', A, CA, input_params={'scale': 1000})
+        _mk(tmp, 'case_b', B, CB, input_params={'scale': 1000})
+        WEBAPP = tmp
+        got = sorted(p.name for p in discover_cases())
+        chk('①a L4-06: 내용이 다르면 **둘 다 살아남는다** (옛 코드는 하나만; '
+            '어느 쪽이 사라지는지는 rglob 순서에 달렸다)',
+            got == ['case_a', 'case_b'], str(got))
+
+        # ①b 대조 — 같은 내용은 여전히 하나로 접히고, **이름 있는 쪽**이 이긴다
+        tmp2 = Path(tempfile.mkdtemp())
+        _mk(tmp2, '260421_213656_78ec86', A, CA, input_params={'scale': 1000})
+        _mk(tmp2, 'input_twin', A, CA, input_params={'scale': 1000})
+        WEBAPP = tmp2
+        got = [p.name for p in discover_cases()]
+        chk('①b 대조: **같은 내용**은 하나로 접힌다 (중복제거가 꺼진 것이 아니다)',
+            len(got) == 1, str(got))
+        chk('①c 대조: 접힐 때 timestamp 가 아니라 **이름 있는 쪽**이 남는다',
+            got == ['input_twin'], str(got))
+
+        # ── ② L4-07: input_params 에 scale 만 · meta 에 상 지도 ─────────────
+        tmp3 = Path(tempfile.mkdtemp())
+        atoms5 = ("id,type,radius,x,y,z\n"
+                  + "".join(f"{i},2,0.5,{i}.0,0.0,{i}.0\n" for i in range(1, 6)))
+        d = _mk(tmp3, 'mono', atoms5, "id1,id2,area\n1,2,0.1\n",
+                input_params={'scale': 1000}, meta={'type_map': '1:AM_P,2:SE'})
+        atoms, type_map, scale, meta = load_case(d)
+        se_types = {k for k, v in type_map.items() if v == 'SE'}
+        n_se = sum(1 for a in atoms.values() if a['type'] in se_types)
+        chk('②a L4-07: 두 파일을 **병합**해 meta 의 상 지도를 본다 (옛 코드는 '
+            'input_params 를 읽고 break → 3-type 기본 지도)',
+            type_map == {1: 'AM_P', 2: 'SE'}, str(type_map))
+        chk('②b L4-07: 실제 type2 입자 5개가 **SE 로 센다** (옛 코드는 0개)',
+            n_se == 5, f'n_se={n_se}')
+        chk('②c 두 파일이 함께 읽힌다 — scale 은 input_params 쪽',
+            float(scale) == 1000.0, f'scale={scale}')
+
+        # ②d 대조 — 같은 필드를 다르게 말하면 **거부**
+        d2 = _mk(tmp3, 'clash', atoms5, "id1,id2,area\n1,2,0.1\n",
+                 input_params={'scale': 1000}, meta={'scale': 2000})
+        try:
+            load_meta_merged(d2)
+            raised = False
+        except MetaConflict:
+            raised = True
+        chk('②d 대조: 같은 필드를 두 파일이 다르게 말하면 **MetaConflict 로 거부** '
+            '(한쪽을 조용히 이기게 하지 않는다)', raised)
+
+        # ②e 대조 — 파일이 하나뿐인 흔한 배치는 그대로 동작
+        d3 = _mk(tmp3, 'only_meta', atoms5, "id1,id2,area\n1,2,0.1\n",
+                 meta={'type_map': '2:SE', 'scale': 500})
+        _a, _tm, _sc, _m = load_case(d3)
+        chk('②e 대조: meta 하나뿐인 배치도 그대로 읽힌다',
+            _tm == {2: 'SE'} and float(_sc) == 500.0, f'{_tm} scale={_sc}')
+    finally:
+        WEBAPP = _saved
+
+    print('SE 진단 코퍼스 SELFTEST', 'PASS' if ok else 'FAIL')
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--csv-only', action='store_true',
@@ -464,4 +627,6 @@ def main():
 
 
 if __name__ == '__main__':
+    if '--selftest' in sys.argv:
+        sys.exit(_selftest())
     main()

@@ -62,6 +62,9 @@ run 'sr01_stamp_compare     --selftest' python3 scripts/sr01_stamp_compare.py --
 run 'mpm_webapp_payload     --selftest-temperature' python3 scripts/mpm_webapp_payload.py --selftest-temperature
 run 'step3_sigma            --selftest' python3 scripts/step3_sigma.py --selftest
 run 'gen_plots  --selftest-descriptions' python3 scripts/generate_comparison_plots.py --selftest-descriptions
+run 'gen_plots  --selftest-fits' python3 scripts/generate_comparison_plots.py --selftest-fits
+run 'eis_drt_ica            --selftest' python3 scripts/eis_drt_ica.py --selftest
+run 'se_net_diagnostics     --selftest' python3 scripts/extract_se_network_diagnostics.py --selftest
 run 'gen_plots  --selftest-temp'      python3 scripts/generate_comparison_plots.py --selftest-temp
 #  ★ 축소본 계약 (R8 Q6 ⓐ) — 원본 payload 는 팔당 127 MB 라 커밋할 수 없다.  커밋되는 것은
 #    축소본이고, 그 selftest 의 마지막 항목이 **판정기가 축소본을 원본과 동일하게 읽는다**를

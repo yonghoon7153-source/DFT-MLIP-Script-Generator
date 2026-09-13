@@ -21,6 +21,7 @@ ICA: 방전 V(t)/Q(t) → dQ/dV (OCP 상전이 피크).  CV: OCP + BV 동역학 
 """
 from __future__ import annotations
 
+import math
 import numpy as np
 
 F = 96485.33212        # C/mol
@@ -50,8 +51,42 @@ def randles_eis(freqs_hz, R0, R_ct, C_dl, R_w, tau_w, R_int_arc=0.0, C_int=0.0):
     return Z
 
 
+def porosity_to_fraction(porosity, unit='pct', *, default_frac=0.15):
+    """porosity 를 **명시된 단위**로 읽어 0-1 분율로 돌려준다.
+
+    ★★ L4-11 — 옛 코드는 *"값이 1 을 넘으면 %"* 로 **크기를 보고 단위를 추측**했다.
+    그건 단위 식별 규칙이 아니다.  이 리포에서 재현한 불연속:
+      · porosity = **1**        → a_spec 1e-6 · R_ct **128462895.60746863**
+      · porosity = **1.000001** → a_spec 26.729999729999996 · R_ct **4.805944515715439**
+    명시적 1 % 의 값은 **4.805944467** 이어야 한다 (Codex).  화면은 porosity(%) 이고
+    API 는 **0.1-60 을 허용**하므로 0.1-1.0 구간이 실제로 도달 가능하다 — 거기서
+    *'0.5 %'* 가 **50 %** 로 읽히고 있었다.
+    ★ 같이 잡은 것 (내가 추가로 실측): porosity = **0.0** 이 `porosity or 0.15` 의
+    falsy 함정에 걸려 **15 %** 로 바뀐다 — `None` 과 **출력이 완전히 같다**
+    (a_spec 22.949999999999996 · R_ct 5.597511791175105).
+
+    ⇒ 단위는 **호출자가 말한다**.  범위 밖이면 추측하지 않고 거부한다.
+    """
+    if porosity is None:
+        return float(default_frac), 'default'
+    v = float(porosity)
+    if not math.isfinite(v):
+        raise ValueError(f'porosity 가 유한한 수가 아니다: {porosity!r}')
+    u = str(unit).strip().lower()
+    if u in ('pct', '%', 'percent'):
+        if not (0.0 <= v <= 100.0):
+            raise ValueError(f'porosity(%) 는 0-100 이어야 한다: {v!r}')
+        return v / 100.0, 'pct'
+    if u in ('frac', 'fraction'):
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(f'porosity(분율) 는 0-1 이어야 한다: {v!r}')
+        return v, 'frac'
+    raise ValueError(f"porosity_unit 은 'pct' 또는 'frac' 이어야 한다: {unit!r}")
+
+
 def physics_eis(freqs_hz, *, sigma_e_S_cm, sigma_ion_S_cm, thickness_um, r_int_ohm_cm2=0.0,
                 i0_A_m2=2.0, a_spec=None, spec_area_cm2_cm3=None, porosity=None,
+                porosity_unit='pct',
                 am_vol_frac=None, coverage_frac=0.5,
                 d_s_m2_s=3e-14, r_p_um=3.0, c_dl_uF_cm2=10.0, c_dl_areal_uF_cm2=None, dudx_V=None,
                 c_max_mol_m3=63104.0, alpha_a=0.5, alpha_c=0.5, temp_k=298.15, r_w_ohm_cm2=None,
@@ -89,7 +124,9 @@ def physics_eis(freqs_hz, *, sigma_e_S_cm, sigma_ion_S_cm, thickness_um, r_int_o
             a_spec = float(spec_area_cm2_cm3) * L_cm
         else:                                                  # ★리뷰#3: φ_AM·coverage·3/r·L (φ_AM≠전고체,
             #   반응은 SE-덮인 AM 면만 = coverage) — 옛 (1−ε)전고체는 반응면 2-4× 과대→R_ct 과소.
-            phi_solid = (1.0 - (float(porosity) / 100.0 if porosity and porosity > 1 else (porosity or 0.15)))
+            #  L4-11 — 단위는 **호출자가 말한다** (기본 'pct': 화면·API·CLI 가 전부 %).
+            _por_frac, _por_src = porosity_to_fraction(porosity, porosity_unit)
+            phi_solid = 1.0 - _por_frac
             phi_am = float(am_vol_frac) if am_vol_frac is not None else 0.75 * phi_solid  # AM≈75%고체(기본)
             a_spec = phi_am * float(coverage_frac) * (3.0 / (float(r_p_um) * 1e-4)) * L_cm
     a_spec = max(float(a_spec), 1e-6)
@@ -565,6 +602,40 @@ def _selftest():
     ri_seq = [t['R_int_ohm_cm2'] for t in traj]
     if not all(ri_seq[i] <= ri_seq[i + 1] + 1e-9 for i in range(len(ri_seq) - 1)):
         fails.append(f"R_int(N) 단조증가 실패: {[round(r, 1) for r in ri_seq]}")
+    # ── L4-11: porosity **단위 계약** (크기로 추측하지 않는다) ──────────────
+    #  ⚠ 대조가 요점이다 — 단순히 "거부한다" 로 만들면 ①②③ 도 통과한다.
+    #     ④⑤ 가 *'정상 입력은 그대로 돈다'* 와 *'연속이다'* 를 잡는다.
+    _f4 = np.logspace(5, -2, 40)
+
+    def _rct(**kw):
+        _, _el = physics_eis(_f4, sigma_e_S_cm=2.0, sigma_ion_S_cm=2e-4,
+                             thickness_um=72.0, r_int_ohm_cm2=50.0, i0_A_m2=2.0,
+                             r_p_um=3.0, d_s_m2_s=3e-14, **kw)
+        return _el['R_ct_ohm_cm2']
+    _r1 = _rct(porosity=1.0)                       # 명시적 1 %
+    if abs(_r1 - 4.805944467) > 1e-8:
+        fails.append(f'L4-11 명시적 1 % 의 R_ct 가 4.805944467 이 아니다: {_r1!r} '
+                     f'(옛 코드는 128462895.60746863 = 크기 추측이 1 에서 뒤집혔다)')
+    _r2 = _rct(porosity=1.000001)
+    if abs(_r1 - _r2) > 1e-6:                      # 1 에서 **연속**인가
+        fails.append(f'L4-11 porosity 1 ↔ 1.000001 이 불연속: {_r1!r} vs {_r2!r}')
+    _r0 = _rct(porosity=0.0)
+    _rn = _rct(porosity=None)
+    if abs(_r0 - _rn) < 1e-9:                      # 0 이 None(기본 15 %)과 같으면 falsy 함정
+        fails.append(f'L4-11 porosity 0 이 None 과 같은 값을 낸다 (falsy 함정): {_r0!r}')
+    _rf = _rct(porosity=0.01, porosity_unit='frac')   # 1 % 를 분율로
+    if abs(_rf - _r1) > 1e-9:
+        fails.append(f"L4-11 frac 0.01 ≠ pct 1.0: {_rf!r} vs {_r1!r}")
+    for _bad, _u in ((101.0, 'pct'), (-1.0, 'pct'), (1.5, 'frac'), (8.0, 'ratio')):
+        try:
+            porosity_to_fraction(_bad, _u)
+            fails.append(f'L4-11 범위·단위 밖을 거부하지 않는다: {_bad!r} unit={_u!r}')
+        except ValueError:
+            pass
+    _r8 = _rct(porosity=8.0)                        # 생산 기본값은 그대로
+    if not (4.0 < _r8 < 8.0):
+        fails.append(f'L4-11 대조: 기본 8 % 가 정상 범위를 벗어났다: {_r8!r}')
+
     print('selftest OK' if not fails else 'selftest FAIL:\n  ' + '\n  '.join(fails))
     if not fails:
         print(f"  Randles: R0={hf.real:.1f} arc+Warburg → LF {lf.real:.1f}{lf.imag:+.1f}j Ω·cm²")
@@ -583,7 +654,11 @@ def _step3_params_from_metrics(m):
     s3 = m.get('step3', m) or {}
     return {'sigma_e_S_cm': s3.get('sigma_e_eff_S_cm'), 'sigma_ion_S_cm': s3.get('sigma_ion_eff_S_cm'),
             'thickness_um': m.get('thickness_um') or m.get('thickness_mpm_um'),
-            'porosity': m.get('porosity_mpm_pct') or m.get('porosity_settled_pct'),
+            #  L4-11 — `or` 는 **0 을 결측으로** 읽는다 (porosity 0 % 는 유효한 값이다).
+            #  키 이름이 `_pct` 라고 말하므로 단위도 명시해 넘긴다.
+            'porosity': (m.get('porosity_mpm_pct') if m.get('porosity_mpm_pct') is not None
+                         else m.get('porosity_settled_pct')),
+            'porosity_unit': 'pct',
             'r_int_ohm_cm2': (s3.get('collector_geometric') or {}).get('R_geom_ohm_cm2', 0.0)}
 
 

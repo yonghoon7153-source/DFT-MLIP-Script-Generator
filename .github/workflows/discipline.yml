@@ -74,6 +74,15 @@ jobs:
       - name: 설명 ↔ 상수 정합 (L3-11 — 어느 수식을 계산했다고 보고하는가)
         run: python scripts/generate_comparison_plots.py --selftest-descriptions
 
+      - name: 적합 fail-closed + 캐시 지문 (L3-08 · L3-12)
+        run: python scripts/generate_comparison_plots.py --selftest-fits
+
+      - name: EIS porosity 단위 계약 (L4-11 — 크기로 단위를 추측하지 않는다)
+        run: python scripts/eis_drt_ica.py --selftest
+
+      - name: SE 진단 코퍼스 (L4-06 내용 지문 · L4-07 메타 병합)
+        run: python scripts/extract_se_network_diagnostics.py --selftest
+
       - name: σ_grain(T) 흡수 규약 (selftest — 어느 레인에도 없었다)
         run: python scripts/generate_comparison_plots.py --selftest-temp
 

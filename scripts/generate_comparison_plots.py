@@ -2486,8 +2486,8 @@ def _load_thermal_sigma(data_list):
     return vals
 
 
-_ELECTRONIC_GLOBAL_FIT_CACHE = None   # Stage 21: (coef[14], sigma_S, sigma_P, β_AC, n_fit)
-_ELECTRONIC_BOOTSTRAP_CACHE = None    # Stage 21: (b_samples [B×14], sigma_resid_log, n_fit, b_map)
+_ELECTRONIC_GLOBAL_FIT_CACHE = None   # SELF/L3-12: (지문, (coef[14], sigma_S, sigma_P, β_AC, n_fit))
+_ELECTRONIC_BOOTSTRAP_CACHE = None    # SELF/L3-12: (지문, (b_samples [B×14], sigma_resid_log, n_fit, b_map))
 
 
 def _electronic_bootstrap(B=200, seed=42):
@@ -2503,8 +2503,10 @@ def _electronic_bootstrap(B=200, seed=42):
     on n≈77 × 14-col matrix is fast (~0.6s × 200 = ~120s on first call).
     Cached per module reload."""
     global _ELECTRONIC_BOOTSTRAP_CACHE
-    if _ELECTRONIC_BOOTSTRAP_CACHE is not None:
-        return _ELECTRONIC_BOOTSTRAP_CACHE
+    #  ★ SELF (L3-12 와 **같은 부류, 더 강한 형태**): 이 캐시에는 키가 아예 없었다 —
+    #    코퍼스가 바뀌어도 첫 결과를 그대로 돌려준다.  캐시 검사를 **코퍼스를 읽은 뒤**
+    #    로 옮기고 내용 지문으로 건다.  디스크 walk 는 싸고 비싼 것은 bootstrap 이므로
+    #    절약분은 그대로 남는다.  ⚠ L3-12 와 같이 **동일 프로세스 한정** 얘기다.
     from pathlib import Path as _P
     # Walk corpus same way as _electronic_global_fit (skip nameless).
     data_list = []; names = []; seen = set()
@@ -2535,6 +2537,12 @@ def _electronic_bootstrap(B=200, seed=42):
         _ELECTRONIC_BOOTSTRAP_CACHE = None
         return None
     fit_mask = ~arr['excluded']
+    _fp = ('el_boot', B, seed, _STAGE_FORM_VERSION, bool(_LOCK_ENDPOINTS),
+           _array_fingerprint(arr['X'], arr['y_resid'], arr['logsf'],
+                              arr['log_offset'], fit_mask.astype(float)))
+    if (_ELECTRONIC_BOOTSTRAP_CACHE is not None
+            and _ELECTRONIC_BOOTSTRAP_CACHE[0] == _fp):
+        return _ELECTRONIC_BOOTSTRAP_CACHE[1]
     X_full = arr['X'][fit_mask]
     y_full = arr['y_resid'][fit_mask]
     logsf_full = arr['logsf'][fit_mask]
@@ -2578,10 +2586,10 @@ def _electronic_bootstrap(B=200, seed=42):
             b_samples[j] = bb
         except Exception:
             b_samples[j] = b_map
-    _ELECTRONIC_BOOTSTRAP_CACHE = (b_samples, sigma_residual, n_fit, b_map)
+    _ELECTRONIC_BOOTSTRAP_CACHE = (_fp, (b_samples, sigma_residual, n_fit, b_map))
     print(f"  [electronic_bootstrap] B={B}, n_fit={n_fit}, k={k}, "
           f"σ_residual_log={sigma_residual:.4f} (aleatoric noise estimate)")
-    return _ELECTRONIC_BOOTSTRAP_CACHE
+    return _ELECTRONIC_BOOTSTRAP_CACHE[1]
 
 
 def _electronic_pred_band(arr_disp, ci=0.68):
@@ -2626,8 +2634,7 @@ def _electronic_global_fit():
     Returns coef array (8,) or None if corpus too small.
     """
     global _ELECTRONIC_GLOBAL_FIT_CACHE
-    if _ELECTRONIC_GLOBAL_FIT_CACHE is not None:
-        return _ELECTRONIC_GLOBAL_FIT_CACHE
+    #  ★ SELF (L3-12 부류): 키가 없던 캐시.  코퍼스를 읽은 **뒤** 지문으로 건다.
     from pathlib import Path as _P
     data_list = []
     names = []
@@ -2669,11 +2676,20 @@ def _electronic_global_fit():
         _ELECTRONIC_GLOBAL_FIT_CACHE = None
         return None
     fit_mask = ~arr['excluded']
+    _fp = ('el_glob', _STAGE_FORM_VERSION, bool(_LOCK_ENDPOINTS),
+           _array_fingerprint(arr['X'], arr['y_resid'], arr['logsf'],
+                              arr['log_offset'], fit_mask.astype(float)))
+    if (_ELECTRONIC_GLOBAL_FIT_CACHE is not None
+            and _ELECTRONIC_GLOBAL_FIT_CACHE[0] == _fp):
+        return _ELECTRONIC_GLOBAL_FIT_CACHE[1]
     fit = _electronic_fit(arr, fit_mask=fit_mask)
+    if fit is None:                      # L3-08: 적합이 정해지지 않으면 캐시도 비운다
+        _ELECTRONIC_GLOBAL_FIT_CACHE = None
+        return None
     coef = fit['coef']
     sS = float(np.exp(coef[0])); sP = float(np.exp(coef[1]))
     bAC = float(coef[7])
-    _ELECTRONIC_GLOBAL_FIT_CACHE = (coef, sS, sP, bAC, fit['n_fit'])
+    _ELECTRONIC_GLOBAL_FIT_CACHE = (_fp, (coef, sS, sP, bAC, fit['n_fit']))
     print(f"  [electronic_global_fit] n_corpus={len(data_list)} "
           f"(skipped {nameless_skipped} nameless), n_fit={fit['n_fit']} "
           f"(excl={int(arr['excluded'].sum())}), "
@@ -2681,7 +2697,7 @@ def _electronic_global_fit():
           + ('' if 7 in _STAGE_22_5_DROP_COLS else f"β_AC={bAC:+.3f}, ")
           + 
           f"R²={fit['r2']:.3f}, LOOCV={fit['loocv']:.3f}")
-    return _ELECTRONIC_GLOBAL_FIT_CACHE
+    return _ELECTRONIC_GLOBAL_FIT_CACHE[1]
 
 
 def plot_electronic_sigma(data_list, names, outdir):
@@ -4755,6 +4771,28 @@ def _stage_e_global_fit():
 _BOOTSTRAP_CACHE = {}   # corpus-fingerprint → (b_samples, residual_se_log)
 
 
+def _array_fingerprint(*arrays):
+    """★ L3-12 — 적합에 들어가는 **모든 값**의 내용 해시.
+
+    옛 캐시 키는 `(n, B, seed, ls[0], ls[-1], bl.sum())` 이었다 — **중간 y 를 안 본다**.
+    실측 재현: 길이 20 의 `ls` 에서 가운데 한 값만 ×10 해도 키가
+    `(20, 200, 42, -1.0, 1.0, 30.0)` 로 **완전히 같다** ⇒ 앞 코퍼스의 bootstrap 객체가
+    그대로 재사용된다 (Codex: stale residual SE .04488437 vs 옳은 값 .56962704).
+    ⚠ **동일 프로세스 한정**이다 — 새 subprocess 로 도는 웹 요청 사이의 오염이 아니다.
+    그래도 한 프로세스가 두 코퍼스를 보는 경로(플롯 여러 개, 재적합)가 실재한다.
+
+    합/양끝 같은 **요약값은 지문이 아니다** — 내용을 전부 해시한다.  n≈88 × 몇 개
+    배열이라 수십 KB 이고, bootstrap 자체가 10-25 s 인 앞에서 비용은 없다.
+    """
+    h = _hashlib.blake2b(digest_size=16)
+    for a in arrays:
+        v = np.ascontiguousarray(np.asarray(a, dtype=np.float64))
+        h.update(repr(v.shape).encode())
+        h.update(v.tobytes())
+        h.update(b'|')
+    return h.hexdigest()
+
+
 def _stage_e_bootstrap_coefs(B=200, seed=42):
     """Resample the FULL fit corpus B times → array of coefficient vectors.
     Returns (b_samples [B × k], residual_se_log, n_fit).
@@ -4775,8 +4813,8 @@ def _stage_e_bootstrap_coefs(B=200, seed=42):
         return None
     extras, cov_med = _c4_extras_from_arrays(phi_a, rse_a, dcov_a,
                                               p_arr=p_a, fi_log_arr=fi_a)
-    # Cache key: corpus size + first/last logsf hash (fast fingerprint)
-    key = (n, B, seed, float(ls[0]), float(ls[-1]), float(bl.sum()))
+    # Cache key: **내용 전수** 지문 (L3-12 — 양끝·합 요약은 중간 y 를 놓친다)
+    key = (n, B, seed, _array_fingerprint(bl, ls, ts, *extras))
     if key in _BOOTSTRAP_CACHE:
         return _BOOTSTRAP_CACHE[key]
     # MAP fit for residual SE (aleatoric noise estimate)
@@ -6141,6 +6179,23 @@ def _electronic_form_arrays(data_list, names, allow_no_sigma=False):
     }
 
 
+#  ★ L3-08 — 마스크 뒤 최소 행수.  `_electronic_form_arrays` 의 EXCL **전** 게이트와
+#    같은 값(8)을 쓰되, LIVE 열 수보다 적으면 그쪽이 이긴다.
+_EL_MIN_FIT_ROWS = 8
+
+
+def _electronic_live_cols(ncol, lock_endpoints):
+    """실제로 **적합되는** 열의 인덱스.  `_fit_locked` 의 드롭 논리와 한 출처를 쓴다.
+
+    lock_endpoints 면 0·1 은 LOCKED(자료가 안 정한다) 이고, Stage 22.5 에서는
+    `_STAGE_22_5_DROP_COLS` 가 0 으로 고정된다 → 둘 다 랭크 계산에서 빠져야 한다.
+    """
+    if not lock_endpoints:
+        return list(range(ncol))
+    drop = _STAGE_22_5_DROP_COLS if _STAGE_FORM_VERSION >= 22.5 else frozenset()
+    return [j for j in range(2, ncol) if j not in drop]
+
+
 def _electronic_fit(arr, fit_mask=None, lock_endpoints=None):
     """OLS fit σ_e form (Stage 22 / 22.5) on arr['X'], arr['y_resid']
     (optionally masked).  Returns dict with coef, pred_log (full corpus),
@@ -6164,6 +6219,25 @@ def _electronic_fit(arr, fit_mask=None, lock_endpoints=None):
         fit_mask = np.ones(n, bool)
     Xf = X[fit_mask]; yf = y[fit_mask]
     nf = int(fit_mask.sum())
+
+    #  ★★ L3-08 — **마스크 뒤에도** 최소 행수·랭크를 본다 (fail-closed).
+    #    `_electronic_form_arrays` 의 `n < 8` 게이트는 **EXCL 전** 행을 센다.  그 8행이
+    #    전부 EXCL 이면 여기서 `nf = 0` 인데 옛 코드는 빈 `lstsq` 의 영벡터로 계속 가서
+    #    **유한한 예측**과 `r2 = loocv = 0.0` 을 돌려줬다 (ss_tot = 0 → 0.0 분기).
+    #    실측 재현: n=12·k=14·전부 EXCL → n_fit 0 · r2 0.0 · loocv 0.0 ·
+    #    pred[0] = 0.07688995743054786 (유한).  무너지는 결론은 *'적합에 성공한 모델'* 이다.
+    #    ⚠ 랭크도 같이 본다 — `lstsq` 는 랭크 부족을 **조용히 최소노름 해**로 메운다.
+    #    그 계수는 자료가 정하지 않은 값인데 보고문은 적합 결과라고 말한다.
+    live_cols = _electronic_live_cols(X.shape[1], lock_endpoints)
+    k_live = len(live_cols)
+    if nf < max(_EL_MIN_FIT_ROWS, k_live + 1):
+        print(f"  [SKIP] _electronic_fit: 마스크 뒤 행이 {nf}개 "
+              f"(필요 ≥ {max(_EL_MIN_FIT_ROWS, k_live + 1)}; LIVE 열 {k_live})")
+        return None
+    if int(np.linalg.matrix_rank(Xf[:, live_cols])) < k_live:
+        print(f"  [SKIP] _electronic_fit: LIVE 설계행렬 랭크 부족 "
+              f"(rank < {k_live}, n_fit={nf}) — 계수가 자료로 정해지지 않는다")
+        return None
 
     def _fit_locked(Xf_, y_):
         """Lock cols 0,1; fit cols 2..end with Stage 22 vs 22.5 drop logic.
@@ -6196,6 +6270,12 @@ def _electronic_fit(arr, fit_mask=None, lock_endpoints=None):
     sse_loo = 0.0
     for j in range(nf):
         m = np.ones(nf, bool); m[j] = False
+        #  L3-08 — 폴드가 랭크를 잃으면 그 폴드의 계수는 최소노름 대체값이다.
+        #  그런 폴드를 섞은 값을 LOOCV 라고 부르지 않는다.
+        if int(np.linalg.matrix_rank(Xf[m][:, live_cols])) < k_live:
+            print(f"  [SKIP] _electronic_fit: LOO 폴드 j={j} 에서 랭크 부족 "
+                  f"— LOOCV 를 보고하지 않는다")
+            return None
         if lock_endpoints:
             c_loo = _fit_locked(Xf[m], yf[m])
         else:
@@ -6220,6 +6300,9 @@ def plot_electronic_fit_final(data_list, names, outdir):
     # Exclude the 5 audit-trail cases from the FIT (matches Stage 12 _EXCLUDED)
     fit_mask = ~arr['excluded']
     fit = _electronic_fit(arr, fit_mask=fit_mask)
+    if fit is None:                      # L3-08
+        print("  [SKIP] electronic_fit_final: EXCL 뒤 적합이 정해지지 않는다")
+        return None
     coef = fit['coef']
     sig_act = arr['sig_act']
     sig_pred = np.exp(fit['pred_log'])
@@ -6349,6 +6432,9 @@ def plot_electronic_outliers_final(data_list, names, outdir):
     # Fit on non-excluded; predict on all
     fit_mask = ~arr['excluded']
     fit = _electronic_fit(arr, fit_mask=fit_mask)
+    if fit is None:                      # L3-08
+        print("  [SKIP] electronic_outliers_final: EXCL 뒤 적합이 정해지지 않는다")
+        return None
     sig_act = arr['sig_act']
     sig_pred = np.exp(fit['pred_log'])
     err_pct = (sig_pred - sig_act) / sig_act * 100.0
@@ -6570,6 +6656,9 @@ def plot_electronic_decomp_final(data_list, names, outdir):
         return None
     fit_mask = ~arr['excluded']
     fit = _electronic_fit(arr, fit_mask=fit_mask)
+    if fit is None:                      # L3-08
+        print("  [SKIP] electronic_decomp_final: EXCL 뒤 적합이 정해지지 않는다")
+        return None
     coef = fit['coef']
     sigma_S = float(np.exp(coef[0])); sigma_P = float(np.exp(coef[1]))
     beta_T = float(coef[2])
@@ -7631,9 +7720,105 @@ def _selftest_descriptions():
     return 0 if ok else 1
 
 
+def _selftest_fits():
+    """★ L3-08 · L3-12 — **적합이 정해졌는가**와 **캐시가 자료를 보는가**.
+
+    둘 다 *"성공한 것처럼 보이는 실패"* 부류다: 하나는 행이 0인데 유한한 예측과
+    `R² = LOOCV = 0` 을 내놓고, 다른 하나는 다른 자료에 앞 자료의 bootstrap 을
+    돌려준다.  값이 **비어 있지 않아서** 눈으로는 안 잡힌다.
+
+    ⚠ 대조가 없으면 이 검사도 거짓 초록이 된다 — 게이트를 "항상 거부" 로 만들어도
+    ①③④a 는 통과한다.  그래서 ②④b 가 **통과해야 하는** 자리를 잡는다.
+    """
+    ok = True
+
+    def chk(name, cond, extra=''):
+        nonlocal ok
+        print(('  ✓ ' if cond else '  ✗ ') + name + (f'   {extra}' if extra else ''))
+        ok = ok and bool(cond)
+
+    print('적합 fail-closed + 캐시 지문 (L3-08 · L3-12)')
+
+    def _arr(n, k=14, rng_seed=0, dup=None):
+        rng = np.random.default_rng(rng_seed)
+        X = rng.normal(size=(n, k))
+        if dup is not None:                # 랭크를 일부러 떨어뜨린다 (**LIVE 끼리**)
+            X[:, dup[1]] = X[:, dup[0]]
+        return {'X': X, 'y_resid': rng.normal(size=n), 'n': n,
+                'log_offset': np.zeros(n), 'logsf': rng.normal(size=n)}
+
+    # ── ① 마스크가 전부 False → 거부 ────────────────────────────────────────
+    a = _arr(12)
+    got = _electronic_fit(a, fit_mask=np.zeros(12, bool))
+    chk('① L3-08: EXCL 이 전부라 n_fit=0 이면 **거부**한다 (옛 코드는 '
+        'r2=loocv=0.0 · 유한 예측 dict)', got is None)
+
+    # ── ② 양성 대조: 건강한 자료는 **통과해야** 한다 ─────────────────────────
+    k_live = len(_electronic_live_cols(14, True))
+    a = _arr(40, rng_seed=7)
+    got = _electronic_fit(a, fit_mask=np.ones(40, bool))
+    chk('② 대조: 건강한 40행은 적합된다 (게이트가 "항상 거부" 가 아니다)',
+        isinstance(got, dict) and got['n_fit'] == 40
+        and np.isfinite(got['r2']) and np.isfinite(got['loocv']),
+        f"n_fit={None if got is None else got['n_fit']}")
+
+    # ── ③ 랭크 부족 → 거부 (lstsq 는 최소노름으로 조용히 메운다) ─────────────
+    live = _electronic_live_cols(14, True)
+    a = _arr(40, rng_seed=3, dup=(live[0], live[1]))
+    got = _electronic_fit(a, fit_mask=np.ones(40, bool))
+    chk('③ L3-08: LIVE 열이 서로 같아 랭크가 모자라면 **거부**한다',
+        got is None)
+    #  ⚠ 대조 — **드롭된** 열을 겹치는 것은 LIVE 랭크와 무관하다.  (내 첫 픽스처가
+    #    바로 이 실수를 했고 ③ 이 빨간불을 냈다: live[0]+1 = 3 은 드롭 열이다.)
+    drop = sorted(_STAGE_22_5_DROP_COLS)
+    a = _arr(40, rng_seed=3, dup=(drop[0], drop[1]))
+    chk('③ 대조: **드롭 열**을 겹치는 것은 적합에 영향이 없다 (랭크 검사가 '
+        'LIVE 만 본다)',
+        isinstance(_electronic_fit(a, fit_mask=np.ones(40, bool)), dict))
+
+    # ── ④ 경계: k_live+1 에서 정확히 갈린다 ─────────────────────────────────
+    need = max(_EL_MIN_FIT_ROWS, k_live + 1)
+    lo = _electronic_fit(_arr(need - 1, rng_seed=11),
+                         fit_mask=np.ones(need - 1, bool))
+    hi = _electronic_fit(_arr(need, rng_seed=11),
+                         fit_mask=np.ones(need, bool))
+    chk(f'④a 경계 아래({need - 1}행) 는 거부', lo is None)
+    chk(f'④b 경계({need}행) 는 통과 — 문턱이 한 행 단위로 예리하다',
+        isinstance(hi, dict) and hi['n_fit'] == need)
+
+    # ── ⑤ LIVE 열 수가 드롭 논리와 한 출처인가 ──────────────────────────────
+    chk('⑤ Stage 22.5 의 LIVE 열 = 8 (드롭 4열 + LOCKED 2열 제외)',
+        k_live == 8, f'k_live={k_live}')
+    chk('⑤ 대조: lock_endpoints=False 면 14열 전부가 LIVE',
+        len(_electronic_live_cols(14, False)) == 14)
+
+    # ── ⑥ L3-12: 지문이 **중간 y** 를 본다 ──────────────────────────────────
+    m = 20
+    bl = np.linspace(1.0, 2.0, m)
+    ls_a = np.linspace(-1.0, 1.0, m)
+    ls_b = ls_a.copy(); ls_b[m // 2] *= 10.0
+    old_a = (m, 200, 42, float(ls_a[0]), float(ls_a[-1]), float(bl.sum()))
+    old_b = (m, 200, 42, float(ls_b[0]), float(ls_b[-1]), float(bl.sum()))
+    chk('⑥ 반례 보존: **옛 키**는 중간 y 를 ×10 해도 같다 (그래서 결함이었다)',
+        old_a == old_b, str(old_a))
+    chk('⑥ L3-12: 내용 지문은 **다르다**',
+        _array_fingerprint(bl, ls_a) != _array_fingerprint(bl, ls_b))
+    chk('⑥ 대조: 같은 내용이면 같은 지문 (캐시가 무용지물이 되지 않는다)',
+        _array_fingerprint(bl, ls_a) == _array_fingerprint(bl.copy(), ls_a.copy()))
+    chk('⑥ 대조: 순서만 바꿔도 다른 지문',
+        _array_fingerprint(bl, ls_a) != _array_fingerprint(ls_a, bl))
+    chk('⑥ 대조: 모양이 다르면 다른 지문 (평탄화 충돌 없음)',
+        _array_fingerprint(np.zeros((2, 3))) != _array_fingerprint(np.zeros((3, 2))))
+
+    print('적합·캐시 SELFTEST', 'PASS' if ok else 'FAIL')
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
     if '--selftest-temp' in sys.argv:
         sys.exit(_selftest_temp())
     if '--selftest-descriptions' in sys.argv:
         sys.exit(_selftest_descriptions())
+    if '--selftest-fits' in sys.argv:
+        sys.exit(_selftest_fits())
     main()
