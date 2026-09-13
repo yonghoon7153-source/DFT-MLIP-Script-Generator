@@ -31,9 +31,17 @@ from __future__ import annotations
 import csv
 import math
 import os
+import sys
 
 import press_units
 import statistics as _stat
+
+#  ★★ L4-09 — 비용량 상수를 **한 자리**에 둔다.  옛 코드는 175 를 네 군데 리터럴로 적고
+#    설명 문자열에는 **190 계열**을 적어 두었다 (85:15 을 162 라고 썼지만 실제 반환은
+#    148.75).  L3-11 에서 배운 것과 같은 자리다 — **설명을 상수에서 생성**하지 않으면
+#    세대가 갈라진다.  ⚠ 값을 바꾸는 것이 아니다: 네 자리 전부 이미 175 였다.
+C_AM_MAHG = 175     # NMC811 — STEP4 x-window(|Δx|·275 ≈ 177) 정합.  옛 190 = 4.3 V 문헌값
+RHO_AM_G_CC = 4.8   # 정본 additives.DENS
 from typing import Any, Iterable
 
 # ── Letter grade scale ───────────────────────────────────────────────────
@@ -153,27 +161,35 @@ AXES: list[dict[str, Any]] = [
 
     # ── 4. 경로 효율 (Path efficiency) ──
     {'category': '경로 효율 (Tortuosity)',
-     'key': '__tau_lap_eff', 'label': 'τ_Laplace,eff ⭐',
+     'key': '__tau_lap_eff', 'label': 'τ_Laplace,eff ⭐ (σ_grain **3.0 고정**)',
      'direction': 'lower', 'thresholds': [1.8, 2.2, 2.8, 3.5, 4.5, 6.0],
-     'formula': '√(φ_SE × σ_grain / σ_full)  — Stage E physics 우선, σ_grain=3 mS/cm',
+     'formula': '√(φ_SE × **3.0** / σ_full)  — Stage E physics 우선, σ_grain 은 **상수 3 mS/cm**',
      'meaning': 'COMSOL/EIS input tortuosity (Tippens 2019, Famprikis 2019). '
-                '<2.5 우수, >5 endpoint dominated.  app.py 표시값과 동일 공식.',
+                '<2.5 우수, >5 endpoint dominated.\n'
+                '⚠ ★ L4-04 — **앱 표시값과 같은 공식이 아니다**.  앱(`webapp/app.py`)은 '
+                '**baseline 온도에 맞춘 σ_grain** 을 쓰는데 여기는 3.0 을 박아 둔다 ⇒ '
+                '모든 σ_ion 과 대응 grain 을 함께 ×4 하면 앱 τ 는 3.4641 그대로인데 '
+                '이 축은 3.4641 → 1.7321 로 움직여 등급이 **B− → A** 가 된다 '
+                '(공통 스케일 불변성 위반).  온도를 바꿔 비교할 때 이 축을 쓰지 말 것.',
      'weight': 1.0},
 
     {'category': '경로 효율 (Tortuosity)',
-     'key': '__tau_lap_bulk', 'label': 'τ_Laplace,bulk (구조)',
+     'key': '__tau_lap_bulk', 'label': 'τ_Laplace,bulk (구조, σ_grain **3.0 고정**)',
      'direction': 'lower', 'thresholds': [1.2, 1.4, 1.7, 2.0, 2.5, 3.0],
-     'formula': '√(φ_SE × σ_grain / σ_bulk_net)  — constriction 제외 (geometric Laplacian)',
-     'meaning': 'Bruggeman 가정 φ^−0.5 ≈ 1.85.  τ_Dij와 다른 정량.',
+     'formula': '√(φ_SE × **3.0** / σ_bulk_net)  — constriction 제외 (geometric Laplacian)',
+     'meaning': 'Bruggeman 가정 φ^−0.5 ≈ 1.85.  **τ_Dijkstra 와 다른 정량이고 서로의 대체 열이 '
+                '아니다** (L4-04).  σ_grain 이 상수라 위 τ_eff 와 같은 온도 주의가 걸린다.',
      'weight': 0.5},
 
     {'category': '경로 효율 (Tortuosity)',
      'key': '__constriction_overhead',
-     'label': 'Constriction overhead τ_eff/τ_bulk',
+     'label': 'Constriction overhead τ_eff/τ_bulk (= √저항비)',
      'direction': 'lower', 'thresholds': [1.5, 1.8, 2.2, 2.8, 3.5, 5.0],
-     'formula': 'τ_Laplace,eff / τ_Laplace,bulk — needs both Laplacian values',
-     'meaning': '좁은 contact으로 인한 추가 저항 비율. 1배=geometric만, '
-                '높을수록 constriction loss 큼.',
+     'formula': 'τ_Laplace,eff / τ_Laplace,bulk = **√(σ_bulk_net/σ_full)** — 둘 다 있어야 한다',
+     'meaning': '좁은 contact 으로 인한 추가 저항.  1배 = geometric 만, 높을수록 constriction '
+                'loss 큼.\n⚠ ★ L4-04 — 이것은 **저항비의 제곱근**이다.  저항비 자체로 읽으면 '
+                '틀린다 (같은 침대에서 overhead 2 ↔ 앱 eff/Dijkstra 2.3094 — 서로의 대체 열이 '
+                '아니고 등록된 Dijkstra target 도 아니다).',
      'weight': 0.7},
 
     {'category': '경로 효율 (Tortuosity)',
@@ -338,28 +354,44 @@ AXES: list[dict[str, Any]] = [
 
     {'category': '전도도 절대값',
      'key': 'R_brug_over_full_physics',
-     'label': 'Bruggeman overestimation',
+     #  ★ L2-07 — 이 키는 **이름과 달리 Bruggeman 이 아니다**.  값은
+     #    `σ_CONTACT_FREE / σ_FULL` 이다 (솔버 `network_conductivity.py` 참조).
+     #    ⚠ 키 이름은 세대 표시 없이 바꾸지 않는다 — **라벨·설명만** 실제와 맞춘다.
+     'label': 'CONTACT_FREE / FULL (협착 민감도)',
      'direction': 'lower', 'thresholds': [2.0, 3.0, 4.5, 6.5, 9.0, 13.0],
      'fallback_key': 'R_brug_over_full',
-     'formula': 'σ_Bruggeman_EMT / σ_full_network — EMT theoretical vs actual ratio',
-     'meaning': '이상 균질 매질 가정의 과대평가 배수. σ_ionic과 정보 일부 중복.',
+     'formula': 'σ_CONTACT_FREE / σ_FULL — **같은 접촉 그래프** 안에서 협착 항만 뺀 가지와의 비',
+     'meaning': '이 침대의 σ_ion 이 협착 항에 얼마나 걸려 있는가 = **모델 내부 민감도**. '
+                '⚠ 이론식(Bruggeman) 대 실측의 비가 **아니다** — 그쪽은 별도 키 '
+                '`R_bruggeman_over_full` 이고 방향도 다르다 (같은 침대에서 CF/FULL 3.65 '
+                '↔ Brug/FULL 0.28).  ⚠ 실험 오차 분포가 아니므로 **다른 솔버에 보정 배수로 '
+                '이식할 수 없다**.',
      'weight': 0.3},
 
     {'category': '전도도 절대값',
      'key': '__constriction_R_fraction_pct',
-     'label': 'Constriction R fraction (%)',
+     'label': '협착 R 비율 — 접촉별 **비가중 평균**(%)',
      'direction': 'lower', 'thresholds': [40, 55, 65, 75, 85, 92],
-     'formula': '100 × (1 − bulk_resistance_fraction)  — fraction from contact constriction',
-     'meaning': '전체 저항 중 contact constriction 기여도. bn_below_frac과 정보 일부 중복.',
+     'formula': '100 × (1 − mean_edge[R_bulk/(R_bulk+R_c)])  — 간선별 비율의 **산술평균**',
+     'meaning': '★ L2-08 — **전체 저항 중의 기여도가 아니다**.  간선마다 비율을 내고 그냥 '
+                '평균하므로 전류가 거의 안 흐르는 접촉도 같은 표를 행사한다.  반례: 같은 망에서 '
+                '이 통계 45 % ↔ 실제 소산 몫 Σ I²R_c/Σ I²R_total **8.18 %** (5.5배). '
+                'bn_below_frac과 정보 일부 중복.',
      'weight': 0.3},
 
     # ── 10. 셀 ASR + 에너지 밀도 ──
     {'category': '에너지 밀도 (Energy density)',
      'key': '__Q_gravimetric_mAhg', 'label': 'Q_gravimetric (mAh/g 복합체) ⭐★',
      'direction': 'higher', 'thresholds': [160, 148, 135, 120, 100, 80],
-     'formula': 'wt_AM × C_AM  (NCM811 real C ≈ 190 mAh/g)',
-     'meaning': '★★★ 비용량 = 무게당 에너지.  산업 KPI 1위 (Wh/kg).  '
-                '85:15 → 162, 82:18 → 156, 75:25 → 142, 72:28 → 137, 60:40 → 114 mAh/g.',
+     #  ★ L4-09 — 계산은 `wt_AM × 175` 인데 설명이 190 계열을 말하고 있었다 (85:15 을
+     #    162 로 적었지만 실제 반환은 **148.75**).  ⚠ 175 를 190 으로 바꾸라는 얘기가
+     #    아니다 — **택한 175 를 설명까지 동일하게** 쓴다 (감사 F1-A, 2026-07-23).
+     'formula': (f'wt_AM × C_AM,  C_AM = **{C_AM_MAHG} mAh/g** (NMC811 — STEP4 x-window '
+                 f'정합; 옛 190 = 4.3 V 문헌값이라 우리 창과 불일치)'),
+     'meaning': ('★★★ 비용량 = 무게당 에너지.  산업 KPI 1위 (Wh/kg).  '
+                 + ', '.join(f'{w}:{100-w} → {w/100*C_AM_MAHG:g}'
+                             for w in (85, 82, 75, 72, 60))
+                 + f' mAh/g (전부 ×{C_AM_MAHG}).'),
      'weight': 5.0},
 
     {'category': '에너지 밀도 (Energy density)',
@@ -474,8 +506,8 @@ AXES: list[dict[str, Any]] = [
     {'category': '셀 단위 ASR',
      'key': '__Q_areal_mAhcm2', 'label': 'Q_areal (mAh/cm²) ⭐',
      'direction': 'higher', 'thresholds': [5.0, 3.5, 2.5, 1.5, 0.8, 0.3],
-     'formula': 'Q_areal = T(μm) × ρ_AM × C_AM × wt_AM × 1e-4 '
-                '(ρ_NMC ≈ 4.8, C_NMC ≈ 175 mAh/g)',
+     'formula': (f'Q_areal = T(μm) × ρ_AM × C_AM × wt_AM × 1e-4 '
+                 f'(ρ_NMC ≈ {RHO_AM_G_CC:g}, C_NMC ≈ {C_AM_MAHG} mAh/g)'),
      'meaning': '면용량 — high-capacity cell이면 같은 ASR이라도 더 가치 ↑. '
                 '박막(<2 mAh/cm²)은 unit-cell test, >5는 commercial target.',
      'weight': 1.5},
@@ -970,7 +1002,7 @@ def _derived_value(key: str, metrics: dict) -> float | None:
         wt_pct = _derived_value('__wt_am_pct', metrics)
         if wt_pct is None:
             return None
-        return (wt_pct / 100.0) * 175   # NMC811 C_am=175 mAh/g — STEP4 x-window(|Δx|·275≈177) 정합,
+        return (wt_pct / 100.0) * C_AM_MAHG   # 상수는 모듈 최상단 (L4-09) — STEP4 x-window 정합,
         #   vol/areal 축과 통일 (감사 F1-A, 2026-07-23; 옛 190=4.3V lit 값은 우리 창과 불일치).  ⚠ 밀도
         #   조화평균+C_am 통일로 용량 절대값이 옛(과대) 대비 ~11-15% 낮아짐 = 정직; grade 문턱(Janek ≥500
         #   mAh/cc 등 문헌 목표)은 불변 → 보정된 정직 용량이 목표에 정직히 대비됨(재보정 아님).
@@ -980,7 +1012,7 @@ def _derived_value(key: str, metrics: dict) -> float | None:
         if wt_pct is None:
             return None
         wt_am = wt_pct / 100.0
-        rho_am, rho_se, C_am = 4.8, 2.0, 175   # 정본 밀도(additives.DENS) + STEP4 x-window 정합 C_am (감사 F4)
+        rho_am, rho_se, C_am = RHO_AM_G_CC, 2.0, C_AM_MAHG   # 정본 밀도(additives.DENS) + STEP4 정합 (감사 F4)
         # 복합 고체밀도 = 질량분율의 조화평균 (부피 가산 1/ρ=Σw_i/ρ_i).  산술평균(wt·ρ 합)은 wt%를
         # vol%로 오용 → 80:20서 4.24 vs 정답 3.75 = +13% 과대 (감사 F1 수정 2026-07-23).
         rho_comp = 1.0 / (wt_am / rho_am + (1 - wt_am) / rho_se)
@@ -1205,8 +1237,8 @@ def _derived_value(key: str, metrics: dict) -> float | None:
         # Guard against degenerate values
         if not (0.05 < wt_am < 0.99):
             wt_am = 0.80
-        rho_am = 4.8    # g/cc, NMC bulk — 정본 additives.DENS (was 4.7; 감사 F4 통일)
-        C_am   = 175    # mAh/g, NMC811 STEP4 x-window 정합 (Q_volumetric과 통일)
+        rho_am = RHO_AM_G_CC   # g/cc, NMC bulk — 정본 additives.DENS (was 4.7; 감사 F4 통일)
+        C_am   = C_AM_MAHG     # mAh/g, NMC811 STEP4 x-window 정합 (Q_volumetric과 통일)
         # Solid (non-porous) fraction of the electrode by volume
         eps = metrics.get('porosity')
         try:
@@ -1828,9 +1860,125 @@ def whatif_additives(metrics: dict, vgcf_wt: float = 0.0, superp_wt: float = 0.0
     }
 
 
+def _selftest() -> int:
+    """★ A군 라벨 — **어느 양을 계산했다고 보고하는가**.
+
+    L3-11 에서 배운 자리와 같다: 설명이 상수에서 생성되지 않으면 세대가 갈라진다.
+    여기 넷은 **계산을 바꾸지 않고** 이름만 실제와 맞춘 것이라, 되돌아가는 것을 막을
+    검사가 없으면 다음 편집에서 조용히 되돌아간다.
+      · L4-09 `Q_gravimetric` — 계산 ×175 ↔ 설명 190 계열
+      · L4-04 τ 라벨 — grade 는 σ_grain **3.0 고정**(앱은 온도에 맞춘 값) · overhead 는 **√저항비**
+      · L2-07 `R_brug_over_full*` — 실제는 **CONTACT_FREE/FULL**, Bruggeman 아님
+      · L2-08 협착 비율 — **접촉별 비가중 평균**, 전력 몫 아님
+    """
+    ok = True
+
+    def chk(name, cond, extra=''):
+        nonlocal ok
+        print(('  ✓ ' if cond else '  ✗ ') + name + (f'   {extra}' if extra else ''))
+        ok = ok and bool(cond)
+
+    import ast as _ast0, inspect as _insp0
+    _CAM_LINENO = next(
+        (n.lineno for n in _ast0.walk(_ast0.parse(_insp0.getsource(sys.modules[__name__])))
+         if isinstance(n, _ast0.Assign) and len(n.targets) == 1
+         and isinstance(n.targets[0], _ast0.Name) and n.targets[0].id == 'C_AM_MAHG'), -1)
+
+    def axis(key):
+        for a in AXES:
+            if a.get('key') == key:
+                return a
+        return None
+
+    def text(a):
+        return f"{a.get('label','')} {a.get('formula','')} {a.get('meaning','')}"
+
+    print('등급 축 라벨 ↔ 계산 정합 (L4-09 · L4-04 · L2-07 · L2-08)')
+
+    # ── ① L4-09: 설명이 **상수에서 생성**되고 값과 일치하는가 ────────────────
+    a = axis('__Q_gravimetric_mAhg')
+    got = _derived_value('__Q_gravimetric_mAhg', {'am_se_ratio': '85:15'})
+    want = 0.85 * C_AM_MAHG
+    chk('① L4-09: 85:15 의 실제 반환 = 0.85 × C_AM', got is not None
+        and abs(got - want) < 1e-9, f'{got!r} vs {want!r}')
+    chk('① L4-09: 설명이 **그 값**을 적는다 (옛 설명은 162 = 190 계열)',
+        f'85:15 → {want:g}' in a['meaning'] and '162' not in a['meaning'],
+        a['meaning'][:60])
+    chk('① 대조: 설명에 190 계열 숫자가 남아 있지 않다',
+        '190 mAh/g' not in a['formula'].replace('옛 190 = 4.3 V', ''))
+    #  그리고 **리터럴이 아니라 상수에서** 생성되는지 소스로 본다 (L3-11 의 교훈)
+    import inspect as _insp, re as _re
+    src = _insp.getsource(sys.modules[__name__])
+    m = _re.search(r"'key': '__Q_gravimetric_mAhg'.{0,1200}?'weight'", src, _re.S)
+    chk('① L4-09: 설명이 **C_AM_MAHG 에서 생성**된다 (리터럴 아님)',
+        m is not None and 'C_AM_MAHG' in m.group(0))
+    #  ⚠ 정규식으로 세면 **자기 자신**(상수 정의·이 검사의 문자열)까지 세어 거짓 빨간불이
+    #    난다 (SELF-25 가 남긴 교훈: 엉성한 grep 으로 판정하지 않는다).  AST 로 실물을 본다.
+    import ast as _ast
+    _tree = _ast.parse(src)
+    _lits = []
+    for _n in _ast.walk(_tree):
+        if isinstance(_n, _ast.FunctionDef) and _n.name == '_selftest':
+            continue                                   # 이 검사 자신은 제외
+        if (isinstance(_n, _ast.Assign) and len(_n.targets) == 1
+                and isinstance(_n.targets[0], _ast.Name)
+                and _n.targets[0].id == 'C_AM_MAHG'):
+            continue                                   # 상수 정의 한 자리는 허용
+        for _c in _ast.walk(_n):
+            if isinstance(_c, _ast.Constant) and _c.value == 175:
+                _lits.append(getattr(_c, 'lineno', '?'))
+    _self = next((n for n in _ast.walk(_tree)
+                  if isinstance(n, _ast.FunctionDef) and n.name == '_selftest'), None)
+    _self_lines = set(range(_self.lineno, (_self.end_lineno or _self.lineno) + 1)) if _self else set()
+    _lits = sorted({l for l in set(_lits) if l not in _self_lines and l != _CAM_LINENO})
+    chk('① 대조: 계산부에 리터럴 175 가 남아 있지 않다 (상수 한 자리만)',
+        not _lits, f'남은 줄 {_lits}' if _lits else '')
+
+    # ── ② L4-04: τ 라벨이 σ_grain 고정과 √저항비를 말하는가 ─────────────────
+    t_eff, t_bulk = axis('__tau_lap_eff'), axis('__tau_lap_bulk')
+    ovh = axis('__constriction_overhead')
+    chk('②a L4-04: τ_eff 가 σ_grain **3.0 고정**임을 말한다 (앱은 온도에 맞춘 값)',
+        '3.0' in text(t_eff) and '고정' in text(t_eff))
+    chk('②b L4-04: τ_eff 가 **앱과 같은 공식** 이라고 말하지 않는다 '
+        '(공통 스케일 불변성이 다르다)',
+        'app.py 표시값과 동일 공식' not in text(t_eff))
+    chk('②c L4-04: overhead 가 **√저항비**임을 말한다 (저항비 자체가 아니다)',
+        '√' in text(ovh))
+    chk('②d L4-04: τ_bulk 가 τ_Dijkstra 의 대체 열이 아님을 말한다',
+        'Dijkstra' in text(t_bulk))
+    #  라벨이 말하는 3.0 이 **실제로 코드에 있는가** (대조 — 라벨만 고치면 거짓말이 된다)
+    chk('②e 대조: 코드가 실제로 3.0 을 쓴다 (라벨만 바꾼 것이 아니다)',
+        'float(phi_se) * 3.0 / float(sig_full)' in src)
+
+    # ── ③ L2-07: Bruggeman 이라고 말하지 않는가 ─────────────────────────────
+    b = axis('R_brug_over_full_physics')
+    chk('③a L2-07: 라벨이 **CONTACT_FREE/FULL** 이다',
+        'CONTACT_FREE' in b['label'], b['label'])
+    chk('③b L2-07: 설명이 *"이론식 대 실측"* 이라고 말하지 않는다',
+        'Bruggeman' in text(b) and '아니다' in text(b))
+    chk('③c L2-07: 다른 솔버에 보정 배수로 이식하지 말라고 적혀 있다',
+        '이식할 수 없다' in text(b))
+
+    # ── ④ L2-08: 비가중 평균이라고 말하는가 ────────────────────────────────
+    c = axis('__constriction_R_fraction_pct')
+    chk('④a L2-08: 라벨/식이 **비가중 평균**이라고 말한다',
+        '비가중' in text(c) and 'mean_edge' in c['formula'])
+    chk('④b L2-08: 반례(45 % ↔ 8.18 %)가 설명에 남아 있다',
+        '45' in text(c) and '8.18' in text(c))
+
+    # ── ⑤ 대조: 축 목록 자체가 살아 있는가 (검사가 빈 집합을 훑지 않는다) ──
+    chk('⑤ 대조: 검사한 축 6개가 전부 실재한다',
+        all(x is not None for x in (a, t_eff, t_bulk, ovh, b, c)))
+
+    print('등급 축 라벨 SELFTEST', 'PASS' if ok else 'FAIL')
+    return 0 if ok else 1
+
+
 # ── CLI smoke test ──────────────────────────────────────────────────────
 if __name__ == '__main__':
     import argparse, json
+    if '--selftest' in sys.argv:
+        sys.exit(_selftest())
     ap = argparse.ArgumentParser()
     ap.add_argument('metrics_json', help='Path to a full_metrics.json')
     ap.add_argument('--corpus',

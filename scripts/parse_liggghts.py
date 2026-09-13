@@ -44,6 +44,11 @@ def parse_contact_file(filepath):
         'c_cpl[13]': 'fn_x', 'c_cpl[14]': 'fn_y', 'c_cpl[15]': 'fn_z',
         'c_cpl[16]': 'ft_x', 'c_cpl[17]': 'ft_y', 'c_cpl[18]': 'ft_z',
         'c_cpl[19]': 'torque_x', 'c_cpl[20]': 'torque_y', 'c_cpl[21]': 'torque_z',
+        #  ★★ L1-04 — `c_cpl[22]` 는 LIGGGHTS 의 **기하학적 교차 원판**이다
+        #    (`compute_pair_gran_local.cpp#L509-L517`).  **Hertz 탄성 면적이 아니다**:
+        #    `A_LIGG / A_Hertz = 2 − d/(2r)` 이고 r=0.5 µm · δ/R*=0.05 에서 **1.9875배**
+        #    (해석·실측 일치).  이 열을 `hertz` 채널로 읽는 소비자는 그만큼 과대다.
+        #    ⚠ 키 이름(`contact_area`)은 세대 표시 없이 바꾸지 않는다 — 설명만 맞춘다.
         'c_cpl[22]': 'contact_area', 'c_cpl[23]': 'delta',
         'c_cpl[24]': 'cp_x', 'c_cpl[25]': 'cp_y', 'c_cpl[26]': 'cp_z',
     }

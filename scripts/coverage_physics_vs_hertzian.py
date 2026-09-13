@@ -1,7 +1,21 @@
 #!/usr/bin/env python3
 """
-Coverage computed in BOTH Hertzian (LIGGGHTS contact_area) and Physics
+Coverage computed in BOTH "Hertzian" (LIGGGHTS `contact_area`) and Physics
 (Tabor A = F_real/H with caps) modes for every AM particle.
+
+★★ L1-04 — **이름 주의 (계산은 바뀌지 않았다)**.  여기서 `hertz`/`hertzian` 이라고 부르는
+채널이 먹는 것은 LIGGGHTS 의 `contact_area` = `c_cpl[22]` = **기하학적 교차 원판**이고
+**Hertz 탄성 해가 아니다** (`compute_pair_gran_local.cpp#L509-L517` 가 그렇게 구분한다).
+두 값의 비는 해석적으로 `A_LIGG / A_Hertz = 2 − d/(2r)` 이고 r=0.5 µm · δ/R*=0.05 에서
+**1.9875배**다 (이 리포에서 재현).
+⇒ **무너지는 읽기 두 가지**: ⓐ 이 열을 `π R* δ` 로 환산해 인용하는 것 ⓑ `physics − hertz`
+차이를 **추가 소성면적**으로만 읽는 것 (`plastic_coverage.py` 의 elastic 반환은 LIGG floor
+를 쓰지 않아 *'Physics 는 항상 DEM-native 보다 크다'* 가 전 구간 계약이 아니다 — 비 0.50003536
+인 구간이 있다).
+⚠ 산출 **키 이름은 그대로 둔다** (`coverage_hertzian_pct`, `coverage_AM_*_hertz_pct` …) —
+판정문이 *"기존 키와 frozen feature 를 세대 표시 없이 바꾸면 안 된다"* 고 했다.  개명은
+세대 표시와 함께 별건으로 한다.  새 수확기 `lhs_descriptor_harvest.py` 는 매 행에
+`area_channel` 을 박아 소비자에게 이 사실을 강제한다.
 
 Addresses two open questions:
   • H1: does plastic deformation change AM surface coverage?
@@ -159,7 +173,9 @@ def compute_case(cid: str, case_dir: Path, type_map: dict, scale: float = 1000.0
 
     # Scan ALL contacts: compute both A_hertzian and A_physics per AM particle
     # AND global sums (AM-SE total, SE-SE total, AM-AM total).
-    am_se_hertz = defaultdict(float)   # per-AM AM-SE Hertzian area (sim m²)
+    #  ⚠ L1-04 — 이름은 `hertz` 지만 담기는 것은 LIGGGHTS `contact_area`
+    #    = **기하 교차 원판** (Hertz 탄성 아님, 비 = 2 − d/(2r)).
+    am_se_hertz = defaultdict(float)   # per-AM AM-SE DEM-native area (sim m²)
     am_se_phys  = defaultdict(float)   # per-AM AM-SE Physics area (sim m²)
     am_am_hertz = defaultdict(float)   # per-AM AM-AM area (for free-surface deduction)
 

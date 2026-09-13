@@ -1007,8 +1007,16 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     R_constrs = [e['R_constriction'] for e in net['edges']]
     R_totals = [e['R_total'] for e in net['edges']]
 
+    #  ★★ L2-08 — 이것은 **접촉별 비율의 비가중 산술평균**이지 거시 저항 기여도가 아니다.
+    #    간선마다 `R_bulk/(R_bulk+R_c)` 를 내고 그냥 평균한다 ⇒ **전류가 안 흐르는 간선도
+    #    같은 표를 행사한다**.  이 리포에서 재현: 두 병렬 경로 × 2 직렬 간선, 모든
+    #    R_bulk=1, A 의 R_c=9 · B 의 R_c=0 → 이 통계는 **45 %**, 실제 소산 몫
+    #    `Σ I²R_c / Σ I²R_total` 은 **8.1818 %** = **5.5배** 차이.
+    #    ⇒ 이름을 계산과 맞춘다.  거시 기여도를 쓰려면 같은 FULL field 에서 **I²R 원장**을
+    #    따로 계산하고 가상 전극 포함 여부를 명시해야 한다 (미구현).
     bulk_frac = np.mean([rb/(rb+rc) for rb, rc in zip(R_bulks, R_constrs) if rb+rc > 0])
-    print(f"  R_bulk fraction: {bulk_frac:.1%} (vs R_constriction: {1-bulk_frac:.1%})")
+    print(f"  접촉별 R_bulk 비율의 비가중 평균: {bulk_frac:.1%} "
+          f"(협착 쪽 {1-bulk_frac:.1%})  ⚠ 전력(I²R) 기여도가 아니다 — L2-08")
 
     # === Run 1: FULL ===
     print("  Solving FULL network (bulk + constriction)...")
@@ -1092,15 +1100,26 @@ def run_decomposition(atoms_raw, contacts_raw, target_types, scale,
     }
 
     # Overestimation ratios
+    #  ★★ L2-07 — `R_brug_over_full` 이라는 **이름과 달리** 이 값은 Bruggeman 이 아니라
+    #    **CONTACT_FREE / FULL** 이다 (Bruggeman 쪽은 아래 `R_bruggeman_over_full`).
+    #    둘은 같은 방향도 아니다 — Codex 반례(4구 r=1, d=1.9, δ=0.1, σ_bulk=0.003 S/cm):
+    #    FULL 0.034749 · CF 0.126754 · Bruggeman 0.009630 mS/cm ⇒ **CF/FULL = 3.6477**
+    #    인데 **Bruggeman/FULL = 0.2771** (하나는 1보다 크고 하나는 작다).
+    #    ⇒ *'간단한 이론식이 실측보다 몇 배 과대'* 라는 설명은 **분자·분모를 모두 바꿔 읽는
+    #    것**이다.  이 값은 **같은 접촉 그래프 안에서** 협착 항만 뺀 가지와의 비 = 모델
+    #    내부 민감도다 (접촉이 있어야 그래프에 들어오므로 '접촉망을 없앤 모델' 도 아니다).
+    #    ⚠ 키 이름은 **세대 표시 없이 바꾸지 않는다** (판정문 L1-04 와 같은 이유) —
+    #    설명·라벨만 실제와 맞춘다.
     if sigma_cf and sigma_full:
-        results['R_brug_over_full'] = round(sigma_cf / sigma_full, 4)  # contact-free / full
+        results['R_brug_over_full'] = round(sigma_cf / sigma_full, 4)  # ⚠ = CONTACT_FREE / FULL
     if sigma_bruggeman > 0 and sigma_full:
         results['R_bruggeman_over_full'] = round(sigma_bruggeman * sigma_bulk * 1000 / (sigma_full * sigma_bulk * 1000), 4)
 
     # Print summary
     print(f"\n  ═══ Decomposition Results ═══")
     print(f"  φ = {phi_se:.4f}")
-    print(f"  R_bulk fraction: {bulk_frac:.1%} | R_constriction: {1-bulk_frac:.1%}")
+    print(f"  접촉별 R_bulk 비율(비가중 평균): {bulk_frac:.1%} | 협착 {1-bulk_frac:.1%}"
+          f"   ⚠ I²R 전력 몫 아님 (L2-08)")
     print(f"")
     print(f"  {'Mode':<22s} {'σ/σ_bulk':>10s} {'σ (mS/cm)':>10s}")
     print(f"  {'─'*44}")

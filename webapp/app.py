@@ -2484,6 +2484,9 @@ def transform_network_summary_4col(tables, metrics, meta):
                 bf_p = metrics.get('bulk_resistance_fraction_physics', bf_h)
                 cstr_h = (1 - bf_h) * 100 if bf_h is not None else None
                 cstr_p = (1 - bf_p) * 100 if bf_p is not None else None
+                #  ★ L2-08 — 이 행 이름은 **조회 키**다 (app.py:1909·:2077 ·
+                #    templates/single.html:1966·:2543 가 같은 문자열로 찾는다) → 바꾸지
+                #    않는다.  설명은 single.html 의 해설 항목에서 실제 계산과 맞췄다.
                 net_rows.append(_dual_row('Constriction 비율(%)',
                                           cstr_h, cstr_p,
                                           fmt=lambda x: round(x, 1)))
@@ -8760,10 +8763,16 @@ _GRADE_PLAIN = {
         '중요한 값이에요(높을수록 좋음). 배터리 성능 1순위 지표입니다.',
     'thermal_sigma_full_mScm_stage_e_physics': '열을 얼마나 잘 퍼뜨리는지(냉각 능력)예요. 고체전지에서 '
         '성능을 좌우하는 1차 요소는 아니라 비중이 작습니다.',
-    'R_brug_over_full_physics': '간단한 이론식이 실제보다 이온 전도도를 몇 배나 부풀려 예측하는지예요. '
-        '작을수록 이상적 구조에 가깝다는 뜻입니다.',
-    '__constriction_R_fraction_pct': '전체 저항 중 "좁은 통로(병목)"에서 생기는 저항의 비율이에요. '
-        '작을수록 좁아짐 손해가 적습니다.',
+    #  ★ L2-07 — 이 키는 **이름과 달리 Bruggeman 이 아니라 CONTACT_FREE/FULL** 이다.
+    #    옛 문구는 분자·분모를 모두 바꿔 읽었다 (같은 침대에서 CF/FULL 3.65 ↔ Brug/FULL 0.28).
+    'R_brug_over_full_physics': '"접촉 저항이 아예 없다면" 이온 전도도가 지금보다 몇 배였을지예요 '
+        '(같은 접촉망 안에서 목 좁아짐만 뺀 값과의 비). 작을수록 접촉 목에서 잃는 몫이 적다는 뜻입니다. '
+        '⚠ 이론식(Bruggeman)과 실측을 비교한 값이 아닙니다.',
+    #  ★ L2-08 — "전체 저항 중의 비율" 이 아니라 **접촉 하나하나의 비율을 그냥 평균**한 값이다.
+    '__constriction_R_fraction_pct': '접촉 하나하나에서 "좁은 통로(병목)" 가 차지하는 저항 비율을 '
+        '**그냥 평균**한 값이에요. 작을수록 좁아짐 손해가 적습니다. '
+        '⚠ 전류가 거의 안 흐르는 접촉도 똑같이 한 표를 행사하므로, 전극 전체 저항에서 병목이 '
+        '차지하는 몫과는 다릅니다 (같은 망에서 이 값 45 % ↔ 실제 몫 8.2 % 인 예가 있습니다).',
     '__Q_gravimetric_mAhg': '무게 1g당 담을 수 있는 전기량(비용량)이에요. 같은 무게로 더 멀리 가는 배터리 '
         '= 높을수록 좋음. 업계에서 가장 중요한 지표 중 하나입니다.',
     '__Q_volumetric_mAhcc': '부피 1cc당 담을 수 있는 전기량이에요. 같은 크기로 더 오래 쓰는 배터리. '
