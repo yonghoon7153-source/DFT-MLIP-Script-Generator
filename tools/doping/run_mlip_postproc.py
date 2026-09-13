@@ -110,7 +110,8 @@ def _eos_branch(atoms_ref, calc, fractions, fmax, relax_steps, continuation):
 
 
 def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
-             fmax=0.05, relax_steps=500, continuation=False, hysteresis_tol=0.01):
+             fmax=0.05, relax_steps=500, continuation=False, hysteresis_tol=0.01,
+             hysteresis_span_tol=0.10):
     """Volume sweep + Birch-Murnaghan 3rd-order fit. atoms_ref is the
     relaxed reference at V0; we scale its lattice by f^(1/3) per point.
 
@@ -185,13 +186,34 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
                 hyst['V0_up'], hyst['V0_down'] = _vs
                 _rel = abs(_vs[0] - _vs[1]) / max(abs(np.mean(_vs)), 1e-12)
                 hyst['V0_rel_diff'] = float(_rel)
-                hyst['ok'] = bool(_rel <= hysteresis_tol)
+                # ⛔⛔ 2026-09-13 — **V₀ 만 보면 구멍이 난다.** 두 갈래가 곡선 자체만큼
+                #   달라도 최소 **위치**는 우연히 겹칠 수 있다. 실측: P2_Al2S3_A 가
+                #   maxdE/span = **95 %** 인데 V₀ 차 0.949 % 로 **통과했다.**
+                #   ⇒ 곡선이 얼마나 갈렸는지를 **곡선 자신의 크기로 재서** 같이 건다.
+                #   문턱 10 % 의 근거: 질서 H0 는 0.46 %, 무질서 넷은 25.4–94.8 % 로
+                #   **55배 갈려 있어 1 %~25 % 어디에 둬도 판정이 같다.**
+                #   문턱이 결과를 만들지 않는다는 뜻이고, 그래서 방어 가능하다.
+                _span = max(float(hyst.get('E_span_eV') or 0.0), 1e-12)
+                _dspan = float(hyst['max_abs_dE_eV']) / _span
+                hyst['dE_over_span'] = _dspan
+                hyst['tol_span'] = float(hysteresis_span_tol)
+                _v0_ok = _rel <= hysteresis_tol
+                _sp_ok = _dspan <= hysteresis_span_tol
+                hyst['ok'] = bool(_v0_ok and _sp_ok)
                 if not hyst['ok']:
                     fit_ok = False
-                    _hyst_reason = (f"이력현상 — 올라가는 갈래 V₀ {_vs[0]:.1f} vs "
+                    _why = []
+                    if not _v0_ok:
+                        _why.append(f"V₀ 가 갈린다 — 올라가는 갈래 {_vs[0]:.1f} vs "
                                     f"내려오는 갈래 {_vs[1]:.1f} Å³ ({_rel*100:.2f} % "
-                                    f"> 허용 {hysteresis_tol*100:.2f} %). 이 구조에선 "
-                                    f"EOS 가 한 골짜기로 정의되지 않는다")
+                                    f"> 허용 {hysteresis_tol*100:.2f} %)")
+                    if not _sp_ok:
+                        _why.append(f"**곡선 자체가 갈린다** — 두 갈래 최대차 "
+                                    f"{hyst['max_abs_dE_eV']:.3f} eV 가 곡선 폭 {_span:.3f} eV 의 "
+                                    f"{_dspan*100:.0f} % (> 허용 {hysteresis_span_tol*100:.0f} %). "
+                                    f"V₀ 가 겹쳐도 같은 곡선이 아니다")
+                    _hyst_reason = ("이력현상 — " + " · ".join(_why) +
+                                    ". 이 구조에선 EOS 가 한 골짜기로 정의되지 않는다")
             except Exception as _e:                                  # noqa: BLE001
                 hyst['ok'] = False
                 hyst['error'] = str(_e)
@@ -222,7 +244,7 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
 def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
                  fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
                  fmax=0.05, relax_steps=500, continuation=False,
-                 hysteresis_tol=0.01):
+                 hysteresis_tol=0.01, hysteresis_span_tol=0.10):
     """Run eos_sweep on N rattled copies of atoms_ref and keep the BEST BM3 fit.
 
     MLIP single-curve EOS is basin-sensitive: a stray Li/ion rearrangement at one
@@ -241,7 +263,8 @@ def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
         results.append(eos_sweep(a, calc, fractions=fractions, fmax=fmax,
                                  relax_steps=relax_steps,
                                  continuation=continuation,
-                                 hysteresis_tol=hysteresis_tol))
+                                 hysteresis_tol=hysteresis_tol,
+                                 hysteresis_span_tol=hysteresis_span_tol))
     physical = [r for r in results
                 if r.get('fit_quality_ok') and r.get('B0_GPa') is not None
                 and r.get('Bp') is not None and 0.0 < r['Bp'] < 15.0]
@@ -512,14 +535,16 @@ def process_one(xyz_path, calc, out_dir, args):
                                          fmax=args.eos_fmax,
                                          relax_steps=args.relax_steps,
                                          continuation=getattr(args, 'eos_continuation', False),
-                                         hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01))
+                                         hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01),
+                                         hysteresis_span_tol=getattr(args, 'eos_hysteresis_span_tol', 0.10))
         else:
             record['eos'] = eos_sweep(atoms, calc,
                                       fractions=tuple(args.eos_fractions),
                                       fmax=args.eos_fmax,
                                       relax_steps=args.relax_steps,
                                       continuation=getattr(args, 'eos_continuation', False),
-                                      hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01))
+                                      hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01),
+                                      hysteresis_span_tol=getattr(args, 'eos_hysteresis_span_tol', 0.10))
         record['eos']['t_s'] = time.time() - t0
 
     # 2b. EOS V₀ 를 **실제로** 적용한다 (GAP-3). 기본은 과거 동작 유지.
@@ -696,6 +721,24 @@ def _selftest():
     chk(_zero.get('V0') is None and _zero.get('B0_GPa') is None,
         "⛔음성: 떨어지면 V₀·B₀ 를 **None 으로 지운다** (하류가 집어가지 못하게)")
 
+    # ⛔음성 ①-b: **V₀ 만 보는 게이트의 구멍** — 곡선이 갈려도 최소 위치는 겹칠 수 있다
+    #   실측 2026-09-13: P2_Al2S3_A 가 maxdE/span 95 % 인데 V₀ 차 0.949 % 로 통과했다.
+    #   span 기준을 0 으로 조이면 **V₀ 기준은 널널해도** 떨어져야 한다.
+    _hole = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                      continuation=True, hysteresis_tol=1.0,   # V₀ 는 사실상 무제한
+                      hysteresis_span_tol=0.0)                 # 곡선 기준만 조인다
+    chk(_hole.get('fit_quality_ok') is False,
+        "⛔음성: V₀ 기준을 풀어도 **곡선 기준**만으로 떨어진다 (구멍이 막혔다)")
+    chk('곡선 자체가 갈린다' in (_hole.get('fit_quality_reason') or ''),
+        "⛔음성: 떨어진 이유가 **곡선이 갈렸다**고 적힌다 (V₀ 탓으로 안 돌린다)")
+    chk('dE_over_span' in (_hole.get('hysteresis') or {}),
+        "곡선 갈림 비율(dE/span)이 기록에 남는다")
+    # 양성 대조: 두 기준 다 널널하면 통과 — 즉 **기준이 판정을 만든다**
+    _loose = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                       continuation=True, hysteresis_tol=1.0, hysteresis_span_tol=1.0)
+    chk(_loose.get('fit_quality_ok') is True,
+        "양성 대조: 같은 자료도 기준을 풀면 통과한다 — 판정을 만드는 것은 **기준**이다")
+
     # ⛔음성 ②: 연쇄가 실제로 **앞 점에서 이어지는가** — 출발 구조가 달라야 한다
     _seen = []
     class _Spy(EMT):
@@ -739,6 +782,11 @@ def main():
                         '무질서계에서 골짜기 이동을 막는다. 양방향으로 돌고 두 갈래 V₀ 가 '
                         '--eos_hysteresis_tol 넘게 갈리면 **적합을 떨군다**. '
                         '⚠ V₀ 의 뜻이 달라진다 — "연속으로 이어진 가지 위의 최소"다. 기본은 꺼짐')
+    p.add_argument('--eos_hysteresis_span_tol', type=float, default=0.10,
+                   help='두 갈래 E(V) 최대차를 **곡선 자신의 폭**으로 나눈 값의 허용치 '
+                        '(기본 0.10 = 10 %%). ⛔ V₀ 만 보면 구멍이 난다 — 곡선이 95 %% 갈려도 '
+                        '최소 위치는 겹칠 수 있다(실측 P2_Al2S3_A). 문턱 근거: 질서계 0.46 %% vs '
+                        '무질서계 25–95 %% 라 1~25 %% 어디에 둬도 판정이 같다')
     p.add_argument('--eos_hysteresis_tol', type=float, default=0.01,
                    help='--eos_continuation 의 두 갈래 V₀ 허용 상대차 (기본 0.01 = 1 %%)')
     p.add_argument('--n_eos_seeds', type=int, default=1,
