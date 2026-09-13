@@ -2530,7 +2530,8 @@
    "evidence_tests": [
     "scripts/generate_comparison_plots.py",
     "scripts/generate_fitting_report.py"
-   ]
+   ],
+   "claimed_fixed_sha": "6b00e6e5c"
   },
   {
    "id": "L3-12",
