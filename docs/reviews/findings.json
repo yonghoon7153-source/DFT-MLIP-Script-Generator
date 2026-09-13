@@ -2735,16 +2735,17 @@
   {
    "id": "L5-03",
    "severity": "P1",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "**금지 target `use_porosity_pct` 를 학습하고 추천에 쓴다**",
-   "note": "(Codex 라벨: **P1-L5-03**)\n`ml_design_structure.py:63`·`:847` · `structure_predictor.py:152`·`:252`.\n★ Codex: 합성 60행으로 그 열만 예측 가능하게 만들면 실제 train 이 **USABLE, nested R^2 0.999998319**.  status/predict 는 숨기고 surface 는 거부하는데 **`suggest_batch(target=use_porosity_pct)` 가 `error=None` 으로 추천 2개를 낸다**.\n⚠ 높은 R^2 가 혼합상태 porosity 를 정당화한다는 뜻이 **아니다** — **금지가 모든 소비자에서 동일하지 않다**는 증명이다.  그리고 *'학습에서 제외했다'* 는 우리 기록은 **현재 사실과 다르다**.\n⇒ CLAUDE.md 의 *'use_porosity_pct 는 학습·노출 금지 열'* 을 코드가 지키지 않는다.",
+   "note": "(Codex 라벨: **P1-L5-03**)\n`ml_design_structure.py:63`·`:847` · `structure_predictor.py:152`·`:252`.\n★ Codex: 합성 60행으로 그 열만 예측 가능하게 만들면 실제 train 이 **USABLE, nested R^2 0.999998319**.  status/predict 는 숨기고 surface 는 거부하는데 **`suggest_batch(target=use_porosity_pct)` 가 `error=None` 으로 추천 2개를 낸다**.\n⚠ 높은 R^2 가 혼합상태 porosity 를 정당화한다는 뜻이 **아니다** — **금지가 모든 소비자에서 동일하지 않다**는 증명이다.  그리고 *'학습에서 제외했다'* 는 우리 기록은 **현재 사실과 다르다**.\n⇒ CLAUDE.md 의 *'use_porosity_pct 는 학습·노출 금지 열'* 을 코드가 지키지 않는다.\n\n★★ **처치 2026-09-13 (C 무더기)**: 금지를 **판정이 아니라 정체성**으로 옮겼다.\n· `ml_design_structure.RESTRICTED_TARGETS` 를 **타깃을 소유한 모듈**에 신설 (이유까지 값으로)\n· `suggest()` 가 **판정보다 먼저** 그 목록을 본다 — USABLE 이어도 거부\n· `structure_predictor.FORBIDDEN` 은 그 목록을 **읽는다** (재선언 제거; import 실패 시 fail-closed)\n· `suggest_batch` 에도 같은 거부 — `predict_structure`·`surface`·`pareto` 는 이미 보는데 **거기만 안 봤다**\n⚠ **학습은 막지 않는다** — `closure_test` 가 φ 둘과 이 열의 닫힘을 진단한다.  막는 것은 **소비**다.\n★ 자기검사 자신이 **그 금지 타깃으로 능동학습을 시연**하고 있었다 (구멍의 또 다른 증거).  허용 타깃 `se_of_solid_pct` 로 옮기고, 아래 검사들의 전제(깨끗한 선형 타깃)를 보존하려고 같은 `y_lin` 을 픽스처에 심었다.\n회귀 2 + **판별력 대조**(금지를 비우면 실제로 통과).  selftest 72/72.",
    "evidence_tests": [
     "scripts/ml_design_structure.py",
     "webapp/structure_predictor.py"
-   ]
+   ],
+   "claimed_fixed_sha": "335247212"
   },
   {
    "id": "L5-04",
@@ -2762,16 +2763,17 @@
   {
    "id": "L5-05",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "**대조 전용 `--derived-products` 산물이 일반 배포 모델로** 들어간다",
-   "note": "(Codex 라벨: **P2-L5-05**)\n`ml_design_structure.py:1356`·`:1431` · `structure_predictor.py:94`.\n★ Codex: 실제 `main --derived-products --out` 을 합성 96행에 돌리면 선택항 `[[],[6,12]]`, `free_products=False`, nested R^2 **.9896169693**, PI90 coverage **.8854166667**, **USABLE** 이고 실제 `load_bundle → predict_structure` 가 **ready=True**, *'ML (ridge, nested-CV 검증)'* 로 출력.\n⚠ 유도량 곱 모델의 높은 합성 성능이 잘못된 것이 아니다 — **'대조 전용' 이 출력 목적·생산 계약에 강제되지 않는 것**이 결함이다.  `--interactions` 의 별도 경고·종료 분기와 혼동 말 것.\n⇒ CLAUDE.md 의 *'되돌리려면 --derived-products (대조 전용).  ★DO NOT 되돌리지 말 것'* 이 **코드로 강제되지 않는다**.",
+   "note": "(Codex 라벨: **P2-L5-05**)\n`ml_design_structure.py:1356`·`:1431` · `structure_predictor.py:94`.\n★ Codex: 실제 `main --derived-products --out` 을 합성 96행에 돌리면 선택항 `[[],[6,12]]`, `free_products=False`, nested R^2 **.9896169693**, PI90 coverage **.8854166667**, **USABLE** 이고 실제 `load_bundle → predict_structure` 가 **ready=True**, *'ML (ridge, nested-CV 검증)'* 로 출력.\n⚠ 유도량 곱 모델의 높은 합성 성능이 잘못된 것이 아니다 — **'대조 전용' 이 출력 목적·생산 계약에 강제되지 않는 것**이 결함이다.  `--interactions` 의 별도 경고·종료 분기와 혼동 말 것.\n⇒ CLAUDE.md 의 *'되돌리려면 --derived-products (대조 전용).  ★DO NOT 되돌리지 말 것'* 이 **코드로 강제되지 않는다**.\n\n★★ **처치 2026-09-13 (C 무더기)**: 번들에 **목적**을 박고 배포 로더가 본다.\n· `train()` 이 `purpose` 를 기록한다 — `production` (free_products=True) vs `control_derived_products`, 이유는 `purpose_note` 에\n· `structure_predictor.load_bundle` 이 `purpose != 'production'` 이면 **None 을 돌려준다**.  `purpose` 가 없는 **옛 번들**은 `free_products` 로 판정한다 (그것이 그 축이다)\n· `status()` 가 **왜 거부했는지** 말한다 — 조용한 None 은 *'학습 안 됨'* 으로 오독된다\n⇒ 판정은 산물의 **성능**만 보지 **무엇을 위해 만들었는지**는 모른다는 것이 이 결함의 핵심이었다.\n회귀 2 (control/production 각각의 purpose).",
    "evidence_tests": [
     "scripts/ml_design_structure.py",
     "webapp/structure_predictor.py"
-   ]
+   ],
+   "claimed_fixed_sha": "335247212"
   },
   {
    "id": "L5-06",
