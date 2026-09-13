@@ -49,13 +49,14 @@ python3 reviews/r11_repros/codex/r11_evidence_gate_repros.py --target . --case <
 
 | 검사 | 명령 | 출력 |
 |---|---|---|
-| 전체 회귀 | `python3 -m pytest tests/ -q` | §7 의 `pytest_full.txt` |
-| MATLAB 스모크 (Octave) | `bash matlab/tests/run_all.sh` | §7 의 `matlab_smoke.txt` |
-| 변이 감사 (우리 테스트) | `codex_r6_mutation_audit.py` | §7 |
-| 적응판 변이 감사 | `mutation_adapted.py` | §7 |
-| R7 · R9 · R10 닫힘 재생 | `replay_codex_r{7,9,10}.py --expected-head <코드 커밋>` | 6/6 · 12/12 · 22/22, 전부 `evidence_eligible: true` · `instrument_sealed: true` · `ran_in: 격리 snapshot` |
-| **11차 패키지 재실행 (수정 뒤)** | `replay_codex_r11.py` | **반례 소멸 32 · 전제 변경 2 · 환경상 불가 1** (§3) |
-| 현행 정본 점검 | `check_u14 --new out --schema-only` | rc 2 · `promotion_eligible: false` (§4) |
+| 전체 회귀 | `python3 -m pytest tests/ -q` | `202 passed in 157.98s` (`replay_ours_after_fixes/pytest_full.txt`) |
+| MATLAB 스모크 (Octave) | `bash matlab/tests/run_all.sh` | `전부 통과` (`matlab_smoke.txt`) |
+| 변이 감사 (우리 테스트) | `codex_r6_mutation_audit.py` | `8/8 CAUGHT · MISSED: 0` |
+| 적응판 변이 감사 | `mutation_adapted.py` | `5/5 CAUGHT · MISSED: 0` · baseline·복구 6/6 닫힘 |
+| R6 적응판 재생 | `replay_codex_r6_adapted.py` | `"mode": "full"` 6/6 닫힘 |
+| R7 · R9 · R10 닫힘 재생 | `replay_codex_r{7,9,10}.py --expected-head <코드 커밋>` | 반례 소멸 5+1 전제 변경 · 12 · 20+1 우리 코드 밖+1 전제 변경. 전부 `evidence_eligible: true` · `instrument_sealed: true` · `ran_in: 격리 snapshot` · `expected_tree efa727fac821…` |
+| **11차 패키지 재실행 (수정 뒤)** | `replay_codex_r11.py` | **반례 소멸 32 · 전제 변경 2 · 환경상 불가 1** (§3), `evidence_eligible: true` |
+| 현행 정본 점검 | `check_u14 --new out --schema-only` | rc 2 · `promotion_eligible: false` — 새 스키마 누락 28 (sidecar `argv` 12 + `roster` 12 + profile `gamma_roster` 4) · 출처 열 24 · 내용 4 (§4) |
 
 ## 2. R11 열여덟 건 — 재현과 수정
 
@@ -91,9 +92,15 @@ python3 reviews/r11_repros/codex/r11_evidence_gate_repros.py --target . --case <
 
 ## 4. 정본 범위 — 현행 `out/` 은 여전히 provenance-incomplete
 
-`check_u14 --new out --schema-only` 는 rc 2 다: 출처 열 24 · profile `gamma_roster` 4 · degeneracy 4(옛 `inputs_sha` 가
-역할 결속 digest 로 재계산되지 않는다 — R10 에서 규칙이 바뀌었고 **숫자는 하나도 안 움직였다**). 여기에 이번 라운드가
-`argv`·`roster` 를 sidecar 필수로 만들었으므로 U18 재실행 전에는 승격이 안 된다. 소급해서 값을 채워 넣지 않는다.
+`check_u14 --new out --schema-only` 는 rc 2 · `promotion_eligible: false` 다 (실측):
+
+- **새 스키마 누락 28** = sidecar `argv` 12 + sidecar `roster` 12 (이번 라운드 P1-6 이 필수로 만들었다) +
+  profile `gamma_roster` 4
+- **기준/대상 입력 출처 열 누락 24** (R7-03·R8-04 스키마 이전 실행)
+- **내용 검사 실패 4** — degeneracy 의 옛 `inputs_sha` 가 역할 결속 digest 로 재계산되지 않는다 (R10 에서 규칙이
+  바뀌었고 **숫자는 하나도 안 움직였다**)
+
+소급해서 값을 채워 넣지 않는다 — 그러면 그 digest 가 무엇을 증명하는지 사라진다. U18 재실행이 새 규칙으로 서명한다.
 
 ## 5. 닫지 않은 것 — 신뢰 경계 (11차 답변이 지목한 것을 그대로 적는다)
 
@@ -129,8 +136,8 @@ python3 reviews/r11_repros/codex/r11_evidence_gate_repros.py --target . --case <
   `reviews/r11_repros/replay_ours_2add074_before/` (수정 전 재현) · `reviews/r11_repros/replay_ours_after_fixes/` (수정 뒤).
 - `reviews/r11_repros/replay_codex_r11.py` (닫힘 재생기 — case 별 봉인 술어) · `reviews/evidence_gate.py` (러너 공용 봉인) ·
   `bms_balancing/schema.py` (스키마·역할·환경·명부 정본) · `reviews/R6_LEDGER.md` "Codex R11" 절.
-- 코드 커밋 SHA 와 `git diff <코드 커밋> HEAD --name-only -- '*.py' '*.sh'` 의 결과는
-  `reviews/r11_repros/replay_ours_after_fixes/README.txt` 에 적었다.
+- 코드 커밋은 `4185955` 다. `git diff 4185955 HEAD --name-only -- '*.py' '*.sh'` 는 **0 개** — 뒤 커밋은 증거 파일과
+  그 결과를 적은 문서뿐이다. 자세한 것은 `reviews/r11_repros/replay_ours_after_fixes/README.txt`.
 
 ## 8. 이후
 

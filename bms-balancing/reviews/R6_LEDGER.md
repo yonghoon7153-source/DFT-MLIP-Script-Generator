@@ -637,6 +637,14 @@ P1-2(좁힌 matrix 는 canonical 아님)와 P1-7(reader 가 공용 validator 를
 | `replay_codex_r6_adapted.py` R6-04 | 원본 `matrix_independent_axes` 가 좁힌 실행을 canonical 에서 읽는다 | 이미 있던 두 개의 한 줄 적응에 **적응 ③** 을 더해 읽는 자리만 `publish_target(out, "subset")` 로 맞춘다 (관측은 그대로) |
 | `replay_codex_r9.py` R9-05 | `agg.matrix_row` 가 열의 부분집합이라 중복 판정 전에 스키마에서 멈춘다 | 중복 key(γ 0.10 ↔ 0.40)는 그대로, `_full_row` 로 전 열을 채운다 |
 
+### 수정 뒤 실측 (코드 커밋 `4185955`, 격리 snapshot)
+
+`python3 -m pytest tests/ -q` → **202 passed** · Octave 스모크 전 단계 통과 · 변이 감사 8/8 · 적응판 5/5 ·
+R6 적응판 `"mode": "full"` 6/6 · R7 5+1(전제 변경) · R9 12/12 · R10 20+1+1 · R11 32+2+1. 네 재생기 전부
+`evidence_eligible: true` · `instrument_sealed: true` · `package_digest_ok: true` · `expected_tree efa727fac821…`.
+`check_u14 --new out --schema-only` rc 2 — 새 스키마 누락 28(sidecar `argv` 12 + `roster` 12 + profile
+`gamma_roster` 4) · 출처 열 24 · 내용 4. 전문은 `reviews/r11_repros/replay_ours_after_fixes/`.
+
 ### 계약이 바뀐 곳 (이전 라운드 회귀·fixture 를 같이 고쳤다)
 
 | 전 | 후 | 왜 |
