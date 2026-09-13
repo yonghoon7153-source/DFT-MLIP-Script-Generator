@@ -1976,7 +1976,9 @@ KEY DESIGN CHOICES (different from σ_ionic / σ_e):
        0.518 with minimal 8-feature form, 0.903 with 16 features.
      - 5× improvement explained by Physics contact areas being structurally
        larger and less sensitive to point-contact noise.
-  2. **EXCL list = σ_e _EXCLUDED_NAMES_EL** (23 cases, shared)
+  2. **EXCL list = σ_e _EXCLUDED_NAMES_EL** (⛔ **정정 2026-09-13, L3 판정 `L3-06`: 실제는
+     23 이 아니라 **25개**다** — `generate_comparison_plots.py:5661` 의 frozenset 을 전수로 세어
+     확인.  ⚠ **이름 25개 ≠ 현재 코퍼스에서 실제 탈락한 행 수**, shared)
      - Broken sim (1mAh_100_X plate_z bug + S_1/particulate_1/4 σ_e=0)
      - Marginal percolation (1mAh_8_AMP_S2/S5 sparse 47-AM_P network)
      - Sibling-tail (1mAh_5_AMP_S1/S4/S5 high seed variance)
