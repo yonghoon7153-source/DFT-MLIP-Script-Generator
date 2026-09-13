@@ -40,6 +40,12 @@ META_KEYS = ("run_id", "sha256", "artifact", "env", "started_utc",
              "git_commit_at_start", "git_state_changed_during_run")
 #: meta 에서 "같은 실행" 이려면 **양쪽에 있고 같아야** 하는 조건 — schema.py 가 정본 (Codex R9-03 C · R10 P1-7)
 META_CONTROLS = S.META_CONTROLS
+#: 승격되려면 meta 가 담아야 하는 값 (있기만 한 것이 아니라 **그 값**이어야 한다, Codex R11 P1-9). 전 판은 candidate 가
+#: `git_dirty: true` · 바뀐 코드 목록 · bogus start commit · `git_state_changed_during_run: true` 를 **명시해도**
+#: rc 0 · promotion true 였다 — 신고된 위험을 gate 가 소비하지 않았다.
+SAFE_PROVENANCE = {"git_dirty": False, "git_state_changed_during_run": False, "git_modified_code": []}
+#: sidecar 에 반드시 있어야 하는 실행 기록 — argv·roster 는 R9 P2-4 가 만든 것인데 gate 가 요구하지 않았다 (R11 P1-6)
+META_REQUIRED = ("argv", "roster")
 
 # 대조할 **수치** 필드 (스키마·provenance 필드는 당연히 다르다 — 숫자만 본다)
 JSON_NUM = ("n_accepted", "best_obj", "best_p", "ref_p", "best_modes_percent",
@@ -133,6 +139,50 @@ def _unit(f: pathlib.Path):
     return read_unit(f)
 
 
+def _receipts_of(kind: str, data: bytes) -> dict:
+    """묶음이 신고한 입력 identity → `{"target": {역할: sha}, "ref": {역할: sha}}` (Codex R11 P1-1)."""
+    if kind == "degeneracy":
+        j = json.loads(data.decode("utf-8"))
+        return {"target": S.receipt_map(j.get("consumed_inputs")),
+                "ref": S.receipt_map(j.get("ref_consumed_inputs"))}
+    rows, _ = _csv_rows(data)
+    out = {"target": {}, "ref": {}}
+    for r in rows:
+        for side, col in (("target", "consumed_inputs"), ("ref", "ref_consumed_inputs")):
+            raw = r.get(col)
+            if raw:
+                try:
+                    out[side].update(S.receipt_map(json.loads(raw)))
+                except (TypeError, ValueError):
+                    pass
+    return out
+
+
+def _input_identity_problems(name: str, kind: str, odata: bytes, data: bytes) -> list:
+    """두 실행이 **같은 입력 bytes** 를 먹었는가. 다르면 그것은 재현이 아니라 다른 계산이다 (Codex R11 P1-1)."""
+    try:
+        a, b = _receipts_of(kind, odata), _receipts_of(kind, data)
+    except (ValueError, KeyError) as e:
+        return [f"{name}: 입력 identity 를 읽지 못했다 ({e})"]
+    problems, uncomparable = [], []
+    for side in ("target", "ref"):
+        x, y = a[side], b[side]
+        if not x and not y:
+            continue                                     # 둘 다 receipt 가 없다 (옛 산출) — 스키마 쪽이 이미 말한다
+        if not x or not y:
+            # ⚠ 한쪽만 입력을 적었다. 역할별로 16 줄을 뿜는 것은 거짓이다 — 진실은 "**댈 수 없다**" 한 줄이고,
+            #   그것은 숫자 mismatch 가 아니라 승격 불가 사유다 (정본이 옛 스키마면 여기로 온다).
+            who = "정본이" if not x else "새 산출이"
+            uncomparable.append(f"{name}: {side} 입력 identity 를 {who} 안 적었다 — 같은 입력을 먹었다고 말할 수 "
+                                f"없다 (승격 불가)")
+            continue
+        for role in sorted(set(x) | set(y)):
+            if x.get(role) != y.get(role):
+                problems.append(f"{name}: {side} 입력 {role} 의 identity 가 다르다 — 정본 {str(x.get(role))[:12]}… → "
+                                f"새 {str(y.get(role))[:12]}… (같은 입력이 아니면 재현이 아니다)")
+    return problems, uncomparable
+
+
 def _num_diff(a, b, path="", added=None):
     """같은 모양의 두 값에서 다른 스칼라를 [(경로, 옛, 새)] 로. 숫자는 문자열이어도 float 로 댄다.
 
@@ -171,7 +221,9 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
     roster_missing(정본에 있는데 새 산출에 없음) · roster_extra(새 산출에만) · n_old · n_new.
     """
     R: dict = {"seen": 0, "missing": [], "content": [], "diffs": [], "added": [], "paired": [], "stale": [],
-               "broken": [], "controls": [], "env": [], "roster_missing": [], "roster_extra": [], "n_old": 0, "n_new": 0}
+               "broken": [], "controls": [], "env": [], "alias": [], "provenance": [], "inputs": [],
+               "inputs_uncomparable": [],
+               "roster_missing": [], "roster_extra": [], "n_old": 0, "n_new": 0}
     new_stale: list = []
     # ⚠ `.meta.json` 은 산출이 아니다 — `degeneracy_*.json` glob 이 `degeneracy_100_Li.json.meta.json` 까지
     #   먹어서 meta 를 산출로 점검했다 (TOCTOU 렌즈 N02 가 소비자 glob 에서 확인한 것과 같은 종류).
@@ -208,12 +260,40 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
             R["missing"].append(f"{f.name}: .meta.json 없음")
         else:
             R["missing"] += [f"{f.name}.meta: {k}" for k in META_KEYS if meta.get(k) is None]
+            # ⚠ Codex R11 P1-6: 실행 조건·argv·roster 는 **묶음의 스키마**다 — 비교 모드에서만 보면 schema-only 가
+            #   그 축을 통째로 건너뛴다 (전 판은 지워도 통과했다).
+            R["missing"] += [f"{f.name}.meta: {k}" for k in (*META_CONTROLS, *META_REQUIRED)
+                             if meta.get(k) in (None, "")]
+            if not (isinstance(meta.get("env"), dict) and meta["env"]):
+                R["missing"].append(f"{f.name}.meta: env 가 비어 있다")
+            # ⚠ Codex R11 P1-9: 신고된 위험은 값으로 소비한다 (있기만 하면 되는 것이 아니다).
+            for k, want in SAFE_PROVENANCE.items():
+                if k in meta and meta[k] != want:
+                    R["provenance"].append(f"{f.name}.meta:{k} = {meta[k]!r} (승격 조건은 {want!r})")
+            # ⚠ sidecar 의 roster 는 본문에서 유도된 값이어야 한다 — 같은 함수로 다시 유도해 댄다 (Codex R9 P2-4 의
+            #   봉인이 실제로 그 본문의 것인지). 어긋나면 그 sidecar 는 이 묶음의 것이 아니다.
+            try:
+                want_roster = S.body_roster(f.name, data)
+            except (ValueError, KeyError):
+                want_roster = None
+            if want_roster is not None and meta.get("roster") not in (None, "") and meta["roster"] != want_roster:
+                R["content"].append(f"{f.name}.meta:roster 가 본문에서 유도한 명부와 다르다 — {meta['roster']} ≠ {want_roster}")
+            start = str(meta.get("git_commit_at_start") or "")
+            if start and not re.fullmatch(r"[0-9a-f]{40}", start):
+                R["provenance"].append(f"{f.name}.meta:git_commit_at_start 가 40-hex 커밋이 아니다 ({start!r})")
         if schema_only or old is None:
             continue
         o = baseline_for(f, old, policy, R["stale"])
         if o is None:
             continue                                            # roster_extra 가 이미 말한다
         R["paired"].append((f.name, o.name))
+        # ⚠ Codex R11 P1-5: 디렉터리가 달라도 **파일이 같은 inode** 면 자기대조다 (hardlink/symlink). data 와 meta 를
+        #   각각 본다 — 전 판은 디렉터리만 보고 rc 0 · promotion true 를 냈다.
+        for a_, b_, what in ((f, o, "산출"), (f.with_name(f.name + ".meta.json"),
+                                              o.with_name(o.name + ".meta.json"), "meta")):
+            if a_.exists() and b_.exists() and os.path.samefile(a_, b_):
+                R["alias"].append(f"{f.name}: 새 산출과 정본의 {what} 가 **같은 object** 다 (hardlink/symlink) — "
+                                  f"독립 baseline 이 아니다")
         ook, owhy, odata, ometa = _unit(o)
         if ook is False:
             R["diffs"].append((f"{o.name}", "정본 묶음 불일치/미완", owhy)); continue
@@ -227,6 +307,12 @@ def check(new: pathlib.Path, old: pathlib.Path | None, schema_only=False, policy
                 elif _num_diff(ometa[k], meta[k]):
                     R["controls"].append((f"{f.name}.meta:{k}", ometa[k], meta[k]))
             R["env"] += [f"{f.name}.meta:{x}" for x in S.env_problems(ometa.get("env"), meta.get("env"))]
+        # ⚠ Codex R11 P1-1: 각 receipt 가 **자기 안에서** 유효한 것과 두 실행이 **같은 입력**을 먹은 것은 다른 문제다.
+        #   `ROW_SKIP` 이 identity 를 숫자 비교에서 빼기 때문에, 네 digest 가 전부 달라도 rc 0 · promotion true 였다.
+        #   역할별 sha 를 정규화해 대조한다 — 다르면 숫자 비교 전에 막는다.
+        _mismatch, _uncomparable = _input_identity_problems(f.name, kind, odata, data)
+        R["inputs"] += _mismatch
+        R["inputs_uncomparable"] += _uncomparable
         if kind == "degeneracy":
             a = json.loads(odata.decode("utf-8"))
             for k in S.DEGENERACY_CONTROLS:
@@ -387,7 +473,12 @@ def main() -> int:
     seen, missing, content, diffs = R["seen"], R["missing"], R["content"], R["diffs"]
     added, paired, stale, broken = R["added"], R["paired"], R["stale"], R["broken"]
     controls, r_missing, r_extra, env_bad = R["controls"], R["roster_missing"], R["roster_extra"], R["env"]
+    alias, prov_bad, inputs_bad = R["alias"], R["provenance"], R["inputs"]
+    inputs_unk = R["inputs_uncomparable"]
     print(f"산출 {seen} 개 점검 ({new})")
+    if old is None:
+        print("  (`--schema-only`: baseline 도 대조도 없다 — **승격 증명서가 아니다**. 스키마·내용·조건만 본다, "
+              "Codex R11 P1-6)")
     if old is not None:
         print(f"  정본 선택 정책: **{policy}** — {POLICY[policy]}")
         print(f"  명부(roster): 정본 {R['n_old']} · 새 산출 {R['n_new']} · 대조 {len(paired)}"
@@ -445,6 +536,26 @@ def main() -> int:
             print(f"  … 외 {len(content) - a.max_show}")
     if not missing and not content:
         print("  새 스키마: 전부 갖췄다 (열·키 이름 + 필수 셀·숫자·receipt·중복 key — `bms_balancing/schema.py` 정본)")
+    if alias:
+        print(f"\n■ **독립 baseline 이 아니다** {len(alias)} — candidate 와 baseline 이 같은 object 를 가리킨다 "
+              f"(hardlink/symlink). 자기대조는 승격 근거가 아니다 (Codex R11 P1-5)")
+        for x in alias[:a.max_show]:
+            print(f"  - {x}")
+    if inputs_bad:
+        print(f"\n■ **입력 identity 불일치** {len(inputs_bad)} — 두 실행이 먹은 입력 bytes 가 다르다. 숫자가 같아도 "
+              f"그것은 같은 실행의 재현이 아니다 (Codex R11 P1-1)")
+        for x in inputs_bad[:a.max_show]:
+            print(f"  - {x}")
+    if inputs_unk:
+        print(f"\n■ **입력 identity 대조 불가** {len(inputs_unk)} — 한쪽이 자기 입력을 안 적었다 (정본이 옛 스키마면 "
+              f"여기로 온다). 숫자가 같아도 **같은 입력을 먹었다는 증명은 없다** → 승격 불가 (Codex R11 P1-1)")
+        for x in inputs_unk[:a.max_show]:
+            print(f"  - {x}")
+    if prov_bad:
+        print(f"\n■ **provenance 가 안전하지 않다** {len(prov_bad)} — 산출 스스로 신고한 위험이다 (git_dirty · 실행 중 "
+              f"상태 변경 · 바뀐 코드 · 시작 커밋). 승격은 safe 값 자체를 요구한다 (Codex R11 P1-9)")
+        for x in prov_bad[:a.max_show]:
+            print(f"  - {x}")
     if env_bad:
         print(f"\n■ **환경(env) 불일치** {len(env_bad)} — 정본을 만든 기계와 다른 조합이다 (R6 내부 F3: scipy 1.11↔1.17 "
               f"에서 savgol 이 ULP 로 갈리고 L-BFGS-B 최적점이 달라진다). 숫자가 같아도 같은 실행의 재현이 아니다 "
@@ -468,24 +579,36 @@ def main() -> int:
                 print(f"  - {p}: 정본 {x} → 새 {y}")
             if len(diffs) > a.max_show:
                 print(f"  … 외 {len(diffs) - a.max_show}")
-        elif broken or r_extra or controls or env_bad or missing or content or (r_missing and not a.subset):
+        elif (broken or r_extra or controls or env_bad or missing or content or alias or prov_bad or inputs_bad
+              or (r_missing and not a.subset)):
             # ⚠ Codex R10 P1-7: 계약이 깨진 대조에서 "전부 같다" 를 찍으면 그 줄만 인용된다. 숫자가 같아도 **같은
             #   실행의 재현이 아니다** — 명부·스키마·내용·조건·환경 중 하나라도 깨졌으면 미완이라고 말한다.
             print("  숫자: 대조 **미완** — 명부/묶음/스키마/내용/조건/환경 문제를 뺀 나머지만 같다 (전체를 말할 수 없다)")
         elif a.subset and r_missing:
             print(f"  숫자: 대조한 {len(paired)}/{R['n_old']} 개는 정본과 같다 — **부분(subset)** 진술, 승격 아님")
+        elif inputs_unk:
+            # 숫자는 전부 같다. 다만 **같은 입력을 먹었다는 증명**이 없으므로 승격 근거는 아니다 (Codex R11 P1-1).
+            print(f"  숫자: 정본({old})과 전부 같다 — 그러나 입력 identity 를 댈 수 없어 **승격 대상은 아니다**")
         else:
             print(f"  숫자: 정본({old})과 전부 같다 — 게시·서명만 바뀌었다")
     contract_broken = bool(missing or broken or content or controls or env_bad or r_extra
-                           or (r_missing and not a.subset))
+                           or alias or prov_bad or inputs_bad or (r_missing and not a.subset))
     rc = 2 if contract_broken else (1 if diffs else (3 if (a.subset and r_missing) else 0))
     # ⚠ Codex R10 P2-1: "부분 · 승격 아님" 을 **글자로만** 말하면 자동 소비자는 full equality 와 구분할 수 없다.
     #   종료 코드로 가르고(3 = 부분), 판정을 machine-readable 한 줄로 낸다.
-    promotion = {"promotion_eligible": rc == 0, "rc": rc, "subset": bool(a.subset),
+    # ⚠ Codex R11 P1-6: **schema-only 는 승격 증명서가 아니다.** baseline 도 대조도 없는 실행이 `promotion_eligible:
+    #   true` 를 내면 그 줄만 인용된다 — 구조상 언제나 false 이고 `baseline_absent` 를 blocker 로 적는다.
+    baseline_absent = old is None
+    # ⚠ Codex R11 P1-1: 입력 identity 를 **댈 수 없는** 대조는 rc 를 바꾸지 않는다 (정본이 옛 스키마인 것은 새 산출의
+    #   계약 위반이 아니다) — 그러나 "같은 입력의 재현" 을 증명하지 못하므로 승격 자격은 없다.
+    promotion = {"promotion_eligible": rc == 0 and not baseline_absent and not inputs_unk,
+                 "rc": rc, "subset": bool(a.subset),
                  "roster": {"old": R["n_old"], "new": R["n_new"], "compared": len(paired),
                             "missing_in_new": r_missing, "extra_in_new": r_extra},
                  "blocked_by": {"schema": len(missing), "content": len(content), "unit": len(broken),
-                                "controls": len(controls), "env": len(env_bad), "numbers": len(diffs)},
+                                "controls": len(controls), "env": len(env_bad), "numbers": len(diffs),
+                                "alias": len(alias), "provenance": len(prov_bad), "inputs": len(inputs_bad),
+                                "inputs_uncomparable": len(inputs_unk), "baseline_absent": int(baseline_absent)},
                  "policy": policy, "new": str(new), "old": (str(old) if old is not None else None)}
     print("PROMOTION " + json.dumps(promotion, ensure_ascii=False))
     return rc

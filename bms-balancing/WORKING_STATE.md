@@ -24,7 +24,37 @@
 
 ---
 
-## 지금 상태 — **Codex 10차 NO-GO (P1 8 · P2 7) 열다섯 건 전부 닫음 · 11차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+## 지금 상태 — **Codex 11차 NO-GO (P1 12 · P2 6) 열여덟 건 전부 닫음 · 12차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+
+2026-09-13 Codex 11차(대상 `2add074`, `reviews/R11_CODEX.md`, 패키지 `reviews/r11_repros/codex/` sha256 13/13)의 요지:
+R10 의 열다섯 수정은 **각 산출 안에서는** 참이 됐지만 세 축이 열려 있다 — (a) 두 실행 **사이**의 입력 identity 를
+아무도 대지 않아 old/new 의 네 digest 가 전부 달라도 `promotion_eligible: true` 였고(P1-1), (b) caller 옵션이 권위
+명부 자체를 줄여 `--only-source`·`--grid 1` 이 complete canonical 을 게시했으며(P1-2·3) 부재 allowlist 가 실제로 있는
+파일을 요청에서 빼고(P1-4) hardlink 자기대조와 `--schema-only` 가 승격 증명서로 통했다(P1-5·6), (c) 증거 기계가 자기
+startup 을 안 봉인해 gate 보다 먼저 load 된 위조 pyc·checkout smudge·rc 7 자식·무관한 AssertionError 가 전부
+`closed: true` 를 냈다(P1-10~12). 그 밖에 production reader 가 `error` 행을 과학 입력으로 먹고(P1-7), 비유한 값이
+스키마를 통과하고(P1-8), untracked `sitecustomize.py` 가 실행되는데 provenance 는 clean 이었다(P1-9). P2 는 sink 에
+따라 갈리는 부분 rc(P2-1) · stale wildcard 를 읽는 `shape_step`(P2-2) · 중복 논리 역할(P2-3) · parse 안 하는
+`gamma_roster`(P2-4) · 대문자 `S` skip-worktree(P2-5) · 짧은 expected head(P2-6).
+
+열여덟 건 전부 수정 전 clean 트리에서 재현(`reviews/r11_repros/replay_ours_2add074_before/`) →
+RED(`tests/test_r11_codex.py` e11_01~19) → 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "Codex R11" 절, 요청문은
+`reviews/R12_REQUEST.md`. 닫힘 재생기는 `reviews/r11_repros/replay_codex_r11.py` (case 별 **봉인한 술어**로만 닫힘을
+센다 — 반례 소멸 32 · 전제 변경 2 · 환경상 불가 1).
+
+**새 규약(11차에서 더한 것)**: 승격은 baseline↔candidate 의 `{역할: full sha256}` 이 **같아야** 하고 한쪽이 입력을 안
+적었으면 "대조 불가" 로 승격 자격이 없다 · 권위 명부는 caller 옵션으로 줄지 않는다 (좁힌 실행은 `subset` rc 3 ·
+`partial/`) · 정본 γ 격자는 `S.CANONICAL_GAMMA_GRID_N = 21` · 부재 allowlist 가 실제 파일과 모순되면 hard-fail ·
+sidecar 는 `argv`·`roster` 를 반드시 담고 명부 유도는 `schema.body_roster` **한 자리** · production reader 는 checker 와
+같은 validator 를 exact header 로 통과한 묶음만 먹는다 · 과학 값은 전부 유한해야 한다 · 산출 root **밖**의 untracked 는
+코드다 · 증거 러너는 gate import **전에** bytecode 를 격리하고 materialize 한 bytes 를 blob 과 재대조하며 full 40 자
+expected head 만 받고 자식 rc 0 을 강제한다 · 닫힘 판정은 case 별 반례 fingerprint 로만.
+
+**정본 범위 (변화 없음)**: 현행 `out/` 12 개는 여전히 **provenance-incomplete** (출처 열 24 + profile `gamma_roster` 4 +
+digest 규칙 변경으로 재계산과 안 맞는 degeneracy 4). 숫자는 하나도 안 움직였다 — 바뀐 것은 규칙이다. U18 재실행이
+새 규칙으로 서명한다.
+
+## 직전 상태 — Codex 10차 NO-GO (P1 8 · P2 7) 열다섯 건 전부 닫음 (닫힘)
 
 2026-09-13 Codex 10차(대상 `bd6ba47`, 코드 정본 `554dad6`, `reviews/R10_CODEX.md`, 패키지 `reviews/r10_repros/codex/`
 sha256 10/10)의 요지: R9 의 열두 수정은 허상이 아니지만 **그 문장이 게시 경계·승격 gate·증거 기계에서는 아직 참이
@@ -163,7 +193,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 183 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 202 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh

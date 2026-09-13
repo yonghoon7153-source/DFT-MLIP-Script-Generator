@@ -6,3 +6,8 @@
 #   writer 도 LF 로 쓴다 (`atomic_write_csv`) — 둘을 같게 두는 것이 서명이 사는 조건이다.
 *.csv text eol=lf
 *.json text eol=lf
+
+# ⚠ Codex R11: 보관한 리뷰 패키지(`reviews/*/codex/`)는 **원문 bytes 그대로**다 — 옆의 `HARNESS_*_SHA256SUMS.txt`
+#   가 정확히 그 bytes 를 서명하고 러너가 매번 대조한다. git 이 줄끝을 정규화하면 fresh clone 에서 digest 가
+#   깨진다 (실측: R11 패키지의 `r11_data_contract_results.json` 은 CRLF 로 왔다). 그래서 여기만 변환을 끈다.
+reviews/*/codex/** -text

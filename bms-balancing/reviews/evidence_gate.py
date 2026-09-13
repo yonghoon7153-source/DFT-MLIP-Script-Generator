@@ -151,6 +151,81 @@ def instrument_sealed(target, rel_paths) -> tuple:
 
 
 def index_skip_flags(target) -> list:
-    """`assume-unchanged`/`skip-worktree` 가 걸린 tracked 파일 (소문자 플래그) — 봉인 전에 배제한다."""
+    """`assume-unchanged`·`skip-worktree` 가 걸린 tracked 파일 — 봉인 전에 배제한다.
+
+    ⚠ Codex R11 P2-5: 전 판은 **소문자만** 봤다. git 은 skip-worktree 를 대문자 `S` 로 찍고 (소문자가 되는 것은
+    assume-unchanged 가 같이 걸렸을 때뿐이다) — `S reviews/evidence_gate.py` 가 통째로 새어나가 러너가
+    rc 0 · eligible true 를 냈다. 두 태그를 다 본다.
+    """
     out = _git(target, "ls-files", "-v", "--", ".")
-    return [ln[2:] for ln in out.splitlines() if ln[:1].islower()]
+    return [ln[2:] for ln in out.splitlines() if ln[:1].islower() or ln[:1] == "S"]
+
+
+def verify_snapshot_bytes(snap, head: str) -> list:
+    """materialize 한 트리의 tracked **bytes** 가 expected commit 의 blob 과 같은가 → 다른 것들의 목록.
+
+    ⚠ Codex R11 P1-10 반례 B: checkout 은 filter(smudge)·eol·ident 를 거친다. committed `.gitattributes` 에
+    smudge driver 하나만 걸어도 snapshot 의 `verify.py` 가 다른 bytes 로 풀리는데 `git rev-parse HEAD` 는 그대로다 —
+    "그 커밋을 돌렸다" 가 거짓이 된다. index·filter 를 안 거치는 `hash-object --no-filters` 로 파일 bytes 를 직접
+    해싱해 `<head>` 트리의 object id 와 댄다. 파일 수가 많으므로 batch 로 한 번씩만 부른다.
+    """
+    snap = pathlib.Path(snap).resolve()
+    want = {}
+    for ln in _git(snap, "ls-tree", "-r", "-z", head, "--", ".").split("\0"):
+        if not ln.strip():
+            continue
+        info, _, name = ln.partition("\t")
+        mode, kind, oid = info.split()
+        if kind == "blob":
+            want[name] = (mode, oid)
+    names = [n for n in _git(snap, "ls-files", "-z", "--", ".").split("\0") if n]
+    problems = []
+    if set(names) - set(want):
+        problems += [f"{n}: expected commit 에 없는 tracked 파일" for n in sorted(set(names) - set(want))]
+    if set(want) - set(names):
+        problems += [f"{n}: snapshot 에 안 풀렸다" for n in sorted(set(want) - set(names))]
+    todo = [n for n in names if n in want and want[n][0] != "120000"]      # symlink 는 bytes 비교 대상이 아니다
+    missing = [n for n in todo if not (snap / n).is_file()]
+    problems += [f"{n}: snapshot 에 파일이 없다" for n in missing]
+    todo = [n for n in todo if n not in set(missing)]
+    if todo:
+        # ⚠ `--stdin-paths` 는 cwd 가 아니라 worktree 최상위 기준으로 연다 — **절대 경로**로 넘긴다
+        p = subprocess.run(["git", "-C", str(snap), "hash-object", "--no-filters", "--stdin-paths"],
+                           input="\n".join(str(snap / n) for n in todo) + "\n",
+                           capture_output=True, text=True)
+        if p.returncode != 0:
+            raise EvidenceError(f"snapshot bytes 해싱이 rc {p.returncode}: {p.stderr.strip()[:300]}")
+        have = p.stdout.split()
+        if len(have) != len(todo):
+            raise EvidenceError(f"해시 개수가 안 맞는다: {len(have)} ≠ {len(todo)}")
+        for n, h in zip(todo, have):
+            if h != want[n][1]:
+                problems.append(f"{n}: bytes 가 blob 과 다르다 ({h[:12]} ≠ {want[n][1][:12]})")
+    return problems
+
+
+def full_head(target, expected: str) -> str:
+    """`--expected-head` 를 **full canonical object id** 로 확정한다 (Codex R11 P2-6).
+
+    전 판은 `git rev-parse <arg>` 결과끼리만 대조해서 7 자 prefix 도 통과했고, 그 짧은 값이 그대로 증거에
+    expected head 로 적혔다. prefix 는 커밋 하나를 지목하지 못한다 (ambiguous 가 되면 나중에 다른 커밋을 가리킨다).
+    """
+    e = (expected or "").strip()
+    if len(e) != 40 or any(c not in "0123456789abcdef" for c in e.lower()):
+        raise EvidenceError(f"--expected-head 는 40 자리 full object id 여야 한다 (짧은 prefix·ref 이름 불가): {e!r}")
+    p = subprocess.run(["git", "-C", str(target), "rev-parse", "--verify", f"{e.lower()}^{{commit}}"],
+                       capture_output=True, text=True)
+    got = p.stdout.strip()
+    if p.returncode != 0 or got != e.lower():
+        raise EvidenceError(f"HEAD mismatch — --expected-head 가 이 저장소의 commit 이 아니다: {e!r}")
+    return got
+
+
+def tree_of(target, head: str) -> str:
+    """commit 의 tree id — 증거에 같이 적는다. 같은 tree 를 가리키는 다른 커밋과 구별할 근거다 (Codex R11 P2-6)."""
+    return _git(target, "rev-parse", f"{head}^{{tree}}").strip()
+
+
+def bootstrap_pycache() -> str:
+    """이 모듈을 **import 하기 전에** 러너가 부르는 것과 같은 격리 (호출 뒤 재호출은 무해하다)."""
+    return isolate_bytecode()

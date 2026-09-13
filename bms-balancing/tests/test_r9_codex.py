@@ -165,12 +165,15 @@ def test_d9_05_ne_shape_refuses_duplicate_matrix_keys_instead_of_taking_the_firs
     같은 typed validator 를 공유한다."""
     ns = _mod("ne_shape_r9", ROOT / "scripts/ne_shape.py")
     d = tmp_path / "out"; d.mkdir()
-    rows = [dict(half_cell="GITT", si="Li", w_dqdv="0", gamma_Si=g, ref_gamma_Si="0.2", run_id="r9-dup") for g in ("0.10", "0.40")]
-    f = d / "matrix_100.csv"; verify.atomic_write_csv(f, rows, list(rows[0])); _sign(f, "r9-dup", "100")
+    from bms_balancing import schema as _S
+    from test_review_findings import matrix_row
+    # ⚠ Codex R11 P1-7: reader 가 checker 와 같은 validator 를 쓴다 — 중복 판정에 닿으려면 행이 온전해야 한다
+    rows = [matrix_row(gamma_Si=g, ref_gamma_Si="0.2", run_id="r9-dup") for g in ("0.10", "0.40")]
+    f = d / "matrix_100.csv"; verify.atomic_write_csv(f, rows, list(_S.MATRIX_ROW)); _sign(f, "r9-dup", "100")
     with pytest.raises(RuntimeError, match="중복"):
         ns.fitted_pair_info(d, "100", "GITT", "Li")
     rows = [dict(rows[0], w_dqdv="0.0"), dict(rows[1], w_dqdv="0")]           # 정규화 뒤 같은 key 도 중복이다
-    verify.atomic_write_csv(f, rows, list(rows[0])); _sign(f, "r9-dup", "100")
+    verify.atomic_write_csv(f, rows, list(_S.MATRIX_ROW)); _sign(f, "r9-dup", "100")
     with pytest.raises(RuntimeError, match="중복"):
         ns.fitted_pair_info(d, "100", "GITT", "Li")
     from bms_balancing import schema as S

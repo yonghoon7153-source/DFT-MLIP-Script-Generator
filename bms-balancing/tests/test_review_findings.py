@@ -1233,10 +1233,18 @@ def test_git_state_ignores_untracked_artifacts(tmp_path):
     (tmp_path / "code.py").write_text("x = 1\n"); git("add", "code.py"); git("commit", "-qm", "c0")
     sha0 = git("rev-parse", "HEAD").stdout.strip()
 
-    (tmp_path / "artifact.csv").write_text("a,b\n")            # 방금 쓴 산출물 (untracked)
+    (tmp_path / "out").mkdir()
+    (tmp_path / "out" / "artifact.csv").write_text("a,b\n")    # 방금 쓴 산출물 (산출 root 안, untracked)
     sha, dirty = m.git_state(cwd=str(tmp_path))
     assert sha == sha0 and dirty is False, \
         f"untracked 산출물만 있는데 dirty={dirty} — 플래그에 정보가 없다"
+
+    # ⚠ Codex R11 P1-9: 산출 root **밖**의 untracked 는 다르다 — 실행되는 코드일 수 있다. 여기서 무시하면
+    #   `sitecustomize.py` 가 실제로 import 돼 돌아가는 트리를 clean 이라고 적게 된다 (반례 그대로).
+    (tmp_path / "sitecustomize.py").write_text("marker = 1\n")
+    pv = m.git_provenance(str(tmp_path))
+    assert pv["git_dirty"] is True and "sitecustomize.py" in pv["git_modified_code"], pv
+    (tmp_path / "sitecustomize.py").unlink()
 
     (tmp_path / "code.py").write_text("x = 2\n")                # 추적 코드를 고침
     assert m.git_state(cwd=str(tmp_path))[1] is True, "추적 파일 수정을 못 봤다"
@@ -1895,7 +1903,7 @@ def test_r3_08_profile_all_failed_exits_nonzero_and_leaves_the_old_csv_alone(tmp
     out.write_text(stale, encoding="utf-8")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", "2",
+        rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", str(verify.S.CANONICAL_GAMMA_GRID_N),
                           "--out", str(out)])
     assert rc not in (None, 0), f"전부 실패했는데 종료 코드가 {rc!r} 다\n{buf.getvalue()[-800:]}"
     assert out.read_text(encoding="utf-8") == stale, "옛 CSV 를 건드렸다 (보존해야 한다)"
@@ -2351,7 +2359,7 @@ os.environ["BMS_RUN_ID"] = f"run-{role}"
 with patch.object(v.D, "data_root", return_value=root), patch.object(v, "build", return_value=Obj()), \\
      patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), patch.object(v, "publish_lock", Barrier), \\
      patch.object(v, "minimize", side_effect=ok), patch.object(v.os, "replace", side_effect=scheduled):
-    rc = v.main(["profile", "--data-root", str(root), "--starts", "1", "--grid", "2", "--out", str(out)])
+    rc = v.main(["profile", "--data-root", str(root), "--starts", "1", "--grid", str(v.S.CANONICAL_GAMMA_GRID_N), "--out", str(out)])
 print(json.dumps({"role": role, "a_NE": float(selected[2]), "rc": rc}))
 sys.exit(rc)
 '''
@@ -2396,7 +2404,15 @@ def _fixture_repo(root, outputs=("out/100.csv", "out/200.csv")):
     import shutil, subprocess
     (root / "scripts").mkdir(parents=True); (root / "out").mkdir(exist_ok=True)
     shutil.copyfile(ROOT / "scripts" / "provenance.py", root / "scripts" / "provenance.py")
+    # ⚠ Codex R11: `write_meta` 의 명부 유도는 `bms_balancing.schema.body_roster` **한 자리**를 부른다 —
+    #   fixture repo 도 그 패키지를 갖고 있어야 production 과 같은 경로를 도는 것이다 (없으면 다른 코드를 시험한다).
+    shutil.copytree(ROOT / "bms_balancing", root / "bms_balancing",
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (root / "code.py").write_text("value = 1\n", encoding="utf-8")
+    # 실제 저장소와 같은 ignore 정책 — bytecode 캐시는 추적 대상이 아니다 (없으면 `--untracked-files=normal` 이
+    # 실행 중 생긴 `__pycache__` 를 코드 변경으로 센다; production 은 루트 `.gitignore` 가 막는다)
+    (root / ".gitignore").write_text("__pycache__/\n*.pyc\nout/**/*.lock\nout/**/*.part\nout/*.log\n",
+                                     encoding="utf-8")
     for o in outputs:
         (root / o).write_text("a,b\n1,2\n", encoding="utf-8")
     def git(*a):
@@ -2612,7 +2628,7 @@ class Obj:
 def ok(fun, start, **kw): return SimpleNamespace(x=selected.copy(), fun=fun(selected), success=True)
 with patch.object(v.D, "data_root", return_value=out.parent), patch.object(v, "build", return_value=Obj()), \\
      patch.object(v, "multistart", return_value=(center.copy(), 1.0, [])), patch.object(v, "minimize", side_effect=ok):
-    sys.exit(v.main(["profile", "--data-root", str(out.parent), "--starts", "1", "--grid", "2", "--out", str(out)]))
+    sys.exit(v.main(["profile", "--data-root", str(out.parent), "--starts", "1", "--grid", str(v.S.CANONICAL_GAMMA_GRID_N), "--out", str(out)]))
 ''', encoding="utf-8")
     pauser = tmp_path / "pauser.py"
     pauser.write_text('''
@@ -2707,11 +2723,40 @@ def _r5_ne_shape_real_pairs(tmp_path, monkeypatch, cwd, truth=0.45, reference=0.
     return row, meta
 
 
-def _r5_matrix(path, gamma, reference=0.15):
+def matrix_row(**over):
+    """`schema.MATRIX_ROW` 를 **전부** 채운 한 행 (진짜 역할 receipt 포함).
+
+    ⚠ Codex R11 P1-7 뒤로 production reader(`ne_shape.fitted_pair_info`)가 checker 와 **같은** validator 를 쓴다 —
+    열 이름 몇 개만 맞춘 부분집합은 더 이상 과학 입력이 아니다. fixture 도 같은 계약을 지켜야 실제 경로를 시험한다.
+    """
+    from bms_balancing import schema as S
+    ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
+    rci = {"half_cell": {"path": "p.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"],
+           "literature": ci["literature"]}
+    v = {k: "1.0" for k in S.MATRIX_ROW}
+    v.update(half_cell="GITT", si="Li", w_dqdv="0", run_id="fixture-run", bounds="-", ref_bounds="-",
+             consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
+             inputs_sha=S.inputs_digest(ci), ref_inputs_sha=S.inputs_digest(rci),
+             scale_audit_target="{}", scale_audit_ref="{}")
+    v.update({k: str(x) for k, x in over.items()})
+    assert set(v) == set(S.MATRIX_ROW), set(v) ^ set(S.MATRIX_ROW)
+    return {k: v[k] for k in S.MATRIX_ROW}
+
+
+def _r5_matrix(path, gamma, reference=0.15, run_id="fixture-run", **over):
+    """온전한 **한 묶음**(CSV + meta) 으로 쓴다 — reader 는 run_id 가 있는데 meta 가 없으면 미완으로 거부한다."""
+    import hashlib as _h, json as _j
+    from bms_balancing import schema as S
     path.parent.mkdir(parents=True, exist_ok=True)
+    row = matrix_row(gamma_Si=gamma, ref_gamma_Si=reference, run_id=run_id, **over)
     with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["half_cell", "si", "w_dqdv", "gamma_Si", "ref_gamma_Si"])
-        w.writeheader(); w.writerow(dict(half_cell="GITT", si="Li", w_dqdv=0, gamma_Si=gamma, ref_gamma_Si=reference))
+        w = csv.DictWriter(f, fieldnames=list(S.MATRIX_ROW))
+        w.writeheader(); w.writerow(row)
+    data = path.read_bytes()
+    path.with_name(path.name + ".meta.json").write_text(_j.dumps(
+        {"artifact": path.name, "run_id": run_id, "sha256": _h.sha256(data).hexdigest(),
+         "roster": S.body_roster(path.name, data)}), encoding="utf-8")
 
 
 def test_r5_05_ne_shape_records_the_matrix_file_it_consumed(tmp_path, monkeypatch):
@@ -2805,8 +2850,12 @@ def test_r5_07_matrix_rows_carry_scales_and_audits_for_target_and_reference(tmp_
                            only_source=True, only_wdqdv=True, out=str(out), run_id="r5-07")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), warnings.catch_warnings():
-        warnings.simplefilter("ignore"); verify.cmd_matrix(args)
-    rows = list(csv.DictReader(out.open(encoding="utf-8")))
+        warnings.simplefilter("ignore"); rc = verify.cmd_matrix(args)
+    # ⚠ Codex R11 P1-2: `--only-source`·`--only-wdqdv` 는 권위 명부를 **좁힌다** — 그 산출은 canonical 이 아니라
+    #   subset(rc 3, `partial/`) 이다. 이 시험의 주제는 scale/감사 열이므로 좁힌 실행 그대로 두고 자리만 맞춘다.
+    assert rc == 3, (rc, buf.getvalue()[-400:])
+    published = verify.publish_target(out, "subset")
+    rows = list(csv.DictReader(published.open(encoding="utf-8")))
     assert len(rows) == 1, rows
     r = rows[0]
     for side in ("target", "ref"):
@@ -2832,11 +2881,11 @@ def test_r5_08_one_run_id_per_command_and_helpers_check_the_field_not_a_substrin
     try:
         out = tmp_path / "p.csv"; buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", "2", "--out", str(out)])
+            rc = verify.main(["profile", "--data-root", str(tmp_path), "--starts", "1", "--grid", str(verify.S.CANONICAL_GAMMA_GRID_N), "--out", str(out)])
         rows = list(csv.DictReader(out.open(encoding="utf-8")))
         ids = {r["run_id"] for r in rows}
         printed = buf.getvalue().strip().splitlines()[-1].split("run_id ")[1].rstrip(")")
-        assert rc == 0 and len(rows) == 2 and ids == {printed}, (ids, printed)
+        assert rc == 0 and len(rows) == verify.S.CANONICAL_GAMMA_GRID_N and ids == {printed}, (ids, printed)
     finally:
         mp.undo()
     root = tmp_path / "repo"; _fixture_repo(root, outputs=("out/old.csv",))

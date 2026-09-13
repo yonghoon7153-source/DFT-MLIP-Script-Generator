@@ -5,7 +5,7 @@
 (R9-05). producer·checker·reader 가 같은 함수를 부른다.
 """
 from __future__ import annotations
-import hashlib, json, re
+import hashlib, json, math, re
 
 # ── 행/키 스키마 (producer 의 dict 키 순서 그대로) ─────────────────────────────────────────────
 MATRIX_ROW = (
@@ -44,30 +44,65 @@ ERROR_COL = "error"
 RECEIPT_SCHEMA_VERSION = "r10.1"
 #: 비어 있어도 되는 열 — producer 가 감사 dict 가 없으면 "" 를 쓴다 (`cmd_matrix` 의 scale_audit_*)
 MAY_BE_EMPTY = frozenset({"scale_audit_target", "scale_audit_ref"})
-#: 숫자로 파싱돼야 하는 과학 열
-MATRIX_NUMERIC = ("obj", "rmse_pocv", "a_PE", "b_PE", "a_NE", "b_NE", "gamma_Si", "c_cell", "LAM_PE_pct", "LAM_NE_pct", "LLI_pct")
-PROFILE_NUMERIC = ("gamma_Si", "obj", "obj_ratio_to_best", "rmse_pocv", "LAM_PE_pct", "LAM_NE_pct", "LLI_pct")
+#: 숫자가 **아닌** 열 (라벨·출처·감사 문자열). 나머지는 전부 유한한 숫자여야 한다 — 목록을 반대로 두면 새 숫자 열이
+#: 생겼을 때 검사에서 조용히 빠진다 (Codex R11 P1-8: `a_NE="not-a-number"` 가 통과했다).
+MATRIX_NON_NUMERIC = ("half_cell", "si", "run_id", "inputs_sha", "ref_inputs_sha", "consumed_inputs",
+                      "ref_consumed_inputs", "scale_audit_target", "scale_audit_ref", "bounds", "ref_bounds")
+PROFILE_NON_NUMERIC = ("bounds", "run_id", "profile_scale", "inputs_sha", "ref_inputs_sha",
+                       "consumed_inputs", "ref_consumed_inputs", "gamma_roster")
+MATRIX_NUMERIC = tuple(c for c in MATRIX_ROW if c not in MATRIX_NON_NUMERIC)
+PROFILE_NUMERIC = tuple(c for c in PROFILE_ROW if c not in PROFILE_NON_NUMERIC)
 #: 숫자 대조에서 뺄 열 (출처·감사 문자열 — 숫자가 아니다)
 ROW_SKIP = frozenset({"run_id", "inputs_sha", "ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs",
                       "scale_audit_target", "scale_audit_ref"})
+
+#: profile 의 **정본 γ 격자** — 개수와 끝점이 계약이다 (Codex R11 P1-3: `--grid 1` 이 1 점짜리 산출을 complete 로
+#: 게시했다; 모든 span 이 0 인 것은 당연하다). 다른 격자는 진단이고 canonical 이 아니다.
+CANONICAL_GAMMA_GRID_N = 21
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _HEX12 = re.compile(r"^[0-9a-f]{12}$")
 
 
-def receipt_leaves(consumed) -> list:
-    """receipt → `[(역할, leaf dict)]`. 중첩 한 단계까지 `literature.gr` 처럼 점으로 이어 붙인 **역할 이름**이 key 다."""
-    out = []
+def receipt_leaves(consumed, problems: list | None = None) -> list:
+    """receipt → `[(역할, leaf dict)]`. 중첩 한 단계까지 `literature.gr` 처럼 점으로 이어 붙인 **역할 이름**이 key 다.
+
+    ⚠ Codex R11 P2-3: 전 판은 top-level 에 점이 든 key(`"literature.gr"`)를 그대로 역할로 삼아, 중첩된 진짜
+      `literature.gr` 와 **같은 논리 역할이 둘** 인데도 집합 비교라 통과했다. top-level 에 점이 있으면 그것은 역할
+      이름이 아니고, 같은 논리 역할이 두 번 나오면 그 receipt 는 모호하다 — 둘 다 문제로 센다.
+    """
+    out, seen = [], {}
     if not isinstance(consumed, dict):
         return out
     for role, v in consumed.items():
+        role = str(role)
+        if "." in role and problems is not None:
+            problems.append(f"top-level 역할 이름에 점이 있다: {role!r} — 역할은 중첩으로 쓴다 (Codex R11 P2-3)")
         if isinstance(v, dict) and "sha256" in v:
-            out.append((str(role), v))
+            out.append((role, v))
         elif isinstance(v, dict):
             out += [(f"{role}.{k}", w) for k, w in v.items() if isinstance(w, dict)]
         else:
-            out.append((str(role), v))
+            out.append((role, v))
+    for role, _ in out:
+        seen[role] = seen.get(role, 0) + 1
+    if problems is not None:
+        for role, n in seen.items():
+            if n > 1:
+                problems.append(f"논리 역할 {role!r} 이 {n} 번 나온다 — 역할마다 정확히 하나여야 한다 (Codex R11 P2-3)")
     return out
+
+
+def receipt_map(consumed) -> dict:
+    """`{역할: sha256}` — 두 실행의 **입력 identity** 를 이것으로 댄다 (Codex R11 P1-1)."""
+    return {role: (str(leaf.get("sha256", "")) if isinstance(leaf, dict) else "")
+            for role, leaf in receipt_leaves(consumed)}
+
+
+def receipt_paths(consumed) -> dict:
+    """`{역할: path}` — digest 에는 안 들어가지만 역할별 locator 가 바뀌면 그것도 말한다 (Codex R11 Q1)."""
+    return {role: (str(leaf.get("path", "")) if isinstance(leaf, dict) else "")
+            for role, leaf in receipt_leaves(consumed)}
 
 
 def inputs_digest(consumed: dict) -> str:
@@ -141,7 +176,7 @@ def validate_receipt(text, digest, where="", roles=REQUIRED_ROLES) -> list:
         return [f"{where}: receipt 가 JSON 이 아니다 ({e})"]
     if not isinstance(d, dict) or not d:
         return [f"{where}: receipt 가 빈 dict 이거나 dict 가 아니다"]
-    leaves = receipt_leaves(d)
+    leaves = receipt_leaves(d, p)                                          # 점 key·중복 역할을 여기서 센다 (R11 P2-3)
     got = {role for role, _ in leaves}
     if roles:
         missing = [r for r in roles if r not in got]
@@ -191,10 +226,14 @@ def check_rows(kind: str, rows: list, header: list) -> list:
                 p.append(f"행 {i}: 필수 셀 {c} 이 비어 있다")
         for c in numeric:
             if c in header and str(r.get(c) or "") != "":
+                # ⚠ Codex R11 P1-8: `float()` 은 inf·nan 을 받고 비교기는 `inf == inf` 라 그대로 승격됐다.
+                #   과학 값은 **유한**해야 한다 — producer 와 consumer 가 같은 검사를 쓴다.
                 try:
-                    float(r[c])
+                    x = float(r[c])
                 except ValueError:
-                    p.append(f"행 {i}: {c} 가 숫자가 아니다 ({r[c]!r})")
+                    p.append(f"행 {i}: {c} 가 숫자가 아니다 ({r[c]!r})"); continue
+                if not math.isfinite(x):
+                    p.append(f"행 {i}: {c} 가 유한한 값이 아니다 ({r[c]!r}) — 과학 값이 아니다")
         if all(c in header for c in ("consumed_inputs", "inputs_sha")):
             p += validate_receipt(r.get("consumed_inputs"), r.get("inputs_sha"), f"행 {i} consumed_inputs")
         if all(c in header for c in ("ref_consumed_inputs", "ref_inputs_sha")):
@@ -202,14 +241,82 @@ def check_rows(kind: str, rows: list, header: list) -> list:
     if n_error:
         p.append(f"`{ERROR_COL}` 행 {n_error}/{len(rows)} — 이 묶음은 success 가 아니다 (부분/실패이고 승격 대상이 "
                  f"아니다; success 행에 `{ERROR_COL}` 칸이 있으면 그것도 error 행이다, Codex R10 P1-5)")
+    if kind == "profile" and "gamma_roster" in header:
+        p += check_gamma_roster([r for r in rows if not str(r.get(ERROR_COL) or "").strip()])
     _, dup, _ = unique_rows([r for r in rows if not str(r.get(ERROR_COL) or "").strip()],
                             matrix_key if kind == "matrix" else profile_key)
     p += [f"중복 key {k}" for k in dup]
     return p
 
 
+def body_roster(name: str, data: bytes) -> dict:
+    """산출 **본문**에서 유도한 exact 명부 (Codex R9 P2-4). sidecar 의 singular 필드는 wrapper 의 환경값이지 본문의
+    명부가 아니다. `run_states.sh` 의 `write_meta` 와 `check_u14` 가 **같은 함수**를 쓴다 — 두 벌로 두면 갈린다."""
+    if name.endswith(".json"):
+        j = json.loads(data.decode("utf-8"))
+        return {"kind": "degeneracy", "state": j.get("state"),
+                "half_cell": [j["half_cell"]] if j.get("half_cell") else [],
+                "si": [j["si_source"]] if j.get("si_source") else [],
+                "w_dqdv": [j["w_dqdv"]] if j.get("w_dqdv") is not None else []}
+    import csv as _csv, io as _io
+    rows = list(_csv.DictReader(_io.StringIO(data.decode("utf-8-sig"))))
+    r = {"kind": "matrix" if name.startswith("matrix_") else "profile", "rows": len(rows)}
+    for c in ("half_cell", "si", "w_dqdv", "profile_scale", "state"):
+        if rows and c in rows[0]:
+            r[c] = sorted({row.get(c) or "" for row in rows})
+    if rows and "gamma_Si" in rows[0]:
+        g = [float(row["gamma_Si"]) for row in rows if row.get("gamma_Si") not in (None, "")]
+        r["gamma_Si"] = [min(g), max(g), len(g)] if g else []
+    return r
+
+
+def check_gamma_roster(rows: list) -> list:
+    """`gamma_roster` 는 **파싱되는 계약**이다 (Codex R11 P2-4: `"not-json"` 이 비어 있지 않다는 이유로 통과했다).
+
+    exact key · 정본 격자 대비 requested · 산술(succeeded + |missing| == requested) · 행마다 같은 roster 를 본다.
+    """
+    p, seen = [], set()
+    for i, r in enumerate(rows):
+        raw = r.get("gamma_roster")
+        try:
+            d = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError) as e:
+            p.append(f"행 {i}: gamma_roster 가 JSON 이 아니다 ({e})"); continue
+        if not isinstance(d, dict) or set(d) != {"authority", "requested", "succeeded", "missing"}:
+            p.append(f"행 {i}: gamma_roster 의 key 가 계약과 다르다 — {sorted(d) if isinstance(d, dict) else type(d).__name__} "
+                     f"(요구: authority · requested · succeeded · missing)"); continue
+        miss = d["missing"]
+        if not isinstance(miss, list) or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in miss):
+            p.append(f"행 {i}: gamma_roster.missing 이 유한 숫자 목록이 아니다 ({miss!r})"); continue
+        if not all(isinstance(d[k], int) for k in ("authority", "requested", "succeeded")):
+            p.append(f"행 {i}: gamma_roster 의 개수가 정수가 아니다 ({d!r})"); continue
+        if d["succeeded"] + len(miss) != d["requested"]:
+            p.append(f"행 {i}: gamma_roster 산술이 안 맞는다 — 성공 {d['succeeded']} + 누락 {len(miss)} ≠ 요청 {d['requested']}")
+        if d["authority"] != CANONICAL_GAMMA_GRID_N:
+            p.append(f"행 {i}: gamma_roster.authority {d['authority']} ≠ 정본 격자 {CANONICAL_GAMMA_GRID_N}")
+        seen.add(json.dumps(d, sort_keys=True))
+    if len(seen) > 1:
+        p.append(f"gamma_roster 가 행마다 다르다 ({len(seen)} 가지) — 한 실행의 모집단은 하나다")
+    return p
+
+
+def _finite_problems(x, where: str) -> list:
+    """중첩 구조 안의 모든 숫자가 유한한가 (Codex R11 P1-8)."""
+    if isinstance(x, bool):
+        return []
+    if isinstance(x, (int, float)):
+        return [] if math.isfinite(x) else [f"{where}: 유한하지 않은 값 ({x!r})"]
+    if isinstance(x, dict):
+        return [m for k, v in x.items() for m in _finite_problems(v, f"{where}.{k}")]
+    if isinstance(x, (list, tuple)):
+        return [m for i, v in enumerate(x) for m in _finite_problems(v, f"{where}[{i}]")]
+    return []
+
+
 def check_degeneracy(j: dict) -> list:
     p = [f"키 없음: {k}" for k in DEGENERACY_KEYS if j.get(k) in (None, "")]
+    p += _finite_problems({k: v for k, v in j.items() if k not in ("env", "consumed_inputs", "ref_consumed_inputs")},
+                          "degeneracy")
     if "consumed_inputs" in j:
         p += validate_receipt(j.get("consumed_inputs"), j.get("inputs_sha"), "consumed_inputs")
     if "ref_consumed_inputs" in j and j.get("ref_consumed_inputs"):

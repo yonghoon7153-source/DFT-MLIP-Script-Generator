@@ -64,31 +64,23 @@ except json.JSONDecodeError:
     argv = []
 
 
-def roster_of(name, data):
-    """산출 **본문**에서 유도한 exact 명부 (Codex R9 P2-4): sidecar 의 singular `si_source` 는 wrapper 의 SI 환경값이지
-    본문의 명부가 아니다 — matrix 는 반쪽전지 × Si 8 × 가중 2 를 돈다. 본문 bytes 가 곧 sha256 에 들어간 bytes 다."""
-    if name.endswith(".json"):
-        j = json.loads(data.decode("utf-8"))
-        return {"kind": "degeneracy", "state": j.get("state"),
-                "half_cell": [j["half_cell"]] if j.get("half_cell") else [],
-                "si": [j["si_source"]] if j.get("si_source") else [],
-                "w_dqdv": [j["w_dqdv"]] if j.get("w_dqdv") is not None else []}
-    rows = list(csv.DictReader(io.StringIO(data.decode("utf-8-sig"))))
-    r = {"kind": "matrix" if name.startswith("matrix_") else "profile", "rows": len(rows)}
-    for c in ("half_cell", "si", "w_dqdv", "profile_scale", "state"):
-        if rows and c in rows[0]:
-            r[c] = sorted({row.get(c) or "" for row in rows})
-    if rows and "gamma_Si" in rows[0]:
-        g = [float(row["gamma_Si"]) for row in rows if row.get("gamma_Si") not in (None, "")]
-        r["gamma_Si"] = [min(g), max(g), len(g)] if g else []
-    return r
-
 try:
     pre = json.loads(pre_json) if pre_json else {}
 except json.JSONDecodeError:
     pre = {}
 sys.path.insert(0, "scripts")
 from provenance import git_provenance, check_run_id_bytes, env_signature   # R4-07 · R5-08 · R5-04 · R6 F3
+# ⚠ Codex R11: 명부 유도는 **한 자리**(`bms_balancing.schema.body_roster`) — 전 판은 같은 로직이 여기와 checker 에
+#   따로 있었고 둘이 갈리면 사이드카가 본문과 다른 명부를 봉인했다. provenance 모듈이 있는 곳의 부모가 저장소다.
+sys.path.insert(0, str(pathlib.Path(git_provenance.__globals__["__file__"]).resolve().parents[1]))
+roster_err = None
+try:
+    from bms_balancing.schema import body_roster as roster_of
+except ModuleNotFoundError as e:                     # 패키지가 없는 트리(합성 fixture) — 명부를 **지어내지 않는다**
+    roster_of, roster_err = None, f"bms_balancing 를 못 찾았다: {e}"
+    print(f"   경고: 명부를 유도할 수 없다 ({roster_err}) — meta 에 roster: null 로 적는다 (승격 gate 가 막는다)",
+          file=sys.stderr)
+
 with open(art + ".lock", "a+") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX)                                  # verify.py 의 게시와 같은 잠금
     with open(art, "rb") as fh:
@@ -102,7 +94,8 @@ with open(art + ".lock", "a+") as lock:
         "si_source": si, "starts": int(starts), "seed": 0, "w_dqdv_note": "명령별",
         "data_root": root, "run_id": rid, "sha256": hashlib.sha256(data).hexdigest(),
         # Codex R9 P2-4: 실제 argv 와 본문에서 유도한 exact 명부 — `si_source`(SI 환경값)·`starts` 는 명부가 아니다
-        "argv": argv, "roster": roster_of(pathlib.Path(art).name, data),
+        "argv": argv, "roster": (roster_of(pathlib.Path(art).name, data) if roster_of else None),
+        **({"roster_error": roster_err} if roster_err else {}),
         "si_source_note": "wrapper 의 SI 환경값 — 본문의 exact 명부는 roster (matrix 는 Si 전부를 돈다)",
         "git_commit": pv["git_commit"], "git_dirty": pv["git_dirty"],
         "git_modified_outputs": pv["git_modified_outputs"], "git_modified_code": pv["git_modified_code"],
@@ -214,26 +207,53 @@ run () {
 #   전 판은 이 계약을 코드와 문서에만 적어 두고 **소비하는 production path 가 0 개**였다 (Codex R10 P2-7).
 shape_step () {    # shape_step <write-dir> <명령...>
   local write="$1"; shift
-  local rc=0
-  "$@" || rc=$?
-  local canon partial art status
-  canon="$(ls "$write"/ne_shape_*.csv 2>/dev/null | head -1)"
-  partial="$(ls "$write"/partial/ne_shape_*.csv 2>/dev/null | head -1)"
-  art="${canon:-$partial}"
-  status="$(python3 - "$art" <<'PYSTATUS'
+  local rc=0 out
+  # ⚠ Codex R11 P2-2: 전 판은 namespace 를 `ls | head -1` 로 훑어 옆에 있던 **stale canonical** 의 status 를 읽었고,
+  #   rc 3 도 바깥에서 성공으로 세탁됐다. 이제 producer 가 `SHAPE_RESULT {…}` 로 **자기가 쓴 경로·run_id·status** 를
+  #   말하고, wrapper 는 rc ↔ status ↔ namespace ↔ run_id 를 대조한다. 못 대조하면 실패다 (모르는 채 넘기지 않는다).
+  local log; log="$(mktemp "${TMPDIR:-/tmp}/shape_step.XXXXXX")"
+  out="$("$@" 2>&1)" || rc=$?
+  printf '%s\n' "$out" >&2
+  printf '%s\n' "$out" > "$log"     # ⚠ heredoc 이 stdin 을 쓰므로 producer 출력은 **파일로** 넘긴다
+  python3 - "$rc" "$write" "$log" <<'PYSHAPE'
 import json, pathlib, sys
-p = pathlib.Path(sys.argv[1] + ".meta.json") if sys.argv[1] else None
-print(json.loads(p.read_text(encoding="utf-8")).get("status", "?") if p and p.is_file() else "?")
-PYSTATUS
-)"
-  case "$rc" in
-    0) say '   ne_shape: **complete** (meta status %s) → %s\n' "$status" "$canon" ;;
-    3) say '   ne_shape: **부분(%s)** — canonical 은 건드리지 않았다; 이번 산출은 %s 다 (승격 대상 아님)\n' \
-            "$status" "$partial" ;;
-    1) say '   ne_shape: **없음(%s)** — γ 짝이 하나도 없다 (부분이 아니다); %s\n' "$status" "$partial" ;;
-    *) say '   ne_shape: 실행 실패 rc %s (status %s)\n' "$rc" "$status" ;;
-  esac
-  return "$rc"
+rc, write = int(sys.argv[1]), pathlib.Path(sys.argv[2])
+captured = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8", errors="replace")
+line = next((l for l in captured.splitlines() if l.startswith("SHAPE_RESULT ")), None)
+EXPECT = {0: {"complete"}, 3: {"partial", "subset"}, 1: {"none"}}
+if rc not in EXPECT:
+    print(f"   ne_shape: 실행 실패 rc {rc}", file=sys.stderr); sys.exit(rc)
+if line is None:
+    print("   ne_shape: producer 가 SHAPE_RESULT 를 내지 않았다 — 무엇을 읽어야 하는지 모르는 채로 넘기지 않는다 "
+          "(Codex R11 P2-2)", file=sys.stderr); sys.exit(1)
+r = json.loads(line[len("SHAPE_RESULT "):])
+art = pathlib.Path(r["artifact"]) if r.get("artifact") else None
+want_ns = write if rc == 0 else write / "partial"
+problems = []
+if r.get("status") not in EXPECT[rc]:
+    problems.append(f"rc {rc} 는 {sorted(EXPECT[rc])} 를 뜻하는데 status 는 {r.get('status')!r}")
+if art is None or art.parent.resolve() != want_ns.resolve():
+    problems.append(f"산출이 {want_ns} 에 있어야 하는데 {art} 다")
+elif not art.is_file():
+    problems.append(f"{art} 가 없다")
+else:
+    m = art.with_name(art.name + ".meta.json")
+    meta = json.loads(m.read_text(encoding="utf-8")) if m.is_file() else {}
+    if meta.get("status") != r.get("status"):
+        problems.append(f"meta status {meta.get('status')!r} ≠ 보고한 {r.get('status')!r}")
+    if r.get("run_id") and meta.get("run_id") != r.get("run_id"):
+        problems.append(f"meta run_id {meta.get('run_id')!r} ≠ 보고한 {r.get('run_id')!r}")
+if problems:
+    print("   ne_shape: **모순** — " + " · ".join(problems) + " (Codex R11 P2-2)", file=sys.stderr)
+    sys.exit(1)
+label = {0: "complete", 3: "부분", 1: "없음"}[rc]
+print(f"   ne_shape: **{label}({r['status']})** → {art}"
+      + ("" if rc == 0 else "  (canonical 은 건드리지 않았다; 승격 대상 아님)"), file=sys.stderr)
+sys.exit(rc)
+PYSHAPE
+  local prc=$?
+  rm -f "$log"
+  return $prc
 }
 
 fail=0
@@ -298,20 +318,24 @@ shape_rc=0
 shape_step "$OUT" env PYTHONUNBUFFERED=1 python3 scripts/ne_shape.py \
   --out-dir "$OUT" --write "$OUT" --source "${SHAPE_SRC:-${SRC:-GITT}}" --si-source "$SI" \
   > "$OUT/ne_shape.log" 2>&1 || shape_rc=$?
+partial=0
 case "$shape_rc" in
   0) ;;                                            # complete — 정본 갱신
-  3) say '   (ne_shape 부분 — 위 로그와 %s/partial/ 을 볼 것)\n' "$OUT" ;;
-  *) fail=$((fail+1)) ;;                           # none·실행 실패는 실패로 센다
+  3) partial=$((partial+1))                        # ⚠ Codex R11 P2-2: 부분은 성공이 **아니다** (아래 종료 코드에)
+     say '   (ne_shape 부분 — 위 로그와 %s/partial/ 을 볼 것; 승격 대상 아님)\n' "$OUT" ;;
+  *) fail=$((fail+1)) ;;                           # none·실행 실패·모순은 실패로 센다
 esac
 
 say '\n=====================================\n'
-if [ "$fail" -eq 0 ]; then
+if [ "$fail" -eq 0 ] && [ "${partial:-0}" -eq 0 ]; then
   say '전부 통과 — 산출 %d개, 전부 열어서 읽히는 것을 확인했다\n' \
       "$((3 * $(echo $STATES | wc -w)))"
+elif [ "$fail" -eq 0 ]; then
+  say '**부분** %d 건 — 실패는 없지만 완전하지 않다 (승격 대상 아님). partial/ 을 볼 것\n' "$partial"
 else
   say '실패 %d 건 — 위의 .log 를 볼 것\n' "$fail"
 fi
 say "설정: STATES='%s' STARTS=%s SI=%s\n" "$STATES" "$STARTS" "$SI"
 say "반쪽전지 소스:%s\n" "$USED"
 say "⚠ 소스가 섞였으면 그 상태끼리는 직접 비교하지 말 것 (축이 다르다)\n"
-exit $((fail > 0))
+exit $(( fail > 0 ? 1 : (${partial:-0} > 0 ? 3 : 0) ))   # 부분은 성공으로 세탁하지 않는다 (Codex R11 P2-2)

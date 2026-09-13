@@ -130,6 +130,13 @@ def fitted_pair_info(out_dir: pathlib.Path, state: str, src: str, si: str):
         #   (`schema.unique_rows` · 정규화 key: w_dqdv 는 숫자라 "0" 과 "0.0" 은 같은 행) 로 파일 전체의 key 유일성을
         #   먼저 강제한다 — 중복이면 그 파일은 소비하지 않는다.
         from bms_balancing import schema as S
+        # ⚠ Codex R11 P1-7: 공용 validator 가 **실패로 판정한 묶음**을 production reader 가 소비하고 있었다 —
+        #   `error="optimizer failed"` 인 서명 행의 (γ, γ_ref) 를 정상 과학 입력으로 돌려줬다. 같은 검사를 여기서도.
+        header = list(rows[0]) if rows else []
+        problems = S.check_rows("matrix", rows, header)
+        if problems:
+            raise RuntimeError(f"{f.name}: 공용 스키마 검증 실패 {problems[:3]} — 이 묶음은 과학 입력이 아니다 "
+                               f"(checker 와 같은 validator 다, Codex R11 P1-7)")
         _, dup, _ = S.unique_rows(rows, S.matrix_key)
         if dup:
             raise RuntimeError(f"{f.name}: 중복 key {dup} — 같은 (half_cell, si, w_dqdv) 행이 둘 이상이다; 첫 행을 고르지 "
@@ -414,11 +421,21 @@ def main() -> int:
                "missing_input": missing_input, "paired": paired, "missing": missing_pairs,
                "note": "measured_* 는 available(입력 있는 requested) 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다; "
                        "missing_input 은 측정조차 없다 (Codex R8-03 · R9-04)"}
+    published = None
     if a.write:
         dest = pathlib.Path(a.write) if status == "complete" else pathlib.Path(a.write) / "partial"   # subset 포함
         art = _write_csv(dest, a, rows, cap, base_cap, {c[0]: c for c in cwhere}, headroom, consumed, pairing, status=status)
+        published = art
         print(f"\n→ {art}" + ("" if status == "complete" else
                               f"  [{status} — canonical {pathlib.Path(a.write) / art.name} 은 건드리지 않았다 (Codex R9-06)]"))
+    # ⚠ Codex R11 P2-2: wrapper 가 **무엇을 읽어야 하는지** producer 가 말한다. 전 판은 wrapper 가 namespace 를
+    #   wildcard 로 훑어 옆에 있던 stale canonical 의 status 를 읽었다. 경로·run_id·status 를 한 줄로 낸다.
+    import json as _json
+    print("SHAPE_RESULT " + _json.dumps(
+        {"status": status, "artifact": str(published) if published else None,
+         "run_id": (_json.loads((published.with_name(published.name + ".meta.json")).read_text(encoding="utf-8"))
+                    .get("run_id") if published else None),
+         "authority": authority, "requested": requested, "paired": paired}, ensure_ascii=False))
 
     print()
     ok = [r for r in rows if r[3] == r[3]]

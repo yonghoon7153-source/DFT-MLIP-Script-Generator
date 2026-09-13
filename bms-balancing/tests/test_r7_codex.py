@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 import pytest                                                             # noqa: E402
 from bms_balancing import verify                                          # noqa: E402
+from bms_balancing import schema as _S                                    # noqa: E402
 from test_r6_internal import _synth_root, _bump_xlsx, _prov, _cs          # noqa: E402
 from test_review_findings import _load_script, _section, NOT_A_CLAIM      # noqa: E402
 
@@ -29,7 +30,10 @@ def _live(txt): return NOT_A_CLAIM.sub("", txt)
 def _args(root, out=None, state="200", **kw):
     a = SimpleNamespace(data_root=str(root), source="GITT", state=state, si_source="Li", w_dqdv=0.0,
                         starts=2, seed=0, only_source=True, only_wdqdv=True, out=str(out) if out else None,
-                        run_id="r7-test", grid=3, tol=0.01, profile_scale="global", samples=50, repeats=2)
+                        # ⚠ Codex R11 P1-3: 정본 γ 격자(21)가 아니면 그 실행은 subset 이고 canonical 이 아니다 —
+                        #   격자가 시험 주제가 아닌 곳은 정본 격자로 돈다 (좁히는 시험은 kw 로 grid 를 준다)
+                        run_id="r7-test", grid=_S.CANONICAL_GAMMA_GRID_N, tol=0.01, profile_scale="global",
+                        samples=50, repeats=2)
     for k, v in kw.items():
         setattr(a, k, v)
     return a
@@ -65,10 +69,13 @@ def _deg(state, rid, spans, schema=False):
 def _sign(art, rid, state, full=False):
     prov = _prov()
     meta = {"artifact": art.name, "state": state, "run_id": rid, "sha256": prov.sha256_file(art), "starts": 24}
-    if full:        # check_u14 의 META_KEYS + 실행 조건 (Codex R10 P1-7: 실제 `write_meta` 가 쓰는 control 집합)
+    if full:        # check_u14 의 META_KEYS + 실행 조건 + argv·roster (Codex R11 P1-6: 실제 `write_meta` 가 쓰는 전부)
+        from bms_balancing import schema as _S
         meta |= {"env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
                  "started_utc": "2026-09-12T00:00:00Z", "half_cell_source": "GITT", "si_source": "Li", "seed": 0,
-                 "git_commit_at_start": "0" * 40, "git_state_changed_during_run": False}
+                 "git_commit_at_start": "0" * 40, "git_state_changed_during_run": False, "git_dirty": False,
+                 "git_modified_code": [], "argv": ["python3", "-m", "bms_balancing.verify", "fixture"],
+                 "roster": _S.body_roster(art.name, art.read_bytes())}
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps(meta), encoding="utf-8")
 
 
@@ -152,11 +159,16 @@ def test_d7_02_noise_measures_sigma_on_the_snapshot_it_fitted(tmp_path):
     assert mixed["inputs_sha"] and mixed["inputs_sha"] != B["inputs_sha"]
 
 
-def _matrix_rows(path, root, state="200"):
-    """`--out` 은 **파일**이다 (디렉터리가 아니다)."""
+def _matrix_rows(path, root, state="200", **kw):
+    """`--out` 은 **파일**이다 (디렉터리가 아니다).
+
+    ⚠ Codex R11 P1-2: `--only-source`·`--only-wdqdv` 로 **좁힌** 실행은 권위 명부를 다 돌지 않았으므로 subset 이고,
+    canonical 이 아니라 `partial/` 에 게시된다. producer 의 rc 가 말하는 자리에서 읽는다.
+    """
     with contextlib.redirect_stdout(io.StringIO()):
-        verify.cmd_matrix(_args(root, path, state=state))
-    return list(csv.DictReader(path.open(encoding="utf-8-sig")))
+        rc = verify.cmd_matrix(_args(root, path, state=state, **kw))
+    return list(csv.DictReader(verify.publish_target(path, "complete" if rc == 0 else "subset")
+                               .open(encoding="utf-8-sig")))
 
 
 def test_d7_03_matrix_and_profile_rows_carry_the_reference_input_signature(tmp_path):

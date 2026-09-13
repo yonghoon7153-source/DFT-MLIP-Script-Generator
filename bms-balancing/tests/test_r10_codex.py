@@ -163,7 +163,9 @@ class _ProfObj:
     def _auto_scales(self, *a, **k): return dict(self.scales)
 
 
-def _prof_args(t, out, grid=2):
+def _prof_args(t, out, grid=S.CANONICAL_GAMMA_GRID_N):
+    """⚠ Codex R11 P1-3: 정본 γ 격자(21)가 아니면 그 실행은 caller 가 좁힌 subset 이고 canonical 이 아니다 —
+    격자 자체가 주제가 아닌 시험은 정본 격자로 돈다."""
     return SimpleNamespace(data_root=str(t), source="GITT", state="100", si_source="Li", w_dqdv=0.0,
                            seed=0, starts=0, grid=grid, profile_scale="global", tol=0.01,
                            out=str(out), run_id="r10-profile")
@@ -183,7 +185,7 @@ def test_d10_03_profile_seals_its_gamma_roster_and_partial_never_reaches_canonic
 
     def fake_minimize(_f, _s, **_k):
         calls["n"] += 1
-        return SimpleNamespace(success=calls["n"] == 1, fun=1.0, x=np.array([1.0, 0.0, 1.0, 0.0]))
+        return SimpleNamespace(success=calls["n"] != 1, fun=1.0, x=np.array([1.0, 0.0, 1.0, 0.0]))
 
     monkeypatch.setattr(verify.D, "data_root", lambda *a, **k: tmp_path)
     monkeypatch.setattr(verify, "build", lambda *a, **k: _ProfObj())
@@ -198,9 +200,10 @@ def test_d10_03_profile_seals_its_gamma_roster_and_partial_never_reaches_canonic
     part = art.parent / "partial" / art.name
     assert part.is_file(), sorted(p.name for p in art.parent.rglob("*"))
     rows = list(csv.DictReader(io.StringIO(part.read_text(encoding="utf-8"))))
-    assert len(rows) == 1
+    n = S.CANONICAL_GAMMA_GRID_N
+    assert len(rows) == n - 1
     roster = json.loads(rows[0]["gamma_roster"])                           # artifact 가 스스로 모집단을 말한다
-    assert roster["requested"] == 2 and roster["succeeded"] == 1 and len(roster["missing"]) == 1, roster
+    assert roster["requested"] == n and roster["succeeded"] == n - 1 and len(roster["missing"]) == 1, roster
     assert "gamma_roster" in S.PROFILE_ROW
 
     calls["n"] = 0                                                         # 대조군: 전부 성공하면 canonical
@@ -209,7 +212,7 @@ def test_d10_03_profile_seals_its_gamma_roster_and_partial_never_reaches_canonic
         rc = verify.cmd_profile(_prof_args(tmp_path, art))
     assert rc == 0 and art.read_bytes() != old
     rows = list(csv.DictReader(io.StringIO(art.read_text(encoding="utf-8"))))
-    assert len(rows) == 2 and json.loads(rows[0]["gamma_roster"])["missing"] == []
+    assert len(rows) == S.CANONICAL_GAMMA_GRID_N and json.loads(rows[0]["gamma_roster"])["missing"] == []
 
 
 # ── P1-4 ─────────────────────────────────────────────────────────────────────────────────────
@@ -540,21 +543,33 @@ def test_d10_15_a_production_wrapper_consumes_the_typed_shape_status(tmp_path):
     assert any("ne_shape" in ln for ln in live), "production wrapper 에 ne_shape 소비 경로가 없다"
 
     def shim(rc, status):
+        """producer 흉내. ⚠ Codex R11 P2-2 뒤 계약: 자기가 쓴 **경로·run_id·status** 를 `SHAPE_RESULT` 로 말한다
+        (전 판은 wrapper 가 `ls | head -1` 로 훑어 옆의 stale canonical 을 읽었다)."""
         s = tmp_path / f"shim{rc}.py"
         d = tmp_path / f"w{rc}"
         (d / "partial").mkdir(parents=True, exist_ok=True)
         art = (d / "partial" / "ne_shape_GITT_Li.csv") if status != "complete" else (d / "ne_shape_GITT_Li.csv")
         art.write_text("state\n100\n", encoding="utf-8")
-        art.with_name(art.name + ".meta.json").write_text(json.dumps({"status": status}), encoding="utf-8")
-        s.write_text(f"import sys; sys.exit({rc})\n", encoding="utf-8")
+        art.with_name(art.name + ".meta.json").write_text(
+            json.dumps({"status": status, "run_id": f"rid-{rc}"}), encoding="utf-8")
+        result = json.dumps({"status": status, "artifact": str(art), "run_id": f"rid-{rc}"}, ensure_ascii=False)
+        s.write_text(f"import sys\nprint({('SHAPE_RESULT ' + result)!r})\nsys.exit({rc})\n", encoding="utf-8")
         return s, d
 
-    for rc_in, status, word in ((3, "partial", "부분"), (1, "none", "없음"), (0, "complete", "complete")):
+    # rc 1(none) 은 게시된 산출이 없다 — producer 가 artifact: null 을 말한다 (아래 별도)
+    for rc_in, status, word in ((3, "partial", "부분"), (0, "complete", "complete")):
         s, d = shim(rc_in, status)
         p = _shell(f'shape_step "{d}" python3 {s}; echo "STEP_RC=$?"', {"OUT": str(d)})
         text = p.stdout + p.stderr
         assert f"STEP_RC={rc_in}" in text, (rc_in, text[-500:])            # 종료 코드를 그대로 전파한다
         assert status in text or word in text, (rc_in, text[-500:])        # typed status 를 읽는다
+    # none: 산출이 없다고 말하는 producer 도 rc 를 그대로 전파한다 (모르는 채 넘기지 않는다)
+    none_sh = tmp_path / "shim_none.py"
+    none_sh.write_text("import sys\nprint('SHAPE_RESULT ' + %r)\nsys.exit(1)\n"
+                       % json.dumps({"status": "none", "artifact": None, "run_id": None}), encoding="utf-8")
+    dn = tmp_path / "wnone"; (dn / "partial").mkdir(parents=True)
+    p = _shell(f'shape_step "{dn}" python3 {none_sh}; echo "STEP_RC=$?"', {"OUT": str(dn)})
+    assert "STEP_RC=1" in (p.stdout + p.stderr), (p.stdout + p.stderr)[-500:]
 
 
 # ── 문서 ─────────────────────────────────────────────────────────────────────────────────────

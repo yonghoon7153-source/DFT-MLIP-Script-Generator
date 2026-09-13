@@ -123,7 +123,9 @@ def atomic_write_json(path, obj):
                                      delete=False, encoding="utf-8")
     try:
         with fh:
-            fh.write(json.dumps(obj, ensure_ascii=False, indent=2, default=float) + "\n")
+            # ⚠ Codex R11 P1-8: 기본 `json` 은 `NaN`/`Infinity` 를 그대로 쓴다 — 표준 JSON 이 아니고 소비자는
+            #   조용히 받는다. 유한하지 않은 값은 애초에 산출이 될 수 없다 (`ValueError` 로 여기서 멈춘다).
+            fh.write(json.dumps(obj, ensure_ascii=False, indent=2, default=float, allow_nan=False) + "\n")
     except BaseException:
         Path(fh.name).unlink(missing_ok=True)
         raise
@@ -1142,7 +1144,7 @@ def cmd_eval(args):
 #:   1 none     — 성공이 하나도 없다 (부분이 아니라 없음)
 #:   3 partial  — 일부만 성공했거나 입력이 없는 조합이 있다
 #: none·partial 은 canonical 을 **건드리지 않고** `<out>/partial/` 에만 쓴다 — 완전성 판정이 게시보다 먼저다.
-PRODUCER_EXIT = {"complete": 0, "none": 1, "partial": 3}
+PRODUCER_EXIT = {"complete": 0, "none": 1, "partial": 3, "subset": 3}
 
 
 def publish_target(out, status):
@@ -1446,14 +1448,34 @@ def cmd_matrix(args):
     # ⚠ Codex R10 P1-4: 기대 조합 roster 를 **돌기 전에** 정한다. 전 판은 존재하지 않는 입력을 조용히 건너뛰고
     #   (R9-04 와 같은 축), 전 조합이 실패해도 4 열짜리 error 행 16 개로 기존 complete canonical 을 덮은 뒤
     #   함수가 None 을 돌려 process rc 0 이었다. 알려진 부재(`D.HALF_CELL_ABSENT`)만 모집단에서 빠진다.
+    # ⚠ Codex R11 P1-2: **authority 는 caller 옵션 밖**이다. 전 판은 `--only-source --only-wdqdv` 가 requested 자체를
+    #   8 개로 줄이고 그것을 complete·canonical·rc 0 으로 게시했다 (진짜 authority 는 2 소스 × 8 Si × 2 가중 = 32).
+    #   정본 roster 를 먼저 세고, 진단 selector 가 그것을 줄이면 그 실행은 `subset` 이다 (canonical 아님).
+    # ⚠ Codex R11 P1-4: 부재 선언(`HALF_CELL_ABSENT`)과 **실제 파일이 모순**이면 조용히 빼지 않고 실패한다 —
+    #   오래된 선언이 새로 생긴 측정을 숨기면 32 개짜리 실행이 16 개로 줄어든 채 complete 가 된다.
+    authority, contradictions = [], []
+    for hc in D.HALF_FILE:
+        if args.state not in D.HALF_FILE.get(hc, {}):
+            continue
+        if (hc, args.state) in D.HALF_CELL_ABSENT:
+            if D.half_cell_path(root, hc, args.state).is_file():
+                contradictions.append(f"{hc}/{args.state}")
+            continue                                     # 알려진 부재 — 요청 자체가 아니다
+        authority += [(hc, si, w) for si in D.SI_SOURCES for w in (0.0, 1.0)]
+    if contradictions:
+        print(f"! 부재 선언과 실제 파일이 모순이다 — `D.HALF_CELL_ABSENT` 는 {contradictions} 를 없다고 선언했는데 "
+              f"파일이 있다. 선언을 고치기 전에는 이 상태의 모집단을 말할 수 없다 (Codex R11 P1-4) → 종료 코드 2",
+              file=sys.stderr)
+        return 2
     weights = [args.w_dqdv] if args.only_wdqdv else [0.0, 1.0]
     requested, available, missing_input = [], [], []
     for hc in sources:
         if args.state not in D.HALF_FILE.get(hc, {}) or (hc, args.state) in D.HALF_CELL_ABSENT:
-            continue                                     # 선언에 없거나 **알려진 부재** — 요청 자체가 아니다
+            continue
         combos = [(hc, si, w) for si in D.SI_SOURCES for w in weights]
         requested += combos
         (available if D.half_cell_path(root, hc, args.state).is_file() else missing_input).extend(combos)
+    subset = sorted(requested) != sorted(authority)       # 진단 selector 가 authority 를 줄였다
     for hc, si, w in available:
         try:
             ro = build(root, hc, "pristine", si, w_dqdv=w, scale_seed=args.seed)
@@ -1506,10 +1528,12 @@ def cmd_matrix(args):
     failed = [r for r in rows if "error" in r]
     status = ("complete" if ok and not failed and not missing_input and len(ok) == len(requested)
               else ("none" if not ok else "partial"))
+    if subset and status != "none":
+        status = "subset"                                 # 축소한 진단 실행은 완전성 주장을 하지 않는다 (R11 P1-2)
     summary = {"state": args.state, "n_combinations": len(rows),
                "status": status,
                # Codex R10 P1-4: 축소 전 모집단을 산출이 스스로 말한다 (요청·입력 있음·입력 없음·실패)
-               "combo_roster": {"requested": len(requested), "available": len(available),
+               "combo_roster": {"authority": len(authority), "requested": len(requested), "available": len(available),
                                 "missing_input": [f"{h}|{s}|{w:g}" for h, s, w in missing_input],
                                 "failed": [f"{r['half_cell']}|{r['si']}|{float(r['w_dqdv']):g}" for r in failed],
                                 "succeeded": len(ok)},
@@ -1587,8 +1611,9 @@ def cmd_matrix(args):
         print(f"wrote {dest}" + ("" if status == "complete" else
                                  f"  [{status} — canonical {args.out} 은 건드리지 않았다 (Codex R10 P1-4)]"))
     if status != "complete":
-        print(f"[matrix] status **{status}** — 요청 {len(requested)} · 성공 {len(ok)} · 실패 {len(failed)} · "
-              f"입력 없음 {len(missing_input)} → 종료 코드 {PRODUCER_EXIT[status]}")
+        print(f"[matrix] status **{status}** — 정본 authority {len(authority)} · 요청 {len(requested)} · 성공 {len(ok)} · "
+              f"실패 {len(failed)} · 입력 없음 {len(missing_input)} → 종료 코드 {PRODUCER_EXIT[status]}"
+              + ("  (진단 selector 가 authority 를 줄였다 — canonical 아님, Codex R11 P1-2)" if subset else ""))
     return PRODUCER_EXIT[status]
 
 
@@ -1609,7 +1634,10 @@ def cmd_profile(args):
                 w_dqdv=args.w_dqdv, scale_seed=args.seed)
     best, best_val, _ = multistart(obj, n_starts=args.starts, seed=args.seed)
 
+    # ⚠ Codex R11 P1-3: γ 격자는 **계약**이다 (`S.CANONICAL_GAMMA_GRID_N`). `--grid 1` 은 1 점짜리 산출을 냈고 모든
+    #   span 이 0 인 채 complete·canonical·rc 0 이었다. 다른 격자는 진단이고 canonical 이 아니다.
     gammas = np.linspace(LB5[4], UB5[4], args.grid)
+    grid_subset = int(args.grid) != S.CANONICAL_GAMMA_GRID_N
     per_gamma_scale = getattr(args, "profile_scale", "global") == "per-gamma"
     global_scales = dict(obj.scales)
     rows, skipped = [], []
@@ -1682,11 +1710,13 @@ def cmd_profile(args):
 
     # ⚠ Codex R10 P1-3: γ 모집단은 계산 **전에** 정해진 격자다. 요청·성공·누락을 행마다 봉인한다 (사라지는 stdout
     #   요약이 아니라 검증되는 묶음이 스스로 말한다 — R8-04 와 같은 축).
-    roster = {"requested": int(len(gammas)), "succeeded": len(rows),
+    roster = {"authority": S.CANONICAL_GAMMA_GRID_N, "requested": int(len(gammas)), "succeeded": len(rows),
               "missing": [float(g) for g in skipped]}
     for r in rows:
         r["gamma_roster"] = json.dumps(roster, ensure_ascii=False)
     status = "complete" if (rows and not skipped) else ("none" if not rows else "partial")
+    if grid_subset and status != "none":
+        status = "subset"                                # 정본 격자가 아니면 완전성 주장을 하지 않는다 (R11 P1-3)
     inside = [r for r in rows if r["obj_ratio_to_best"] <= 1 + args.tol]
     obj.scales = global_scales
     summary = {"state": args.state, "si_source": args.si_source,
@@ -1722,6 +1752,8 @@ def cmd_profile(args):
     #   경로에 옛 CSV 가 있으면 wrapper 가 그것을 새 성공으로 읽었다. 이제 (i) 산출은 임시 파일에
     #   쓴 뒤 한 번에 옮기고(반쯤 쓰인 파일이 남지 않는다), (ii) 저장할 행이 없으면 종료 코드 2 —
     #   옛 파일은 지우지 않지만(보존) 이번 실행의 결과가 아니다.
+    # ⚠ Codex R11 P2-1: **종료 코드는 semantic status 에서 온다** — sink 유무가 그것을 바꾸면 안 된다. 전 판은
+    #   `--out` 없이 돌린 부분 실행이 summary 에 `partial` 을 찍고도 rc 0 이었다.
     if args.out and rows:
         # ⚠ Codex R4-06: 고정 이름 `.part` 는 같은 목적지를 쓰는 두 시도가 서로의 행을 게시했다 —
         #   시도별 고유 임시 파일 + 행마다 run_id 로 계산과 게시 bytes 를 묶는다.
@@ -1730,9 +1762,11 @@ def cmd_profile(args):
         atomic_write_csv(dest, rows, list(rows[0]))
         print(f"wrote {dest} [status {status}] (run_id {run_id_of(args)})"
               + ("" if status == "complete" else f"  — canonical {args.out} 은 건드리지 않았다"))
-        if status != "complete":
-            print(f"[profile] γ 요청 {roster['requested']} · 성공 {roster['succeeded']} · 누락 {roster['missing']} "
-                  f"→ 종료 코드 {PRODUCER_EXIT[status]} (부분은 승격 대상이 아니다)")
+    if rows and status != "complete":
+        print(f"[profile] status **{status}** — 정본 격자 {roster['authority']} · γ 요청 {roster['requested']} · "
+              f"성공 {roster['succeeded']} · 누락 {roster['missing']} → 종료 코드 {PRODUCER_EXIT[status]} "
+              f"(부분·축소는 승격 대상이 아니다)")
+    if rows:
         return PRODUCER_EXIT[status]
     if not rows:
         print(f"[profile] 저장할 행이 없다 (모든 γ 가 실패)"

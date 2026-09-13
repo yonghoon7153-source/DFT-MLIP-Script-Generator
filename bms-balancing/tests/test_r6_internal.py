@@ -417,6 +417,14 @@ def test_i6t_03_fitted_pair_info_hashes_the_bytes_it_parsed(tmp_path, monkeypatc
     old = (out / "matrix_100.csv").read_bytes()
     new = old.replace(b"0.160000", b"0.450000").replace(b"0.16,", b"0.45,")
     assert new != old
+    # ⚠ 재게시는 CSV·meta 를 **한 묶음**으로 바꾼다 (Codex R5-04) — 시나리오를 그대로 두려면 sidecar 도 새 bytes 것이다.
+    #   (전 판 fixture 는 옛 meta 를 남겨 뒀는데, R11 P1-7 로 reader 가 묶음 검사를 하면서 거기서 먼저 멈췄다.)
+    import hashlib as _h, json as _j
+    from bms_balancing import schema as _S
+    m_path = out / "matrix_100.csv.meta.json"
+    meta = _j.loads(m_path.read_text(encoding="utf-8"))
+    meta["sha256"] = _h.sha256(new).hexdigest(); meta["roster"] = _S.body_roster("matrix_100.csv", new)
+    m_path.write_text(_j.dumps(meta), encoding="utf-8")
     real = pathlib.Path.read_bytes
     monkeypatch.setattr(pathlib.Path, "read_bytes", lambda self: new if self.name == "matrix_100.csv" else real(self))
     info = m.fitted_pair_info(out, "100", "GITT", "Li")
@@ -570,8 +578,9 @@ def test_i6p_05_profile_rows_and_degeneracy_json_carry_their_arguments(tmp_path)
             "--starts", "1", "--seed", "0"]
     import io, contextlib
     with contextlib.redirect_stdout(io.StringIO()):
-        rc = verify.main(["profile", *base, "--grid", "2", "--profile-scale", "per-gamma", "--out", str(out / "p.csv")])
-    assert rc in (0, None), rc
+        rc = verify.main(["profile", *base, "--grid", str(verify.S.CANONICAL_GAMMA_GRID_N),
+                          "--profile-scale", "per-gamma", "--out", str(out / "p.csv")])
+    assert rc in (0, None), rc     # 정본 격자라야 canonical — 좁힌 격자는 subset(rc 3, partial/) 이다 (R11 P1-3)
     rows = list(csv.DictReader((out / "p.csv").open(encoding="utf-8")))
     assert rows and all(r["profile_scale"] == "per-gamma" for r in rows), rows[0]
     assert all(len(r["inputs_sha"]) == 12 for r in rows), rows[0]
@@ -689,7 +698,11 @@ def _u14_sign(art, rid):
          "env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
          "state": "100", "half_cell_source": "GITT", "si_source": "Li", "starts": 24, "seed": 0,
          "started_utc": "2026-09-12T00:00:00Z", "git_commit_at_start": "0" * 40,
-         "git_state_changed_during_run": False}), encoding="utf-8")
+         "git_state_changed_during_run": False, "git_dirty": False, "git_modified_code": [],
+         # Codex R11 P1-6: 승격 증명서는 실제 argv 와 본문에서 유도한 명부를 요구한다 (`write_meta` 가 쓰는 전부)
+         "argv": ["python3", "-m", "bms_balancing.verify", "fixture"],
+         "roster": __import__("bms_balancing.schema", fromlist=["body_roster"]).body_roster(
+             art.name, art.read_bytes())}), encoding="utf-8")
 
 
 def _u14_run(old, new, *extra):

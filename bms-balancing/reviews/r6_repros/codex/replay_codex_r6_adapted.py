@@ -167,7 +167,10 @@ def a4_half_cell_late_identity(cl, target):
         base = pathlib.Path(temp)
         data, blend = cl.shape_inputs(base)
         selected = base / "out/matrix_100.csv"
-        cl.matrix(selected, .16)
+        # ⚠ Codex R11 P1-7 뒤: production reader 가 checker 와 **같은** validator 를 exact header 로 돌린다. 원본
+        #   helper(`cl.matrix`)는 여섯 열짜리라 이제 그 검사에서 먼저 멈춘다 — 그것은 이 발견(늦은 해시)의 닫힘이
+        #   아니라 "이 fixture 로는 더 못 잰다" 이다. 값(γ 0.16 / ref 0.15)은 그대로 두고 열만 온전하게 쓴다.
+        _full_matrix(selected, .16)
         _sign(selected)                                          # 현행 규약: run_id 열이 있으면 meta 가 있어야 한다
         half = data / "data/half_cell/GITT/100.xlsx"
         half_A = cl.sha(half)
@@ -244,6 +247,13 @@ def a6_inference_closure(target):
     src, n_calls = _re.subn(r"check\.baseline_for\((new_[a-z]), old\)",
                             r'check.baseline_for(\1, old, "historical")', src)
     assert n_calls == 3, n_calls
+    # 적응 ③: Codex R11 P1-2 뒤 `only_source`·`only_wdqdv` 로 **좁힌** matrix 실행은 subset 이라 canonical 이 아니라
+    #   `partial/` 에 게시된다. 이 probe 의 관측(대상·기준 축이 독립인가)은 그대로 두고 **읽는 자리만** 맞춘다 —
+    #   자리를 안 맞추면 관측 전에 FileNotFoundError 로 죽어 "이 probe 로는 더 못 잰다" 가 된다.
+    old_read = '            with out.open(encoding="utf-8") as stream:'
+    assert src.count(old_read) == 1
+    src = src.replace(old_read,
+                      '            with verify.publish_target(out, "subset").open(encoding="utf-8") as stream:')
     baseline = baseline_from_env()
     with tempfile.TemporaryDirectory(prefix="r6-adapted-inference-") as tmp:
         copy = pathlib.Path(tmp) / "inference_adapted.py"
@@ -261,6 +271,27 @@ def a6_inference_closure(target):
                  if baseline is not None else
                          "한 줄 적응 + **부분 재생** — `R6_OLD_OUT=<bfc4623^ 의 out>` 이 없어 derived 만 돌렸다 "
                          "(full 6/6 이 아니다, Codex R7-05)")}
+
+
+def _full_matrix(path, gamma, ref=.15, rid="synthetic-matrix"):
+    """`schema.MATRIX_ROW` 를 전부 채운 한 행 (진짜 역할 receipt 포함) — 원본 `cl.matrix` 의 값과 같되 열이 온전하다."""
+    import csv as _csv
+    from bms_balancing import schema as _S
+    ci = {"half_cell": {"path": "half.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "full.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "gr.xlsx", "sha256": "3" * 64}, "si": {"path": "si.csv", "sha256": "4" * 64}}}
+    rci = {"half_cell": {"path": "pristine.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"],
+           "literature": ci["literature"]}
+    row = {k: "1.0" for k in _S.MATRIX_ROW}
+    row.update(half_cell="GITT", si="Li", w_dqdv="0", run_id=rid, bounds="-", ref_bounds="-",
+               gamma_Si=str(gamma), ref_gamma_Si=str(ref), scale_audit_target="{}", scale_audit_ref="{}",
+               consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
+               inputs_sha=_S.inputs_digest(ci), ref_inputs_sha=_S.inputs_digest(rci))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".new")
+    with tmp.open("w", newline="", encoding="utf-8") as f:
+        w = _csv.DictWriter(f, fieldnames=list(_S.MATRIX_ROW), lineterminator="\n")
+        w.writeheader(); w.writerow({k: row[k] for k in _S.MATRIX_ROW})
+    os.replace(tmp, path)
 
 
 def _sign(path):

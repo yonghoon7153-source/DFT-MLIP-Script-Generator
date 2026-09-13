@@ -18,3 +18,7 @@ cells/
 reviews/r6_repros/*/tmp/
 reviews/r6_repros/*/work/
 reviews/r6_repros/*/__pycache__/
+
+# R11 닫힘 재생기가 **그 단계에서만** 만드는 자리 — 보관 패키지가 `../work/harness-r11-target-wsl/bms-balancing`
+# 를 대상 트리로 본다 (리뷰어 워크스페이스 경로). 트리에 남으면 다른 probe 의 copytree 가 무한히 돈다.
+reviews/r11_repros/work/

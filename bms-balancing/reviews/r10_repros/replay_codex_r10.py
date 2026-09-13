@@ -16,8 +16,15 @@ index skip flag 거부 · `__pycache__` 격리 · **expected commit 의 sparse w
     python3 reviews/r10_repros/replay_codex_r10.py --target . --expected-head <sha> [--output x.json]
 """
 from __future__ import annotations
-import argparse, contextlib, importlib.util, io, json, os, pathlib, subprocess, sys, traceback
+import argparse, contextlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
 
+# ⚠ Codex R11 P1-10 반례 A: gate 를 **import 하기 전에** bytecode 캐시를 돌린다. 전 판은 gate 안에서
+#   `isolate_bytecode()` 를 불렀는데, 그때는 이미 ignored `reviews/__pycache__/evidence_gate…pyc` (timestamp·size 를
+#   맞춘 위조본)가 load 된 뒤였다 — 봉인 함수 자체가 위조본이었고 결과는 eligible true 였다.
+_PYC = tempfile.mkdtemp(prefix="evidence-pycache-")
+sys.pycache_prefix = _PYC
+os.environ["PYTHONPYCACHEPREFIX"] = _PYC
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import evidence_gate as gate                                              # noqa: E402
 
@@ -57,9 +64,50 @@ def _load(name, path):
     return m
 
 
-def _classify(fn, pkg_dir):
-    """원본 case 를 돌린다 → 도달·상태·멈춘_곳. 자기 assertion 에서 멈추면 **반례 소멸**."""
+#: case 별 **자기 반례 assertion** 의 소스 조각 (Codex R11 P1-12). 보관한 패키지의 그 줄에서 멈춰야만 "반례 소멸"
+#: 이다. 전 판은 패키지 파일 안이면 **아무 AssertionError** 나 닫힘으로 읽었다 — production 이 무관한 불변식
+#: (`AssertionError("UNRELATED production invariant")`) 을 던져도 `도달: true · 반례 소멸` 이었다.
+COUNTEREXAMPLE_LINES = {
+    "snapshot:eval-self-overwrite": ('assert rc == 0 and result["original_destroyed"]',),
+    "snapshot:profile-partial": ('assert rc == 0 and len(rows) == 1 and not problems',),
+    "snapshot:matrix-errors": ("assert rc_obj is None and rows and problems",),
+    "snapshot:stdout-invalid": ("assert rc_obj is None and problems and isinstance(j, dict)",),
+    "snapshot:receipt-roles": ('assert result["same_aggregate"] and not result["validator_swapped"]',),
+    "snapshot:error-skip": ('assert p.returncode == 0 and not result["direct_schema_problems"]',),
+    "snapshot:argv": ('assert result["same_recorded_argv"] and result["different_execution"]',),
+    "u18:same_root": ('assert p.returncode == 0 and result["claims_all_same"]',),
+    "u18:receipt_roles": ('assert p.returncode == 0 and result["claims_schema_complete"]',),
+    "u18:controls": ('assert p.returncode == 0 and records[mode]["claims_all_same"]',
+                     'assert not records[mode]["reports_control_mismatch"]'),
+    "u18:error_bypass": ('assert result["provenance_cells_blank"]',
+                         'assert p.returncode == 0 and result["claims_schema_complete"]'),
+    "u18:shape_subset": ('assert rc1 == 0 and [r["state"] for r in rows1] == ["100", "200"]',
+                         'assert rc2 == 0 and [r["state"] for r in rows2] == ["100"]',
+                         'assert meta2["status"] == "complete" and result["canonical_replaced"]'),
+    "u18:shape_duplicates": ('assert rc == 0 and result["rows"] == ["100", "100"]',
+                             'assert meta["pairing"]["requested"] == ["100", "100"]'),
+}
+
+
+def child_ok(proc) -> bool:
+    """자식 프로세스의 결과를 **받아들일 수 있는가** (Codex R11 P1-11).
+
+    전 판은 stdout 의 JSON 만 parse 하고 rc 를 안 봤다 — checksum 에 든 evidence probe 일곱 개가 전부 rc 7 로
+    죽었는데 기대 boolean 만 찍혀 있으면 parent 가 `closed: true · evidence_eligible: true` 를 냈다. rc 0 이
+    아니면(비영·signal·timeout) 그 실행은 증거가 아니다.
+    """
+    rc = getattr(proc, "returncode", None)
+    return rc == 0
+
+
+def _classify(fn, pkg_dir, case_key=None):
+    """원본 case 를 돌린다 → 도달·상태·멈춘_곳.
+
+    **자기 반례 assertion** 에서 멈췄을 때만 반례 소멸이다 (Codex R11 P1-12). `case_key` 가 봉인 표에 있으면 멈춘
+    소스 줄이 그 case 의 fingerprint 중 하나여야 하고, 아니면 오류로 적는다 — 어디서 왜 멈췄는지 같이 남긴다.
+    """
     buf = io.StringIO()
+    want = COUNTEREXAMPLE_LINES.get(case_key or "")
     try:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             detail = fn()
@@ -68,9 +116,16 @@ def _classify(fn, pkg_dir):
         tb = traceback.extract_tb(sys.exc_info()[2])
         frames = [f for f in tb if str(pkg_dir) in (f.filename or "")]
         line = (frames[-1].line or "").strip() if frames else ""
-        return {"도달": bool(frames), "상태": "반례 소멸" if frames else "오류",
-                "멈춘_곳": (f"{pathlib.Path(frames[-1].filename).name}:{frames[-1].lineno}: {line}" if frames else "?"),
-                "세부": str(e)[:400]}
+        where = (f"{pathlib.Path(frames[-1].filename).name}:{frames[-1].lineno}: {line}" if frames else "?")
+        if not frames:
+            return {"도달": False, "상태": "오류", "멈춘_곳": where, "세부": str(e)[:400]}
+        if want is None:
+            return {"도달": True, "상태": "오류", "멈춘_곳": where,
+                    "세부": f"case {case_key!r} 의 반례 fingerprint 가 봉인 표에 없다 — 닫힘으로 세지 않는다"}
+        if not any(w in line for w in want):
+            return {"도달": True, "상태": "오류", "멈춘_곳": where,
+                    "세부": f"이 case 의 반례 assertion 이 아니다 (기대 {list(want)}): {str(e)[:200]}"}
+        return {"도달": True, "상태": "반례 소멸", "멈춘_곳": where, "세부": str(e)[:400]}
     except BaseException:                                                  # noqa: BLE001
         tb = traceback.format_exc().strip().splitlines()
         return {"도달": False, "상태": "오류", "멈춘_곳": tb[-1][:300], "세부": "반례 assertion 전에 예외"}
@@ -123,10 +178,12 @@ def main() -> int:
         gate.require_assertions()
         target = a.target.resolve()
         head = gate.git_head(target)
-        exp = a.expected_head.strip().lower()
-        if len(exp) < 7 or not head.startswith(exp):
-            print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head} (다르다) — 돌리지 않았다", file=sys.stderr)
+        # ⚠ Codex R11 P2-6: full 40 자 object id 만 받는다
+        exp = gate.full_head(target, a.expected_head)
+        if head != exp:
+            print(f"! HEAD mismatch — expected {exp}, 실제 {head} (다르다) — 돌리지 않았다", file=sys.stderr)
             return 2
+        tree = gate.tree_of(target, head)
         dirty = gate.dirty_paths(target)
         skipped = gate.index_skip_flags(target)
         if skipped:
@@ -136,6 +193,11 @@ def main() -> int:
         sealed, seal_detail = gate.instrument_sealed(target, INSTRUMENT)
         if not a.allow_dirty:
             snapshot, cleanup = gate.materialize(target, head, keep=a.keep_materialized)
+            # ⚠ Codex R11 P1-10 반례 B: checkout 은 filter(smudge)·eol 을 거친다 — 풀린 bytes 를 blob 과 다시 댄다
+            drift = gate.verify_snapshot_bytes(snapshot, head)
+            if drift:
+                raise gate.EvidenceError("snapshot 의 bytes 가 expected commit 의 blob 과 다르다 "
+                                         f"(checkout filter/smudge?): {drift[:5]}")
             target = snapshot
             globals()["PKG"] = snapshot / PKG_REL
             globals()["SUMS"] = snapshot / PKG_REL / SUMS_NAME
@@ -144,7 +206,8 @@ def main() -> int:
         return 2
 
     digest_ok, digest = gate.package_digest(PKG, SUMS)
-    out = {"target_head": head, "expected_head": a.expected_head, "pinned_sha": PINNED, "pin_bypassed": True,
+    out = {"target_head": head, "expected_head": exp, "expected_tree": tree,
+           "pinned_sha": PINNED, "pin_bypassed": True,
            "dirty": bool(dirty), "dirty_allowed": bool(a.allow_dirty),
            "evidence_eligible": bool(snapshot) and digest_ok and sealed,
            "instrument_sealed": sealed, "instrument": seal_detail,
@@ -167,7 +230,7 @@ def main() -> int:
     try:
         snap_mod = _load("r10c_snapshot", PKG / "r10_snapshot_repros.py")
         for name, fn in snap_mod.CASES.items():
-            rec = _classify(lambda f=fn: f(target), PKG)
+            rec = _classify(lambda f=fn: f(target), PKG, f"snapshot:{name}")
             if name in LANGUAGE_LEVEL and rec["상태"] == "재현":
                 rec["상태"] = "우리 코드 밖"
                 rec["세부"] = "bash 의 `$*` 의미 자체를 보이는 case — 우리 쪽 닫힘은 적응 probe `argv-vector` 가 본다"
@@ -184,7 +247,7 @@ def main() -> int:
             "shape_duplicates": lambda: u18.duplicate_requested_states_are_complete(pair2, shape2),
         }
         for name, fn in u18_cases.items():
-            R[f"u18:{name}"] = _classify(fn, PKG)
+            R[f"u18:{name}"] = _classify(fn, PKG, f"u18:{name}")
 
         # ⚠ evidence 묶음은 **자식 프로세스**로 돌린다. 그 probe 들은 `importlib.util.cache_from_source` 의 기본
         #   위치에 위조 pyc 를 놓는 식으로 자기 기법을 만드는데, 우리 러너가 프로세스 전역에 pycache prefix 를
@@ -194,6 +257,11 @@ def main() -> int:
             proc = subprocess.run([sys.executable, str(PKG / "r10_evidence_repros.py"),
                                    "--target", str(target), "--case", name],
                                   cwd=str(target), capture_output=True, text=True, env=ev_env, timeout=1800)
+            if not child_ok(proc):                 # ⚠ Codex R11 P1-11: payload 를 **읽기 전에** rc 를 본다
+                R[f"evidence:{name}"] = {"도달": False, "상태": "오류",
+                                         "멈춘_곳": f"child rc {proc.returncode} — 이 실행은 증거가 아니다 (R11 P1-11)",
+                                         "세부": (proc.stderr.strip()[-300:] or proc.stdout[-300:] or "출력 없음")}
+                continue
             try:
                 got = json.loads(proc.stdout)["cases"][name]
             except (json.JSONDecodeError, KeyError):

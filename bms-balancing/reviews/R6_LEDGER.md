@@ -556,3 +556,100 @@ P1-2·P1-4 의 "축소된 roster" 를 닫으려면 **없는 것이 요청 밖인
   typed snapshot 으로 ref/target 양쪽에 주입하는 설계에 합의했고, 다음 라운드 작업이다.
 - **typed `(root, state, si)` identity (R9 Q1)**: 문자열 `state|si` 그대로.
 - **U16 · U17 · U18**: 사용자 기계 실측. U18 승격 gate 는 이번에 명부·내용·역할·조건·환경·독립성까지 강제한다.
+
+## Codex R11 (2026-09-13, 대상 `2add074`) — **NO-GO (P1 12 · P2 6)**, 열여덟 건 전부 재현·닫음 (`reviews/R11_CODEX.md`)
+
+패키지(`reviews/r11_repros/codex/`, sha256 13/13 OK)의 네 스크립트를 **수정 전 clean 트리에서 그대로 돌려 전부 재현**
+했다 (`reviews/r11_repros/replay_ours_2add074_before/` — sparse worktree at `2add074`, dirty 0). Codex 의 판정 요지:
+R10 의 열다섯 수정은 **각 산출 안에서는** 참이 됐지만, (a) 두 실행 **사이**의 입력 identity 를 아무도 대지 않고,
+(b) caller 옵션이 권위 명부 자체를 줄이며, (c) 증거 기계가 자기 startup(bytecode·checkout filter·자식 rc·분류기)을
+봉인하지 않는다. 절차: RED(`tests/test_r11_codex.py` e11_01~e11_19) → 수정 → GREEN.
+
+### 수정 전 재현 (우리 HEAD `2add074`, clean · 네 스크립트)
+
+| probe | 관측 |
+|---|---|
+| `receipt_identity` (P1-1) | old/new 의 target `9d6ace08c3d4→48cf03a6b6b8` · ref `d789ce826bcd→e9a7ac3dea7c` — 네 digest 가 전부 다른데 rc 0 · `blocked_by` 전부 0 · `promotion_eligible: true` |
+| `matrix_subset` (P1-2) | `--only-source --only-wdqdv` 로 8/32 행만 돌고 status `complete` · canonical 게시 |
+| `profile_grid` (P1-3) | `--grid 1` 이 1 행 · `gamma_roster {requested 1, succeeded 1, missing []}` · status `complete` · canonical 게시 (wrapper 기본은 21) |
+| `allowlist` (P1-4) | `HALF_CELL_ABSENT` 의 `(GITT, 300_0147)` 이 **파일이 실제로 있는데도** 요청에서 빠지고 16 행이 complete canonical |
+| `per_file_alias_self_comparison` (P1-5) | 디렉터리는 다른데 data·meta 가 **hardlink 로 같은 object** — rc 0 · "전부 같다" · 승격 가능 |
+| `schema_only_no_baseline` (P1-6) | `--schema-only` 가 baseline 0 · 대조 0 인데 `promotion_eligible: true` (승격 증명서로 인용 가능) |
+| `shape_reader` (P1-7) | `error="optimizer failed"` 행을 `S.check_rows` 는 거부하는데 `fitted_pair_info` 는 그 행의 (0.4, 0.2) 를 과학 입력으로 반환 |
+| `matrix_inf` · `degeneracy_infinity` · `a_NE="not-a-number"` (P1-8) | 비유한·비숫자 값이 스키마 문제 0 으로 통과하고 승격 가능 |
+| `u18-dirty-meta` · `untracked-sitecustomize` (P1-9) | `git_dirty: true`·`git_state_changed_during_run: true` meta 가 rc 0 승격; 저장소 안 untracked `sitecustomize.py` 가 **실제로 실행되는데**(marker 생성) provenance 는 `git_dirty: false` |
+| `early-gate-pyc` · `materialize-smudge` (P1-10) | timestamp/size 를 맞춘 ignored `reviews/__pycache__/evidence_gate…pyc` 가 gate 보다 **먼저** load 돼 marker 실행 — `instrument_sealed`·`evidence_eligible`·`closed` 전부 true; committed `.gitattributes` + smudge driver 로 materialize 된 `verify.py` bytes 가 blob 과 달라도 같음 |
+| `r10-child-rc` (P1-11) | evidence 자식 일곱 개가 전부 rc 7 인데 parent 가 기대 boolean 만 읽고 rc 0 · 22-case `closed: true` |
+| `r10-assertion-alias` (P1-12) | `schema.inputs_digest` 가 `AssertionError("UNRELATED production invariant")` 를 내게 하자 parent 가 `도달: true · 반례 소멸` 로 기록 |
+| `profile_partial_stdout` (P2-1) | sink 가 stdout 이면 부분 실행(`missing [0.5]`)도 rc 0 |
+| `shape_step` (P2-2) | stale canonical 과 fresh partial 이 함께 있으면 `ls | head -1` 이 **stale** 의 status 를 읽어 rc 0 shim 에 "**complete** (meta status partial)" 를 찍고 `SHAPE_STEP_RC=0` |
+| `receipt_shape` · `duplicate_receipt_direct` (P2-3) | nested `literature.gr` 과 top-level dotted `"literature.gr"` 를 **다른 SHA 로** 함께 둬도 validator 문제 0; path 만 뒤바꾼 receipt 도 digest 동일 |
+| `profile_gamma_roster_not_validated` (P2-4) | 유효한 profile 행의 `gamma_roster="not-json"` 이 문제 0 |
+| `skip-worktree` (P2-5) | git 은 `S reviews/evidence_gate.py` 를 찍는데 `index_skip_flags()` 는 빈 목록 (소문자만 봤다) — 러너 rc 0 · eligible/closed true |
+| `abbreviated-head` (P2-6) | 7 자 prefix `2add074` 만 넘겨도 rc 0 이고 그 짧은 값이 expected head 로 기록 |
+
+### 수정
+
+| ID | 수정 | 테스트 |
+|---|---|---|
+| **P1-1** | `check_u14` 가 baseline↔candidate 의 `{역할: full sha256}` map 을 target·ref 양쪽으로 **정규화해 비교**한다 (`_input_identity_problems`). 다르면 `blocked_by.inputs` 로 rc 2. 한쪽이 입력을 아예 안 적었으면(정본이 옛 스키마) 역할별 소음 대신 **"대조 불가"** 한 줄이고 rc 는 안 바꾸되 승격 자격은 없다 (`inputs_uncomparable`) | `test_e11_01` · `test_i6u_14` |
+| **P1-2** | `cmd_matrix` 가 권위 명부(`HALF_FILE × SI_SOURCES × w_dqdv`, 알려진 부재 제외)를 먼저 세고 `--only-*`·`--state` 로 좁힌 실행은 status `subset` · rc 3 · `partial/` — canonical 금지. 명부에 `authority` 를 봉인 | `test_e11_02` |
+| **P1-3** | `S.CANONICAL_GAMMA_GRID_N = 21` 을 정본 격자로 두고 `--grid` 가 그와 다르면 `grid_subset` → status `subset` · rc 3 · `partial/` | `test_e11_03` |
+| **P1-4** | 부재 allowlist 와 **실제 파일이 모순되면 hard-fail rc 2** — 있는 것을 없다고 선언한 채로 complete 를 찍지 않는다 | `test_e11_04` |
+| **P1-5** | `check_u14` 가 디렉터리뿐 아니라 **파일 단위로** `samefile` 을 본다 (data·meta 각각) — hardlink 자기대조는 `blocked_by.alias` | `test_e11_05` |
+| **P1-6** | `--schema-only` 는 **구조상 언제나** `promotion_eligible: false` (`baseline_absent`); `META_REQUIRED = ("argv","roster")` 로 sidecar 의 argv·명부를 필수로 하고 명부는 본문에서 유도한 `S.body_roster` 와 대조 | `test_e11_06` · `test_e11_07` |
+| **P1-7** | `ne_shape.fitted_pair_info` 가 **checker 와 같은** `S.check_rows("matrix", …)` 를 exact header 로 돌리고 문제가 있으면 RuntimeError — error 행을 과학 입력으로 쓰지 않는다 | `test_e11_08` |
+| **P1-8** | 숫자 열을 **제외로** 유도(`MATRIX_NON_NUMERIC`·`PROFILE_NON_NUMERIC`)해 전부 `math.isfinite` 로 보고, degeneracy JSON 은 `_finite_problems`, 게시는 `allow_nan=False` | `test_e11_09` |
+| **P1-9** | provenance 가 `--untracked-files=normal` 로 보고 **산출 root 밖 untracked 는 코드로** 센다 (안쪽은 무시 — 산출은 늘 untracked 다). `check_u14` 는 `SAFE_PROVENANCE` 값 자체를 요구 | `test_git_state_ignores_untracked_artifacts` · `test_e11_09` |
+| **P1-10** | 세 러너가 gate 를 **import 하기 전에** `sys.pycache_prefix` 를 돌리고, materialize 뒤 `gate.verify_snapshot_bytes` 로 풀린 tracked bytes 를 blob object id 와 재대조(`hash-object --no-filters`) | `test_e11_10` |
+| **P1-11** | R10 러너에 `child_ok(proc)` — payload 를 **읽기 전에** 자식 rc 0 을 강제 | `test_e11_11` |
+| **P1-12** | R10 러너에 `COUNTEREXAMPLE_LINES` 를 두고 `_classify(fn, pkg, case_key)` 가 **그 case 의 반례 assertion 줄**에서 멈췄을 때만 "반례 소멸" — 그 밖의 AssertionError 는 오류 | `test_e11_12` |
+| **P2-1** | profile 의 status→rc 계산을 sink 와 분리 — stdout 이어도 부분은 rc 3 | `test_e11_13` |
+| **P2-2** | producer 가 `SHAPE_RESULT {json}` 로 **자기가 쓴 경로·run_id·status** 를 말하고 `shape_step` 이 rc ↔ status ↔ namespace ↔ run_id 를 대조한다 (못 대조하면 실패). 바깥 wrapper 는 partial 을 따로 세고 종료 코드 3 | `test_e11_14` · `test_d10_15` |
+| **P2-3** | `receipt_leaves` 가 dotted top-level 역할과 **중복 논리 역할**을 거부하고, `receipt_map`·`receipt_paths` 로 역할별 path 를 따로 드러낸다 | `test_e11_15` |
+| **P2-4** | `check_gamma_roster` 가 roster 를 exact JSON schema 로 parse 하고 행마다 같은지·산술이 맞는지 본다 | `test_e11_16` |
+| **P2-5** | `index_skip_flags` 가 소문자와 **대문자 `S`**(skip-worktree) 를 둘 다 본다 | `test_e11_17` |
+| **P2-6** | `gate.full_head` 가 **40 자 full object id 만** 받고 exact 로 대며, 증거에 `expected_tree` 를 같이 적는다 | `test_e11_18` |
+
+### 닫힘 재생 (`reviews/r11_repros/replay_codex_r11.py`)
+
+네 스크립트를 계약 그대로 돌리되 case 마다 **봉인한 술어**로 판정한다 — 표에 없는 case 는 닫힘으로 세지 않는다
+(P1-12 가 R10 러너에서 지적한 규율을 R11 러너에 처음부터 적용). 결과: **반례 소멸 32 · 전제 변경 2 · 환경상 불가 1**.
+
+- `publish:*` (전제 변경): 좁힌 matrix 를 canonical 자리에 안 쓰므로 원본 probe 가 그 파일을 열다 죽는다. 같은 축은
+  `data:matrix_subset`·`data:profile_grid`·`root:matrix_authority` 가 따로 본다. **fingerprint 를 봉인**해 두어
+  아무 예외나 전제 변경으로 읽히지 않는다.
+- `root:profile_grid` (전제 변경): 원본의 "완전" 대조군이 `--grid 3` 이다 — 정본 격자가 아니면 그것도 subset 이라
+  canonical 자리에 파일이 없다. 같은 축은 `data:profile_grid` 와 회귀 `test_d10_03`.
+- `data:shape_wrapper` (환경상 불가): 원본이 `wsl.exe` 로 wrapper 를 부른다 (리뷰어는 Windows). 같은 축은
+  `publish:shape_step` 이 native 로 재생하고 회귀 `test_e11_14` 가 고정한다.
+
+### 이전 라운드 재생기도 같이 고쳤다 (수정이 그 probe 들의 전제를 바꿨다)
+
+P1-2(좁힌 matrix 는 canonical 아님)와 P1-7(reader 가 공용 validator 를 쓴다)이 **우리 재생기의 적응 probe** 들을
+깨뜨렸다. 셋 다 "발견이 다시 열렸다" 가 아니라 "이 fixture·자리로는 더 못 잰다" 이므로, 무엇이 대신 그 축을 보는지
+같이 적고 fingerprint 를 봉인했다.
+
+| 자리 | 무엇이 깨졌나 | 어떻게 했나 |
+|---|---|---|
+| `replay_codex_r7.py` R7-03 | 원본 probe 가 한 조합만 도는 matrix 를 canonical(`A.csv`)에서 읽는다 → subset 이라 파일이 없다 | `PREMISE_CHANGED` 표에 **fingerprint 와 함께** 등록 (`A.csv` + `No such file or directory` 둘 다 맞아야). 같은 축은 회귀 `test_d7_03` 이 `publish_target` 로 자리를 맞춰 본다 |
+| `replay_codex_r6_adapted.py` R6-03a | `cl.matrix` 가 여섯 열짜리라 reader 가 스키마에서 먼저 멈춘다 | 값(γ 0.16 / ref 0.15)은 그대로 두고 `_full_matrix` 로 전 열을 채운다 |
+| `replay_codex_r6_adapted.py` R6-04 | 원본 `matrix_independent_axes` 가 좁힌 실행을 canonical 에서 읽는다 | 이미 있던 두 개의 한 줄 적응에 **적응 ③** 을 더해 읽는 자리만 `publish_target(out, "subset")` 로 맞춘다 (관측은 그대로) |
+| `replay_codex_r9.py` R9-05 | `agg.matrix_row` 가 열의 부분집합이라 중복 판정 전에 스키마에서 멈춘다 | 중복 key(γ 0.10 ↔ 0.40)는 그대로, `_full_row` 로 전 열을 채운다 |
+
+### 계약이 바뀐 곳 (이전 라운드 회귀·fixture 를 같이 고쳤다)
+
+| 전 | 후 | 왜 |
+|---|---|---|
+| `--grid N` 아무 값이나 canonical | **21 만** canonical, 나머지는 `partial/` rc 3 | P1-3 — 시험들이 속도 때문에 쓰던 `--grid 2/3` 은 정본 격자로 바꿨다 (`_args`·`_prof_args` 기본값) |
+| `--only-source`·`--only-wdqdv` matrix 가 canonical | **subset** → `partial/` rc 3 | P1-2 (`_matrix_rows`·`test_r5_07` 갱신) |
+| `fitted_pair_info` 가 열 몇 개만 봄 | **공용 validator 전체** | P1-7 — 부분집합 matrix fixture 가 전부 깨졌다 (`matrix_row()` 공용 helper 로 다시 씀 — **fixture 가 가리고 있던 여섯 번째**) |
+| provenance `--untracked-files=no` | **normal**, 산출 root 밖은 코드 | P1-9 (`_fixture_repo` 에 production 과 같은 ignore 정책을 준다) |
+| `write_meta` 가 자기 안에서 명부 유도 | `bms_balancing.schema.body_roster` **한 자리** | P1-6 — 패키지가 없는 합성 fixture 에서는 `roster: null` + `roster_error` 를 적고 승격 gate 가 막는다 (명부를 지어내지 않는다) |
+
+### 열어 둔 것 (R11 답변이 지목한 다음 축)
+
+- **export 계약**: full-cell + 문헌 gr/si 는 **공통 snapshot** 한 번, half-cell 은 `(source, state, sha)` 별. 아직 미구현.
+- **부재 allowlist**: 코드 상수는 과도기다. versioned dataset-side manifest 로 옮겨야 한다 (모순 hard-fail 은 이번에 넣었다).
+- **`evidence_eligible` 의 run receipt**: 코드 commit/tree + 러너·gate digest + 패키지 + 런타임을 한 receipt 로 묶는 것은 다음 라운드.
+- **partial 수명**: `partial/<producer>/<attempt-id>/` 불변 단위 + 보존/GC 정책. 지금은 이름이 겹치면 덮인다.

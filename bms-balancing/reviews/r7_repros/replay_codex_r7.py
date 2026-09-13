@@ -22,6 +22,13 @@ R7-05·06 은 원본 probe 가 옛 내부 이름(`M`, baseline 기본값)에 묶
 from __future__ import annotations
 import argparse, contextlib, hashlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
 
+# ⚠ Codex R11 P1-10 반례 A: gate 를 **import 하기 전에** bytecode 캐시를 돌린다. 전 판은 gate 안에서
+#   `isolate_bytecode()` 를 불렀는데, 그때는 이미 ignored `reviews/__pycache__/evidence_gate…pyc` (timestamp·size 를
+#   맞춘 위조본)가 load 된 뒤였다 — 봉인 함수 자체가 위조본이었고 결과는 eligible true 였다.
+_PYC = tempfile.mkdtemp(prefix="evidence-pycache-")
+sys.pycache_prefix = _PYC
+os.environ["PYTHONPYCACHEPREFIX"] = _PYC
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import evidence_gate as gate                                              # noqa: E402  — 증거 gate 는 한 자리 (R10 P2-4·P2-5)
 HERE = pathlib.Path(__file__).resolve().parent
@@ -40,6 +47,16 @@ COUNTEREXAMPLE_LINES = {
     "R7-02": ('assert A["sigma_at_k1_V"]!=mixed["sigma_at_k1_V"]',),
     "R7-03": ('assert not any("ref" in k', 'assert A["inputs_sha"]==B["inputs_sha"]'),
     "R7-04": ('assert p.returncode == 0',),
+}
+
+
+#: 수정이 원본 probe 의 전제를 무너뜨려 반례 assertion **전에** 죽는 case — (설명, fingerprint).
+#: fingerprint 는 멈춘 자리의 문자열 조각이고, 전부 맞아야 전제 변경으로 적는다.
+PREMISE_CHANGED = {
+    "R7-03": ("Codex R11 P1-2 뒤: 원본 probe 의 fixture 는 한 조합만 도는 **좁힌** matrix 실행이라 이제 subset 이고 "
+              "canonical(`A.csv`) 자리에 파일이 없다 — 원본은 그 파일을 무조건 열어 죽는다. 같은 축(행이 기준 입력 "
+              "서명을 담는가)은 회귀 `test_d7_03` 이 `publish_target` 로 자리를 맞춰 본다",
+              ("A.csv", "No such file or directory")),
 }
 
 
@@ -145,11 +162,13 @@ def main() -> int:
             print("! --probes 거부: " + "; ".join(problems) + " — 아무것도 돌리지 않았다 (Codex R9 P2-1)", file=sys.stderr)
             return 2
         head = gate.git_head(target)                    # Codex R10 P2-5: git 의 rc 를 본다
-        exp = a.expected_head.strip().lower()
-        if len(exp) < 7 or not head.startswith(exp):
-            print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head}: 이 트리는 요청한 대상이 아니다 (다르다) — "
+        # ⚠ Codex R11 P2-6: prefix 는 커밋 하나를 지목하지 못한다 — full 40 자만 받고 exact 로 댄다
+        exp = gate.full_head(target, a.expected_head)
+        if head != exp:
+            print(f"! HEAD mismatch — expected {exp}, 실제 {head}: 이 트리는 요청한 대상이 아니다 (다르다) — "
                   f"돌리지 않았다 (Codex R9 P2-2)", file=sys.stderr)
             return 2
+        tree = gate.tree_of(target, head)
         dirty = gate.dirty_paths(target)
         skipped = gate.index_skip_flags(target)
         if skipped:
@@ -162,6 +181,11 @@ def main() -> int:
             # ⚠ Codex R10 P2-5: 대상 bytes 를 expected commit 에서 새로 materialize 한다 — 아래 probe·패키지·
             #   production 코드는 전부 이 snapshot 것이다.
             snapshot, cleanup = gate.materialize(target, head, keep=a.keep_materialized)
+            # ⚠ Codex R11 P1-10 반례 B: checkout 은 filter(smudge)·eol 을 거친다 — 풀린 bytes 를 blob 과 다시 댄다
+            drift = gate.verify_snapshot_bytes(snapshot, head)
+            if drift:
+                raise gate.EvidenceError("snapshot 의 bytes 가 expected commit 의 blob 과 다르다 "
+                                         f"(checkout filter/smudge?): {drift[:5]}")
             target = snapshot
             globals()["PKG"] = snapshot / PKG_REL
             globals()["SUMS"] = snapshot / PKG_REL / SUMS_NAME
@@ -169,7 +193,7 @@ def main() -> int:
         print(f"! {e}", file=sys.stderr)
         return 2
     digest_ok, digest = package_digest()
-    out = {"target_head": head, "expected_head": a.expected_head, "head_ok": True,
+    out = {"target_head": head, "expected_head": exp, "expected_tree": tree, "head_ok": True,
            "dirty": bool(dirty), "dirty_allowed": bool(a.allow_dirty), "dirty_paths": dirty[:50],
            # ⚠ Codex R10 P2-5 · Q4: 증거로 셀 수 있는 실행은 expected commit 의 격리 snapshot 에서, 도구도 그 커밋의
            #   bytes 로 돈 것뿐이다. `--allow-dirty` 는 개발용이고 구조적으로 증거가 아니다.
@@ -212,10 +236,18 @@ def main() -> int:
                 out["probes"][pid] = {"probe": "missed_exit_control(적응)", "적응": True, **_run_adapted(lambda: r7_06_adapted(target))}
     if snapshot is not None and not a.keep_materialized:
         cleanup()
+    # ⚠ 수정이 원본 probe 의 **전제를 무너뜨린** case — 봉인한 fingerprint 와 맞을 때만 그렇게 적는다
+    #   (아무 예외나 "전제 변경" 으로 읽으면 그것도 증거 위조다).
+    for pid, (why, fingerprint) in PREMISE_CHANGED.items():
+        rec = out["probes"].get(pid)
+        if rec and rec["상태"] == "오류" and all(w in str(rec.get("멈춘_곳") or "") for w in fingerprint):
+            out["probes"][pid] = {**rec, "상태": "전제 변경", "세부": why}
     statuses = {pid: r["상태"] for pid, r in out["probes"].items()}
-    out["closed"] = list(out["probes"]) == want and all(s == "반례 소멸" for s in statuses.values())
-    out["rc_reason"] = ("모든 요청 probe 가 자기 반례 assertion 에서 멈췄다" if out["closed"]
-                        else f"닫히지 않음: { {p: s for p, s in statuses.items() if s != '반례 소멸'} }")
+    ok = ("반례 소멸", "전제 변경")
+    out["closed"] = list(out["probes"]) == want and all(s in ok for s in statuses.values())
+    out["rc_reason"] = ("모든 요청 probe 가 자기 반례 assertion 에서 멈췄다 (전제가 바뀐 것은 그렇게 적었다)"
+                        if out["closed"]
+                        else f"닫히지 않음: { {p: s for p, s in statuses.items() if s not in ok} }")
     text = json.dumps(out, ensure_ascii=False, indent=2)
     print(text)
     if a.output:

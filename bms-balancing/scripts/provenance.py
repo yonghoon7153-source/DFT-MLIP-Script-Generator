@@ -65,7 +65,10 @@ def git_provenance(cwd: str | None = None, artifact=None, output_roots=("out",))
         top = pathlib.Path(_git(str(base), "rev-parse", "--show-toplevel").strip()).resolve()
         # ⚠ Codex R5-11: 기본 `--porcelain` 은 비ASCII 경로를 따옴표·8진수로 찍는다 ("out/\354\270\241…").
         #   `-z` 레코드는 경로를 그대로 준다; rename/copy 는 새 경로 뒤에 원 경로가 한 레코드 더 온다.
-        raw = _git(top, "status", "--porcelain", "-z", "--untracked-files=no")
+        # ⚠ Codex R11 P1-9: `--untracked-files=no` 는 **실행되는 코드**도 숨겼다 — 저장소 루트의 untracked
+        #   `sitecustomize.py` 가 실제로 import 돼 marker 를 쓰는데 provenance 는 `git_dirty: false` 를 적었다.
+        #   untracked 도 본다; 산출 root 안이면 산출로, 밖이면 **코드**로 센다 (아래 분류).
+        raw = _git(top, "status", "--porcelain", "-z", "--untracked-files=normal")
     except Exception:
         return {"git_commit": "", "git_dirty": None, "git_modified_outputs": None, "git_modified_code": None}
     lines, parts, i = [], raw.split("\0"), 0
@@ -92,10 +95,21 @@ def git_provenance(cwd: str | None = None, artifact=None, output_roots=("out",))
         path = (top / rel).resolve()
         if path in skip:
             continue
-        if any(root == path or root in path.parents for root in roots):
+        inside = any(root == path or root in path.parents for root in roots)
+        if ln[:2] == "??":
+            # ⚠ Codex R11 P1-9: untracked 는 **산출 root 안이면 무시, 밖이면 코드**다. 산출은 쓰이는 순간
+            #   untracked 라 안쪽까지 세면 플래그가 늘 켜져 정보가 사라진다 (그래서 전 판이 `-uno` 였다). 하지만
+            #   바깥의 untracked 는 실행되는 코드일 수 있다 — `sitecustomize.py` 가 실제로 import 돼 돌았는데
+            #   provenance 는 clean 이라고 적었다. 모르는 채로 clean 이라고 말하지 않는다.
+            if not inside:
+                code.append(rel)
+            continue
+        if inside:
             outputs.append(str(path.relative_to(base)) if base in path.parents else rel)
         else:
             code.append(rel)
+    # ⚠ untracked 디렉터리는 git 이 `dir/` 하나로 접어서 준다 — 그 안에 importable 이 있으면 코드다. 여기서는
+    #   접힌 항목도 그대로 코드로 센다 (모르는 채로 clean 이라고 말하지 않는다).
     return {"git_commit": sha, "git_dirty": bool(code),
             "git_modified_outputs": sorted(outputs), "git_modified_code": sorted(code)}
 

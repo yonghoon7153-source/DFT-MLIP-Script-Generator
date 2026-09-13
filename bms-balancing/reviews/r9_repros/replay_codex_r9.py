@@ -19,6 +19,13 @@ Codex R9 P2-1·2 의 계약을 그대로 적용한다: `--expected-head` 필수(
 from __future__ import annotations
 import argparse, contextlib, csv, hashlib, importlib.util, io, json, os, pathlib, shutil, subprocess, sys, tempfile, traceback
 
+# ⚠ Codex R11 P1-10 반례 A: gate 를 **import 하기 전에** bytecode 캐시를 돌린다. 전 판은 gate 안에서
+#   `isolate_bytecode()` 를 불렀는데, 그때는 이미 ignored `reviews/__pycache__/evidence_gate…pyc` (timestamp·size 를
+#   맞춘 위조본)가 load 된 뒤였다 — 봉인 함수 자체가 위조본이었고 결과는 eligible true 였다.
+_PYC = tempfile.mkdtemp(prefix="evidence-pycache-")
+sys.pycache_prefix = _PYC
+os.environ["PYTHONPYCACHEPREFIX"] = _PYC
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import evidence_gate as gate                                              # noqa: E402  — 증거 gate 는 한 자리 (R10 P2-4·P2-5)
 HERE = pathlib.Path(__file__).resolve().parent
@@ -144,16 +151,39 @@ def r9_04_adapted(_shape_harness, _pair):
             mp.undo()
 
 
+def _full_fields():
+    from bms_balancing import schema as _S
+    return list(_S.MATRIX_ROW)
+
+
+def _full_row(agg, rid, gamma):
+    """`schema.MATRIX_ROW` 를 전부 채운 행 — 원본 helper 의 값(역할 receipt 포함)을 그 위에 얹는다."""
+    from bms_balancing import schema as _S
+    ci = {"half_cell": {"path": "half.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "full.xlsx", "sha256": "2" * 64},
+          "literature": {"gr": {"path": "gr.xlsx", "sha256": "3" * 64}, "si": {"path": "si.csv", "sha256": "4" * 64}}}
+    rci = {"half_cell": {"path": "pristine.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"],
+           "literature": ci["literature"]}
+    row = {k: "1.0" for k in _S.MATRIX_ROW}
+    row.update(half_cell="GITT", si="Li", w_dqdv="0", run_id=rid, bounds="-", ref_bounds="-",
+               gamma_Si=gamma, ref_gamma_Si="0.2", scale_audit_target="{}", scale_audit_ref="{}",
+               consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
+               inputs_sha=_S.inputs_digest(ci), ref_inputs_sha=_S.inputs_digest(rci))
+    return {k: row[k] for k in _S.MATRIX_ROW}
+
+
 def r9_05_adapted(agg, _shape_harness, _pair):
     """R9-05: 원본 `run_shape` 는 `ns.main()` 이 예외를 올리면 그대로 전파한다 — 중복 key 두 순서 모두 RuntimeError(중복) 여야 한다."""
     results = {}
     for order in ("forward", "reversed"):
         with tempfile.TemporaryDirectory(prefix="r9-adapt-dup-") as td:
             base = pathlib.Path(td); matrix = base / "matrix"; matrix.mkdir()
-            rows = [agg.matrix_row("shape-dup", gamma="0.10"), agg.matrix_row("shape-dup", gamma="0.40")]
+            # ⚠ Codex R11 P1-7 뒤: reader 가 checker 와 **같은** validator 를 exact header 로 돌린다. 원본 helper
+            #   (`agg.matrix_row`)는 열의 부분집합이라 중복 판정에 닿기 전에 스키마에서 멈춘다 — 그것은 이 발견의
+            #   닫힘이 아니라 "이 fixture 로는 더 못 잰다" 이다. 중복 key(γ 0.10 ↔ 0.40)는 그대로, 열만 온전히 쓴다.
+            rows = [_full_row(agg, "shape-dup", "0.10"), _full_row(agg, "shape-dup", "0.40")]
             if order == "reversed":
                 rows = list(reversed(rows))
-            agg.write_csv_unit(matrix / "matrix_100.csv", agg.MATRIX_FIELDS, rows, "shape-dup")
+            agg.write_csv_unit(matrix / "matrix_100.csv", _full_fields(), rows, "shape-dup")
             ns = agg.load_ne_shape()
             try:
                 agg.run_shape(ns, base, ["pristine", "100"], {"pristine", "100"}, matrix, base / "out")
@@ -316,11 +346,13 @@ def main() -> int:
             print("! --probes 거부: " + "; ".join(problems) + " — 아무것도 돌리지 않았다 (Codex R9 P2-1)", file=sys.stderr)
             return 2
         head = gate.git_head(target)                    # Codex R10 P2-5: git 의 rc 를 본다
-        exp = a.expected_head.strip().lower()
-        if len(exp) < 7 or not head.startswith(exp):
-            print(f"! HEAD mismatch — expected {a.expected_head}, 실제 {head} (다르다) — 돌리지 않았다 (Codex R9 P2-2)",
+        # ⚠ Codex R11 P2-6: full 40 자 object id 만 받는다 (prefix 는 커밋 하나를 지목하지 못한다)
+        exp = gate.full_head(target, a.expected_head)
+        if head != exp:
+            print(f"! HEAD mismatch — expected {exp}, 실제 {head} (다르다) — 돌리지 않았다 (Codex R9 P2-2)",
                   file=sys.stderr)
             return 2
+        tree = gate.tree_of(target, head)
         dirty = gate.dirty_paths(target)
         skipped = gate.index_skip_flags(target)
         if skipped:
@@ -335,6 +367,11 @@ def main() -> int:
             #   쓰면 `assume-unchanged` 로 고친 module 도 ignored `__pycache__` 의 위조 bytecode 도 clean 으로 보이면서
             #   실행됐다. 아래부터 probe·패키지·production 코드는 전부 이 snapshot 것이다.
             snapshot, cleanup = gate.materialize(target, head, keep=a.keep_materialized)
+            # ⚠ Codex R11 P1-10 반례 B: checkout 은 filter(smudge)·eol 을 거친다 — 풀린 bytes 를 blob 과 다시 댄다
+            drift = gate.verify_snapshot_bytes(snapshot, head)
+            if drift:
+                raise gate.EvidenceError("snapshot 의 bytes 가 expected commit 의 blob 과 다르다 "
+                                         f"(checkout filter/smudge?): {drift[:5]}")
             target = snapshot
             globals()["PKG"] = snapshot / PKG_REL
             globals()["SUMS"] = snapshot / PKG_REL / SUMS_NAME
@@ -342,7 +379,7 @@ def main() -> int:
         print(f"! {e}", file=sys.stderr)
         return 2
     digest_ok, digest = package_digest()
-    out = {"target_head": head, "expected_head": a.expected_head, "head_ok": True,
+    out = {"target_head": head, "expected_head": exp, "expected_tree": tree, "head_ok": True,
            "dirty": bool(dirty), "dirty_allowed": bool(a.allow_dirty), "dirty_paths": dirty[:50],
            # ⚠ Codex R10 P2-5 · Q4: 증거로 셀 수 있는 실행은 **expected commit 의 격리 snapshot 안에서** 돈 것뿐이다.
            #   `--allow-dirty` 는 개발용이고 그 결과는 구조적으로 증거가 아니다.

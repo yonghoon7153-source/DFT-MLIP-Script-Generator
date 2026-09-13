@@ -18,7 +18,7 @@ import pytest                                                             # noqa
 from bms_balancing import verify                                          # noqa: E402
 from test_r6_internal import _synth_root, _prov, _cs, _hook_open          # noqa: E402
 from test_r7_codex import _args, _deg, _sign, _compare_states, _doc, _live  # noqa: E402
-from test_review_findings import _load_script                             # noqa: E402
+from test_review_findings import _load_script, matrix_row                 # noqa: E402
 
 
 def _mod(name, path):
@@ -164,10 +164,13 @@ def _shape_harness(monkeypatch, base, offsets):
     return ns
 
 
-def _pair(matrix_dir, state):
+def _pair(matrix_dir, state, **over):
+    """짝 하나가 든 **온전한** matrix 묶음. ⚠ Codex R11 P1-7 뒤로 production reader 가 checker 와 같은 validator 를
+    쓴다 — 열 몇 개만 맞춘 부분집합은 더 이상 과학 입력이 아니므로 fixture 도 전 열을 채운다."""
+    from bms_balancing import schema as _S
     f = matrix_dir / f"matrix_{state}.csv"
-    row = dict(half_cell="GITT", si="Li", w_dqdv="0", gamma_Si="0.25", ref_gamma_Si="0.2", run_id="r8-matrix-" + state)
-    verify.atomic_write_csv(f, [row], list(row)); _sign(f, row["run_id"], state)
+    row = matrix_row(gamma_Si="0.25", ref_gamma_Si="0.2", run_id="r8-matrix-" + state, **over)
+    verify.atomic_write_csv(f, [row], list(_S.MATRIX_ROW)); _sign(f, row["run_id"], state)
     assert _prov().read_unit(f)[0] is True
 
 
