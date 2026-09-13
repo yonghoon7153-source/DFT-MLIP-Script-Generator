@@ -2869,6 +2869,21 @@
     "scripts/eis_drt_ica.py"
    ],
    "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
+  },
+  {
+   "id": "SELF-28",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "claude (사용자가 \"2πR_min² 에 걸리는 값이 없다\" 고 해서 코퍼스로 확인하다 발견)",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
+   "title": "`geom` cap 이 결속하면 **ψ = 0 이 되어 협착저항이 삭제**된다 (AM–SE 접촉의 13.84 %)",
+   "note": "L2-01 은 ψ 절벽을 `s* = 0.99784556531` 이라는 **극단 좌표**로 보였고, L2-10 은 `R_c = 0` 간선이 지워진다는 것을 보였다.  그런데 **생산에서 그 0 이 어떻게 만들어지는지**는 어느 판정문도 적지 않았다 — 극단이 아니라 **구조적**이다.\n★ **결정론적 연쇄** (산술): `binding == 'geom'` ⇒ `A_final = 2π·r_min²` ⇒ `a = sqrt(A/π) = √2·r_min` (`network_conductivity.py:323`) ⇒ `a > r_min` 이라 clamp 발동 (`:395`) ⇒ `a_eff = r_min` **정확히** ⇒ `ψ = (1 − 1)^1.5 = 0` (`:396`) ⇒ `ψ ≤ 1e-4` 분기로 **`R_constriction = 0`** (`:399-401`).  반지름에 무관하게 **항상** 그렇다 (`r_min_real = min(r1,r2)` `:386` 이 `A_geom` 의 `R_min` 과 같은 양).\n★ **실측 (코퍼스 `docs/data/case_master.csv`, 163 케이스)**: `geom` 결속이 **163/163 케이스 전부에서 > 0** 이다.  접촉 가중으로 전체 접촉의 **3.966 %** (1,513,533 / 38,157,976), **AM–SE 접촉의 13.843 %** (1,243,608 / 8,983,443).  케이스별 범위: 전체 0.1~17.0 % · AM–SE **1.4~42.5 %**.\n⇒ 옛 인식 *'2πR_min² 는 명목상 cap 이라 걸리는 값이 없다'* 는 **반증**된다.  ★ 다만 **정말 명목뿐인 cap 은 따로 있다** — `A_volume` 과 `hertzian` 은 **0/163** 이다 (최대 0.000 %).  기억이 이 둘과 섞인 것으로 보인다.\n★ **실제 함수로 사다리 재현** (r_SE 0.5 ↔ r_AM 6.0 µm, ligg_area = 0): δ = 0.02 → `R = 5.9403496296` (binding volume) · 0.05 → `6.3713479493` (tabor) · 0.10 → **`380.2740936428`** (tabor, ψ = 0.0026814364) · 0.20 → **`0`** (geom, ψ = 0).  ⇒ 접촉이 커지는 동안 저항이 **5.94 → 6.37 → 380.27 → 0** 으로 간다 = L2-01 의 비단조 R(A) 가 합성 좌표가 아니라 **실제 SE↔AM 접촉 크기에서** 나타난다.\n⚠ **적용 범위**: Physics 가지 전용이다 (`contact_mode == 'physics'`; Hertz-명명 가지에는 이 clamp 자체가 없다).  그러나 **σ_thermal Stage T1 의 타깃이 바로 그 가지**이고(`thermal_sigma_full_mScm_stage_e_physics`), 특징 10·12·14 도 `*_physics` 다.\n⚠ 두 산출 경로가 **같은 인자로** 같은 함수를 부른다 — `network_conductivity.py:299-302` 와 `coverage_physics_vs_hertzian.py:230-232` 가 `(delta, R_star, R_min=, ligg_area=, mode='physics')` 로 동일 ⇒ 위 결속 비율이 곧 솔버가 보는 비율이다.\n⇒ **E 결정(‘L2 에 넘길 면적 A 가 무엇인가’)이 장식이 아니다**: 지금 규약에서는 접촉이 충분히 커지면 협착 항이 **근사되는 것이 아니라 사라진다** = 그 간선이 국소적으로 `CONTACT_FREE` 가 된다 (CL-81 의 구조와 같은 방향).\n처방은 L2-01·L1-01 과 같다 — 숫자 패치가 아니라 **A 의 정의 먼저**.  그 전까지 Physics 가지의 σ 절대값 옆에는 *'협착 항이 일부 접촉에서 0 으로 삭제됨'* 을 적는다.",
+   "evidence_tests": [
+    "scripts/network_conductivity.py",
+    "scripts/plastic_coverage.py",
+    "docs/data/case_master.csv"
+   ]
   }
  ]
 }
