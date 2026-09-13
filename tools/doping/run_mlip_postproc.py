@@ -123,8 +123,12 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
         # N-? fix: also gate on a physical B0' (0<Bp<15). A BM3 fit can have high
         # r² yet diverge to garbage (e.g. B0=2.2 GPa, Bp=-306) — those slip past
         # the r² gate but are unphysical; require a sane B0' so B0_GPa→None.
-        fit_ok = (r2 >= 0.95 and 0 < V0 < 5 * V[len(V)//2]
-                  and 0.0 < Bp < 15.0)
+        # ⛔ 2026-09-13 — `bool(...)` 로 감싼다. numpy 비교는 `np.bool_` 을 내고,
+        #   기록을 쓰는 `json.dumps(..., default=str)` 이 그걸 **문자열 "False"** 로
+        #   직렬화한다. 하류가 `if rec['fit_quality_ok']:` 로 읽으면 **"False" 가 참**이다.
+        #   (실측: eos_diag per_seed 가 "False"/"True" 문자열로 나왔다)
+        fit_ok = bool(r2 >= 0.95 and 0 < V0 < 5 * V[len(V)//2]
+                      and 0.0 < Bp < 15.0)
         return {'V_points': V.tolist(), 'E_points': E.tolist(),
                 'fractions': list(fractions),
                 'V0': float(V0) if fit_ok else None,
@@ -170,15 +174,31 @@ def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
     pool = physical or [r for r in results if r.get('B0_GPa') is not None] or results
     best = dict(max(pool, key=lambda r: r.get('r2', -1.0)))
     b0s = [r['B0_GPa'] for r in results if r.get('B0_GPa') is not None]
+    _nfit = int(sum(1 for r in results if r.get('fit_quality_ok')))
+    # ⛔⛔ 2026-09-13 — `std` 가 **거짓 정밀도**를 낸다. 살아남은 값이 하나면
+    #   `np.std([x]) == 0.0` 이고, 화면에는 *"시드 간 완벽 일치"* 로 읽힌다.
+    #   실측(P2_Al2S3_B, 시드 3): r² 0.79 / 0.998 / 0.90 → **2개 실패**, 통과 1개.
+    #   그런데 std 는 0.0 이었다. 정반대의 뜻으로 읽히는 숫자다.
+    #   ⇒ 표본이 2 미만이면 **None**. 그리고 몇 개로 잰 값인지(`n_B0`)를 같이 낸다.
+    _std = float(np.std(b0s)) if len(b0s) >= 2 else None
     best['ensemble'] = {
         'n_seeds': int(n_seeds), 'perturb': float(perturb),
-        'n_fit_ok': int(sum(1 for r in results if r.get('fit_quality_ok'))),
+        'n_fit_ok': _nfit,
         'n_physical_Bp': len(physical),
+        'n_B0': len(b0s),
         'B0_GPa_mean': float(np.mean(b0s)) if b0s else None,
-        'B0_GPa_std': float(np.std(b0s)) if b0s else None,
+        'B0_GPa_std': _std,
+        '⚠_std_가_None_인_이유': (None if _std is not None else
+                                f'B0 를 낸 시드가 {len(b0s)}개뿐이라 산포를 잴 수 없다. '
+                                f'0.0 이 아니다 — 0.0 은 일치를 뜻하는데 그게 아니다'),
         'B0_GPa_median': float(np.median(b0s)) if b0s else None,
         'selection': ('max_r2_physical_Bp' if physical
                       else ('max_r2_any' if b0s else 'all_failed')),
+        '⛔_선택_경고': (None if _nfit == int(n_seeds) else
+                     f'시드 {n_seeds}개 중 **{int(n_seeds)-_nfit}개가 적합 실패**했고 '
+                     f'아래 값은 살아남은 것 중 r² 최대를 **고른 것**이다. '
+                     f'결과를 보고 고르는 선택이므로 **산포의 근거가 아니다** — '
+                     f'적합이 시드에 민감하면 골짜기 이동(basin hopping)을 의심해라'),
         'per_seed': [{'B0_GPa': r.get('B0_GPa'), 'V0_per_atom': r.get('V0_per_atom'),
                       'Bp': r.get('Bp'), 'r2': r.get('r2'),
                       'fit_quality_ok': r.get('fit_quality_ok')} for r in results],
@@ -520,6 +540,47 @@ def _selftest():
     chk(maybe_apply_eos_v0(at, {}, A(no_eos=True), EMT())[1]['step0_relax'] !=
         maybe_apply_eos_v0(at, {}, A(no_eos=True, fixed_shape_relax=True), EMT())[1]['step0_relax'],
         "⛔음성: step0 정책 두 갈래가 기록에서 구분된다")
+
+    # ⑧ ensemble 요약이 **선택을 숨기지 않는가** (2026-09-13 실측 사고)
+    #   P2_Al2S3_B 시드 3개에서 r² 0.79/0.998/0.90 → 2개 실패, 그런데 std 가 0.0 이었다.
+    #   0.0 은 "시드 간 완벽 일치" 로 읽힌다 — 정반대 뜻이다.
+    def _fake_ens(rs):
+        """eos_ensemble 의 요약 계산만 떼어 검증한다 (UMA 없이)."""
+        physical = [r for r in rs if r.get('fit_quality_ok') and r.get('B0_GPa') is not None
+                    and r.get('Bp') is not None and 0.0 < r['Bp'] < 15.0]
+        b0s = [r['B0_GPa'] for r in rs if r.get('B0_GPa') is not None]
+        _nfit = int(sum(1 for r in rs if r.get('fit_quality_ok')))
+        _std = float(_np.std(b0s)) if len(b0s) >= 2 else None
+        return {'n_B0': len(b0s), 'B0_GPa_std': _std, 'n_fit_ok': _nfit,
+                '⚠_std_가_None_인_이유': (None if _std is not None else 'x'),
+                '⛔_선택_경고': (None if _nfit == len(rs) else 'y')}
+
+    _one = _fake_ens([{'fit_quality_ok': True, 'B0_GPa': 19.0, 'Bp': 1.3},
+                      {'fit_quality_ok': False}, {'fit_quality_ok': False}])
+    chk(_one['B0_GPa_std'] is None and _one['n_B0'] == 1,
+        "⛔음성: B0 가 1개뿐이면 std 는 **None** 이다 (0.0 이 아니다 — 0.0 은 일치를 뜻한다)")
+    chk(_one['⚠_std_가_None_인_이유'] is not None,
+        "⛔음성: std 가 None 인 **이유**가 기록에 남는다 (빈칸으로 두지 않는다)")
+    chk(_one['⛔_선택_경고'] is not None,
+        "⛔음성: 시드가 하나라도 실패하면 '골라낸 값' 경고가 뜬다")
+
+    _all = _fake_ens([{'fit_quality_ok': True, 'B0_GPa': 19.0, 'Bp': 4.0},
+                      {'fit_quality_ok': True, 'B0_GPa': 20.0, 'Bp': 4.1},
+                      {'fit_quality_ok': True, 'B0_GPa': 21.0, 'Bp': 3.9}])
+    chk(_all['B0_GPa_std'] is not None and _all['B0_GPa_std'] > 0,
+        "양성: 시드 3개가 다 통과하면 std 가 **실제 산포**를 낸다")
+    chk(_all['⛔_선택_경고'] is None and _all['⚠_std_가_None_인_이유'] is None,
+        "양성: 전원 통과면 경고가 **안 뜬다** (무조건 경고하는 게 아니다)")
+
+    # ⑨ ⛔음성: fit_quality_ok 가 JSON 에서 **진짜 불리언**이어야 한다
+    #   `json.dumps(..., default=str)` 이 np.bool_ 을 "False" 문자열로 만들면
+    #   하류의 `if rec['fit_quality_ok']:` 가 **거짓을 참으로** 읽는다.
+    _r2, _V0, _Bp = _np.float64(0.5), _np.float64(100.0), _np.float64(-3.0)
+    _fit_ok = bool(_r2 >= 0.95 and 0 < _V0 < 500 and 0.0 < _Bp < 15.0)
+    chk(type(_fit_ok) is bool, "⛔음성: fit_ok 가 np.bool_ 이 아니라 파이썬 bool 이다")
+    _round = json.loads(json.dumps({'fit_quality_ok': _fit_ok}, default=str))
+    chk(_round['fit_quality_ok'] is False,
+        "⛔음성: JSON 왕복 뒤에도 False 다 (문자열 \"False\" 가 되면 하류가 참으로 읽는다)")
 
     print(f"  selftest: ⭕ {ok} · ⛔ {fail}")
     return 0 if fail == 0 else 1
