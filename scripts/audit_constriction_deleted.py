@@ -36,6 +36,7 @@ delta = 0.10234 um (binding=tabor) 부터이고 `geom` 결속은 delta = 0.16292
 
 사용:
   python3 scripts/audit_constriction_deleted.py                 # 전 케이스
+  python3 scripts/audit_constriction_deleted.py --webapp ~/Yonghoon-DEM-DFT/webapp
   python3 scripts/audit_constriction_deleted.py --limit 5
   python3 scripts/audit_constriction_deleted.py --out-csv docs/data/constriction_deleted.csv
   python3 scripts/audit_constriction_deleted.py --selftest
@@ -171,11 +172,33 @@ def main() -> int:
                     help='면적 모드.  기본 physics = 생산 Physics 가지.')
     ap.add_argument('--limit', type=int, default=0, help='앞에서 N 케이스만')
     ap.add_argument('--out-csv', default='')
+    #  ⚠ CLAUDE.md 가 경고한 자리 — **코드 폴더 ≠ 데이터 폴더**다
+    #    ("코드=stoic-knuth worktree(dem-web), 데이터=~/Yonghoon-DEM-DFT/webapp/*").
+    #    로더의 `WEBAPP` 은 코드 트리 기준이라, 다른 체크아웃에서 돌리면 사례를 0개 찾고
+    #    **조용히 빈 집계**를 낸다 = 규율 ⑤ 의 false-green.  그래서 명시적으로 받는다.
+    ap.add_argument('--webapp', default='',
+                    help='webapp 폴더 경로 (results/ · archive/ 가 있는 곳).  '
+                         '기본 = 이 코드 트리의 webapp/.  env AUDIT_WEBAPP 도 가능.')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
 
     if a.selftest:
         return _selftest()
+
+    import os as _os
+    wp = a.webapp or _os.environ.get('AUDIT_WEBAPP', '')
+    if wp:
+        _SED.WEBAPP = Path(wp).expanduser().resolve()
+    print(f'webapp = {_SED.WEBAPP}')
+    if not _SED.WEBAPP.is_dir():
+        print(f'\n⛔ 그런 폴더가 없다: {_SED.WEBAPP}\n'
+              '   --webapp 로 results/ · archive/ 가 있는 폴더를 직접 주세요.')
+        return 2
+    _subs = [d for d in ('results', 'archive') if (_SED.WEBAPP / d).is_dir()]
+    if not _subs:
+        print(f'\n⛔ {_SED.WEBAPP} 안에 results/ 도 archive/ 도 없다 — 데이터 폴더가 맞나?')
+        return 2
+    print(f'  하위: {", ".join(_subs)}')
 
     cases = _SED.discover_cases()
     if a.limit:
@@ -184,7 +207,9 @@ def main() -> int:
     print(f'판정 문턱: A >= {AREA_FRAC:.8f} * pi * R_min^2   '
           f'(<=> a/R_min >= {S_STAR:.11f})')
     if not cases:
-        print('\n⚠ 접촉 자료를 못 찾았다 — 이 도구는 `contacts.csv` 가 있는 머신에서 돌린다.')
+        print(f'\n⛔ {_SED.WEBAPP} 아래에서 접촉 자료를 못 찾았다.\n'
+              '   필요한 것 = 한 케이스 폴더 안에 atoms.csv + contacts.csv +\n'
+              '   (input_params.json 또는 meta.json).  빈 집계를 내지 않고 여기서 멈춘다.')
         return 1
 
     rows = []
