@@ -2508,15 +2508,16 @@
   {
    "id": "L3-10",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
    "title": "열 plot CLI 가 **PNG 를 만든 뒤 KeyError 로 rc=1** (desc ↔ description)",
-   "note": "(Codex 라벨: **P2-L3-10**)\n열 registry `G:6911`·`G:6986`·`G:7063` 는 키 `desc` 를 쓰는데 main `G:7350` 은 `description` 을 요구한다.  Codex 가 **실제 CLI subprocess** 로 `thermal_fit_final` 을 돌려 **PNG 생성 후 KeyError, rc=1, 최종 metadata 없음** 을 재현했다.\n⇒ *'계산 성공 → 게시 완료'* 가 성립하지 않는다.  ⚠ fit 자체는 실행됐고 Flask/브라우저 전체는 미실행이다.",
+   "note": "(Codex 라벨: **P2-L3-10**)\n열 registry `G:6911`·`G:6986`·`G:7063` 는 키 `desc` 를 쓰는데 main `G:7350` 은 `description` 을 요구한다.  Codex 가 **실제 CLI subprocess** 로 `thermal_fit_final` 을 돌려 **PNG 생성 후 KeyError, rc=1, 최종 metadata 없음** 을 재현했다.\n⇒ *'계산 성공 → 게시 완료'* 가 성립하지 않는다.  ⚠ fit 자체는 실행됐고 Flask/브라우저 전체는 미실행이다.\n\n**수정** `03a5ddec`: 남은 `\"desc\"` 4건을 `\"description\"` 으로 통일하고(52건은 이미 그랬다), `--selftest-descriptions` 에 **레지스트리 전수** 검사 ④b 를 넣었다 — 모든 항목에 `description` 이 있는가 · 옛 키 `desc` 가 남아 있는가.  51개 전수 초록.  ⚠ 부분집합 필터로 훑으면 조용히 초록이 된다(규율 ⑤)는 자리라 **레지스트리 전체**를 본다.",
    "evidence_tests": [
     "scripts/generate_comparison_plots.py"
-   ]
+   ],
+   "claimed_fixed_sha": "03a5ddecc0cdb425bce2c7b266aff341bad7733e"
   },
   {
    "id": "L3-11",
@@ -2589,15 +2590,16 @@
   {
    "id": "L4-03",
    "severity": "P1",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "audit 가 **자기신고의 모순을 통과**시킨다 (3/3 trustworthy)",
-   "note": "(Codex 라벨: **P1-L4-03**)\n`audit_validation_flags.py:117`·`:140`·`:180`.  Codex 가 합성 디렉터리 넷을 **실제 main** 에 넣었다: ① `solver_input_intact = False` 인데 `trustworthy_overall = True` ② 개별 게이트 전부 부재 + overall True ③ 개별 전부 False 인데 overall 이 **문자열 'false'** ④ JSON 깨짐.\n결과: JSON 오류는 **분모에서 빠지고** 나머지는 **3/3 trustworthy (100 %)**, fail 파일 미생성, LaTeX 는 *'all assessable gates True'* 로 기록.  ⇒ **코드가 읽은 flag 와 그 요약이 모순**이다.\n⚠ 이 도구가 self-reported audit 인 것은 맞다 — 원 물리의 독립 검증을 기대한 것이 아니다.  그보다 **약한** 자체 기록의 **bool 타입 · conjunction · 누락 집계**도 검증하지 않는다는 반례다.\n처방: UNKNOWN/파싱 실패를 **분모에 보존**하고 최소 증거 수·정확한 bool·개별 conjunction 을 별도 계산해야 요약문이 참이 된다.",
+   "note": "(Codex 라벨: **P1-L4-03**)\n`audit_validation_flags.py:117`·`:140`·`:180`.  Codex 가 합성 디렉터리 넷을 **실제 main** 에 넣었다: ① `solver_input_intact = False` 인데 `trustworthy_overall = True` ② 개별 게이트 전부 부재 + overall True ③ 개별 전부 False 인데 overall 이 **문자열 'false'** ④ JSON 깨짐.\n결과: JSON 오류는 **분모에서 빠지고** 나머지는 **3/3 trustworthy (100 %)**, fail 파일 미생성, LaTeX 는 *'all assessable gates True'* 로 기록.  ⇒ **코드가 읽은 flag 와 그 요약이 모순**이다.\n⚠ 이 도구가 self-reported audit 인 것은 맞다 — 원 물리의 독립 검증을 기대한 것이 아니다.  그보다 **약한** 자체 기록의 **bool 타입 · conjunction · 누락 집계**도 검증하지 않는다는 반례다.\n처방: UNKNOWN/파싱 실패를 **분모에 보존**하고 최소 증거 수·정확한 bool·개별 conjunction 을 별도 계산해야 요약문이 참이 된다.\n\n**수정 (규율 ②: 반례 먼저)** `03a5ddec`: 못 읽는 JSON 을 `n_unreadable` 로 세고 **분모에 남긴다** · `raw_overall is True` 엄격 판정(문자열 'false'·1·[] 전부 탈락) · 판정 가능한 게이트에서 **conjunction 을 재계산**해 자기신고와 대조 (`selfreport_conflict`) · `fail_by_gate` 에 `no_flags_at_all`·`unreadable`·`selfreport_conflict`·`selfreport_bad_type` 추가(첫 항목은 잠복 KeyError 였다) · LaTeX 요약문을 *'판정 가능한 게이트'* 로 다시 쓴다 · `AUDIT_FLAGS_ROOT` 로 픽스처를 먹인다.  `--selftest` 가 판정문의 반례 **4건 + 양성 대조 1건**을 돌려 **1/5 trustworthy** 를 낸다 (옛 코드는 3/3).  check_all·CI·등재(0.1 s) 배선.\n⚠ **이 도구는 여전히 self-reported audit 이다** — 원 물리를 독립 검증하지 않는다.  고친 것은 *'자체 기록의 타입·conjunction·분모'* 까지다.",
    "evidence_tests": [
     "scripts/audit_validation_flags.py"
-   ]
+   ],
+   "claimed_fixed_sha": "03a5ddecc0cdb425bce2c7b266aff341bad7733e"
   },
   {
    "id": "L4-04",
@@ -2792,16 +2794,17 @@
   {
    "id": "L5-07",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "**비유한 입력이 정상 배포 표지**로 반환된다 (NaN 이 가드를 통과)",
-   "note": "(Codex 라벨: **P2-L5-07**)\n`ml_design_structure.py:525`·`:540`·`:312` · `structure_predictor.py:145`.  실제 `predict_structure` 에 `am_pct = NaN` 을 주면 **ready=True · USABLE · any_extrapolation=False · value_out_of_bounds=False** 인데 **value 와 leverage 는 비유한**이다 — NaN 비교가 False 라 범위·외삽 가드를 통과한다.\n`load_corpus` 에서도 y 문자열 `'nan'` 이 float 변환을 통과해 target 배열에 남았다 (60행 중 X 59 · y 58 에 nonfinite 1).\n⇒ **유한성은 float 변환과 별개의 입력 계약**이어야 한다.",
+   "note": "(Codex 라벨: **P2-L5-07**)\n`ml_design_structure.py:525`·`:540`·`:312` · `structure_predictor.py:145`.  실제 `predict_structure` 에 `am_pct = NaN` 을 주면 **ready=True · USABLE · any_extrapolation=False · value_out_of_bounds=False** 인데 **value 와 leverage 는 비유한**이다 — NaN 비교가 False 라 범위·외삽 가드를 통과한다.\n`load_corpus` 에서도 y 문자열 `'nan'` 이 float 변환을 통과해 target 배열에 남았다 (60행 중 X 59 · y 58 에 nonfinite 1).\n⇒ **유한성은 float 변환과 별개의 입력 계약**이어야 한다.\n\n**수정** `03a5ddec`: `predict_structure` 입구에서 6개 설계 노브를 `math.isfinite` 로 **fail-closed** 검사하고(변환 실패도 같은 자리), 통과한 뒤 `derive_features` 산출까지 한 번 더 본다.  NaN 은 float 변환을 통과하고 모든 비교가 False 라 범위·외삽 가드를 **전부** 지나쳐 `ready=True · USABLE · any_extrapolation=False` 표지를 달고 나왔었다.",
    "evidence_tests": [
     "scripts/ml_design_structure.py",
     "webapp/structure_predictor.py"
-   ]
+   ],
+   "claimed_fixed_sha": "03a5ddecc0cdb425bce2c7b266aff341bad7733e"
   },
   {
    "id": "HARV-01",
