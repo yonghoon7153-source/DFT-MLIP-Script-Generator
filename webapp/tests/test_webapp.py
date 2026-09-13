@@ -2673,29 +2673,109 @@ def test_glossary_papers_declaration_beats_token_scan():
             "kim2025_csp 는 phonon 을 선언했다 — 이건 남아야 한다"
 
 
+def _el_declared(idx, kb_slugs, pid, sym):
+    """`element_papers` 와 **같은 정의**의 '선언' — 태그 또는 KB authored 목록.
+
+    ⛔ 정의를 여기서 다시 쓰면 안 된다. data.element_papers 가
+      `(sym in el_tags) or (id in kb_slugs)` 로 판정하므로 그대로 따른다 —
+      한쪽만 고치면 시험이 구현과 다른 것을 재게 된다.
+    """
+    p = idx.get(pid, {})
+    return (sym in (p.get("el_tags") or [])) or (pid in kb_slugs)
+
+
+def _declared_first_violation(ranked, is_decl):
+    """정렬 불변식 위반의 **첫 자리**. 없으면 None.
+
+    불변식: 선언한 논문이 하나라도 '본문언급만' 논문 **뒤에** 오면 안 된다.
+    """
+    first_mention = None
+    for h in ranked:
+        pid = h["id"] if isinstance(h, dict) else h
+        if is_decl(pid):
+            if first_mention is not None:
+                return (pid, first_mention)
+        elif first_mention is None:
+            first_mention = pid
+    return None
+
+
 def test_element_papers_declared_first():
     """원소를 **선언한** 논문이 본문에 스쳐 언급만 한 논문보다 앞에 온다.
 
     limit 로 잘릴 때 무엇이 먼저 잘리느냐의 문제다. deng2026 은 Li 를 선언했는데
     145편 중 21위라 limit=14 밖으로 잘렸었다.
+
+    ⛔ 2026-09-13 — 이 시험의 **옛 주장이 만료됐다.** *"Ni·Co·Mn·In·Ti 는 20편대라
+      선언했으면 기본 limit(14) 안에 든다"* 고 순위를 주장했는데, litdb 에 논문이
+      늘면서 `Co` 가 **51편**(그중 선언 15편 이상)이 됐고 deng 이 정확히 **15위**로
+      밀렸다. 확인해 보니 **앞의 14편이 전부 선언 논문**이고 본문언급만 한 논문은
+      0편이었다 — 즉 **정렬은 정상이고 시험의 전제가 낡은 것**이었다.
+      ⇒ 고친 것은 구현이 아니라 **무엇을 주장하는가**다. 우연한 **순위** 대신
+        docstring 이 실제로 약속하는 **정렬 불변식**을 본다. 순위는 논문이 늘면
+        변하지만 불변식은 안 변한다. 기본 limit 주장은 **선언 수가 limit 이하일
+        때로 한정**한다(그때만 성립할 수 있는 주장이다).
     """
-    from data import _paper_index, element_papers
+    import json as _json
+    from pathlib import Path as _Path
+
+    from data import KB, _paper_index, element_papers
 
     idx = {p["id"]: p for p in _paper_index()}
     deng = "deng2026_polysulfate_layer_moisture_oxidation_lpsc"
     if deng not in idx or not idx[deng]["has_el_decl"]:
         pytest.skip("deng2026 이 elements: 를 선언하지 않았다")
+
+    def _kb_slugs(sym):
+        f = _Path(KB) / "elements" / f"{sym}.json"
+        try:
+            return set(_json.loads(f.read_text(encoding="utf-8")).get("litdb_slugs") or [])
+        except Exception:                                        # noqa: BLE001
+            return set()
+
     for s in ("Li", "P", "S", "Cl", "O", "C", "H", "Ni", "Co", "Mn", "In", "Ti"):
         assert s in idx[deng]["el_tags"], f"deng2026 el_tags 에 {s} 가 파싱돼야 한다"
         assert deng in [h["id"] for h in element_papers(s, limit=999)], \
             f"{s}: 선언한 deng2026 이 목록에 있어야 한다"
-    # ⚠ 기본 limit(14) 안에 드는 것은 **흔한 원소에서는 보장 못 한다** — Li 를 선언한 논문만
-    #   이미 14편이 넘는다(deng 은 145편 중 21위). 그건 버그가 아니라 limit 의 설계 선택이다.
-    #   보장할 수 있는 것은 흔하지 않은 원소다.
+
+    # ── ★ 정렬 불변식 — 이게 이 시험이 실제로 지키려던 것이다 (순위가 아니라)
+    for s in ("Li", "P", "S", "Cl", "O", "C", "H", "Ni", "Co", "Mn", "In", "Ti"):
+        ks = _kb_slugs(s)
+        ranked = element_papers(s, limit=999)
+        bad = _declared_first_violation(ranked, lambda pid, _s=s, _k=ks: _el_declared(idx, _k, pid, _s))
+        assert bad is None, \
+            f"{s}: 선언한 {bad[0]} 가 본문언급만 한 {bad[1]} 보다 **뒤에** 왔다 — 정렬이 안 먹었다"
+
+    # ── ⛔ 래칫: 위 불변식이 **공허하지 않아야** 한다.
+    #   `Ni·Co·Mn·In·Ti` 는 실측(2026-09-13) 전원이 선언 논문이라(Co 51/51) 거기서는
+    #   '본문언급만' 이 0편 — 불변식이 **아무것도 안 센다**. 그런 원소만 남으면 이 시험은
+    #   *"잡을 게 없어서 초록"* 이 된다 (`unbound == 0` 과 같은 함정).
+    #   ⇒ 섞임이 실재하는 원소가 **적어도 하나**는 있어야 한다. 실측 5개: Li·S·O·C·H.
+    _mixed = [s for s in ("Li", "P", "S", "Cl", "O", "C", "H", "Ni", "Co", "Mn", "In", "Ti")
+              if any(not _el_declared(idx, _kb_slugs(s), h["id"], s)
+                     for h in element_papers(s, limit=999))]
+    assert _mixed, ("모든 원소에서 '본문언급만' 논문이 0편이다 — 정렬 불변식이 공허하다. "
+                    "시험이 통과한 것은 정렬 덕분이 아니라 셀 것이 없어서다")
+
+    # ── 기본 limit 은 **선언 논문이 limit 이하일 때만** 보장된다 (그 위는 limit 의 설계 선택)
+    _default = element_papers.__defaults__[0]
     for s in ("Ni", "Co", "Mn", "In", "Ti"):
-        assert deng in [h["id"] for h in element_papers(s)], \
-            f"{s}: 논문이 20편대인데도 기본 limit 밖이면 정렬이 안 먹은 것이다"
-    # 음성: 선언 안 한 원소에는 안 붙는다
+        ks = _kb_slugs(s)
+        n_decl = sum(1 for h in element_papers(s, limit=999)
+                     if _el_declared(idx, ks, h["id"], s))
+        if n_decl <= _default:
+            assert deng in [h["id"] for h in element_papers(s)], \
+                f"{s}: 선언 논문이 {n_decl}편(≤{_default})인데 deng 이 기본 limit 밖이다"
+
+    # ── 음성 ①: 불변식 검사기가 **실제로 위반을 잡는가** (양성만 있으면 아무것도 보증 못 한다)
+    fake = [{"id": "mention_only"}, {"id": "declared_one"}]
+    assert _declared_first_violation(fake, lambda pid: pid == "declared_one") == \
+        ("declared_one", "mention_only"), "검사기가 위반을 못 잡는다 — 이 시험은 무효다"
+    assert _declared_first_violation(list(reversed(fake)),
+                                     lambda pid: pid == "declared_one") is None, \
+        "검사기가 정상 순서를 위반이라고 한다 — 오탐"
+
+    # ── 음성 ②: 선언 안 한 원소에는 안 붙는다
     for s in ("B", "Ge"):
         assert deng not in [h["id"] for h in element_papers(s, limit=999)], \
             f"deng2026 이 선언하지 않은 {s} 에 링크됐다"
