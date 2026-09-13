@@ -63,7 +63,7 @@ DESIGN_FEATURES = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading',
 STRUCTURE_TARGETS = [
     ('phi_se', 'lin'), ('phi_am', 'lin'), ('cn', 'lin'), ('am_cn', 'lin'),
     ('coverage', 'lin'), ('tau', 'log'), ('f_perc', 'lin'), ('thickness', 'log'),
-    ('use_porosity_pct', 'lin'),            # ★regime-gated (raw DEM/MPM 아님)
+    ('use_porosity_pct', 'lin'),            # ★regime-gated · **RESTRICTED** (아래)
     ('se_of_solid_pct', 'lin'),
     # MPM 고유 — 강체구 DEM 엔 존재하지 않는 양
     ('mpm_plastic_gain_AM_P_tabor_pp', 'lin'), ('mpm_dg_mean', 'lin'),
@@ -412,6 +412,26 @@ def _derive_features_offline(d_se, d_am, am_pct, ps_frac, rve, loading):
 FREE_KNOBS = ['d_se', 'd_am', 'am_pct', 'ps_frac', 'rve', 'loading']
 
 
+#: ★★ 행동으로 내보내면 안 되는 타깃 — **정체성으로** 막는다 (L5-03).
+#:
+#: CLAUDE.md 가 *"`use_porosity_pct` 는 **학습·노출 금지 열**"* 이라 적어 둔 지 오래인데
+#: 코드의 차단은 `verdict == 'REJECT'` 하나였다.  실코퍼스에서 nested 0.397 이라 **우연히**
+#: 막혀 있었을 뿐이고, Codex 가 그 열만 잘 예측되는 합성 60행을 주자 **USABLE (nested
+#: 0.999998319)** 이 되어 `suggest_batch` 를 그대로 통과했다 (L5-03).
+#:
+#: ⇒ 금지는 **데이터가 아니라 그 양의 정의**에서 온다: 게이트가 porosity 만 MPM 으로 바꾸고
+#: φ 는 DEM 것을 남겨 **한 물리상태가 아니다** (닫힘 잔차 sd 가 ε 자체 sd 의 78 %).
+#: 그러니 판정이 무엇이든 **행동(제안·표면·파레토·내보내기)에 쓰지 않는다**.
+#:
+#: ⚠ 학습 자체는 막지 않는다 — `closure_test` 가 φ 둘과 이 열의 **닫힘을 진단**하는 데 쓴다.
+#: 막는 것은 **소비**다.  (판정문: *"금지는 모든 소비자에서 동일해야 한다"*.)
+RESTRICTED_TARGETS = {
+    'use_porosity_pct': ('regime-gate 가 케이스마다 DEM/MPM 을 고른 **스위치된** 열이라 '
+                         '같은 행의 φ 와 한 물리상태가 아니다.  porosity 는 회귀 말고 '
+                         'ε = C − φ_SE − φ_AM 로 유도한다.'),
+}
+
+
 def suggest(bundle, X, target, n_out=10, n_cand=2000, seed=0, allow_weak=False,
             batch_update=True):
     """다음 DEM 배치 — **순차 D-최적 증강**으로 고른다.
@@ -443,6 +463,12 @@ def suggest(bundle, X, target, n_out=10, n_cand=2000, seed=0, allow_weak=False,
 
     CAVEAT: 휴리스틱 플래너다.  진짜 정보이득은 그 점을 실제로 돌려봐야 안다.
     """
+    #  ★ L5-03: **판정보다 먼저** 정체성으로 막는다.  판정에만 걸어 두면 데이터가
+    #    좋아지는 순간 금지가 사라진다 (그것이 정확히 Codex 반례였다).
+    if target in RESTRICTED_TARGETS:
+        return {'error': (f'{target} 은(는) **노출 금지 타깃**이다 — '
+                          f'{RESTRICTED_TARGETS[target]}  판정이 USABLE 이어도 제안하지 않는다.'),
+                'rows': [], 'restricted': True}
     m = bundle['models'].get(target)
     if m is None:
         return {'error': f'타깃 없음: {target}', 'rows': []}
@@ -871,6 +897,17 @@ def train(csv_path, out_path=None, verbose=True, folds=10, do_nested=True,
     bundle = {'kind': 'design_to_structure', 'features': DESIGN_FEATURES,
               'models': models, 'skipped': skipped, 'n_cases': int(X.shape[0]),
               'family_mode': family, 'free_products': bool(free_products),
+              #  ★ L5-05 — 번들의 **목적**을 기록한다.  `--derived-products` 는 CLAUDE.md 가
+              #    *"대조 전용.  ★DO NOT 되돌리지 말 것"* 이라 적은 축인데, 그 산물이
+              #    `load_bundle → predict_structure` 를 **ready=True 로 통과**했다 (Codex 반례:
+              #    nested R² 0.9896, PI90 0.885, USABLE).  판정은 산물의 성능만 보지 **무엇을
+              #    위해 만들었는지**는 모른다 ⇒ 목적을 번들에 박고 배포 로더가 그것을 본다.
+              'purpose': ('production' if free_products else 'control_derived_products'),
+              'purpose_note': ('' if free_products else
+                               '유도량 곱을 허용한 **대조 전용** 산물이다 — 유도량 곱 70개는 '
+                               '정보 없이 후보만 늘려 다중비교 문턱을 올리는 과적합 연료였다 '
+                               '(코퍼스 291 실측: nested 0.466→0.587, 편향 0.178→0.032).  '
+                               '배포에 쓰지 않는다.'),
               'method': {'loocv': 'analytic hat-matrix (intercept unpenalized)',
                          'basis_family': ('per-target, re-chosen INSIDE each outer fold '
                                           '(linear/quadratic/full) - no max-of-3 bias'),
@@ -1034,14 +1071,18 @@ def _selftest():                                                   # noqa: C901
     phi_am = 0.006 * X[:, 2] + rng.normal(0, 0.01, n)
     phi_se = 0.90 - 1.0 * phi_am + rng.normal(0, 0.01, n)
     with tempfile.NamedTemporaryFile('w', suffix='.csv', delete=False, newline='') as fh:
-        cols = ['name'] + DESIGN_FEATURES + ['phi_se', 'phi_am', 'use_porosity_pct', 'tau']
+        #  ⚠ L5-03: 능동학습 시연은 **허용 타깃**에서 해야 한다.  같은 y_lin 을
+        #    `se_of_solid_pct` 에도 써서 아래 검사들의 전제(깨끗한 선형 타깃)를 보존한다.
+        cols = (['name'] + DESIGN_FEATURES
+                + ['phi_se', 'phi_am', 'use_porosity_pct', 'se_of_solid_pct', 'tau'])
         w = _csv.DictWriter(fh, fieldnames=cols)
         w.writeheader()
         for i in range(n):
             row = {'name': f'c{i}'}
             row.update({f: X[i, j] for j, f in enumerate(DESIGN_FEATURES)})
             row.update({'phi_se': phi_se[i], 'phi_am': phi_am[i],
-                        'use_porosity_pct': y_lin[i], 'tau': 1.8})
+                        'use_porosity_pct': y_lin[i],
+                        'se_of_solid_pct': y_lin[i], 'tau': 1.8})
             w.writerow(row)
         cp = fh.name
     o = train(cp, verbose=False, folds=5)
@@ -1065,7 +1106,9 @@ def _selftest():                                                   # noqa: C901
     fmono = physics_audit(fake, X)['monotone']
     chk('★감사에 판별력이 있다 — 부호 뒤집은 모형은 VIOLATION (돌연변이 검사)',
         any((not p['ok']) and p['target'] == 'phi_am' for p in fmono))
-    sg = suggest(o, X, 'use_porosity_pct', n_out=5, n_cand=300)
+    #  ⚠ L5-03 (2026-09-13): 이 시연이 원래 `use_porosity_pct` 를 썼다 — **금지 타깃으로
+    #    제안을 뽑아 보이고 있었다**.  그 자체가 구멍의 증거였다.  허용 타깃으로 바꾼다.
+    sg = suggest(o, X, 'se_of_solid_pct', n_out=5, n_cand=300)
     chk('능동학습이 배치를 낸다 (순차 D-최적)',
         sg['error'] is None and len(sg['rows']) == 5
         and sg['rows'][0]['h_seq'] >= sg['rows'][-1]['h_seq'],
@@ -1084,6 +1127,27 @@ def _selftest():                                                   # noqa: C901
     _bad = dict(zip(DESIGN_FEATURES, rng.uniform(0.5, 3.0, len(DESIGN_FEATURES))))
     chk('★위 검사에 판별력이 있다 — 13 차원 독립 샘플은 자기모순으로 걸린다 (돌연변이)',
         abs(_bad['log_d_se'] - math.log(max(_bad['d_se'], 0.1))) > 1e-6)
+    # ★★ L5-03 — **정체성 금지**가 판정과 무관하게 먹는가 (Codex 반례 재현)
+    #    그 반례는 use_porosity_pct 를 USABLE 로 만든 합성 자료였다.  여기 `o` 의 그 모델은
+    #    실제로 USABLE 이므로(위 검사에서 확인) 조건이 같다.
+    chk('★L5-03: USABLE 이어도 노출 금지 타깃엔 제안을 거부한다',
+        suggest(o, X, 'use_porosity_pct', n_out=3, n_cand=50).get('restricted') is True,
+        f"verdict={o['models']['use_porosity_pct']['verdict']}")
+    #    음성 대조 — 금지 목록을 비우면 **실제로 뚫려야** 한다 (PA12-09: 장식 대조 금지)
+    _keep = dict(RESTRICTED_TARGETS)
+    RESTRICTED_TARGETS.clear()
+    _thru = suggest(o, X, 'use_porosity_pct', n_out=3, n_cand=50)
+    RESTRICTED_TARGETS.update(_keep)
+    chk('★L5-03 대조: 금지를 비우면 그 타깃이 실제로 통과한다 (검사에 판별력이 있다)',
+        _thru.get('restricted') is None and _thru.get('error') is None)
+
+    # ★★ L5-05 — 대조 전용 산물에 **목적**이 박히는가
+    _ctl = train(cp, verbose=False, folds=5, free_products=False)
+    chk('★L5-05: --derived-products 산물의 purpose 가 control 이다',
+        _ctl.get('purpose') == 'control_derived_products', _ctl.get('purpose'))
+    chk('★L5-05: 생산 산물의 purpose 는 production 이다',
+        o.get('purpose') == 'production', o.get('purpose'))
+
     # REJECT 타깃엔 제안하지 않는다
     import copy as _cp
     rej = _cp.deepcopy(o)
@@ -1112,7 +1176,7 @@ def _selftest():                                                   # noqa: C901
     # ★ 핵심 대조 — 갱신을 껐을 때/켰을 때의 **정확한** 성질을 본다.
     #   (퍼짐 배수로 검사했다가 1.33 vs 1.22 로 떨어졌다 — 배수는 코퍼스·항수에 달린
     #    양이라 문턱을 지어낼 수 없다.  Sherman-Morrison 이 도는지는 항등식으로 확인한다.)
-    sg_off = suggest(o, X, 'use_porosity_pct', n_out=5, n_cand=300, batch_update=False)
+    sg_off = suggest(o, X, 'se_of_solid_pct', n_out=5, n_cand=300, batch_update=False)
     chk('★갱신 OFF 면 h_seq ≡ h_now (갱신이 안 돌았다는 정확한 증거 = 옛 평평한 동작)',
         all(abs(r['h_seq'] - r['h_now']) <= 1e-9 * max(r['h_now'], 1e-12)
             for r in sg_off['rows']),

@@ -43,8 +43,18 @@ LABELS = {
     'mpm_plastic_gain_AM_P_tabor_pp': ('MPM 소성 피복 증분 (AM_P, Tabor)', '%p'),
     'mpm_dg_mean': ('MPM 평균 소성변형', ''),
 }
-# 이 열은 절대 내보내지 않는다 — 게이트가 φ 와 다른 모델을 섞어 한 물리상태가 아니다
-FORBIDDEN = ('use_porosity_pct',)
+# 이 열은 절대 내보내지 않는다 — 게이트가 φ 와 다른 모델을 섞어 한 물리상태가 아니다.
+#  ★ L5-03 (2026-09-13): 목록을 **여기서 다시 적지 않는다**.  타깃을 소유한 모듈이 정본이고
+#    이쪽은 그것을 읽는다 — 두 곳에 적으면 한쪽만 늘어난다 (`L3-b` 가 EXCL 에서 본 그 부류).
+def _restricted():
+    try:
+        import ml_design_structure as _M
+        return tuple(_M.RESTRICTED_TARGETS)
+    except Exception:                                        # noqa: BLE001
+        return ('use_porosity_pct',)                         # fail-closed 기본
+
+
+FORBIDDEN = _restricted()
 
 # ★ 물리적 하드 경계 — 가우시안 PI 는 이걸 모른다.
 #   실제로 mpm_dg_mean 의 90 % PI 하한이 **−0.018** (음의 소성변형)로 나왔다.  선형-가우시안
@@ -83,7 +93,7 @@ def _apply_bounds(row):
     row['asymmetric'] = bool(abs(up - dn) > 0.02 * max(abs(up), abs(dn), 1e-12))
     return row
 
-_CACHE = {'path': None, 'mtime': None, 'bundle': None}
+_CACHE = {'path': None, 'mtime': None, 'bundle': None, 'rejected': None}
 
 
 def model_path():
@@ -99,7 +109,21 @@ def load_bundle(force=False):
     mt = os.path.getmtime(p)
     if force or _CACHE['bundle'] is None or _CACHE['path'] != p or _CACHE['mtime'] != mt:
         with open(p, encoding='utf-8') as fh:
-            _CACHE['bundle'] = json.load(fh)
+            _b = json.load(fh)
+        #  ★ L5-05: **대조 전용 산물을 배포로 받지 않는다.**
+        #    `--derived-products` 는 CLAUDE.md 가 "대조 전용 · DO NOT 되돌리지 말 것" 이라
+        #    적은 축인데, 그 번들이 ready=True 로 통과했다 (Codex 반례: USABLE, nested 0.9896).
+        #    판정은 성능만 보지 **목적**은 모른다 ⇒ 목적을 본다.
+        #    ⚠ `purpose` 가 없는 **옛 번들**은 `free_products` 로 판정한다 (그것이 그 축이다).
+        _purpose = _b.get('purpose')
+        if _purpose is None:
+            _purpose = ('production' if _b.get('free_products', True)
+                        else 'control_derived_products')
+        if _purpose != 'production':
+            _CACHE['bundle'], _CACHE['path'], _CACHE['mtime'] = None, p, mt
+            _CACHE['rejected'] = (_purpose, _b.get('purpose_note', ''))
+            return None
+        _CACHE['bundle'], _CACHE['rejected'] = _b, None
         _CACHE['path'], _CACHE['mtime'] = p, mt
     return _CACHE['bundle']
 
@@ -107,6 +131,11 @@ def load_bundle(force=False):
 def status():
     """페이지 상단 배지용 — 모델이 있나, 무엇을 내보낼 수 있나."""
     b = load_bundle()
+    if b is None and _CACHE.get('rejected'):
+        _p, _why = _CACHE['rejected']
+        return {'ready': False, 'path': model_path(), 'rejected_purpose': _p,
+                'hint': (f'이 계수 JSON 은 **배포용이 아닙니다** (purpose={_p}).  {_why}  '
+                         '생산 번들은 free_products=True (자유노브 6개끼리의 곱만) 로 학습합니다.')}
     if b is None:
         return {'ready': False, 'path': model_path(),
                 'hint': ('계수 JSON 이 없습니다.  WSL 에서: python3 scripts/ml_design_structure.py '
@@ -262,6 +291,12 @@ def suggest_batch(csv_path=None, n=10, target='tau', allow_weak=False):
     if not os.path.isfile(csv_path):
         return {'error': f'코퍼스 CSV 가 없습니다 ({csv_path}) — 후보의 실현가능 범위를 '
                          '코퍼스에서 잡으므로 필요합니다.', 'rows': []}
+    #  ★ L5-03: `predict_structure`·`surface`·`pareto` 는 FORBIDDEN 을 보는데
+    #    **여기만 안 봤다**.  M.suggest 가 이제 스스로 막지만, 이 층에서도 같은 답을 낸다
+    #    (소비자마다 다른 이유로 통과/거부되면 그것 자체가 다음 구멍이다).
+    if target in FORBIDDEN:
+        return {'error': f'{target} 은(는) 노출 금지 타깃입니다 — 배치 제안에 쓰지 않습니다.',
+                'rows': [], 'restricted': True}
     X, _ys, _n, _r = M.load_corpus(csv_path)
     if not len(X):
         return {'error': '코퍼스가 비었습니다.', 'rows': []}
