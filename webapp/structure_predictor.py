@@ -21,6 +21,7 @@
 """
 
 import json
+import math
 import os
 import sys
 
@@ -171,9 +172,32 @@ def predict_structure(d_se, d_am, am_pct, ps_frac, rve, loading, include_weak=Tr
     b = load_bundle()
     if b is None:
         return {'ready': False, **status()}
+    #  ★ L5-07 — **유한성은 float 변환과 별개의 입력 계약**이다.
+    #    `float('nan')` 은 변환을 통과하고, NaN 의 모든 비교가 False 라서 그 뒤의 범위·외삽
+    #    가드까지 전부 통과한다 ⇒ `ready=True · USABLE · any_extrapolation=False` 인데
+    #    value 와 leverage 가 비유한으로 나온다 (Codex 반례).  입구에서 fail-closed.
+    _knobs = {'d_se': d_se, 'd_am': d_am, 'am_pct': am_pct,
+              'ps_frac': ps_frac, 'rve': rve, 'loading': loading}
+    _bad = []
+    for _k, _v in _knobs.items():
+        try:
+            _f = float(_v)
+        except (TypeError, ValueError):
+            _bad.append(f'{_k}={_v!r}'); continue
+        if not math.isfinite(_f):
+            _bad.append(f'{_k}={_f}')
+    if _bad:
+        return {'ready': False, 'error': ('설계 노브가 유한한 수가 아닙니다: '
+                                          + ', '.join(_bad)
+                                          + '.  NaN·inf 는 범위·외삽 검사를 통과해 버리므로 '
+                                            '여기서 막습니다.'),
+                'nonfinite_input': _bad, 'rows': [], 'targets': []}
     feats = M.derive_features(float(d_se), float(d_am), float(am_pct),
                               float(ps_frac), float(rve), float(loading))
     x = [float(feats[f]) for f in b.get('features', M.DESIGN_FEATURES)]
+    if not all(math.isfinite(v) for v in x):
+        return {'ready': False, 'error': '유도 특징에 비유한 값이 생겼습니다 (입력 조합 확인).',
+                'rows': [], 'targets': []}
     out, any_extrap = [], False
     got = {}
     for t, m in b.get('models', {}).items():

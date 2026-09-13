@@ -6925,7 +6925,7 @@ PLOT_REGISTRY["thermal_fit_final"] = {
     "title": "σ_thermal → Stage T1 (Ridge, Physics target) parity",
     #  ★ L3-11: 설명을 **상수에서 생성**한다 — 손으로 적으면 세대가 갈린다
     #    (옛 표기 "16 features, α=0.1" 은 refinement 이전 값이었다).
-    "desc": (f"σ_thermal Stage T1 production form: {len(_THERMAL_T1_FEATURES)} structural "
+    "description": (f"σ_thermal Stage T1 production form: {len(_THERMAL_T1_FEATURES)} structural "
              f"features, Ridge α={_THERMAL_RIDGE_ALPHA:g}, "
              "target = thermal_sigma_full_mScm_stage_e_physics; "
              "LOOCV 0.903 was measured on the n=82 FINALIZED cohort (see docs)."),
@@ -7002,7 +7002,7 @@ PLOT_REGISTRY["thermal_outliers_final"] = {
     "func": plot_thermal_outliers_final,
     "file": "thermal_outliers_final.png",
     "title": "σ_thermal Stage T1 outlier diagnosis",
-    "desc": "Cases >±20% err annotated, top-6 by |err| + all EXCL.  "
+    "description": "Cases >±20% err annotated, top-6 by |err| + all EXCL.  "
             "Heat flow's multi-pathway nature makes residual outliers harder to remove "
             "than σ_ionic/σ_e — Bruggeman ratio features capture most variance.",
     "origin_tip": "log-log; ±20% green band; RED bold = form outlier, gray X = EXCL.",
@@ -7080,7 +7080,7 @@ PLOT_REGISTRY["thermal_decomp_final"] = {
     "func": plot_thermal_decomp_final,
     "file": "thermal_decomp_final.png",
     "title": "σ_thermal Stage T1 factor decomposition",
-    "desc": "Per-case Δlog κ vs reference, decomposed into top-10 Ridge feature "
+    "description": "Per-case Δlog κ vs reference, decomposed into top-10 Ridge feature "
             "contributions (coef × value).  Reveals which structural axis drives "
             "each case's κ deviation.",
     "origin_tip": "stacked bar (positive 위, 음수 아래), 하단 dominant feature.",
@@ -7565,15 +7565,15 @@ def _selftest_descriptions():
         e = PLOT_REGISTRY.get(key)
         if e is None:
             continue
-        d = str(e.get('desc', '')) + str(e.get('title', ''))
+        d = str(e.get('description', '')) + str(e.get('title', ''))
         bad = [tok for tok in (f'{nfeat + 2} structural', f'{nfeat + 4} features',
                                'α=0.1', 'alpha=0.1') if tok in d]
         chk(f'① {key}: 낡은 세대 표기 없음', not bad, f'발견 {bad}' if bad else '')
     e = PLOT_REGISTRY.get('thermal_fit_final', {})
     chk('① thermal desc 가 실제 특징 수를 담는다',
-        f'{nfeat} structural' in str(e.get('desc', '')), f'실제 {nfeat}')
+        f'{nfeat} structural' in str(e.get('description', '')), f'실제 {nfeat}')
     chk('① thermal desc 가 실제 α 를 담는다',
-        f'α={alpha:g}' in str(e.get('desc', '')), f'실제 {alpha:g}')
+        f'α={alpha:g}' in str(e.get('description', '')), f'실제 {alpha:g}')
 
     # ② `_thermal_fit` 의 기본 α 가 그 상수와 **같은 객체**에서 온다
     import inspect
@@ -7602,15 +7602,27 @@ def _selftest_descriptions():
         'Stage_15_form' not in src,
         f'_STAGE_FORM_VERSION={_STAGE_FORM_VERSION:g}')
 
+    # ④b L3-10 — registry 항목이 **전부** main 이 요구하는 키를 갖는가
+    #    실측: 열 세 항목만 `desc` 를 써서 CLI 가 PNG 를 만든 뒤 KeyError 로 rc=1 이었다.
+    #    ⇒ *"계산 성공 → 게시 완료"* 가 성립하지 않았다.  이름 조각 필터가 아니라 **전수**로 본다.
+    _miss = sorted(k for k, v in PLOT_REGISTRY.items()
+                   if isinstance(v, dict) and 'description' not in v)
+    chk('④b L3-10: 모든 registry 항목에 description 키가 있다', not _miss,
+        f'없는 항목 {_miss}' if _miss else f'{len(PLOT_REGISTRY)}개 전수')
+    _stale = sorted(k for k, v in PLOT_REGISTRY.items()
+                    if isinstance(v, dict) and 'desc' in v)
+    chk('④b L3-10: 옛 키 `desc` 가 남아 있지 않다', not _stale,
+        f'남은 항목 {_stale}' if _stale else '')
+
     # ⑤ 음성 대조 — 검사가 **판별력이 있는가** (PA12-09: 장식 대조 금지)
-    d = str(e.get('desc', ''))
+    d = str(e.get('description', ''))
     chk('⑤ 대조: α 가 0.1 이었다면 ① 이 깨진다',
         (f'α={0.1:g}' in d) is False and (f'α={alpha:g}' in d) is True)
     chk('⑤ 대조: 특징이 16 이었다면 ① 이 깨진다',
         ('16 structural' in d) is False and (f'{nfeat} structural' in d) is True)
     #  그리고 desc 가 **리터럴이 아니라 상수에서 생성**되는지 소스로 확인한다
     mod_src = inspect.getsource(sys.modules[__name__])
-    m = re.search(r'"desc":\s*\(f"σ_thermal Stage T1.{0,400}', mod_src, re.S)
+    m = re.search(r'"description":\s*\(f"σ_thermal Stage T1.{0,400}', mod_src, re.S)
     chk('⑤ desc 가 상수에서 생성된다 (리터럴 숫자가 아니다)',
         m is not None and 'len(_THERMAL_T1_FEATURES)' in m.group(0)
         and '_THERMAL_RIDGE_ALPHA' in m.group(0))

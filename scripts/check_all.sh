@@ -142,6 +142,7 @@ run 'audit_coverage      --selftest' python3 scripts/audit_coverage.py --selftes
 #    원본에는 status 가 한 건도 없어 `severity=P1` 만 골라 읽으면 후보와 확정이 합쳐진다.
 #    원본은 박제라 안 고치고(해시로 못박는다) 별도 판정 원장에만 상태를 단다.
 run 'audit_adjudication  --selftest' python3 scripts/check_audit_adjudication.py --selftest
+run 'audit_validation_flags --selftest' python3 scripts/audit_validation_flags.py --selftest
 run 'check_doc_refs          --selftest' python3 scripts/check_doc_refs.py --selftest
 run 'check_cohort_packages  (커밋된 패키지 ↔ 원장)' python3 scripts/check_cohort_packages.py
 run 'audit_adjudication   (원시 감사 ↔ 판정 원장)' python3 scripts/check_audit_adjudication.py

@@ -155,6 +155,9 @@ jobs:
       - name: 감사 커버리지 도구 (스냅샷 고정 · dotfile)
         run: python scripts/audit_coverage.py --selftest
 
+      - name: 자기신고 감사의 자기일관 (L4-03 — 타입·conjunction·분모)
+        run: python scripts/audit_validation_flags.py --selftest
+
       #  ★ 2026-09-09 (Codex Q2-3 · AUD-07) — 원시 감사 finding 에 판정 상태가 없어
       #    후속 집계자가 후보와 확정을 합쳐 읽는다.  원본은 박제로 두고 별도 원장에 단다.
       - name: 감사 판정 원장 (후보 ↔ 확정 분리)
