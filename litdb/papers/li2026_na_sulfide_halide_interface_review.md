@@ -514,3 +514,495 @@ f.u. 당 흡수/방출되는 알칼리 수)와 **정의가 같다**. `Fig. 3a` �
 | MLIP / 머신러닝 힘장 | ⛔ **실행 0건** — §5 전망 (4)에서 **"해야 한다"** 로만 등장 |
 | 계면반응에너지 `ΔE_D` 수치 | ⛔ 0건 (순서 정보만) |
 | 면적비저항(ASR) 기준값 | ⛔ **저자들이 "존재하지 않는다"고 명시** (§4.3) |
+
+---
+
+## 5. ★ Figure set — 13 그림 + 2 표 (✅ = 실제로 봄 · ⛔ = 안 봄)
+
+| Fig | 내용 (무엇을 보여주나) | 우리 활용 |
+|---|---|---|
+| **1a–c** | ✅ **본 것.** 기능 분할의 개념도 3종. (a) 황화물: 톱니바퀴 `Cathode–Sulfide–Anode` + 에너지준위 박스(`0V vs Na⁺/Na` 기준선, `LUMO`·`HOMO`, HOMO 아래 **`Oxidation`** 띠와 그 아래 `Cathode`) — 강점 "High Na⁺ conductivity / Relative anode stability", 한계 "Oxidative instability". (b) 할라이드: 밴드 전체가 **아래로 평행이동**, Anode 와 LUMO 사이에 **`Reduction`** 띠 — 강점 "Good cathode compatibility", 한계 "Reductive instability". (c) **`Cathode–Halide–Stable interphase–Sulfide–Anode`** 5톱니 + 두 밴드 병치 — 강점 "Cathode compatibility / Fast Na⁺ transport", 한계 **"Unverified interface stability"** | ★ **이 편에서 가장 이식성 높은 그림.** 우리 원고/발표에서 "왜 단일 SE 로 안 되나"를 **한 장으로 설명하는 문법**. ⛔ 그림 속 에너지 눈금은 정성적(수치 없음) — 값으로 쓰지 않는다. 🔵 figure-read: (c)에서 할라이드 밴드가 **LUMO·HOMO 둘 다 균일하게 더 깊다**(강체 이동) — 본문의 "깊은 VBM / 얕은 CBM" 서술과 정합 |
+| **2a–i** | ⛔ **안 봄.** 대표 Na 황화물 구조 갤러리 9패널 (PS₄/PO₄ 채널, `Na₃PS₄` 상관계, 소성결정 전이, 고엔트로피, F 도핑, Br 치환, **`Na₆PS₅Cl`(g)**, `Na₃ZnGaS₄`, `Na₃B₅S₉`) | 결정학 갤러리라 우리 축에 직접 안 걸린다. 단 **(g) `Na₆PS₅Cl`** 은 우리 `Li₆PS₅Cl` 의 Na 유사체 구조라 **나중에 필요하면 이것만 보면 된다** |
+| **3a** | ✅ **본 것.** **`Na₃PS₄` 전압-상평형 staircase** — 위: 전압구간별 상 박스(왼쪽 `Na₂S`·`P` 방향 화살표, 오른쪽 **`S`·`P₂S₅`**), 아래: **`Na uptake per f.u.` vs `Voltage (V)`** 계단. figure-read ≈ 7.5 @0 V → ≈5 @0.6 V → **0 (녹색 안정띠 ≈1.2–2.5 V, 라벨 `Na₃PS₄`)** → 음수(≈−2.5) @>2.5 V | ★ **우리 ESW staircase 와 축이 그대로 겹치는 유일한 그림.** 그림 양식(2단: 상평형 + uptake)을 우리 그림에 차용 가능. ⛔ 값(1.2–2.5 V) 은 vs Na⁺/Na 라 우리 2.256 V 옆에 못 둔다 |
+| **3b** | ✅ 본 것. `Na[TM]O₂ \| SE` 계면에서 **TM 이동(위)·S 이동(아래)** 과 조합별 평형산물 리스트 | 우리 `interface_reactivity` 산물표와 **형식이 같다**. "어떤 TM 에서 어떤 산물" 이라는 표현법을 참고 |
+| **3c–e** | ✅ 본 것. (c) ToF-SIMS 맵 2장 + S 2p XPS 2장 (`SO₃⁻` 검출) · (d) `FeS₂\|Na₃SbS₃Se\|Na` RT 50 mA/g 1000 사이클 — figure-read 주석 **96 %@100th · 80.1 %@200th · 54 %@600th · 43 %@1000th**, 초기 ≈195 mAh/g · (e) **Cr 2p XPS 4단 적층** (`Na₀.₅CrO₂/Na₃PS₄` · `/Na₃PSe₄` · `Na₀.₅CrO₂` · `NaCrO₂`), 피팅 성분 Cr³⁺(NaCrO₂)·Cr⁴⁺(CrO₂), 축 591→571 eV | 실험 증거라 방법만. **(e) 의 "같은 양극을 SE 만 바꿔 XPS 를 쌓는" 대조 설계**는 우리 계면 실험 제안에 쓸 수 있는 양식 |
+| **4a** | ✅ **본 것 (1100 dpi 재렌더).** ⚠ **캡션은 "stability window" 라 부르지만 실제로는 2변수 화학퍼텐셜 상도다.** x=`μ_Na / eV` (0.0→−2.5), y=`μ_S / eV` (0→−4), 청록 영역 + 상 라벨 `Na₃SbS₄`(굵게, 얇은 쐐기) · `Na₃SbS₃` · `NaSbS₂` · `Na₂S` · `Sb₂S₃` · `Sb` · `NaSb` · `Na₃Sb` · `S` | ★ **우리에게 없는 양.** 우리 μ_Li 1D 스캔이 μ_S 를 닫아둔다는 걸 시각적으로 깨닫게 해 준다 → §4d 의 "질문 전이". ⛔ 수치 전이 금지 |
+| **4b–e** | ✅ 본 것. (b) SE\|Na 계면 덴드라이트 개념도 2종 (in-phase / out-of-phase, `μ_e⁻ peak vs valley`) · (c) **in situ Raman 시계열 2세트** (`Na₃SbS₄/Na` + Au, ±10 μA, Raman shift 100–600 cm⁻¹, 라벨 a–k) · (d) **XCT-`Na₃PS₄`** 3D 렌더 · (e) `Na₃PS₄\|Na` 4단계 파괴 도식 (Rest → Na plating&stripping → Failure; 범례 `Voids or Cracks`·`Reaction Zone`) | **(e) 의 4단계 파괴 서사**가 우리 계면 열화 설명 프레임으로 쓸 만하다 (화학→기계 되먹임). ⛔ 65 μm 두께는 Na 값 |
+| **5a–d** | ⛔ **안 봄.** `Na₂ZrCl₆`(hcp)·`Na₃ErCl₆`(ccp) 구조 + 각 수송경로 | 팔면체-사면체-팔면체 경로 개념은 본문 텍스트로 충분 |
+| **6a** | ✅ **본 것.** **AIMD 확률밀도 @800 K** — `Cl iso-surface`(주황) / `Na iso-surface`(파랑) + 오른쪽 **`D₈₀₀K ×10⁻⁶ (cm²/s)` vs x(0–0.75)**, 계열 **`△ Unrestricted Cl-motion`** vs **`○ Frozen Cl-motion`**. figure-read ≈ △ 0/2.1/3.6/5.3 · ○ 전부 ≲0.15 | ★★ **이 편에서 가장 실행가능한 방법 전이** — "음이온 동결 대조 MD". 우리 UMA 스택에서 PS₄ 동결로 재현 가능, 보고량은 **비율**로 (§4f). ⛔ D 절대값 금지 |
+| **6b** | ✅ 본 것. Zr 유도 팔면체 회전 → 삼각프리즘 병목 왜곡 도식 + **`Prism triangular area / Å²` vs `x` in `Na₃₋ₓEr₁₋ₓZrₓCl₆`** (0–1.0). figure-read ≈ 청록 계열 6.95(x=0) → 최대 ≈7.05(x≈0.6) → 6.85(x=0.9) / 보라 계열 ≈5.95 평탄 → 5.80(x=0.9). ⚠ **y축에 축 끊김(break)** 있음 | 🔵 **"병목 면적을 조성의 함수로 그린다"** = 우리 BVSE `migration_volume_fraction` 과 같은 발상. **그림 양식 참고용** |
+| **6c** | ✅ 본 것. **BVEL (bond valence energy landscape)** 4패널 — 위 2개는 **연결된 등치면 네트워크**, 아래 2개는 **고립 주머니**. (`Na₃YCl₆` vs `NaNbCl₆`, 어느 행이 어느 조성인지는 크롭에서 판독 불가) | 🟢 **우리 BVSE 와 같은 도구·같은 질문(채널 연결성).** ⛔ softBV 파라미터 미기재라 정량 대조 불가 |
+| **7a–d** | ⛔ **안 봄.** (a) `A₂ZrX₆`+ZrO₂ 원팟 합성 + 30 °C 전도도 매핑 · (b) `NaTaOCl₄` PDF 분석 · (c) `Na₁₊ₓTa(B₄O₇)ₓCl₆₋ₓ` 기계화학 합성 · (d) 단범위 무질서 → Na⁺ 수송 도식 | 합성·구조 갤러리. 전도도 수치는 본문 텍스트로 충분 |
+| **8a** | ✅ **본 것.** `Na₃YCl₆`(보라) / `Na₃YBr₆`(분홍) — y=`Voltage vs Na/Na⁺`, x 왼쪽=`Na uptake per f.u.`, 오른쪽=`Phase equilibria`. 박스 안 **"Stability window"** 와 상하한 활자: **3.75 V / 0.51 V** (Cl), **3.36 V / 0.57 V** (Br). 상평형 라벨: 위 `YCl₃`+`NaCl`(Cl) / `YBr₃`+`Br₂`(Br), 아래 `Y`+`NaCl` / `Y`+`NaBr` | ★ **우리 ESW 그림의 "상평형 열을 옆에 붙이는" 양식**을 그대로 쓸 수 있다. ⛔ V 값 전이 금지 (vs Na⁺/Na) |
+| **8b–c** | ✅ 본 것. (b) 온도가변 XRD 2세트 (20→220 °C, 2θ 5–40°, Mo Kα) — **신규 피크 없음** · (c) **Cl 2p XPS** `NEZC SE` vs `NEZC Catholyte` — 후자에만 주황 **`FeₓClᵧ`** 미량 성분 | **(b) 의 "분말 혼합 + 온도 램프 XRD 로 화학 양립성을 본다"** 는 우리 DFT `interface_reactivity` 예측의 **가장 싼 실험 검증**이다 — 제안으로 전이 |
+| **8d** | ✅ 본 것. **K-means 군집** — y=`Bulk modulus B / GPa`(0–160), x=`Shear modulus G / GPa`(0–60). 타원 2개: "Oxides, fluorides"(우상) / **"sulfides, selenides, halides, hydrides, anti-perovskite"(좌하, B≈15–45 · G≈5–15)**. 라벨점 `NaTi₂(PO₄)₃` B≈115/G≈55 | 🟢 **DFT+VRH 후처리가 우리와 같다.** ⛔⛔ **우리 B₀ 26.23/21.71 GPa 가 저 군집에 떨어진다고 "일치" 라 쓰지 않는다** — Na DB 다. 쓸 수 있는 건 "정성 계열 재현"까지 |
+| **8e–f** | ✅ 본 것. (e) `NaCrO₂:NaYbZrCl0.75 = 6:4 + 5 wt% VGCF`, 1C 60 °C, 1.4–3.5 V — **94.4 %**, **93.0 %@50th**, **83.0 %@1900th** · (f) 0.5C, 8.3 mg/cm², RT — **500th 88.9 mAh/g 92.7 %**, **1000th 82.6 mAh/g 86.1 %** | ⚠ **(e) 의 그림 라벨은 `Yb`, 본문 §3.2 는 `NYZC0.75`(=Y)** — §10-1 불일치. 셀 성능값은 우리 축이 아니다 |
+| **9a–b** | ✅ 본 것. (a) Na–Sn 합금 음극 대조 3셋 (전압-용량 + SEM/`Na-EDS` 맵; 스케일바 10 μm, 계면상 두께 라벨) · (b) `Na\|NaNbOCl₄\|Na` / `Na\|NaTaOCl₄\|Na` Nyquist 시계열 (0.5 h→4 h) + `Resistance/Ω·cm²` vs `Time/h` 증가 + 정전류 사이클 E/V | **(a) 의 "같은 음극에 SE 셋을 붙여 계면상 두께를 EDS 로 직접 재는" 대조 설계**가 좋다 — 실험 제안으로 전이 |
+| **9c** | ✅ **본 것 (재렌더).** 음이온족별 창 막대 — y=`Voltage vs Na/Na⁺` (0–6), 범례 **Fluorides(보라) · Chlorides(파랑) · Bromides(청록) · Iodides(연두) · Oxides(주황) · Sulfides(빨강)**. figure-read ≈ 산화상한 **F 5.8–6.3 > Cl 3.7–4.2 > Br 3.2–3.6 > I 2.5–2.7 > O 2.2–3.2 > S 1.6–2.0**. ⚠ x축 조성 라벨은 해상도 한계로 **판독 불가** | 🔵 **음이온 전기음성도 → 산화한계의 *순서*** 는 전이 가능(알칼리 종류에 둔감). ⛔ 눈금·값 금지 |
+| **9d** | ✅ **본 것 (재렌더).** **`Na₃MCl₆` 26종 스크리닝 중 16행 + 황화물 2행** — x=**`Stability window (V vs Na/Na⁺)`** (0–5). figure-read ≈ `Na₃PS₄` **1.15→2.50** · `Na₃SbS₄` **1.55→2.40** · `Na₃CrCl₆` **2.10→3.75** · `Na₃VCl₆` **2.10→2.80** · `Na₃AlCl₆` **1.50→3.75** · `Na₃InCl₆` **2.10→4.05** · `Na₃BiCl₆` **2.25→3.90** · `Na₃ScCl₆` **0.75→3.85** · `Na₃LuCl₆` **0.55→3.85** · `Na₃YCl₆` **0.55→3.80** · 란타나이드 6종(`Tm`·`Er`·`Ho`·`Dy`·`Tb`·`Gd`) **≈0.50–0.55 → 3.80–3.90**. 군 라벨: Sulfide SEs / 3d transition M / Group 13,15 / Group 3 / Lanthanide | ★★ **이 그림이 리뷰 본문 주장을 부분적으로 반증한다** — §10-6. 3족·란타나이드 염화물의 **환원한계(≈0.55 V)가 `Na₃PS₄`(1.15 V)보다 *낮다*** = 열역학적으로 **더** 버틴다. "할라이드는 음극에 더 나쁘다"는 **양이온 족에 따라 갈린다** |
+| **10a–g** | ⛔ **안 봄.** (a,b) `NaCrO₂` 위 용액공정 `Na₃SbS₄` 코팅 + 미세구조 · (c,d) 임피던스·초기 전압곡선 · **(e) 산화물 버퍼층 계산 반응에너지** · (f,g) `Na₃SbS₄/Na₃PS₄` 황 양극 산화환원 경로·dQ/dV | ⚠ **(e) 만 우리 `interface_reactivity` 와 같은 양**(ref 48). 필요하면 `fig_10.png` 재확인 — 이번엔 나머지 6패널이 실험이라 우선순위에서 밀렸다 |
+| **11a–h** | ⛔ **안 봄.** (a) 양극 복합체 계면 상호작용 · (b,c) `Na₁.₄Zr₀.₄Ta₀.₆Cl₆`·NTLC/NTLCF **LSV 산화안정** · (d,e) Na⁺ 퍼콜레이션망 + 엔트로피-수송-안정성 관계 · (f,g) 사이클 후 `Na₂.₂₅Yb₀.₂₅Zr₀.₇₅Cl₆` 복합양극 · (h) NZTC 냉간압축 전후 형태 | (b,c) 의 LSV 는 **실험 산화한계**라 우리 DFT onset 과 **다른 양**이다(반응면적 의존 — `xiao2020` digest 참조). 안 본 것이 손해가 아니다 |
+| **12a–h** | ⛔ **안 봄.** (a–c) `Na₃PS₄\|Na₃Sb` XCT + SbF₃-THF 개질 · (d–f) 대칭셀 + S 2p/Cl 2p XPS · (g) NZSPO 중간층 유무 · (h) 하드카본/`Na₃BS₃` 단면 SEM | 음극 중간층 실험 갤러리. 수치는 본문 §3i 로 충분 |
+| **13a–d** | ✅ **본 것.** **Na 계 직접 증거** — (a) Nyquist 0 h→48 h (`Re(Z)` 0–40 kΩ·cm²) + 확대 인셋 · (b) `Re(Z)` vs `Step`, 범례 **Bulk/Interface × 25 °C·−40 °C·80 °C** · (c) **S 2p XPS** (`SbS₄³⁻` + Sⁿ⁻ 성분) · (d) **Zr 3d XPS** (`Zr⁴⁺` + **`Zr⁽⁴⁻ˣ⁾⁺`** 환원성분) | **(b) 의 "벌크 vs 계면 저항을 온도별로 분리해 스텝마다 추적"** 이 좋은 측정설계. (d) 의 `Zr⁽⁴⁻ˣ⁾⁺` 는 §3.3 환원 주장의 직접 증거 |
+| **13e–g** | ✅ **본 것. ★ 우리 계가 그대로 나온다.** (e) SEM 단면 4장 — `Li₂ZrCl₆`\|`Li₆PS₅Cl` (before / **after 500 h**) · `Li₄ZrCl₄O₂`\|`Li₆PS₅Cl` (before / **after 950 h**), "interface layer" 라벨, 스케일바 10 μm · (f) **S 2p XPS** 축 168→158 eV: pristine `Li₆PS₅Cl` = `P–S` 만 / 계면층 = `P–S` + **`Li–S`**(figure-read ≈163.5–164 eV) · (g) **P 2p XPS** 축 136→130 eV: pristine = `P–S` 만 / 계면층 = `P–S` + **`Li–P–O`**(figure-read ≈133.5 eV) | ★★ **우리 `Li₆PS₅Cl` 이 할라이드와 만났을 때의 실측 계면화학.** 산물이 **`Li₃PO₄` 계열(Li–P–O) + `Li₂S`(Li–S)** — 우리 `interface_reactivity` 산물군·`sei_products` 와 **같은 족**. ⛔ **단 이건 리뷰의 재인용이다** — 인용은 **원출처 ref 146 (H. Zhang et al., *Adv. Funct. Mater.* 2025, e10497)** 으로 하고, 그 논문을 직접 digest 해야 한다 (§12-1) |
+| **Table 1** | 📄 **좌표 판독.** Na 황화물 13종 × (σ, 양극, cutoff, 음극, 사이클조건, 용량유지, 제작압력, ref) — §6a 전재 | **제작압력 열(180–1080 MPa)** 이 우리 DEM/기계 축과 닿는다. σ 값은 금지 |
+| **Table 2** | 📄 **좌표 판독.** Na 할라이드·혼합음이온 19종 × 같은 열 — §6b 전재 | ★ **19행 전부가 음극쪽에 황화물/NASICON 중간층 + 합금 음극을 쓴다** = 기능분할의 **경험적 근거**. §6b 주석 |
+
+---
+
+## 6. Table 1 · Table 2 전재 (PDF 좌표 판독 — 이미지 대신)
+
+> ⚠ 저자 주석 (두 표 공통): *"Some parameters were not reported in the cited studies and are marked as not reported (NR)."*
+> 그리고 §2.3 말미: *"The entries illustrate **literature reported trends under different test conditions**
+> rather than a universal ranking of the materials."* — **셀 조건이 제각각이라 표 안에서도 줄 간 비교가 안 된다**는 뜻이다.
+> ⛔⛔ **아래 σ 값은 전부 Na 값이다. 우리 db 와 같은 표에 놓지 않는다.**
+
+### 6a. `Table 1` — 대표 Na 황화물 SE (13행)
+
+| 전해질 | σ (mS/cm) | 양극 | Cutoff | 음극 | 사이클 조건 | 용량유지 | 제작압력 | ref |
+|---|---|---|---|---|---|---|---|---|
+| **티오포스페이트 및 관련 황화물** | | | | | | | | |
+| `Na₃PS₄` | 0.73 | `NaNi₁/₃Fe₁/₃Mn₁/₃O₂` | 2.3–4.2 V | `Na\|Na₃Sb + NaF layer` | 0.2 C, 300th | **88.3 %** | 500–600 MPa | 49 |
+| `Na₃₋δP₀.₃₂As₀.₃₂Sb₀.₃₂W₀.₀₄S₄` | **10** | NR | NR | NR | NR | NR | 380 MPa | 56 |
+| `Na₂.₈P₀.₈W₀.₂S₄` | **26.4** (소결) / 15.5 (냉간압축) | NR | NR | NR | NR | NR | 375 MPa | 30 |
+| `Na₂.₉₃₇₅PS₃.₉₃₇₅Cl₀.₀₆₂₅` | **>1** | `TiS₂` | 1.2–2.4 V | `Na` | C/10, 10th | 80 mAh/g (10사이클) | 360 MPa | 72 |
+| `Na₂.₅PS₃.₅F₀.₅` | 0.27 | `Na(Mn₁/₄Fe₁/₄Co₁/₄Ni₁/₄)O₂` | 1.8–4.1 V | `Na₁₅Sn₄ + HC` | 2 C, 1000th | **88 %** | 389 MPa | 64 |
+| **`Na₅.₅PS₄.₅Cl₁.₅`** | 1.2 | `Na₃V₂(PO₄)₃` | 1.4–1.8 V | `Na` | 0.05 C, 10th | 73 % | 300 MPa | 66 |
+| `Na₃PS₃.₈₅O₀.₁₅` | 0.27 | `S` | 1–3 V | `Na` | 0.1 mA/cm², 40th | 80 % | 450 MPa | 86 |
+| **안티모니 계 황화물** | | | | | | | | |
+| `Na₃SbS₄` | 0.1–0.2 | `FeS₂` | 0.6–3.0 V | `Na–Sn` | 50 mA/cm², 50th | 62 % | 380 MPa | 87 |
+| `Na₂.₈₈Sb₀.₈₈W₀.₁₂S₄` | **32** | NR | NR | NR | NR | NR | 1080 MPa | 26 |
+| `Na₃₋□Sb₀.₈(SnWCaTi)₀.₀₅S₄` | 6.3 | `TiS₂` | 1–2.5 V | `Na₅Sn` | 0.5 C, 450th | 75 % | 280 MPa | 31 |
+| `Na₂.₈₅SbS₃.₈₅Br₀.₁₅` | ~2.87 | `TiS₂` | 1.0–2.8 V | `Na₁₅Sn₄` | 0.064 mA/cm², 50th | 48.9 % | 312 MPa | 57 |
+| `Na₃SbS₃Se` | 0.375 | `FeS₂` | 1.0–2.7 V | `Na` | 50 mA/g, 1000th | 43 % | NR | 79 |
+| `Na₂.₈₅Sb₀.₉₅W₀.₀₅S₃.₉Cl₀.₁` | 12.66 | `TiS₂` | 1–2.5 V | `Na` | 0.1 C, 100th | 81.6 % | 180 MPa | 58 |
+| **기타 황화물 유리·유도체** | | | | | | | | |
+| `Na₂.₉ZnGaS₃.₉I₀.₁` | 1.12 | `TiS₂` | 0.8–2.5 V | `Na₂Sn` | 0.5 C, 100th | 89.7 % | 350 MPa | 75 |
+| `Na₃BS₃` | 0.011 | **하드카본** | −0.15–2.5 V | `Na–Sn` | 0.038 mA/cm², 10th | 80 % | 360 MPa | 88 |
+
+🔵 **우리가 읽을 것**: (i) **`Na₅.₅PS₄.₅Cl₁.₅`** 행이 있다 — 우리 modelc `Li₅.₄PS₄.₄Cl₁.₆` 와 **화학식 형태가 거의 같은 Na 판**이다.
+σ 1.2 mS/cm. ⛔ **우리 값과 나란히 쓰지 않는다** (캐리어가 다르다). (ii) 제작압력이 **180–1080 MPa** 로 3배 넘게 흩어져 있다 —
+`cronau2021_stack_pressure_ionic_conductivity` 축에서 우리가 아는 대로 **압력이 통제되지 않으면 σ 비교가 성립하지 않는다**.
+(iii) 음극 열에 순수 `Na` 가 5행 있지만, 그중 셋(`Na₃PS₄`·`Na₃SbS₄`·`Na₃SbS₃Se`)은 **합금/보호층이 붙어 있다**.
+
+### 6b. `Table 2` — 대표 Na 할라이드·혼합음이온 SE (19행)
+
+| 전해질 | σ (mS/cm) | 양극 | Cutoff | **음극 (★ 열을 보라)** | 사이클 조건 | 성능 | 제작압력 | ref |
+|---|---|---|---|---|---|---|---|---|
+| **결정질 염화물·브롬화물** | | | | | | | | |
+| `Na₂ZrCl₆` | 0.018 | `NaCrO₂` | 1.4–3.5 V | `Na–Sn`, **`Na₃PS₄` + 보로하이드라이드 층** | 0.1 C, 22th | 83.7 % | 370 MPa | 121 |
+| `Na₂.₂₅Y₀.₂₅Zr₀.₇₅Cl₆` | 0.066 | `NaCrO₂` | 1.7–3.4 V | `Na–Sn`, **`Na₃PS₄` 층** | 1 C, 1000th | **89.3 %** | 370 MPa | 17 |
+| `Na₂.₄Er₀.₄Zr₀.₆Cl₆` | 0.04 | `Na₀.₆₆Fe₀.₄Mn₀.₅Mg₀.₁O₂` | 2.4–4.0 V | `Na–Sn`, **`Na₃SbS₄` 층** | 0.01 C, 10th | 64 % | 380 MPa | 53 |
+| `NaTaCl₆` | **3.3** | `NaCu₀.₁₂Ni₀.₂₂Fe₀.₃₃Mn₀.₃₃O₂` | 2.3–3.8 V | `Na₂Sn`, **`Na₂.₉₃₇₅PS₃.₉₃₇₅Cl₀.₀₆₂₅` 층** | 70 mA/g, 300th | 90.0 % | 3 tons | 122 |
+| `NaAlCl₄` | 0.0085 | `NaCrO₂` | 2.0–3.5 V | `Na₃Sn`, **`Na₃PS₄` 층** | 0.2 C, 300th | 82.0 % | 370 MPa | 119 |
+| `Na₁.₆₂₅Zn₀.₆₂₅Al₀.₃₇₅Cl₄` | 0.015 | `NaCrO₂` | 1.8–3.5 V | `Na₃Sn`, **`Na₃PS₄` 층** | 0.1 C, 4th | NR | 250 MPa | 98 |
+| **UCl₃형·다중양이온 할라이드** | | | | | | | | |
+| `Na₀.₇La₀.₇Zr₀.₃Cl₄` | 0.29 | `NaCrO₂` | 2.0–3.4 V | `Na₂Sn`, **`Na₃PS₄` 층** | 0.3 C, 70th | 88 % | 260 MPa | 90 |
+| `Na₀.₆Ta₀.₂La₀.₈Cl₃.₇F₀.₃` | 0.60 | `Na₀.₈Li₀.₁Ni₀.₂Mn₀.₇O₂` | **2.6–4.3 V** | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.1 C, 100th | 85.0 % | 450 MPa | 123 |
+| `NaLa₀.₄₇₂Ce₀.₄₇₂Ta₀.₁₅₅Nb₀.₁₅₅Zr₀.₁₅₅Cl₆` | **>1** | `Na₃(VOPO₄)₂F` | **2.4–4.3 V** | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.3 C, 600th | 88.3 % | 370 MPa | 124 |
+| `Na₀.₄Ta₀.₂₃₆La₀.₄₇₂Cl₃` | 1.38 | `NaCrO₂` | 1.9–3.5 V | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.3 C, 300th | 89.7 % | 300 MPa | 118 |
+| `Na₁.₄Zr₀.₄Ta₀.₆Cl₆` | **1.95** | `Na₃V₂(PO₄)₃` | 2.3–3.7 V | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.5 C, 1000th | 86.1 % | 370 MPa | 117 |
+| `Na₂.₂₅Yb₀.₂₅Zr₀.₇₅Cl₆` | 0.029 | `NaCrO₂` | 1.7–3.4 V | `Na₂Sn`, **`Na₃PS₄` 층** | 0.1 C, 260th | 93.0 % | 400 MPa | 82 |
+| **옥시염화물·산소유래 전해질** | | | | | | | | |
+| `NaNbOCl₄` | 1.51 | P2-`Na₀.₇₈Ni₀.₃₁Mn₀.₆₇Nb₀.₀₂O₂` | 2.0–4.0 V | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.5 C, 250th | 82.61 % | 300 MPa | 42 |
+| `NaTaOCl₄` | 1.5 | `Na₀.₆₇Mg₀.₅Fe₀.₄Mg₀.₁O₂` | 1.5–4.2 V | `Na₁₅Sn₄`, **`Na₃SbS₄` 층** | C/30, 25th | 거의 50 % | 375 MPa | 52 |
+| `Na₁.₃₃Ta(B₄O₇)₀.₃₃Cl₅.₆₇` | **3.1** | `NaCu₀.₁₂Ni₀.₂₂Fe₀.₃₃Mn₀.₃₃O₂` | 2.3–3.8 V | `Na₂Sn`, **`Na₂.₉₃₇₅PS₃.₉₃₇₅Cl₀.₀₆₂₅` 층** | 0.5 C, 800th | 81.6 % | 300 MPa | 103 |
+| `TaCl₅ + 0.5Na₂CO₃` (TC-NCO) | **5.01** | `Na₀.₆₇Mn₀.₄₅Ni₀.₃Fe₀.₁₅Li₀.₁Ti₀.₀₅O₂` | 2.5–4.0 V | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.5 C, 300th | 92 % | 300 MPa | 43 |
+| `0.5Na₂O₂ + TaCl₅` (NTOC) | **4.62** | `Na₀.₈₅Mn₀.₅Ni₀.₄Fe₀.₁O₂` | 2.5–3.8 V | `Na₁₅Sn₄`, **`Na₃PS₄` 층** | 0.1 C, 500th | 66 % | ~300 MPa | 41 |
+| `NaAlCl₂.₅O₀.₇₅` | 1.33 | `Na₃(VOPO₄)₂F` | 3.0–4.3 V | **`Na`, NASICON 층** | 0.1 C, 100th | 93.1 % | **5 MPa** | 107 |
+
+### 6c. ★ `Table 2` 에서 읽히는 것 — **기능 분할은 이미 사실상 표준이다**
+
+- **19행 중 음극쪽에 중간층 없이 순수 SE 만 쓴 행: 0건.**
+  - 18행이 **황화물 중간층**(`Na₃PS₄` 12회 · `Na₃SbS₄` 2회 · `Na₂.₉₃₇₅PS₃.₉₃₇₅Cl₀.₀₆₂₅` 2회 · +보로하이드라이드 1회)
+  - 1행이 **NASICON 중간층** (`NaAlCl₂.₅O₀.₇₅`, ref 107)
+- **음극 자체도 전부 합금**: `Na–Sn` · `Na₂Sn` · `Na₃Sn` · `Na₅Sn` · `Na₁₅Sn₄`. **순수 Na 금속은 1행뿐**이고 그것도 NASICON 뒤에 있다.
+- ⇒ **"기능 분할 구조"는 저자들이 새로 제안하는 미래형이 아니라, 이미 문헌 전체가 암묵적으로 쓰고 있는 구조다.**
+  이 리뷰의 진짜 기여는 **그 암묵적 관행에 이름을 붙이고 설계 원리로 승격시킨 것**이다. (그리고 저자들도 그렇게 쓴다 — §4.3)
+- ⚠ **그래서 §4.3 의 공백 선언이 더 날카롭다**: 모두가 쓰고 있는데 **그 접합면의 화학·수송·저항은 아무도 체계적으로 안 쟀다.**
+- 🔵 **우리 쪽 대응**: Li 계에서도 같은 질문이 성립한다 — 우리 `cha2024_dualcompatible_halide_ncm_lpscl_interface` digest 가
+  `LIC/LYC/LZC × {NCM, LPSCl}` 6계면을 다루고 있고, `Li₆PS₅Cl`\|할라이드 접합은 우리 `interface_reactivity` 로
+  **지금 바로 계산 가능한 대상**이다 (§12-1).
+- **제작압력 이상치 1건**: `NaAlCl₂.₅O₀.₇₅` 만 **5 MPa** (나머지 250–450 MPa). §3h 의 점탄성(저장탄성률 ≈3.2 GPa)과 정합.
+
+---
+
+## 7. 우리 DFT 대비 (comp1 / modelc) → `our_dft_baseline.md`
+
+> ⛔⛔ **아래 표의 "이 논문" 열은 전부 Na 값이다. 이 표는 *비교표가 아니라 대조 금지 사유표*다.**
+> 우리 값을 옆에 적은 이유는 *"얼마나 다른가"* 가 아니라 *"왜 같은 표에 놓으면 안 되는가"* 를 못박기 위해서다.
+
+| 항목 | 이 논문 (Na, 전부 재인용) | 우리 (Li) | 판정 / 이유 |
+|---|---|---|---|
+| **산화 onset** | `Na₃PS₄` **≈2.5 V**(본문) · figure-read `Fig. 3a` **≈2.5 V** · `Fig. 9d` **2.50 V** — **vs Na⁺/Na** | **2.256 V** (comp1 = modelc, S²⁻-limited, vs Li⁺/Li) | 🔴 **비교 불가.** ① 기준전극이 다르다 ② hull 세대·제외상 정책 미기재 ③ 조성이 다르다(`Na₃PS₄` vs `Li₆PS₅Cl`). **우연히 값이 가까운 것이 면제가 아니다** — 우리 화면규율(`data-claim-not`)의 정신대로 **부인을 선언**해 둔다 |
+| **환원 한계** | `Na₃PS₄` **≈1.2–1.5 V**(ref 83) · `Fig. 9d` figure-read **1.15 V** | **1.242 V** (grand-potential) | 🔴 **비교 불가 + ⚠ 위험한 우연 일치.** 1.242 와 1.2–1.5 가 겹친다. **다른 이온·다른 기준전극·다른 조성이다.** 같은 문장에 쓰지 않는다 |
+| **OCV** | n/a (리뷰에 없음) | 1.717 V | — |
+| **σ (RT)** | 황화물 0.011–**32 mS/cm** · 할라이드 0.0085–**7.2 mS/cm** | (우리는 σ 절대값 **인용 금지** — Nernst–Einstein Haven=1 가정) | 🔴 **양쪽 다 못 쓴다.** 그쪽은 Na 실측, 우리는 MLIP-MD 유도값이고 **우리 규율이 절대값 인용을 금지**한다 |
+| **Ea** | 황화물 **0.15–0.40 eV**(일반) · `Na₁₁Sn₂PS₁₂` 0.25 · N-PASS-W 0.15 · Br 치환 `Na₃SbS₄` 0.10–0.12 · `Na₃YCl₆` **≈0.8 eV** | comp1 **0.253** / modelc **0.224** eV (MLIP-MD, 단일궤적) · 멀티시드는 modelc **0.197±0.032** | 🟡 **자릿수는 같은 창(0.15–0.40)에 들어가지만 비교하지 않는다.** 캐리어가 Na 다. 🔵 다만 *"황화물 Ea 0.15–0.40 eV"* 라는 **범위 서술**은 계 무관한 경험칙에 가까워, 우리 값이 "이상하지 않다"는 **정성 위생점검**으로만 쓸 수 있다 |
+| **D** | `Fig. 6a` figure-read `D₈₀₀K` **≈2.1–5.3 ×10⁻⁶ cm²/s** (AIMD, Na) | `D(600 K)` comp1 **3.09×10⁻⁶** / modelc **7.90×10⁻⁶** cm²/s (UMA MLIP-MD, MSD 2–50 ps) | 🔴 **삼중 불일치**: 이온(Na/Li) · 온도(800/600 K) · 엔진(AIMD/MLIP). **비율조차 비교 금지** |
+| **탄성 E** | `NaTaCl₆` **15.31** · `Na₂ZrCl₆` **21.65** · `NaAlCl₄` **17.68** · `Na₃ErCl₆` **29.57** GPa (DFT+**VRH**, ref 46) · 나노압입 `NaTaCl₆` **16.05** GPa | `E_VRH` comp1 **22.06** / modelc **27.66** GPa | ⚠⚠ **이 편에서 제일 위험한 줄.** **후처리가 문자 그대로 같고(VRH)** 값 범위도 겹친다. 그런데 **Na 염화물 vs Li 황화물**이다. 🟢 쓸 수 있는 것: *"DFT+VRH 로 잰 황화물·할라이드는 산화물(100–150 GPa)보다 한 자릿수 무르다"* 는 **계열 진술**까지 |
+| **B / G** | `Fig. 8d` figure-read 저모듈러스 군집 **B ≈15–45 · G ≈5–15 GPa** | `B₀` comp1 **26.23** / modelc **21.71** GPa (EOS BM3) | ⚠ 같은 이유로 금지. **게다가 우리 B₀ 는 EOS-BM3, 저쪽은 C_ij → VRH** 라 **같은 Li 계였어도 정의가 다르다** |
+| **Band gap** | 전해질 갭 **0건**. 분해산물만: `NaF` **≈11 eV** · `Na₃P` **≈0.4** · `Na₃Sb` **≈0.68** eV | comp1 **2.066** / modelc **2.099** eV (fixed-occ nscf VBM/CBM) · SEI 산물 `LiCl` 6.65 / `Li₂S` 3.90 eV | 🔴 값 비교 불가. 🟢 **그러나 "산물 갭으로 부동태 vs MIEC 를 가른다"는 규칙은 우리와 같다** — 규칙 전이, 값 금지. ⚠ 우리 갭은 **PBE 과소평가 + 무질서 민감**이라 애초에 "wide-gap" 수준으로만 비교한다 |
+| **VBM 성격** | `Na₃YCl₆` VBM = **Cl 3p 비결합**, CBM = **Y 4d** (ref 94) · 황화물 VBM = **S 3p** | comp1·modelc 둘 다 **VBM = S 3p** (Cl 증가에도 불변) | 🟢 **정성적으로 정합.** 우리가 "Cl 을 늘려도 VBM 성격이 안 변한다 → onset 이 S²⁻-limited" 라고 판정한 것과, 이 리뷰가 "황화물 VBM = S 3p" 라고 쓰는 것이 **같은 물리**다. ⛔ 단 **할라이드 SE(`Na₃YCl₆`)는 Cl 이 *골격*이라 VBM 이 Cl 3p 인 것**이고, 우리 `Li₆PS₅Cl` 은 **Cl 이 소수 음이온**이라 VBM 이 여전히 S 3p 다 — **두 상황을 혼동하면 안 된다** (§7c) |
+| **계면 반응에너지** | ⛔ 수치 0건 (순서만: `Sc₂O₃`·`SiO₂`·`TiO₂`·`ZrO₂`·`HfO₂` > `Al₂O₃`) | `interface_reactivity` (pymatgen `InterfaceReactions`) — 예: `LPSCl\|LCO` 계열 ΔE_D | 🟢 **도구·양이 같다**(§4c). ⛔ 값이 아예 없어 대조 자체가 불가 |
+| **ASR 기준** | ⛔ **저자들이 "없다"고 명시** | 우리도 없다 | 🟢 **공백이 일치한다** — 우리가 먼저 채울 수 있는 자리 (§12-4) |
+
+### 7a. 🔵 우리 결과와 **구조적으로 같은** 발견 2건 (값이 아니라 논증)
+
+1. **"수송과 산화안정은 독립 파라미터가 아니다"**
+   - 이 리뷰: Br 도핑이 `Na₃SbS₄` 의 σ↑·Ea↓ 를 주지만 **열역학 창은 ≈1.83–1.90 V 로 거의 불변** (ref 57)
+   - 우리: comp1 → modelc (Cl 1.0→1.6) 에서 **D↑2.6배·Ea↓** 인데 **onset 은 2.256 V 로 동일** (S²⁻-limited)
+   - ⇒ **다른 이온·다른 할로겐·다른 조성인데 결론의 구조가 같다**: *"할로겐 레버는 수송을 바꾸고 산화 onset 은 안 바꾼다."*
+   - ⚠ **그래도 "재현했다"고 쓰지 않는다.** 두 관측은 독립이고, 우리 결론은 우리 계산으로 서 있다. 최대 표현은
+     *"Na 계에서도 같은 형태의 디커플링이 보고된다"* 까지 (§9 인용가능 문장)
+2. **"분해산물의 전자구조가 자기부동태 여부를 가른다"**
+   - 이 리뷰: `NaF` 11 eV = 자기부동태 / `Na₃P` 0.4 · `Na₃Sb` 0.68 eV = MIEC 부식
+   - 우리: `sei_products` 갭 순서 `LiCl` 6.65 ≫ `Li₂S` 3.90 (그리고 `Li₃P` 는 우리 원장에서 **`conductor-LEAK`, gap 0.70 eV**)
+   - ⇒ ★ **`Li₃P` 0.70 eV ↔ `Na₃P` ≈0.4 eV 가 같은 역할(누설상)을 한다.** 이건 **같은 화학의 알칼리 치환판**이라
+     지금까지 본 것 중 **가장 직접적인 대응**이다. ⛔ 그래도 값은 각자 계산한 것을 쓴다
+
+### 7b. ⚠ **혼동 주의 — "Cl-rich 산화안정"이 두 논문에서 다른 뜻이다**
+
+우리 규율: *"'Cl-rich oxidation stability' 는 항상 축을 명명해야 한다."* 여기서 그 규율이 실제로 걸린다.
+
+| | 이 리뷰의 "할라이드가 산화에 강하다" | 우리의 "Cl-rich" |
+|---|---|---|
+| 대상 | `Na₃YCl₆`·`Na₂ZrCl₆` 등 — **Cl 이 유일한 음이온 골격** | `Li₅.₄PS₄.₄Cl₁.₆` — **S 골격에 Cl 이 부분 치환** |
+| VBM | **Cl 3p** (그래서 깊다) | **여전히 S 3p** (Cl 증가에도 불변) |
+| 산화 onset | **3.8 V 이상으로 이동** | **2.256 V 로 불변** (S²⁻-limited) |
+| Cl 의 역할 | **onset 자체를 올린다** | **onset 이 아니라 *분해량·산물·계면*에 작용** |
+
+⇒ **두 "Cl" 은 같은 원소지만 전혀 다른 레버다.** 리뷰의 "3.8 V" 를 우리 Cl-rich 논의에 끌어오면
+**우리 자신의 판정(S²⁻-limited)을 부정하는 꼴**이 된다. ⛔ 절대 금지.
+
+### 7c. ⚠ 축 명명의 차이 — 리뷰에는 우리 **축 B 4분할이 없다**
+
+우리 `comparison_vs_ours.md` §B 는 산화안정을 **4개 축**으로 쪼개 쓴다(축 이름 없이 말하면 틀린다는 규율).
+이 리뷰는 그 구분이 **없다** — *"oxidation limit"* 하나로 열역학 onset·LSV 실측·사이클 안정성을 뭉뚱그린다.
+실제로 `Fig. 11b,c` 는 **LSV(실험)** 이고 `Fig. 9c,d` 는 **DFT grand-potential** 인데, 본문은 둘을 같은 "산화한계"로 병렬한다.
+⇒ **이 리뷰를 인용할 때는 우리가 축을 다시 붙여야 한다.** (우리 `xiao2020` digest 가 이미 같은 지적을 한다 —
+*"CV 의 0–5 V 주장은 반응면적 부족의 산물"*)
+
+---
+
+## 8. ★★ 전이 가능 / 전이 금지 — **항목별 근거 1줄씩** (1저자 지정 형식)
+
+> 판단이 애매하면 **금지 쪽**에 두고 그 사실을 적었다 (지시 규칙).
+
+### 8a. 🟢 전이 가능 (후보)
+
+| # | 무엇 | 왜 전이 가능한가 (1줄) | 우리 쪽 착지점 |
+|---|---|---|---|
+| T1 | **기능 분할 4기능 분해** (수송 / 산화저항 / 환원보호 / 기계수용) | **재료 명제가 아니라 셀 위상(topology) 명제**라 캐리어 종류에 불변 | 원고 서론·발표 프레임 |
+| T2 | **"단일 골격은 깊은 VBM 과 높은 CBM 을 동시에 못 갖는다"** | 밴드 정렬 논증이고, 알칼리 양이온은 밴드 가장자리 성격에 거의 기여하지 않는다 | 우리 ESW 해석의 상위 프레임 |
+| T3 | **분해산물 갭 → 자기부동태 vs MIEC** 판별 규칙 | **터널링 확률이 두께에 지수감쇠**한다는 것은 원소 무관한 물리 | `sei_products` 해석 문장 |
+| T4 | **음극 중간층 사양 체크리스트** (σ_ion>10⁻⁴ · σ_e<10⁻⁸ S/cm · 양쪽 열역학 안정 · 순응 · 서브미크론) | **요구의 *형태*** 이고 σ_e<10⁻⁸ 는 전자누설 판정의 일반 관례 | 코팅/중간층 후보 게이트 정의 |
+| T5 | **음이온 동결 대조 MD** (`Fig. 6a`) | **대조 잡 설계**이고 우리 UMA 스택에서 그대로 실행 가능 · 보고량을 **비율**로 잡으면 우리 절대값 금지 규율도 안 건드린다 | `tools/ionic` 에 `--freeze-anion` 플래그 (기존 도구 확장, 새 파일 아님) |
+| T6 | **BVEL 을 "연결성 판정"에 쓰는 용법** (`Fig. 6c`) | 우리 BVSE 채널% 와 **같은 도구·같은 질문** | `tools/comp1_v3` 그림 양식 |
+| T7 | **DFT+VRH 로 탄성 DB 를 만드는 방식** (ref 46, ~40종) | 후처리가 우리 `E_VRH` 와 문자 그대로 같다 | 우리 도핑 스크리닝에 탄성 열 추가 시 양식 |
+| T8 | **"황화물\|할라이드 접합 = 경계가 아니라 계면상 영역"** | 개념 프레임이고 §4.3 이 **Li 계 증거(ref 146)** 로 뒷받침한다 | `interface_reactivity` 확장 논의 |
+| T9 | **음이온 전기음성도 → 산화한계 *순서*** (F>Cl>Br>I>S) | **순서**는 음이온 p 준위에서 오므로 알칼리 종류에 둔감 | 도핑 후보 정렬의 정성 근거 |
+| T10 | **"분말 혼합 + 온도램프 XRD" 로 화학 양립성 실험검증** (`Fig. 8b`) | 실험 프로토콜이고 대상 재료에 독립 | 우리 `interface_reactivity` 예측의 **가장 싼 검증** 제안 |
+| T11 | **"이온접촉 품질 > 벌크 σ"** 명제 (용액코팅 30 kΩ→0.6 kΩ) | 접촉역학 일반론이고 우리 DEM 축과 직결 | `comparison_vs_ours_DEM.md` 논의 |
+| T12 | **양극 부피변화를 접촉개선 동력으로 쓰는 "자가가압"** (`Fig. 11f,g`) | 기계 설계 발상이고 재료 무관 | DEM/FEM 축 논의 |
+| T13 | **ASR 문턱은 보편적일 수 없다** (면적용량·전류·온도·스택압 의존) | **측정량 정의에 관한 규율**이고, 우리 "보고량 카드" 사고와 같다 | `estimand_card.md` 채울 때 인용 |
+
+### 8b. 🔴 전이 금지
+
+| # | 무엇 | 왜 금지인가 (1줄) |
+|---|---|---|
+| F1 | **모든 σ 값** (`Na₃PS₄` 26.4 · `Na₃SbS₄` 32 · `NaTaOCl₄` 7.2 mS/cm …) | 캐리어가 Na⁺다 — 같은 골격에서도 값이 다르다는 실물 증거가 이 논문 안에 있다(`Na₆PS₅X` 가 10⁻⁴ 대) |
+| F2 | **모든 Ea 값** | 이동장벽이 이온반경·분극률에 직접 걸린다 |
+| F3 | **모든 전압창 값** (`Na₃YCl₆` 0.51–3.75 V 등) | **기준 전극이 vs Na⁺/Na** — 우리 2.256 V 는 vs Li⁺/Li, **눈금이 다른 자** |
+| F4 | **`Na₃PS₄` 창 1.2–2.5 V 를 우리 2.256/1.242 V 옆에** | F3 + 조성이 다르다. **우연히 가까운 것이 면제가 아니라 부인 선언 대상** |
+| F5 | **모든 탄성 GPa 값** (15.31 / 21.65 / 17.68 / 29.57 GPa) | ⚠ **방법이 같아서 제일 위험하다** — Na 염화물이지 Li 황화물이 아니다 |
+| F6 | **`Fig. 8d` 군집 범위(B 15–45 · G 5–15 GPa)를 우리 B₀ 와 대조** | F5 + 우리 B₀ 는 **EOS-BM3**, 저쪽은 **C_ij→VRH** — 정의도 다르다 |
+| F7 | **`D₈₀₀K` 2–5×10⁻⁶ cm²/s** | 이온·온도·엔진 **삼중 불일치**. 우리 규율상 D 절대값은 애초에 인용 금지 |
+| F8 | **분해산물 갭 수치** (NaF 11 · Na₃P 0.4 · Na₃Sb 0.68 eV) | Na 화합물 갭이다. 우리 `sei_products` 는 Li 판으로 따로 계산돼 있다 |
+| F9 | **"할라이드 산화한계 3.8 V" 를 우리 Cl-rich 논의에** | ⛔⛔ **§7b** — 리뷰의 Cl 은 *골격*, 우리 Cl 은 *부분치환*. 끌어오면 우리 S²⁻-limited 판정을 스스로 부정한다 |
+| F10 | **CBM 궤도 준위 수치** (Y 4d −3.5~−4.0 eV vs SHE 등) | 기준이 SHE 이고 Na 화합물 기준. 우리 CBM 4.194/4.544 eV 와 **기준계가 다르다** |
+| F11 | **`Fig. 13e–g` 의 두께·성분비** | 리뷰의 재인용이고 정량축이 안 읽힌다 — **원출처 ref 146 을 직접 봐야** 인용 가능 |
+| F12 | **셀 성능값 전부** (용량유지 %, 사이클수, mAh/g) | 셀 조건이 제각각이고(저자 명시) 우리 축이 아니다 |
+| F13 | **⚠ 애매해서 금지 쪽에 둔 것 ①**: *"Cl-rich 가 산화에 유리"* 의 **정도** | 방향은 같아 보이나 **크기가 음이온 골격 구성에 직접 걸린다**(§7b) |
+| F14 | **⚠ 애매 ②**: 무질서·비정질화의 전도도 개선 **효과 크기** (10⁻⁵→10⁻³ 두 자릿수) | 방향은 우리 무질서 논의와 같지만, **효과 크기가 Na⁺ 의 큰 반경에 의존**할 수 있다 — 규율대로 금지 쪽 |
+| F15 | **⚠ 애매 ③**: 공간전하층(SCL)의 **세기** | 리뷰가 SCL 을 정성적으로만 쓰고(ref 81), Na⁺ 결함화학이 Li 와 다르다고 **저자들이 직접 못박는다** |
+| F16 | **⚠ 애매 ④**: `Na₅.₅PS₄.₅Cl₁.₅` (Table 1) 를 우리 modelc `Li₅.₄PS₄.₄Cl₁.₆` 의 "대응물"로 | 화학식 형태가 거의 같아서 **가장 유혹적이지만**, 바로 그래서 값을 나란히 쓰면 독자가 등가로 읽는다 |
+
+---
+
+## 9. ★ "Functionally Partitioned Architecture" — 논리와 **원출처**
+
+### 9a. 논증 사슬 (리뷰가 실제로 밟는 순서)
+
+1. **문제 정의** (§1): 한 균질 전해질이 0 V 음극과 >4 V 양극을 동시에 만족 못 한다 — *단일 음이온 골격 안에서
+   σ·산화저항·환원저항을 동시 최적화할 수 없어서* (refs 12–17)
+2. **원인 규명** (§2.2 + §3.3): 그 불가능성이 **음이온 전자구조**에 박혀 있다.
+   황화물 = 얕은 VBM(S 3p) → 산화 / 할라이드 = 얕은 CBM(M의 빈 d,s) → 환원.
+   *"a single inorganic framework can hardly combine a deep VBM for oxidation resistance with a shallow CBM
+   for reduction resistance"* (§3.3)
+3. **상보성 확인** (§1 + §3.2): 두 실패 모드가 **반대편**이다 → 하나가 약한 곳에서 다른 하나가 강하다
+4. **직접 대조 실증** (ref 53): 같은 양극에 두 SE 를 붙여 **7–15 mAh/g vs 이론용량 근접** 의 극단적 차이 확인
+5. **처방** (§3.3 + §4.3): *"spatially decoupling oxidation resistance and reduction tolerance currently
+   provides a practical design route"*
+6. **기능의 분해** (§5): 한 덩어리 "안정성"을 **네 기능**으로 쪼갠다 — ① 벌크 Na⁺ 수송 ② 양극 산화저항
+   ③ 음극 환원보호 ④ **기계적 수용**. 각각을 **다른, 그러나 서로 양립하는 상**에 배정
+7. **자기제한** (§1·§3.2·§4.3 에 6회): *"proposed design framework rather than a universally validated
+   architecture"* · *"direct evidence … remains limited"*
+8. **새 연구대상의 탄생** (§4.3): 그러면 **접합면 자체가 연구대상**이 된다 —
+   *"an interfacial phase region with its own chemical composition, defect structure, and ion transport characteristics"*
+
+### 9b. 근거의 **원출처** (리뷰의 요약을 원출처 주장으로 둔갑시키지 않기 위해)
+
+| 근거 | 리뷰가 주장하는 것 | **원출처 (번호 + 서지)** | 원출처가 실제로 한 것 |
+|---|---|---|---|
+| **직접 대조** | 같은 양극에서 황화물 7–15 mAh/g vs 할라이드 이론용량 근접 | **ref 53** = L. E. Goodwin, M. Ziegler, P. Till, N. Nazer, P. Adelhelm, W. G. Zeier, **F. H. Richter, J. Janek**, *ACS Appl. Mater. Interfaces* **16**, 19792–19805 (2024) | `Na₃SbS₄` vs `Na₂.₄Er₀.₄Zr₀.₆Cl₆` 복합양극 비교 + ToF-SIMS/XPS/DRT. **Na 계 이중층 개념증명도 이 논문이다**(`Fig. 13a–d`) |
+| **할라이드 양극 장기실증** | 1000+ 사이클 89.3 % | **ref 17** = E. A. Wu, S. Banerjee, H. Tang, …, R. J. Clément, A. Banerjee, **Y. S. Meng, S. P. Ong**, *Nat. Commun.* **12**, 1256 (2021) | `Na₂.₂₅Y₀.₂₅Zr₀.₇₅Cl₆` 합성·AIMD·온도가변 XRD·풀셀 |
+| **할라이드 음극 실패** | 염화물 계면상 ≈90 μm vs 황화물 ≈10 μm | **ref 51** = G. Deysher, Y.-T. Chen, B. Sayahpour, …, **Y. S. Meng**, *ACS Appl. Mater. Interfaces* **14**, 47706–47715 (2022) | Sn 합금 음극 대조 + EDS/XPS/XRD/DC 분극. **중간층 사양 체크리스트(§3i)도 이 논문 근거** |
+| **DFT 산화한계** | `Na₃YCl₆` 0.51–3.75 V, DOS 로 VBM=Cl 3p | **ref 94** = Y. Qie, S. Wang, S. Fu, H. Xie, Q. Sun, **P. Jena**, *J. Phys. Chem. Lett.* **11**, 3376–3383 (2020) | 1차원리 ESW + DOS |
+| **26종 스크리닝** | 3족·란타나이드 >3.5 V, p블록·3d 는 낮다 | **ref 116** = D. Park, K. Kim, G. H. Chun, **B. C. Wood**, J. H. Shim, **S. Yu**, *J. Mater. Chem. A* **9**, 23037–23045 (2021) | `Na₃MCl₆` 26종 고속 DFT |
+| **황화물 산화 산물** | S⁰·P₂S₅·폴리설파이드 + 버퍼층 스크리닝 | **ref 48** = H. Tang, Z. Deng, Z. Lin, Z. Wang, I.-H. Chu, C. Chen, Z. Zhu, C. Zheng, **S. P. Ong**, *Chem. Mater.* **30**, 163–173 (2018) | DFT + 정량 XPS. **`Fig. 10e` 의 계면반응에너지도 이것** |
+| **황화물 환원식** | `Na₃PS₄ + 8Na → Na₃P + 4Na₂S`, XPS 159.4/124.8 eV | **ref 83** = S. Wenzel, T. Leichtweiss, D. A. Weber, J. Sann, **W. G. Zeier, J. Janek**, *ACS AMI* **8**, 28216 (2016) | in situ XPS |
+| **탄성 DB** | Na 이온전도체 ~40종 DFT+VRH | **ref 46** = M. Torii, A. Sakuda, K. Motohashi, **A. Hayashi**, *Mater. Adv.* **7**, 484–494 (2026) | DFT 탄성 + K-means |
+| **★ 황화물\|할라이드 접합의 적응형 부동태** | O 치환 할라이드가 황화물과 만나 `Li₃PO₄` in situ 형성 | **ref 146** = H. Zhang, P. Yu, Z. Cui, H. Jin, W. Tang, C. Zhao, J. Lei, S. Liang, Z. Shi, J. Wang, Y. Li, F. Hussain, J. Zhu, **W. Xia**, *Adv. Funct. Mater.* **2025**, e10497 | **Li 계** `Li₄ZrCl₄O₂`\|`Li₆PS₅Cl`. **우리 계다** → §12-1 |
+| **Li 계 접합 불안정** | S²⁻·Cl⁻ 상호확산 + 전이영역 | **ref 137** = Z. Liu, J. Tao, H. Jiang, Y. Wu, L. Lin, Y. Yang, Y. Chen, Z. Huang, Y. Lin, *Nano Lett.* **25**, 4605–4612 (2025) · **ref 147** = M. Cao, L. Pan, Y. Wang, X. X. Liu, M. Gao, Z. Sun, *ACS Energy Lett.* **10**, 5336–5344 (2025) | Li 계 황화물-할라이드 계면 |
+| **인공 버퍼층 원형** | `Li₃PO₄`·`LiNbO₃` | **ref 21** = B. Gao, **R. Jalem, Y. Tateyama**, *ACS AMI* **13**, 11765 (2021) · **ref 139** = J. Y. Lee, S. Noh, J. Y. Seong, S. Lee, Y. J. Park, *ACS AMI* **15**, 12998 (2023) | Li 계 |
+| **SCL 이론** | 화학퍼텐셜 차 → Na⁺ 고갈 | **ref 81** = J. Haruyama, K. Sodeyama, L. Han, K. Takada, **Y. Tateyama**, *Chem. Mater.* **26**, 4248 (2014) | **Li 계 1차원리 SCL 원전** |
+| **음이온 물성 원전** | 이온반경 · 분극률 | **ref 20** = **R. D. Shannon**, *Acta Crystallogr. A* **32**, 751 (1976) · **ref 16** = J. R. Tessman, A. H. Kahn, **W. Shockley**, *Phys. Rev.* **92**, 890 (1953) | — |
+
+### 9c. ⚠ **이 프레임을 우리가 쓸 때의 단서 3개**
+
+1. **"기능 분할"은 이 리뷰의 발명이 아니다.** `Table 2` 19행 전부가 이미 그 구조다(§6c). 리뷰의 기여는
+   **명명 + 원리화**다. ⇒ 우리가 인용할 때 *"Li et al. 이 제안한"* 이 아니라 *"Li et al. 이 **정식화한**"* 이 정확하다.
+2. **Li 계에는 이미 더 나아간 사례가 있다.** §4.3 이 빌려오는 ref 146(`Li₄ZrCl₄O₂`\|`Li₆PS₅Cl`)은 **Na 계보다 앞서 있다.**
+   ⇒ 우리가 이 프레임을 쓰는 것은 "Na 에서 배워온다"가 아니라 **"Li 계에서 이미 있는 것을 프레임으로 정리한다"** 다.
+3. **네 번째 기능(기계적 수용)이 우리 DEM 축과 직결된다.** 나머지 셋은 전기화학이지만 ④ 는 **접촉·응력·치밀화**다 —
+   `comparison_vs_ours_DEM.md` 쪽에 걸리는 유일한 고리다.
+
+---
+
+## 10. ⚠ 비판 — 본문↔그림 불일치 및 약점 (over-claim 방지)
+
+### 10-1. 🔴 **`Y` 와 `Yb` 를 혼동한다** (그림이 본문을 반박)
+§3.2 본문: *"NaCrO₂ paired with **NYZC0.75** retained 83.0 % capacity after more than 1,900 cycles at 60 °C and 1C.⁸² (`Fig. 8e`)"*
+— `NYZC0.75` 는 같은 문단에서 **`Na₂.₂₅Y₀.₂₅Zr₀.₇₅Cl₆`(이트륨)** 로 정의돼 있다.
+그런데 **내가 `Fig. 8e` 를 직접 보니 그림 안 라벨이 `NaCrO₂:NaYbZrCl0.75 = 6:4`** 다 — **이터븀**이다.
+그리고 `Fig. 11` 캡션은 같은 ref 82 를 **`Na₂.₂₅Yb₀.₂₅Zr₀.₇₅Cl₆`(NaYbZrCl0.75)** 로, §4.1.2 본문도 **`Na₃YbCl₆` 계**로 적는다.
+⇒ **§3.2 한 문단만 Y 로 잘못 적혀 있다.** `Table 2` 도 ref 82 를 `Na₂.₂₅Yb₀.₂₅Zr₀.₇₅Cl₆` 로 올바로 적는다.
+**우리가 이 83.0 % 를 인용하면 조성을 틀리게 된다.**
+
+### 10-2. 🔴 **`Fig. 4a` 캡션이 그림을 잘못 부른다 + 단위 오류 1건**
+- 캡션: *"(a) **DFT calculated thermodynamic stability window**"* → 실제로는 **(μ_Na, μ_S) 2변수 화학퍼텐셜 상도**다(§4d).
+  "window" 는 1차원 전압 구간을 뜻하는데 이 그림엔 전압축이 아예 없다. **다른 양을 같은 이름으로 부른다.**
+- §2.1: *"resulting in a RT **impedance** of only about **10⁻⁶ Ω cm⁻¹**"* — **임피던스가 아니라 전도도**이고
+  단위도 **S/cm (= Ω⁻¹cm⁻¹)** 여야 한다. 물리량·단위가 둘 다 틀렸다. (문맥상 α-`Na₃PS₄` 의 σ ≈10⁻⁶ S/cm 를 말한 것)
+
+### 10-3. 🟠 **같은 리뷰 안에서 두 DFT 출처가 0.3–0.5 V 어긋난다**
+`Fig. 9c`(ref 94) 의 **Sulfides 족 막대는 산화상한이 ≈1.6–2.0 V** 인데, `Fig. 9d`(ref 116) 은 **`Na₃PS₄` 를 2.50 V** 로 준다.
+본문은 어디서도 *"≲2.5 V"* 와 *"≲2.0 V"* 의 차이를 언급하지 않고 둘 다 "황화물은 2.5 V 아래" 로 뭉뚱그린다.
+⚠ **단서**: `Fig. 9c` 의 x축 조성 라벨이 해상도 한계로 **판독 불가**라, 두 그림에 **같은 화합물이 들어 있는지 내가 확인하지 못했다.**
+그래도 *"같은 양(1차원리 ESW)을 두 그룹이 재면 0.3–0.5 V 는 벌어진다"* 는 **방법 의존성 경고**로는 유효하다.
+🔵 **우리에게 직접 걸린다**: 우리도 `LiS4` 포함/제외로 **2.256 vs 2.14 V (0.12 V)**, GG `K_eff=0` anodic 2.40 V 와 **0.14 V** 차이가 있다.
+⇒ *"1차원리 ESW 의 재현 폭은 0.1–0.5 V 급"* 이라는 인식을 이 논문이 외부에서 뒷받침한다.
+
+### 10-4. 🟠 **같은 실험(ref 53)의 양극 조성을 두 번 다르게 적는다**
+§1: `Na₀.₆₇Fe₀.₃₃Mn₀.₆₇O₂` / §4.1.2: `Na₀.₆₆Fe₀.₄Mn₀.₅Mg₀.₁O₂` / `Table 2`: `Na₀.₆₆Fe₀.₄Mn₀.₅Mg₀.₁O₂`.
+**둘은 다른 물질이다** (Mg 유무). 2:1 로 후자가 맞을 가능성이 높지만 **원출처 ref 53 을 봐야 확정**된다.
+
+### 10-5. 🟠 **AIMD 예측과 실측의 130배 괴리를 논평하지 않는다**
+§2.1: `Na₂.₅PS₃.₅F₀.₅` 실측 RT σ **0.27 mS/cm**, 그런데 *"AIMD predicts that its Na⁺ conductivity could reach
+**35.63 mS/cm at 300 K**"* (ref 64). **130배**다. 리뷰는 이걸 나란히 쓰고 *"결함화학과 이온수송을 상관짓는 유용한 모델"*
+이라고만 한다. ⚠ AIMD 를 300 K 로 **외삽**하면 과대평가가 흔하다는 것은 잘 알려진 문제인데(우리도 아레니우스 외삽에
+600/800/1000 K 3점 규약을 두고 400/500 K 를 뺐다), **리뷰가 독자에게 그 경고를 주지 않는다.**
+⇒ 이 리뷰의 계산 수치를 인용할 때는 **우리가 방법 단서를 다시 붙여야 한다.**
+
+### 10-6. 🔴🔴 **`Fig. 9d` 가 리뷰의 핵심 프레임을 부분적으로 반증한다** (가장 무거운 지적)
+리뷰의 중심 대비는 *"황화물은 음극쪽이 상대적으로 낫고(§1 "Relative anode stability"), 할라이드는 음극쪽이 나쁘다"* 이다.
+그런데 **자기 그림 `Fig. 9d` 의 환원한계(막대 왼쪽 끝)를 읽으면 그 대비가 양이온 족에 따라 뒤집힌다** —
+
+| 그룹 | 환원한계 (figure-read ≈) | `Na₃PS₄`(1.15 V) 대비 |
+|---|---|---|
+| **3족 (`Sc`,`Lu`,`Y`)** | **0.55–0.75 V** | 🟢 **더 낮다 = 열역학적으로 더 버틴다** |
+| **란타나이드 6종** | **0.50–0.55 V** | 🟢 **더 낮다** |
+| 3d TM (`Cr`,`V`) | 2.10 V | 🔴 더 높다 (더 빨리 환원) |
+| 13/15족 (`Al`,`In`,`Bi`) | 1.50–2.25 V | 🔴 더 높다 |
+| (참고) `Na₃SbS₄` | 1.55 V | — |
+
+⇒ **"할라이드는 음극에 더 나쁘다"는 3d 전이금속·p블록 염화물에는 맞지만, 3족·란타나이드 염화물에는 맞지 않는다.**
+`Na₃YCl₆` 의 0.51–0.55 V 는 `Na₃PS₄` 의 1.15–1.2 V 보다 **열역학적으로 유리**하다.
+
+- **리뷰 쪽 방어논리 (공정하게)**: 리뷰의 논거는 순수 열역학 한계가 아니라 **① 산물의 전자전도성**(Zr·Y 가 *금속*으로
+  환원되면 MIEC) **② 반응 진행 정도**(Deysher 의 90 μm)다. 즉 *"0.5 V 에서 시작해도 산물이 전자전도체면 더 나쁘다"*.
+  그리고 실제로 ref 51 의 90 μm 는 `Na₂.₂₅Y₀.₂₅Zr₀.₇₅Cl₆` — **Y 계인데도** 가장 두꺼웠다.
+- **그래도 문제는 남는다**: 리뷰가 **`Fig. 9d` 를 "환원한계가 전부 Na Fermi 위" 라는 근거로만 인용**하고,
+  **족 간 분화(0.5 vs 2.25 V, 4배)를 한 줄도 언급하지 않는다.** 열역학 한계와 동역학/산물 논거를 구분하지 않은 채
+  "할라이드 = 음극 취약" 으로 단일화한다.
+- 🔵 **우리에게 주는 교훈**: 우리 축 E(환원/음극)에서 *"Cl-rich 유불리 문헌 충돌"* 을 이미 기록해 두고 있는데,
+  이 사례는 그 충돌이 **"열역학 onset" 과 "산물의 전자전도성" 이라는 서로 다른 축을 섞어서 생긴다**는 것을 보여준다.
+  ⇒ **환원 논의에서도 축을 명명해야 한다** (산화 4축 규율의 환원판).
+
+### 10-7. 🟡 구조적 약점 (리뷰 일반)
+| # | 약점 | 영향 |
+|---|---|---|
+| a | **계산 파라미터가 0건** (§4h) — functional·cut-off·k-mesh·무질서 처리 하나도 없다 | 인용한 DFT 값들의 **비교 가능성을 독자가 판정할 수 없다** |
+| b | **셀 성능 표가 조건 통제 없이 나열** (제작압력 180–1080 MPa, 온도 RT–60 °C, C-rate 0.01–2 C) | 저자들도 *"universal ranking 이 아니다"* 라고 단서를 달지만, **표 형태 자체가 순위처럼 읽힌다** |
+| c | **DFT 산화한계와 LSV 실험값을 같은 "oxidation limit" 으로 병렬** (§7c) | 우리가 축을 다시 붙여야 한다 |
+| d | **`Fig. 13` 의 절반(e–g)이 Li 계**인데 그림 제목은 *"Interfacial Compatibility Between Sulfide and Halide SEs"* | 캡션에 단서가 있어 정직하지만, **그림만 보면 Na 증거로 오독**된다 |
+| e | **AM(Accepted Manuscript) 단계** — 조판 전이라 오탈자·단위오류가 남아 있다(§10-2). DOI 도 미발급 | **인용 시 "Accepted Manuscript, 2026-09-08" 을 명시**해야 한다 |
+| f | **자기인용 성격의 검증 없음** — 리뷰 저자 그룹(Xidian/HUST)의 자체 데이터가 0건이라, 종합의 **선택 편향을 내부에서 점검할 수단이 없다** | 종합의 완결성은 인용목록에 전적으로 의존 |
+
+### 10-8. ✅ 공정하게 — 이 리뷰가 잘한 것
+- **단서를 성실하게 단다.** *"proposed design framework rather than a universally validated architecture"*(6회) ·
+  *"these lithium results … do not constitute direct experimental validation in sodium systems"* ·
+  *"should not be interpreted as evidence of direct stability against Na metal"*(Al 옥시염화물 셀) ·
+  *"a promising wetting-assisted Na interface rather than a completely dry … interface"*(NH54 액체 젖음제) ·
+  *"the reduced interphase growth should not be interpreted as complete thermodynamic stability"*(하드카본).
+  → **리뷰에서 보기 드문 수준의 자기제한**이고, 우리 `citation_hazards` 규율의 정신과 같다.
+- **"없는 것"을 명시한다**: ASR 기준 부재, Na 계 이종계면 데이터 부재, 하드카본-할라이드 건조계면 증거 부재.
+- **분류를 바로잡는다**: `NaAlCl₄` 를 팔면체 `Na₃MCl₆` 족에서 **분리**(ref 93) · `Na₁.₆₂₅Zn₀.₆₂₅Al₀.₃₇₅Cl₄` 를
+  연속 고용체가 아니라 **2상계**로 정정 · 하드카본을 금속 Na 와 **별도 취급**.
+- **`Na₃YCl₆` 3.75 V 를 상한으로 보지 말라**는 자기절제 (§3.2).
+
+---
+
+## 11. 용어 미니 사전 (이 편에서 쓰이는 말 ↔ 우리 말)
+
+| 이 논문 용어 | 뜻 | 우리 쪽 대응 |
+|---|---|---|
+| **ASSSB** | All-Solid-State Sodium Battery | (우리는 ASSB / ASSLB — Li) |
+| **Functionally partitioned architecture** | 이온수송·산화저항·환원보호·기계수용 **4기능을 서로 다른 상에 공간 배치**한 전해질 구조 | 신규 어휘 — 우리 원고에 도입 가치 있음 |
+| **Na uptake per f.u.** | 전압(=μ_Na)을 낮춰가며 평형을 갱신할 때 화학식 단위당 흡수/방출되는 Na 수 | **우리 ESW staircase 의 `Li uptake`** — 정의 동일 |
+| **Stability window** | grand-potential 로 계산한 전기화학 안정 전압구간 (vs Na⁺/Na) | **우리 ESW** (vs Li⁺/Li) — ⛔ 기준 다름 |
+| **Oxidation limit / anodic limit** | 창의 상한 | 우리 **산화 onset** |
+| **Reduction limit / cathodic limit** | 창의 하한 | 우리 **환원 한계** |
+| **MIEC** (mixed ionic-electronic conductor) | 이온·전자 둘 다 통하는 상 — 계면상이 이러면 **자기제한이 깨진다** | 우리 `sei_products` 의 **`conductor-LEAK`** 등급 |
+| **Kinetic self-passivation** | 산물이 절연이고 얇으면 전자터널링이 두께에 지수감쇠해 반응이 스스로 멎는 것 | 우리 부동태 논의 |
+| **SCL** (space charge layer) | 화학퍼텐셜 차로 계면 근처 캐리어가 재분포해 생기는 고갈층 | 우리 계면 논의(미계산 축) |
+| **BVEL** (bond valence energy landscape) | 결합원자가 합에서 유도한 이온 에너지 지형 — 저에너지 등치면의 **연결성**으로 전도 경로 판정 | **우리 BVSE** (`tools/comp1_v3`, BVSE=(BVS−1)²) — 같은 도구 |
+| **VRH** (Voigt–Reuss–Hill) | C_ij 로부터 다결정 평균 탄성률을 내는 표준 평균법 | **우리 `E_VRH`** — 같은 후처리 |
+| **Pugh ratio B/G** | >1.75 면 소성(연성) 경향 | 우리 기계 축에 미도입 — 도입 후보 |
+| **Paddle-wheel** | 폴리음이온(PS₄·SbS₄·PO₃)의 저진동수 회전이 양이온 도약과 결합 | 우리 `fang2022_…beyond_paddlewheel` digest |
+| **DRT** (distribution of relaxation times) | 임피던스를 이완시간 분포로 분해해 계면/벌크 기여를 분리 | 실험 기법 — 우리 축 아님 |
+| **Diffusion couple** | 두 상을 밀착시켜 열처리 후 조성 프로파일로 상호확산 상도를 얻는 고전 야금 실험 | §4.3 이 제안하는 검증법 |
+| **Topotactic** | 골격을 유지한 채 이온만 드나드는 (비)변환 | 우리 `xiao2020` digest 의 "최선 시나리오" |
+| **Self-pressurization** | 양극의 사이클 부피변화가 무른 전해질을 눌러 접촉을 스스로 개선하는 효과 | 신규 — DEM 축 후보 |
+| **Presodiation** | Na 재고를 미리 넣어 초회 비가역을 보상 | (Li 계 prelithiation 의 Na 판) |
+
+---
+
+## 12. 우리에게 남는 것 — 실행 가능한 3+1
+
+### 12-1. ★★★ **`ref 146` 을 직접 들여와야 한다** (가장 구체적인 후속)
+`Fig. 13e–g` 는 **우리 `Li₆PS₅Cl` 이 O 치환 Zr 할라이드(`Li₄ZrCl₄O₂`)와 만나 `Li₃PO₄`(Li–P–O) + `Li₂S`(Li–S) 계면상을
+만든다**는 실측이다. 이건 **우리 계·우리 산물군**이고, 이 리뷰는 그걸 **재인용으로만** 싣는다.
+⇒ **`H. Zhang et al., *Adv. Funct. Mater.* 2025, e10497 (ref 146)` 를 litdb inbox 에 넣어 별도 digest 를 만들어야 한다.**
+그래야 두께·XPS 성분비·σ 를 **원문 기준으로** 인용할 수 있다.
+그리고 우리 `interface_reactivity` 로 **`Li₆PS₅Cl` + `Li₄ZrCl₄O₂` pseudo-binary 를 지금 바로 계산**할 수 있다 —
+예측 산물이 `Li₃PO₄`·`Li₂S`·`LiCl` 로 나오면 **우리 DFT 가 남의 실험을 맞힌 지점**이 하나 더 생긴다
+(우리 `comparison_vs_ours.md` §G 에 들어갈 자리).
+
+### 12-2. ★★ **리뷰가 "필요하다"고 적은 것을 우리는 이미 갖고 있다**
+§5 전망 (4): *"1차원리 계산 + 고속 열역학 스크리닝 + MD + **머신러닝 힘장** + 실험 확산쌍 데이터를 결합해
+안정 계면상·양립 혼합음이온 조성·저장벽 Na⁺ 경로를 예측하라"*.
+⇒ **우리 스택이 정확히 그 조합이다**: grand-potential ESW(`tools/oxidation`) + `interface_reactivity`(pymatgen)
++ UMA MLIP-MD(`tools/modelc_v3`, `tools/ionic`) + BVSE(`tools/comp1_v3`) + cascade.
+**차이는 무대(Li vs Na)뿐이다.** ⇒ 원고 서론에서 *"이 조합은 Na 계에서 아직 미이행으로 지목돼 있고(Li et al. 2026),
+우리는 Li 계에서 그것을 수행한다"* 는 **포지셔닝 문장**을 쓸 수 있다.
+⚠ 단 **우리가 Na 계로 확장한다는 말은 하지 않는다** — 우리 UMA 검증은 LPSCl 계열에만 서 있다.
+
+### 12-3. ★★ **`Fig. 6a` 의 음이온 동결 대조를 우리 UMA 로 재현** (§4f)
+- **보고량**: `R_freeze ≡ D(600 K, PS₄ 동결) / D(600 K, free)` — **비율**이라 우리 절대값 인용 금지 규율에 안 걸린다.
+- **순서**: ① `kb/templates/estimand_card.md` §1–3 작성 (동결이 이 계에서 잘 정의되는가) → ②
+  `db/governance/decisions.json` 에 proposed 등록 → ③ 검증 게이트를 **결과 보기 전에** 고정 → ④ 기존 도구 확장
+  (새 파일 금지 — `tools/ionic` 에 플래그) → ⑤ MSD 창 **2–50 ps 고정** 유지, 멀티시드.
+- **예상 가치**: 우리 comp1↔modelc 의 D 차이(2.6배)가 **골격 동역학에서 오는지 공공/무질서에서 오는지**를 가른다.
+  이건 지금 우리가 답을 못 하는 질문이다.
+
+### 12-4. ★ **공백이 일치하는 자리 — ASR 예산**
+저자들이 *"Na 계에서 황화물-할라이드 접합의 허용 ASR 을 정의한 실험적·계산적 기준이 **없다**"* 고 적는다.
+**Li 계에도 없다.** 그리고 그 문턱이 **보편적일 수 없다**(면적용량·전류·온도·스택압 의존)는 저자들의 지적은
+우리 **"보고량을 먼저 정의한다"** 규율과 정확히 같은 사고다.
+⇒ 우리가 `Li₆PS₅Cl`\|할라이드 접합의 ASR 을 **조건 명시형 보고량**(`ASR(0.5 mA/cm², 25 °C, 100 MPa)` 같은 형태)으로
+정의하면, **Li 계에서 먼저 그 자리를 채우는** 일이 된다. ⚠ 다만 지금 우리 슬랩 W_ad 축이 2026-08-28 에 보류돼 있으므로,
+**그 축이 풀리기 전에는 제안으로만** 둔다.
+
+### 12-5. 인용 가능 문장 (deck/paper 용 — Na 단서 필수)
+- *"In sodium systems, sulfide and halide solid electrolytes fail on **opposite** sides of the electrochemical
+  window — sulfides oxidize below ~2.5 V because of the high-lying S 3p valence band, halides reduce near the
+  metal anode because of low-lying empty d/s states on high-valent cations — which has motivated
+  **functionally partitioned electrolyte architectures** that assign ion transport, oxidation resistance,
+  reduction protection, and mechanical accommodation to distinct components [Li et al., *Chem. Sci.*, 2026,
+  Accepted Manuscript]."*
+- *"The same authors note that **no sodium-specific experimental or computational benchmark defines the maximum
+  allowable area-specific resistance of a sulfide–halide junction**, and that such a threshold cannot be universal
+  because it depends on areal capacity, current density, temperature, stack pressure and target voltage efficiency."*
+- *"A comparable decoupling is reported in sodium thioantimonates: Br⁻ substitution raises conductivity and lowers
+  the activation energy while leaving the thermodynamic window essentially unchanged (~1.83–1.90 V vs Na⁺/Na)
+  [ref 57 in Li et al. 2026]."*  ← **우리 comp1→modelc 결과와 나란히 쓸 때는 반드시 "sodium" 과 "vs Na⁺/Na" 를 남긴다**
+- ⛔ **쓰면 안 되는 문장**: *"우리 2.256 V 는 Na₃PS₄ 의 2.5 V 와 잘 일치한다"* / *"우리 E_VRH 22 GPa 는 문헌 할라이드
+  15–30 GPa 범위에 든다"* / *"Cl-rich 는 산화한계를 3.8 V 로 올린다"*.
+
+---
+
+<!-- MERGE-BLOCK  ⛔ 공유 파일(litdb/INDEX.md · litdb/comparison_vs_ours.md)은 이 digest 에서 수정하지 않았다.
+     아래 세 블록을 **그대로 복사해** 각 목적지에 붙이면 된다. 열 수는 목적지 표에 맞춰 두었다. -->
+
+## MERGE-BLOCK (공유 파일 미수정 — 아래를 그대로 붙일 것)
+
+### (a) `litdb/INDEX.md` → **`## ⚠ EXTERNAL (argyrodite 아님 · [우리 그룹] 아님 · 물성 4축에 *수치로* 비교 제외)`** 절에 추가 (**3열**)
+
+> 📌 **왜 ✅ Digest 완료 절이 아니라 EXTERNAL 절인가**: 이 절의 정의가 *"argyrodite/배터리 **물성** 논문이 아님 …
+> 전이 가능한 개념/어휘/방법 때문에만 보관 · comparison_vs_ours 물성축에 **수치로 넣지 않음**"* 인데,
+> **Na 계 리뷰가 정확히 그 경우**다. 물성값은 많지만 **전부 Na 값이라 우리 4축에 수치로 못 들어간다.**
+
+```
+| `papers/li2026_na_sulfide_halide_interface_review.md` | **[EXTERNAL · Na 계 · 리뷰]** Lin Li/W.Tian/**Siwu Li\***/M.Deng/Z.Lu/**Chuang Yu\*** (Xidian Univ. + HUST), "Interfacial Chemistry of Sulfide and Halide Solid Electrolytes in All Solid-State Sodium Batteries: From Single Electrolytes to Functionally Partitioned Architectures" — ***Chem. Sci.* 2026, Accepted Manuscript** (온라인 2026-09-08, CC-BY, ⛔ **DOI 미발급**: AM 자리표시자 `10.1039/x0xx00000x`). 본문 36 pp · **refs 147** · Fig 1–13 · Table 1–2 · SI 없음. **자체 계산 0 · 자체 실험 0** (본문 데이터가용성 문구가 명시). 크로핑 15장 중 **7장 실독**(`Fig. 1`·`3`·`4`+4a확대·`6`·`8`·`9`+9c,9d확대·`13`) | **⛔⛔ 나트륨(Na) 계 — 우리 Li 계 `Li₆PS₅Cl` 과 다른 무대.** 전압은 전부 **vs Na⁺/Na** 라 우리 2.256 V 와 **눈금이 다르다**. **수치 전이 전면 금지**(σ·Ea·전압창·탄성·D·산물갭). **전이 가능한 것은 방법·프레임·질문뿐** — ① **기능 분할 4기능 분해**(수송/산화저항/환원보호/기계수용) ② **분해산물 갭 → 자기부동태 vs MIEC 판별 규칙**(`Li₃P` 0.70 ↔ `Na₃P` ≈0.4 eV 대응) ③ **음이온 동결 대조 MD**(`Fig. 6a`, 우리 UMA 로 재현 가능) ④ 음극 중간층 사양 체크리스트(σ_ion>10⁻⁴ · σ_e<10⁻⁸ S/cm) ⑤ BVEL=우리 BVSE · DFT+VRH=우리 E_VRH 용법. ★ **`Fig. 13e–g` 가 우리 `Li₆PS₅Cl`**(할라이드 `Li₄ZrCl₄O₂` 와 접합 → `Li₃PO₄`+`Li₂S` 계면상) — 단 **재인용**이므로 원출처 **ref 146 = H. Zhang et al., *Adv. Funct. Mater.* 2025, e10497** 을 별도 digest 해야 한다. 🔴 **`Fig. 9d` 가 리뷰 자기 주장을 부분 반증**(3족·란타나이드 염화물 환원한계 ≈0.55 V < `Na₃PS₄` 1.15 V) |
+```
+
+### (b) `litdb/comparison_vs_ours.md` → **`### J-7. 🔧 방법 원전 — *물성값이 없어서 표에 못 넣는 편*`** 절에 블록 추가
+
+> 📌 **왜 물성 4축(A–D)이 아니라 J-7 인가 — 두 가지 이유를 합친 것이다.**
+> ① **J-7 의 기존 사유**(*"σ·ESW·탄성·gap 이 0건이라 행을 만들면 전부 `n/a` 로 채워져 표가 무의미해진다"*)는
+>    이 편에 **절반만** 맞는다 — 이 리뷰에는 σ·ESW·탄성이 **많다**. 다만 **전부 재인용이고 전부 Na 값**이다.
+> ② 그래서 진짜 이유는 **§K(수계 Zn) 와 같은 것**이다: *"⛔ 물성 4축과 **수치로** 섞지 않는다."*
+>    A–D 표에 행을 만들면 **Na 숫자가 우리 Li 숫자 옆에 물리적으로 놓이고**, 6개월 뒤 누군가 그 표를 복사할 때
+>    단서가 따라가지 않는다(우리 화면규율: *"근처에 ⛔ 표지를 두는 것은 결속이 아니다"*).
+> ③ **대안 제안**: Na 계 논문이 2편 이상 들어오면 **`## M. 🧂 Na 계 축 — ⛔ 물성 4축과 수치로 섞지 않는다`** 를
+>    §K 와 같은 양식으로 신설하는 것이 맞다. **지금은 1편뿐이라 절을 새로 파면 반쯤 빈 절이 된다** → J-7 블록으로 둔다.
+
+```
+**[Li26NaRev] `li2026_na_sulfide_halide_interface_review` — ⛔⛔ Na 계 리뷰 · 물성 4축 진입 금지 · 방법/프레임만**
+(*Chem. Sci.* 2026 Accepted Manuscript, DOI 미발급 · Xidian+HUST · refs 147 · **자체 계산 0 · 자체 실험 0**)
+
+> ⛔ **이 블록의 값은 전부 나트륨(Na) 값이고 전압은 vs Na⁺/Na 다.** 우리 comp1/modelc 와 **같은 표에 놓지 않는다**.
+> 여기 있는 것은 *"그 양을 어떻게 정의하고 어떻게 재는가"* 뿐이다. 값 대조가 필요하면 **그 자체가 금지 신호다.**
+
+| 항목 | [Li26NaRev] 가 쓰는 정의 | 우리 정의 | 판정 |
+|---|---|---|---|
+| 전압-상평형 staircase | `Na uptake per f.u.` vs `Voltage` + 전압구간별 상평형 (`Fig. 3a`·`8a`; ref 48 Ong / ref 94 Qie) | `get_element_profile` μ_Li 스캔 staircase | 🟢 **같은 양** — 축이 그대로 겹친다. ⛔ 값은 기준전극(vs Na⁺/Na)·hull 세대·제외상 정책이 달라 대조 불가 |
+| 계면 반응에너지 | *"chemical compatibility as a screening criterion"* 로 산화물 버퍼층 선별 (`Fig. 10e`; **ref 48 = Tang/Ong 2018**) | `interface_reactivity` = pymatgen `InterfaceReactions` (Richards 2016 계보) | 🟢 **같은 양의 계보**(Ong 판 vs Ceder 판, 같은 구현). ⛔ **리뷰가 ΔE_D 수치를 하나도 인쇄하지 않는다** — 순서 정보만 |
+| 2변수 화학퍼텐셜 상도 | **(μ_Na, μ_S) 2D 상도** (`Fig. 4a`; ref 73 Jalem) — μ_Na 와 μ_S 를 **둘 다 연다** | μ_Li **1변수**만 스캔(나머지는 hull 이 고정 = 폐쇄계) | 🟡 **우리에게 없는 양.** 틀린 게 아니라 **질문이 다르다** — S 가 교환되는 무대(Li–S 전환형 양극)에선 우리 2.256 V 가 μ_S 고정 하의 값임을 상기시킨다 → **질문으로만 전이** |
+| MD 확산 + **음이온 동결 대조** | `D₈₀₀K` AIMD, **`Unrestricted Cl-motion` vs `Frozen Cl-motion` 두 계열**(`Fig. 6a`; ref 17 Wu/Ong) | UMA MLIP-MD, MSD 창 2–50 ps, 600/800/1000 K 3점 | ⭕ **이식 후보 (T1)** — 동결 대조 설계를 `tools/ionic` 플래그로. 보고량은 **비율** `D(frozen)/D(free)` (절대값 금지 규율 회피). ⛔ D 값 전이는 이온·온도·엔진 **삼중 불일치** |
+| BVEL / BVSE | *"bond valence energy landscape"* 로 **경로 연결성** 판정 (`Fig. 6c`; ref 96) | `tools/comp1_v3` BVSE=(BVS−1)², softBV R₀ S 2.105/Cl 2.249/O 1.466, b=0.37, ~0.25 Å voxel, 채널%=above-min ≤ iso | 🟢 **같은 도구·같은 질문.** ⛔ 리뷰에 R₀·b·voxel·iso 가 없어 **정량 대조 불가** |
+| 탄성 | DFT C_ij → **Voigt–Reuss–Hill** + K-means 군집, Na 이온전도체 ~40종 (`Fig. 8d`; **ref 46 Torii 2026**) | `E_VRH` (DFT elastic C_ij) + `B₀`(EOS BM3) | ⚠⚠ **후처리가 문자 그대로 같고 값 범위도 겹쳐서 제일 위험하다.** `NaTaCl₆` 15.31 · `Na₂ZrCl₆` 21.65 · `NaAlCl₄` 17.68 · `Na₃ErCl₆` 29.57 GPa ↔ 우리 22.06/27.66 GPa. **Na 염화물 vs Li 황화물이다.** 🟢 쓸 수 있는 최대치 = *"황화물·할라이드는 산화물(100–150 GPa)보다 한 자릿수 무르다"* 는 **정성 계열** |
+| 산물 갭 → 부동태 판별 | `NaF` ≈11 eV = 자기부동태 / `Na₃P` ≈0.4 · `Na₃Sb` ≈0.68 eV = **MIEC 부식** | `sei_products` 갭: `LiCl` 6.65 ≫ `Li₂S` 3.90 · `Li₃P` = **`conductor-LEAK`, 0.70 eV** | 🟢 **규칙 전이 가능** (터널링 지수감쇠는 원소 무관). ★ **`Li₃P` 0.70 ↔ `Na₃P` ≈0.4 eV 가 같은 역할** = 이 편에서 가장 직접적인 대응. ⛔ 값은 각자 계산본 사용 |
+| 계산 파라미터 | ⛔ **전편 0건** — functional·cut-off·k-mesh·supercell·무질서 처리·DFT+U 하나도 없다 | (우리는 전부 기록) | 🔴 **인용한 DFT 값의 비교가능성을 독자가 판정할 수 없다.** 이 리뷰를 통해 값을 인용하지 말고 **원출처로 내려가야 한다** |
+| ASR 기준 | ⛔ **저자들이 "존재하지 않는다"고 명시** + *"보편적일 수 없다(면적용량·전류·온도·스택압·전압효율 의존)"* | 우리도 없다 (슬랩 W_ad 축은 2026-08-28 보류) | 🟢 **공백이 일치한다.** 저자들의 "보편적일 수 없다" 논거는 우리 **보고량 카드** 규율과 같은 사고 → `estimand_card.md` 작성 시 인용 가능 |
+
+**🔴 이 편에서 발견한 것 중 우리 축 E(환원/음극)에 직접 걸리는 것**
+`Fig. 9d`(ref 116, `Na₃MCl₆` 26종) 를 **직접 읽으면** 리뷰 본문의 *"할라이드는 음극에 더 나쁘다"* 가 **양이온 족에 따라 뒤집힌다** —
+3족(`Sc`·`Lu`·`Y`) **0.55–0.75 V** · 란타나이드 6종 **0.50–0.55 V** 는 `Na₃PS₄` **1.15 V** 보다 **낮다**(= 더 버틴다).
+3d TM(`Cr`·`V`) 2.10 V, 13/15족(`Al`·`In`·`Bi`) 1.50–2.25 V 만 더 높다. 리뷰는 이 족 간 분화를 **한 줄도 언급하지 않는다**.
+⇒ 우리 §E 의 *"Cl-rich 유불리 문헌 충돌"* 은 **"열역학 onset" 과 "산물의 전자전도성" 이라는 서로 다른 축을 섞어서** 생긴다.
+**환원 논의에도 축 명명이 필요하다** (산화 4축 규율의 환원판). ⛔ 단 위 V 값은 **figure-read · Na · vs Na⁺/Na** 라 인용 금지.
+
+**⛔ 이 블록에서 인용하면 안 되는 것**: 모든 σ·Ea·전압창·탄성 GPa·D·산물갭·셀 성능값 · **특히**
+*"우리 2.256 V ↔ `Na₃PS₄` 2.5 V"*, *"우리 1.242 V ↔ `Na₃PS₄` 1.2–1.5 V"*(우연 일치 — **부인을 선언**한다),
+*"우리 E_VRH 22/27.7 GPa ↔ 할라이드 15–30 GPa"*, *"Cl-rich 가 산화한계를 3.8 V 로 올린다"*
+(⛔⛔ 리뷰의 Cl 은 **골격**, 우리 Cl 은 **S 골격에 부분치환** — 끌어오면 우리 S²⁻-limited 판정을 스스로 부정한다).
+```
+
+### (c) `litdb/comparison_vs_ours.md` → **`## 📑 Reference key (출처 약칭)`** 표에 추가 (**4열**)
+
+```
+| **[Li26NaRev]** ⛔⛔ **Na 계 — 물성 4축 진입 금지** · ⭐ *"functionally partitioned architecture"* 어휘의 출처 · ★ `Fig. 13e–g` 에 **우리 `Li₆PS₅Cl`** 이 나온다(단 재인용) | **Lin Li**^{a,b}/Wenqian Tian^b/**Siwu Li\***^a/Miao Deng^b/Ziyu Lu^b/**Chuang Yu\***^{a,b} (^a 西安电子科技大 **Xidian University** 信息机电工程学院 · ^b 华中科技大 **HUST** 化学与化工学院) 2026 ***Chem. Sci.* Accepted Manuscript** (온라인 2026-09-08 · CC-BY 4.0 · ⛔ **DOI 미발급** — AM 자리표시자 `10.1039/x0xx00000x` · 본문 36 pp · **refs 147** · Fig 1–13 · Table 1–2 · **SI 없음**) — "**Interfacial Chemistry of Sulfide and Halide Solid Electrolytes in All Solid-State Sodium Batteries: From Single Electrolytes to Functionally Partitioned Architectures**". **⛔ 무대가 나트륨이다** — 전압은 전부 **vs Na⁺/Na**, 캐리어는 Na⁺(1.02 Å vs Li⁺ 0.76 Å). **자체 계산 0·자체 실험 0**(데이터가용성 문구 명시) ⇒ 모든 수치가 **재인용**. **핵심 명제**: 단일 무기 골격이 *"산화저항용 깊은 VBM 과 환원저항용 높은 CBM"* 을 동시에 못 가지므로 → **기능을 공간에 분할**(수송·산화저항·환원보호·**기계수용** 4기능). 근거 3편 = **ref 53 Goodwin 2024 ACS AMI**(같은 양극에 황화물 7–15 mAh/g vs 할라이드 이론용량 근접) · **ref 17 Wu 2021 *Nat. Commun.* 12, 1256**(NYZC0.75 1000+ 사이클) · **ref 51 Deysher 2022 ACS AMI**(염화물 계면상 ≈90 μm vs `Na₃PS₄` ≈10 μm). ★ **`Table 2` 19행 전부가 이미 분할구조**(음극쪽 황화물/NASICON 중간층 + 합금음극, 순수 Na 직접접촉 0건) ⇒ 리뷰의 기여는 발명이 아니라 **명명·원리화**. 🟢 **전이 가능**: 4기능 분해 · **산물 갭→자기부동태 vs MIEC 규칙**(`NaF` 11 / `Na₃P` 0.4 / `Na₃Sb` 0.68 eV ↔ 우리 `LiCl` 6.65 / `Li₂S` 3.90 / `Li₃P` 0.70 `conductor-LEAK`) · **음이온 동결 대조 MD**(`Fig. 6a`) · 중간층 사양(σ_ion>10⁻⁴ · σ_e<10⁻⁸ S/cm) · BVEL=우리 BVSE · DFT+VRH=우리 E_VRH · *"접합은 경계가 아니라 계면상 영역"*. 🔴 **전이 금지**: 모든 σ·Ea·전압창·탄성 GPa·D·산물갭·셀성능 — **특히 `Na₃PS₄` 1.2–2.5 V 를 우리 2.256/1.242 V 옆에**(우연 일치는 면제가 아니라 **부인 선언** 대상)와 **할라이드 15.31–29.57 GPa 를 우리 22.06/27.66 GPa 옆에**(⚠ 후처리가 VRH 로 같아서 제일 위험). ⛔⛔ *"Cl-rich 가 산화한계를 3.8 V 로 올린다"* **절대 금지** — 리뷰의 Cl 은 **골격**, 우리 Cl 은 **S 골격 부분치환**(우리 VBM 은 Cl 증가에도 S 3p, onset 2.256 V 불변). 🔴 **자기 그림이 본문을 부분 반증**: `Fig. 9d` 에서 3족·란타나이드 염화물 환원한계 **≈0.50–0.75 V < `Na₃PS₄` 1.15 V** 인데 리뷰는 족 간 분화를 언급하지 않는다(§10-6). ⚠ **본문↔그림 불일치 4건**(§10): `Y`↔`Yb` 혼동 · `Fig. 4a` 캡션이 2D 화학퍼텐셜 상도를 "stability window" 로 호명 · α-`Na₃PS₄` "impedance 10⁻⁶ Ω cm⁻¹" 단위오류 · ref 53 양극조성 2가지. ★ **후속 필수**: `Fig. 13e–g` 의 원출처 **ref 146 = H. Zhang et al., *Adv. Funct. Mater.* 2025, e10497**(`Li₄ZrCl₄O₂`\|`Li₆PS₅Cl` → `Li₃PO₄`+`Li₂S` 계면상) 을 **별도 digest** 해야 정량 인용 가능 | ✅ `papers/li2026_na_sulfide_halide_interface_review.md` (2026-09-13, 크로핑 **15장 중 7장 실독** — `Fig. 1`·`3`·`4`(+4a 1100 dpi 재렌더)·`6`·`8`·`9`(+9c·9d 재렌더)·`13`; ⛔ 안 본 것 `Fig. 2`·`5`·`7`·`10`·`11`·`12` · `Table 1`·`2` 는 **PDF 좌표 판독으로 전 셀 복원**) | **[외부]** 리뷰 · **Na 계** · 자체 계산 0 · 자체 실험 0 · **⛔ 물성 4축 수치 비교 제외** |
+```
