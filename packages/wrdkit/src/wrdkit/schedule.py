@@ -150,11 +150,28 @@ class Schedule:
 
     @property
     def lower_cutoff_v(self) -> float | None:
-        """Lowest discharge termination voltage in the schedule."""
+        """Lowest discharge termination voltage in the schedule.
+
+        **A CCCV discharge holds at its floor voltage and terminates on the
+        current taper.**  Its floor is `voltage_limit_v`, not a voltage
+        cut-off, so reading only ``cutoffs`` reported "no lower cut-off" for
+        the whole schedule -- and `_ends_mid_step` treats a missing cut-off as
+        "cannot have finished normally", which made every such file read as
+        cut off mid-step.  Measured on a real 2.17 file
+        (`260912_#1 current interruption ..._048.wrd`): the discharge ended at
+        2.70030 V with -0.34995 A against a declared 350 mA taper -- finished
+        exactly as scheduled -- and the screen reported cycle 0/1 with every
+        number blank.
+
+        `upper_cutoff_v` already counts `voltage_limit_v`; this is the mirror
+        of it, scoped to the steps that actually discharge.
+        """
         candidates: list[float] = []
         for step in self.steps:
             if step.direction != "discharge":
                 continue
+            if step.voltage_limit_v:
+                candidates.append(step.voltage_limit_v)
             candidates += [c.value for c in step.cutoffs if c.kind == "voltage"]
         return min(candidates) if candidates else None
 

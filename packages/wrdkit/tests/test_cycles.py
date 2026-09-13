@@ -321,3 +321,25 @@ def test_a_step_that_continues_the_one_before_it_still_takes_the_difference():
     assert cc.capacity_mah == pytest.approx(3.0)
     # 4.0 - 3.0.  여기서 4.0 을 통째로 담으면 사이클 용량이 두 배 가까이 된다.
     assert cv.capacity_mah == pytest.approx(1.0)
+
+
+def test_a_discharge_that_reached_its_taper_is_not_called_cut_off():
+    """실측 2.17 파일이 여기서 걸렸다.
+
+    마지막 행은 2.70030 V · -0.34995 A 였고 스케줄의 taper 는 350 mA 다 —
+    선언한 대로 끝난 것이다.  그런데 그 방전 스텝에는 전압 **컷오프**가 없고
+    바닥 전압(`voltage_limit_v`)만 있어서 `lower_cutoff_v` 가 None 이었고,
+    `_ends_mid_step` 이 "하한이 없으니 정상 종료였을 리 없다" 로 읽었다.
+    21,235행 전체가 잘린 것으로 판정돼 화면에 사이클 0/1 이 떴다.
+    """
+    schedule = (
+        synthetic.SchedStep("chg", control=0, value=1.75, cutoff1=(1, 0, 4.25, 0.0)),
+        synthetic.SchedStep("dch", control=13, value=-3.5, value2=2.7, value3=0.35,
+                            cutoff1=(15, 1, 0.35, 0.0)),
+    )
+    wrd = read_wrd_bytes(synthetic.build_wrd(
+        synthetic.make_cycles(2, 20), schedule=schedule))
+    assert wrd.metadata.schedule.lower_cutoff_v == 2.7
+    cycles = summarize_cycles(wrd)
+    assert cycles[0].complete is True
+    assert cycles[0].incomplete_reason == ""

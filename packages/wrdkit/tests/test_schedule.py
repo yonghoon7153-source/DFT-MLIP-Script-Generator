@@ -3,6 +3,7 @@
 import pytest
 
 from wrdkit import Schedule, ScheduleStep
+from wrdkit.schedule import Cutoff
 
 
 def _schedule(formation_a: float | None, cycling_a: float,
@@ -165,3 +166,46 @@ def test_a_schedule_with_no_loop_cannot_say():
 
 def test_an_empty_schedule_cannot_say():
     assert Schedule(version="1.0", source_path=None, steps=[]).formation == "unclear"
+
+
+# --- CCCV 방전의 바닥 전압 ------------------------------------------------------
+#
+# 실측 2.17 파일(`260912_#1 current interruption ..._048.wrd`)의 방전 스텝은
+# `CCCV -3500 mA -> 2.7 V taper 350 mA [current <= 0.35 A]` 다.  2.7 V 는
+# **정전압 유지 전압**(`voltage_limit_v`)이지 전압 컷오프가 아니라서,
+# `lower_cutoff_v` 가 `cutoffs` 만 훑던 동안 스케줄 전체에 하한이 없다고 나왔다.
+#
+# 그 None 이 두 곳으로 샜다: 화면의 `컷오프 null–4.25 V`, 그리고 `_ends_mid_step`
+# 이 "하한이 없으니 정상 종료였을 리 없다" 로 읽어 **파일 전체를 잘린 것으로**
+# 판정한 것.  21,235행짜리 멀쩡한 파일이 사이클 0/1 로 떴다.
+
+
+def test_a_cccv_discharge_floor_counts_as_the_lower_cutoff():
+    schedule = Schedule(version=None, source_path=None, steps=[
+        ScheduleStep(index=0, name="chg", control="CC", control_raw=0, current_a=1.75,
+                     cutoffs=[Cutoff("voltage", ">=", 4.25, 0.0)]),
+        ScheduleStep(index=1, name="dch", control="CCCV", control_raw=13,
+                     current_a=-3.5, voltage_limit_v=2.7, taper_current_a=0.35,
+                     cutoffs=[Cutoff("current", "<=", 0.35, 0.0)]),
+    ])
+    assert schedule.lower_cutoff_v == 2.7
+    assert schedule.upper_cutoff_v == 4.25
+
+
+def test_the_floor_only_counts_from_a_step_that_discharges():
+    """충전 쪽 CV 유지 전압을 하한으로 세면 안 된다.
+
+    multi-step CCCV 충전은 3.5 · 3.75 · 4.0 · 4.25 V 를 차례로 유지한다.  그
+    3.5 를 하한으로 읽으면 "3.5 V 까지 방전한다" 는 없는 계획이 생긴다.
+    """
+    schedule = Schedule(version=None, source_path=None, steps=[
+        ScheduleStep(index=0, name="cc", control="CC", control_raw=0, current_a=1.75,
+                     cutoffs=[Cutoff("voltage", ">=", 3.5, 0.0)]),
+        ScheduleStep(index=1, name="cv", control="CV", control_raw=1,
+                     voltage_limit_v=3.5),
+        ScheduleStep(index=2, name="cc2", control="CC", control_raw=0, current_a=1.75,
+                     cutoffs=[Cutoff("voltage", ">=", 4.25, 0.0)]),
+        ScheduleStep(index=3, name="cv2", control="CV", control_raw=1,
+                     voltage_limit_v=4.25),
+    ])
+    assert schedule.lower_cutoff_v is None

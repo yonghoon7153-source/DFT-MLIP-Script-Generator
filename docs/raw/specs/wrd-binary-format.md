@@ -173,10 +173,17 @@ Smart Interface (Zive WBCS3000) 가 저장하는 충방전 원본 파일의 구�
 - `CYCLE INDEX` — 0부터. 검증 파일에서 사이클 0 은 formation(스텝 0–4),
   1 이후가 루프(스텝 5–8)였다.
 
-## Smart Interface 2.13 — 두 번째 모양 (`DataHeaderBase`)
+## Smart Interface 2.13 이후 — 두 번째 모양 (`DataHeaderBase`)
 
 2.13 부터 파일 앞이 달라진다. 스트림이 둘이 아니라 **하나**이고, 그 하나가
 옛 헤더를 압축해 들고 있다 (ADR 0016).
+
+> **2.17 도 같은 모양이다.** 잠금은 앱 버전이 아니라 봉투의 `Version` 에
+> 걸려 있고 (`_SIF_213_VERSIONS = ("1.6.0.0",)`), 2.17 파일도 거기에 `1.6.0.0`
+> 을 적는다. 실측 `260912_#1 current interruption ..._048.wrd`
+> (app 2.1.7.2, 21,235행) — 봉투도 행 블록도 2.13 과 같고 `trailing_bytes` 는
+> 0 이다. 앱 버전이 오른다고 이 절을 고칠 일은 없다. 봉투 `Version` 이
+> 달라지는 날에만 고친다.
 
 ```
 [스트림 1]  WbcsFile.Data.DataHeaderBase
