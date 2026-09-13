@@ -36,7 +36,7 @@ jobs:
         #    러너에서 5개가 전부 import 에서 죽는다 — 배선해 놓고 안 도는 상태였다
         #    (Codex R19 Q6 P2).  이제 `check_selftest_inventory` 가 의존 폐포를
         #    계산해 이 줄과 대조하므로, 빠지면 검사가 잡는다.
-        run: python -m pip install --quiet numpy scipy matplotlib flask requests networkx
+        run: python -m pip install --quiet numpy scipy matplotlib flask requests networkx adjustText
 
       - name: 실행 계약 단일 출처 (selftest)
         run: python scripts/run_contract.py --selftest
@@ -70,6 +70,12 @@ jobs:
 
       - name: STEP3 솔버 규약 (selftest)
         run: python scripts/step3_sigma.py --selftest
+
+      - name: 설명 ↔ 상수 정합 (L3-11 — 어느 수식을 계산했다고 보고하는가)
+        run: python scripts/generate_comparison_plots.py --selftest-descriptions
+
+      - name: σ_grain(T) 흡수 규약 (selftest — 어느 레인에도 없었다)
+        run: python scripts/generate_comparison_plots.py --selftest-temp
 
       - name: 팔 payload 축소본 계약 (selftest)
         run: python scripts/reduce_arm_payloads.py --selftest

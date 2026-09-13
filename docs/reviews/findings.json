@@ -2521,12 +2521,12 @@
   {
    "id": "L3-11",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
    "title": "**설명 세대가 셋**이다 — 그림·CSV·report 를 전사하면 다른 모델을 보고하게 된다",
-   "note": "(Codex 라벨: **P2-L3-11**)\n★ **이 리포에서 확인**:\n· 전자 plot 제목 `G:2855`/`:2858` 에 **드롭된 네 항**(`beta_AC` · `beta_v` · `beta_fpth`)이 살아 있다 ⇒ 계산은 **8 LIVE** 인데 제목을 옮기면 **12항 모델**이 된다.\n· CSV 예측 열 `G:2877` 은 **`Stage_15_form`** 인데 값은 현행 **22.5** 예측이다.\n· 열: 실제 `_THERMAL_T1_FEATURES` = **14**, `_thermal_fit` 기본 alpha = **0.05** (호출 3곳 전부 기본값) 인데 설명은 `G:6703` 주석 **18 features** · `G:6911` registry **16 특징 / alpha 0.1** · `G:7039` 제목 **alpha 0.1** · `G:6694` 주석 **alpha 0.1** 이다.\n★★ **세 번째 세대(18)는 판정문도 안 짚었다** — Codex 는 16 까지만 봤다.\n· `generate_fitting_report.py:370` 이후는 Stage22/12 LIVE 로 설명하면서 앞에서 현행 fit 을 부른다.\n처방: **설명을 상수·활성열에서 생성**하게 만든다.  ⚠ 이것은 계수/지수 선택 변경이 아니다.\n⚠ 전자 bootstrap 의 12-LIVE residual / 8-LIVE resample 혼합(`G:2548`·`G:2565`)은 Codex 가 **정적으로만 보고 실행 재현을 안 해** finding 수에 넣지 않았다 — 점예측 CONFIRMED 를 **PI 보증으로 넓히지 말 것**.",
+   "note": "(Codex 라벨: **P2-L3-11**)\n★ **이 리포에서 확인**:\n· 전자 plot 제목 `G:2855`/`:2858` 에 **드롭된 네 항**(`beta_AC` · `beta_v` · `beta_fpth`)이 살아 있다 ⇒ 계산은 **8 LIVE** 인데 제목을 옮기면 **12항 모델**이 된다.\n· CSV 예측 열 `G:2877` 은 **`Stage_15_form`** 인데 값은 현행 **22.5** 예측이다.\n· 열: 실제 `_THERMAL_T1_FEATURES` = **14**, `_thermal_fit` 기본 alpha = **0.05** (호출 3곳 전부 기본값) 인데 설명은 `G:6703` 주석 **18 features** · `G:6911` registry **16 특징 / alpha 0.1** · `G:7039` 제목 **alpha 0.1** · `G:6694` 주석 **alpha 0.1** 이다.\n★★ **세 번째 세대(18)는 판정문도 안 짚었다** — Codex 는 16 까지만 봤다.\n· `generate_fitting_report.py:370` 이후는 Stage22/12 LIVE 로 설명하면서 앞에서 현행 fit 을 부른다.\n처방: **설명을 상수·활성열에서 생성**하게 만든다.  ⚠ 이것은 계수/지수 선택 변경이 아니다.\n⚠ 전자 bootstrap 의 12-LIVE residual / 8-LIVE resample 혼합(`G:2548`·`G:2565`)은 Codex 가 **정적으로만 보고 실행 재현을 안 해** finding 수에 넣지 않았다 — 점예측 CONFIRMED 를 **PI 보증으로 넓히지 말 것**.\n\n★★ **처치 2026-09-13 (A 무더기)**: 설명을 **상수에서 생성**하게 바꿨다.\n· 열 registry `desc` 를 `len(_THERMAL_T1_FEATURES)`·`_THERMAL_RIDGE_ALPHA` 로 f-string 생성\n· `_THERMAL_RIDGE_ALPHA = 0.05` 를 모듈 상수로 올리고 `_thermal_fit(alpha=None)` 이 그것을 읽는다\n· decomposition 제목의 alpha 도 같은 상수에서\n· `G:6694`(18 features)·`G:6703`(18) 주석에 정정 배너\n· 전자 제목에서 드롭된 `beta_AC`·`beta_v`·`beta_fpth` 제거 + **`r_SE^beta_rSE` 도 제거**\n  (그 줄은 판정문도 안 짚었다 — `beta_logrSE` 는 22.5 의 드롭 항이다)\n· 전자 CSV 열 이름을 `_STAGE_FORM_VERSION` 에서 생성 (`Stage_15_form` 고정 해제)\n★★ **새로 찾은 것**: `bAC = float(coef[7])` 인데 **col 7 은 `_STAGE_22_5_DROP_COLS`** 라 beta_AC 는 **구조적으로 항상 0** 인데 그림·stdout 이 **적합 결과처럼** 찍고 있었다.  드롭 열이면 출력하지 않도록 고쳤다.  판정문도 못 짚은 자리다.\n회귀: `generate_comparison_plots.py --selftest-descriptions` (12 검사, 판별력 대조 포함) + check_all·CI 양 레인 + 등재.  ⚠ 부수로 `--selftest-temp` 가 **어느 레인에도 없던 것**을 발견해 함께 배선했다 (등재부가 존재하는 이유 그대로).",
    "evidence_tests": [
     "scripts/generate_comparison_plots.py",
     "scripts/generate_fitting_report.py"

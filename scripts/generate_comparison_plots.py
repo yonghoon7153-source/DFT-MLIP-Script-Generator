@@ -2677,7 +2677,9 @@ def _electronic_global_fit():
     print(f"  [electronic_global_fit] n_corpus={len(data_list)} "
           f"(skipped {nameless_skipped} nameless), n_fit={fit['n_fit']} "
           f"(excl={int(arr['excluded'].sum())}), "
-          f"σ_S={sS:.2f}, σ_P={sP:.2f}, β_AC={bAC:+.3f}, "
+          f"σ_S={sS:.2f}, σ_P={sP:.2f}, "
+          + ('' if 7 in _STAGE_22_5_DROP_COLS else f"β_AC={bAC:+.3f}, ")
+          + 
           f"R²={fit['r2']:.3f}, LOOCV={fit['loocv']:.3f}")
     return _ELECTRONIC_GLOBAL_FIT_CACHE
 
@@ -2720,8 +2722,12 @@ def plot_electronic_sigma(data_list, names, outdir):
         if global_fit is not None:
             coef, sS, sP, bAC, n_fit = global_fit
             lock_tag = " LOCKED" if _LOCK_ENDPOINTS else " live-fit"
+            #  ★ L3-11 확장: β_AC 는 col 7 = **22.5 의 드롭 열**이라 구조적으로 항상 0 이다.
+            #    적합 결과처럼 찍으면 "12항 모델" 을 광고하는 것과 같은 부류가 된다.
+            _ac = ('' if 7 in _STAGE_22_5_DROP_COLS
+                   else f" β_AC={bAC:+.2f}")
             fit_summary = (f"  [global fit n={n_fit}: σ_S={sS:.2f}{lock_tag} "
-                           f"σ_P={sP:.2f}{lock_tag} β_AC={bAC:+.2f}]")
+                           f"σ_P={sP:.2f}{lock_tag}{_ac}]")
             arr_disp = _electronic_form_arrays(data_list, list(names))
             if arr_disp is not None:
                 pred_disp = np.exp(arr_disp['X'] @ coef + arr_disp['log_offset'])
@@ -2851,12 +2857,12 @@ def plot_electronic_sigma(data_list, names, outdir):
     title = (f"σ_electronic — Stage E target vs {stage_n}" + fit_summary + "\n"
              "σ_e = (σ_S·NCM_S)^(1-p)·(σ_P·NCM_P)^p  ←AM material (corpus-fit endpoints + GB NCM(r))   "
              "× φ_AM⁴·√A_AM-AM  ←Bruggeman×Holm   "
-             "× (T/d)^β_T·r_SE^β_rSE  ←geometry\n"
-             "       × exp[β_AC·φ·logCN + β_v·v_AM]  ←network   "
-             "× exp[β_bi·p(1-p)·logφ]  ←composition coupling   "
+             "× (T/d)^β_T  ←geometry\n"
+             "       × exp[β_bi·p(1-p)·logφ]  ←composition coupling   "
              "× exp[β_Fe·log f_intact]  ←fracture (Holm partial)\n"
-             "       × exp[g_thin·(β_φth·logφ + β_covth·log cov_AM,P + β_fpth·log f_p)]  ←thin film   "
-             "× C(τ) = exp[p_τ + q_τ·lnτ + r_τ·ln²τ]  ←tortuosity")
+             "       × exp[g_thin·(β_φth·logφ + β_covth·log cov_AM,P)]  ←thin film   "
+             "× C(τ) = exp[p_τ + q_τ·lnτ + r_τ·ln²τ]  ←tortuosity   "
+             "[8 LIVE + 2 LOCKED; β_v·β_AC·β_fpth·β_rSE dropped at 22.5]")
     if not form_ok:
         title = ("Electronic Conductivity — Stage E (GB-corrected, AM-AM Network)\n"
                  "σ_AM_ref = 50 mS/cm  [form overlay unavailable — corpus too small or fit failed]")
@@ -2874,7 +2880,8 @@ def plot_electronic_sigma(data_list, names, outdir):
                 bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffeaea', alpha=0.8))
 
     _write_csv(outdir, 'electronic_sigma.csv',
-               ['σ_e_Stage_E(mS/cm)', 'σ_e_Stage_15_form(mS/cm)'],
+               ['σ_e_Stage_E(mS/cm)',
+                f'σ_e_Stage_{_STAGE_FORM_VERSION:g}_form(mS/cm)'],
                names, sigma_el, form_pred)
     return _save(fig, outdir, "electronic_sigma.png")
 
@@ -6691,7 +6698,10 @@ PLOT_REGISTRY["electronic_decomp_final"] = {
 # ════════════════════════════════════════════════════════════════════════
 # Discovery (scripts/thermal_with_excl.py): on n=82 corpus (after applying
 # σ_e _EXCLUDED_NAMES_EL to thermal), Physics Stage E target with greedy
-# forward selection on Ridge α=0.1 reaches LOOCV 0.9028 with 18 features.
+# forward selection reached LOOCV 0.9028 at that time.
+#  ⛔ 정정 2026-09-13 (L3-11): 그 탐색은 Ridge α=0.1·18 features 였으나 **생산은
+#     α=0.05 · _THERMAL_T1_FEATURES 14개**다 (Stage T1 refinement 16→14).  옛 수치를
+#     현행 식의 성능으로 전사하지 말 것.
 #
 # Key design choices:
 #   - Target: thermal_sigma_full_mScm_stage_e_physics  (NOT Hertz Stage E;
@@ -6700,7 +6710,7 @@ PLOT_REGISTRY["electronic_decomp_final"] = {
 #   - EXCL: shares σ_e's _EXCLUDED_NAMES_EL (same broken cases poison both)
 #   - Sanity filter: 0.05 ≤ κ ≤ 50 mScm (removes solver pathology like
 #     input_1mAh_100_7 κ=153,986)
-#   - 18 features (Ridge regularized) — see _THERMAL_T1_FEATURES below
+#   - Ridge regularized — 실제 개수는 `len(_THERMAL_T1_FEATURES)` (현행 14)
 #
 # Unlike σ_ionic T1 (5 OLS) or σ_e Stage 22.5 (8 LIVE OLS) which fit a
 # physics-anchored functional form, σ_thermal form is empirical Ridge
@@ -6726,6 +6736,8 @@ _THERMAL_TARGET_KEYS = (
 # Forward selection showed LOOCV PEAKS at 14 features (0.869 finalized /
 # 0.849 full corpus) then DROPS when those 2 are added back (0.825/0.844).
 # 14-feature form: better LOOCV + n/k 5.4→6.0.  Dropping further (12) loses.
+#: ★ L3-11 — 생산 Ridge α.  설명 문자열도 **이 상수에서** 생성한다.
+_THERMAL_RIDGE_ALPHA = 0.05
 _THERMAL_T1_FEATURES = [
     # name in full_metrics.json, log-transform?
     ('porosity',                                          False),
@@ -6820,7 +6832,10 @@ def _thermal_form_arrays(data_list, names):
     }
 
 
-def _thermal_fit(arr, fit_mask=None, alpha=0.05):
+def _thermal_fit(arr, fit_mask=None, alpha=None):
+    #  ★ L3-11: 기본값을 모듈 상수에서 읽는다 (설명 문자열도 같은 상수를 쓴다).
+    if alpha is None:
+        alpha = _THERMAL_RIDGE_ALPHA
     """Ridge regression fit for σ_thermal Stage T1.
     Returns dict with coef, pred_log, r2, loocv, n_fit."""
     X = arr['X']; y = arr['logsig']; n = arr['n']
@@ -6908,8 +6923,12 @@ PLOT_REGISTRY["thermal_fit_final"] = {
     "func": plot_thermal_fit_final,
     "file": "thermal_fit_final.png",
     "title": "σ_thermal → Stage T1 (Ridge, Physics target) parity",
-    "desc": "σ_thermal Stage T1 production form: 16 structural features, Ridge α=0.1, "
-            "target = thermal_sigma_full_mScm_stage_e_physics, LOOCV 0.903 on n=82.",
+    #  ★ L3-11: 설명을 **상수에서 생성**한다 — 손으로 적으면 세대가 갈린다
+    #    (옛 표기 "16 features, α=0.1" 은 refinement 이전 값이었다).
+    "desc": (f"σ_thermal Stage T1 production form: {len(_THERMAL_T1_FEATURES)} structural "
+             f"features, Ridge α={_THERMAL_RIDGE_ALPHA:g}, "
+             "target = thermal_sigma_full_mScm_stage_e_physics; "
+             "LOOCV 0.903 was measured on the n=82 FINALIZED cohort (see docs)."),
     "origin_tip": "log-log parity, ±20% green band, AUDIT EXCL (σ_e EXCL 공유) X-marked.",
 }
 
@@ -7036,7 +7055,8 @@ def plot_thermal_decomp_final(data_list, names, outdir):
     ax1.set_ylabel('Δlog κ from ref')
     ax1.set_title(
         f"σ_thermal Stage T1 factor decomposition (ref: {arr['names'][ref_idx][:24]})  "
-        f"[Ridge α=0.1, top 10/{len(_THERMAL_T1_FEATURES)} features by |Δ|]",
+        f"[Ridge α={_THERMAL_RIDGE_ALPHA:g}, "
+        f"top 10/{len(_THERMAL_T1_FEATURES)} features by |Δ|]",
         fontsize=9)
     ax1.legend(fontsize=7, loc='upper left', ncol=5)
 
@@ -7519,7 +7539,89 @@ def _selftest_temp():
     return 0 if ok else 1
 
 
+def _selftest_descriptions():
+    """★ L3-11 — **설명 문자열이 실제 상수와 어긋나면 거부한다.**
+
+    판정문(L3): *"이는 문법 취향이 아니라 **어느 수식을 계산했다고 보고하는가**의 결함이다."*
+    실측으로 세 세대가 공존했다 — 열 특징 `18`(주석) · `16`(registry) · **14**(실제),
+    Ridge `α=0.1`(제목·registry) vs **0.05**(실제), 전자 제목에 드롭된 4항이 남고
+    CSV 열 이름은 `Stage_15_form` 인데 값은 22.5 예측.
+
+    ⚠ 이것은 **문자열 blocklist 가 아니다** (`SELF-02~05`: 후보를 고르는 코드가 사각지대다).
+    registry 를 **실제로 읽어** 활성 상수와 대조한다.
+    """
+    ok = True
+
+    def chk(name, cond, extra=''):
+        nonlocal ok
+        print(('  ✓ ' if cond else '  ✗ ') + name + (f'   {extra}' if extra else ''))
+        ok = ok and bool(cond)
+
+    print('설명 ↔ 상수 정합 (L3-11)')
+
+    # ① 열 registry 의 desc 가 **활성 상수에서 생성**되는가
+    nfeat, alpha = len(_THERMAL_T1_FEATURES), _THERMAL_RIDGE_ALPHA
+    for key in ('thermal_fit_final', 'thermal_outliers_final', 'thermal_decomp_final'):
+        e = PLOT_REGISTRY.get(key)
+        if e is None:
+            continue
+        d = str(e.get('desc', '')) + str(e.get('title', ''))
+        bad = [tok for tok in (f'{nfeat + 2} structural', f'{nfeat + 4} features',
+                               'α=0.1', 'alpha=0.1') if tok in d]
+        chk(f'① {key}: 낡은 세대 표기 없음', not bad, f'발견 {bad}' if bad else '')
+    e = PLOT_REGISTRY.get('thermal_fit_final', {})
+    chk('① thermal desc 가 실제 특징 수를 담는다',
+        f'{nfeat} structural' in str(e.get('desc', '')), f'실제 {nfeat}')
+    chk('① thermal desc 가 실제 α 를 담는다',
+        f'α={alpha:g}' in str(e.get('desc', '')), f'실제 {alpha:g}')
+
+    # ② `_thermal_fit` 의 기본 α 가 그 상수와 **같은 객체**에서 온다
+    import inspect
+    import re
+    sig = inspect.signature(_thermal_fit)
+    chk('② _thermal_fit 의 alpha 기본값이 하드코딩이 아니다',
+        sig.parameters['alpha'].default is None)
+
+    # ③ 전자 제목이 **드롭된 항**을 광고하지 않는다
+    src = inspect.getsource(plot_electronic_sigma)
+    #  ⚠ 검사 범위는 **제목 f-string 블록**이다.  조건부 출력(`β_AC` 를 드롭이 아닐 때만
+    #    찍는 분기)까지 잡으면 정정이 스스로 검사를 깨뜨린다 — 그것은 광고가 아니다.
+    m_t = re.search(r'\n    title = \(.*?\n(?=    if |    ax)', src, re.S)
+    title_src = m_t.group(0) if m_t else src
+    #  "… dropped at 22.5" 주석은 **드롭을 밝히는 것**이므로 수식이 아니다.
+    scan = re.sub(r'\[\d+ LIVE[^\]]*dropped at[^\]]*\]', '', title_src)
+    dropped = [t for t in ('β_v', 'β_AC', 'β_fpth', 'β_rSE') if t in scan]
+    live_ok = 'LIVE' in title_src
+    chk('③ 제목 블록을 실제로 잡았다 (빈 스캔이 아니다)',
+        m_t is not None and 'σ_electronic' in title_src, f'{len(title_src)}자')
+    chk('③ 전자 제목에 드롭된 4항이 없다', not dropped, f'발견 {dropped}' if dropped else '')
+    chk('③ 전자 제목이 LIVE 개수를 밝힌다', live_ok)
+
+    # ④ CSV 열 이름이 **현행 폼 버전**을 쓴다
+    chk('④ 전자 CSV 열이 Stage_15 로 굳어 있지 않다',
+        'Stage_15_form' not in src,
+        f'_STAGE_FORM_VERSION={_STAGE_FORM_VERSION:g}')
+
+    # ⑤ 음성 대조 — 검사가 **판별력이 있는가** (PA12-09: 장식 대조 금지)
+    d = str(e.get('desc', ''))
+    chk('⑤ 대조: α 가 0.1 이었다면 ① 이 깨진다',
+        (f'α={0.1:g}' in d) is False and (f'α={alpha:g}' in d) is True)
+    chk('⑤ 대조: 특징이 16 이었다면 ① 이 깨진다',
+        ('16 structural' in d) is False and (f'{nfeat} structural' in d) is True)
+    #  그리고 desc 가 **리터럴이 아니라 상수에서 생성**되는지 소스로 확인한다
+    mod_src = inspect.getsource(sys.modules[__name__])
+    m = re.search(r'"desc":\s*\(f"σ_thermal Stage T1.{0,400}', mod_src, re.S)
+    chk('⑤ desc 가 상수에서 생성된다 (리터럴 숫자가 아니다)',
+        m is not None and 'len(_THERMAL_T1_FEATURES)' in m.group(0)
+        and '_THERMAL_RIDGE_ALPHA' in m.group(0))
+
+    print('설명 정합 SELFTEST', 'PASS' if ok else 'FAIL')
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
     if '--selftest-temp' in sys.argv:
         sys.exit(_selftest_temp())
+    if '--selftest-descriptions' in sys.argv:
+        sys.exit(_selftest_descriptions())
     main()

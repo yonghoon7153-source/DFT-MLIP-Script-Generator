@@ -61,7 +61,8 @@ scripts/fibre_segment_raster.py	--selftest	fast	none	claude	초록 2.0s (실측)
 scripts/fig4b_sigma_conventions.py	--selftest	fast	none	claude	초록 1.3s (실측)
 scripts/fit_dh_collapse.py	--selftest	fast	none	claude	초록 0.2s (실측)
 scripts/fit_rint_curve.py	--selftest	fast	none	claude	초록 0.2s (실측)
-scripts/generate_comparison_plots.py	--selftest-temp	fast	none	claude	초록 1.3s (실측)
+scripts/generate_comparison_plots.py	--selftest-descriptions	fast	both	claude	초록 0.8s (실측) — L3-11 설명↔상수 정합 + 판별력 대조
+scripts/generate_comparison_plots.py	--selftest-temp	fast	both	claude	초록 1.3s (실측) — 어느 레인에도 없던 것을 2026-09-13 배선
 scripts/heckel_analysis.py	--selftest	fast	none	claude	초록 1.0s (실측)
 scripts/holm_exponent_from_field.py	--selftest	fast	none	claude	초록 0.6s (실측)
 scripts/ion_r_verdict.py	--selftest	fast	check_all	claude	초록 0.2s (실측)
