@@ -2482,15 +2482,16 @@
   {
    "id": "L3-08",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
    "title": "EXCL 후 **n_fit = 0 인데 유한 예측·R² = LOO = 0** 을 반환한다",
-   "note": "(Codex 라벨: **P2-L3-08**)\n`G:6027` 은 **EXCL 전** 최소 8행만 보고, `G:6155` 의 mask 이후에는 **최소 행수·랭크 검사가 없다**.  Codex: 8행이 전부 EXCL 이면 `n_fit = 0` 인데 유한 예측과 `R2 = LOO = 0` 이 나온다.\n⇒ 무너지는 결론: *'적합에 성공한 모델'*.  ⚠ 현재 전 코퍼스가 0행이라는 주장은 아니다.",
+   "note": "(Codex 라벨: **P2-L3-08**)\n`G:6027` 은 **EXCL 전** 최소 8행만 보고, `G:6155` 의 mask 이후에는 **최소 행수·랭크 검사가 없다**.  Codex: 8행이 전부 EXCL 이면 `n_fit = 0` 인데 유한 예측과 `R2 = LOO = 0` 이 나온다.\n⇒ 무너지는 결론: *'적합에 성공한 모델'*.  ⚠ 현재 전 코퍼스가 0행이라는 주장은 아니다.\n\n**수정 (규율 ②: 반례 먼저)** `63d17bd5`: `_electronic_fit` 이 마스크 **뒤**에 ① 행수 `≥ max(8, LIVE+1)` ② **LIVE 설계행렬 랭크** ③ **LOO 폴드 랭크** 셋을 보고 못 미치면 `None` 을 돌려준다.  호출자 4곳(전역 적합 캐시·parity·outliers·decomp)이 그것을 fail-closed 로 받는다.\n★ **재현 (수정 전)**: n=12·k=14·전부 EXCL → `n_fit 0` · `r2 0.0` · `loocv 0.0` · `pred[0] = 0.07688995743054786` (유한) — 판정문과 같다.\n★ **랭크도 같이 본다** — `lstsq` 는 랭크 부족을 조용히 **최소노름 해**로 메운다.  그 계수는 자료가 정하지 않은 값인데 보고문은 적합 결과라고 말한다.  LIVE 열 계산은 `_electronic_live_cols` 로 한 출처화했다 (드롭·LOCKED 논리가 `_fit_locked` 와 갈라지지 않게).\n회귀 `--selftest-fits` (check_all·CI·등재): 경계가 **한 행 단위로 예리**하고(8 거부/9 통과), 건강한 40행은 통과하며(게이트가 '항상 거부' 가 아니다), **드롭 열**을 겹치는 것은 영향이 없다.",
    "evidence_tests": [
     "scripts/generate_comparison_plots.py"
-   ]
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   },
   {
    "id": "L3-09",
@@ -2537,15 +2538,16 @@
   {
    "id": "L3-12",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
    "title": "이온 bootstrap **캐시 키가 중간 y 를 안 본다** (동일 프로세스 한정)",
-   "note": "(Codex 라벨: **P2-L3-12**)\n`G:4771` 의 키가 `n/B/seed/첫·끝 y/sum(base)` 뿐이라 **중간 y 하나를 x10 해도 이전 객체를 재사용**한다.  Codex: stale residual SE = **.04488437**, cache clear 후 **.56962704**.\n⚠ **동일 프로세스 한정** — 보통 새 subprocess 인 웹 요청 간 누적 오염을 주장하는 것은 아니다.",
+   "note": "(Codex 라벨: **P2-L3-12**)\n`G:4771` 의 키가 `n/B/seed/첫·끝 y/sum(base)` 뿐이라 **중간 y 하나를 x10 해도 이전 객체를 재사용**한다.  Codex: stale residual SE = **.04488437**, cache clear 후 **.56962704**.\n⚠ **동일 프로세스 한정** — 보통 새 subprocess 인 웹 요청 간 누적 오염을 주장하는 것은 아니다.\n\n**수정** `63d17bd5`: 캐시 키를 `_array_fingerprint(bl, ls, ts, *extras)` = **내용 전수** blake2b 해시로 바꿨다.\n★ **재현 (수정 전)**: 길이 20 의 `ls` 에서 가운데 한 값만 ×10 해도 키가 `(20, 200, 42, -1.0, 1.0, 30.0)` 으로 **완전히 같다** — 그 반례를 selftest 에 박제했다.\n★ **같은 부류를 더 강한 형태로 하나 더 찾았다** (내가 찾음, SELF): `_ELECTRONIC_GLOBAL_FIT_CACHE` · `_ELECTRONIC_BOOTSTRAP_CACHE` 는 키가 **아예 없어** 코퍼스가 바뀌어도 첫 결과를 돌려준다.  캐시 검사를 코퍼스를 읽은 **뒤**로 옮기고 같은 지문으로 걸었다 (비싼 것은 디스크 walk 가 아니라 적합이라 절약분은 그대로).\n⚠ 판정문의 한정어 보존 — **동일 프로세스 한정**이다.  새 subprocess 로 도는 웹 요청 사이의 누적 오염을 주장하는 것이 아니다.",
    "evidence_tests": [
     "scripts/generate_comparison_plots.py"
-   ]
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   },
   {
    "id": "SELF-25",
@@ -2631,28 +2633,30 @@
   {
    "id": "L4-06",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "진단 코퍼스 **중복제거가 바이트 수만 본다**",
-   "note": "(Codex 라벨: **P2-L4-06**)\n`extract_se_network_diagnostics.py:82`·`:92`.  서로 다른 atoms 내용·SHA 인 두 사례의 파일 크기를 atoms 97 B · contacts 85 B 로 맞추면 **case_a 만 남는다**.  동일 크기는 동일 자료의 증거가 아니다.  grade 의 **corpus-percentile 기준**에도 전파될 수 있다.",
+   "note": "(Codex 라벨: **P2-L4-06**)\n`extract_se_network_diagnostics.py:82`·`:92`.  서로 다른 atoms 내용·SHA 인 두 사례의 파일 크기를 atoms 97 B · contacts 85 B 로 맞추면 **case_a 만 남는다**.  동일 크기는 동일 자료의 증거가 아니다.  grade 의 **corpus-percentile 기준**에도 전파될 수 있다.\n\n**수정** `63d17bd5`: `_pair_digest` (atoms.csv + contacts.csv 내용 해시) 로 중복제거하되 **크기가 겹치는 묶음에서만** 해시한다 (묶음이 1개면 비용 0).\n★ **재현 (수정 전)**: 자리수만 맞춘 서로 다른 두 사례(atoms **84 B** · contacts **33 B** 로 동일) → `discover_cases` 가 **하나만** 돌려준다.  ⚠ 어느 쪽이 사라지는지는 **rglob 순서**에 달렸다 (판정문은 `case_a` 가 남는다고 적었고 내 재현에서는 `case_b` 가 남았다 — 결론은 같다: 서로 다른 사례 하나가 **조용히** 없어진다).\n회귀 `--selftest`: 대조로 **같은 내용은 여전히 하나로 접히고**(중복제거를 끈 것이 아니다) 접힐 때 timestamp 가 아니라 **이름 있는 쪽**이 남는다.",
    "evidence_tests": [
     "scripts/extract_se_network_diagnostics.py"
-   ]
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   },
   {
    "id": "L4-07",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "`input_params` 가 있으면 **meta 의 명시적 상 지도를 무시**한다",
-   "note": "(Codex 라벨: **P2-L4-07**)\n`extract_se_network_diagnostics.py:107`·`:133` 이 **첫 JSON 을 읽자마자 break** 한다.  input_params 에 scale 만, meta 에 `1:AM_P, 2:SE` 가 있고 실제 입자가 type2 인 배치에서 3-type 기본 지도를 써 **실제 SE 5개 → 추론 SE 0개**.\n⚠ 모든 mono 가 잘못된다고 일반화하지 않는다.  **정상적으로 표현 가능한 메타데이터 배치에서 상이 사라진다**는 반례다.  처방: 필드별 병합 + 충돌 거부.",
+   "note": "(Codex 라벨: **P2-L4-07**)\n`extract_se_network_diagnostics.py:107`·`:133` 이 **첫 JSON 을 읽자마자 break** 한다.  input_params 에 scale 만, meta 에 `1:AM_P, 2:SE` 가 있고 실제 입자가 type2 인 배치에서 3-type 기본 지도를 써 **실제 SE 5개 → 추론 SE 0개**.\n⚠ 모든 mono 가 잘못된다고 일반화하지 않는다.  **정상적으로 표현 가능한 메타데이터 배치에서 상이 사라진다**는 반례다.  처방: 필드별 병합 + 충돌 거부.\n\n**수정** `63d17bd5`: `load_meta_merged` 신설 — `input_params.json` ∪ `meta.json` 을 **필드별로 병합**하고, 같은 키를 두 파일이 다르게 말하면 `MetaConflict` 로 **거부**한다 (한쪽을 조용히 이기게 하면 어느 쪽을 계산했는지 사후에 알 수 없다).\n★ **재현 (수정 전)**: `input_params` 에 `scale` 만, `meta` 에 `1:AM_P,2:SE`, 실제 입자 5개가 전부 type 2 → `type_map = {1:AM_P, 2:AM_S, 3:SE}` (3-type 기본) · **추론 SE = 0개**.  수정 후 `{1:AM_P, 2:SE}` · **SE 5개**.\n⚠ 판정문의 한정어 보존 — *'모든 mono 가 잘못된다'* 가 아니라 **정상적으로 표현 가능한 메타데이터 배치에서 상이 사라진다**는 반례다.\n★ `load_composition` 은 병합된 `meta` 를 받으므로 자동으로 같이 고쳐진다.",
    "evidence_tests": [
     "scripts/extract_se_network_diagnostics.py"
-   ]
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   },
   {
    "id": "L4-08",
@@ -2697,15 +2701,16 @@
   {
    "id": "L4-11",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "`porosity` 를 **값 크기로 %/fraction 추측**해 1 에서 불연속",
-   "note": "(Codex 라벨: **P2-L4-11**)\n`eis_drt_ica.py:92` 가 *값이 1 초과면 %* 로 해석한다.  화면은 porosity(%) 이고 API 는 0.1-60 을 허용한다.\n★ porosity = **1** → a_spec 1e-6, `R_ct = 1.284628956e8` · porosity = **1.000001** → a_spec 26.72999973, `R_ct = 4.805944516`.  명시적 1 % 의 값은 **4.805944467** 이어야 한다.\n⇒ **API 단위 계약을 명시 전달**해야 한다.  *'값이 작으면 fraction'* 은 단위 식별 규칙이 아니다.",
+   "note": "(Codex 라벨: **P2-L4-11**)\n`eis_drt_ica.py:92` 가 *값이 1 초과면 %* 로 해석한다.  화면은 porosity(%) 이고 API 는 0.1-60 을 허용한다.\n★ porosity = **1** → a_spec 1e-6, `R_ct = 1.284628956e8` · porosity = **1.000001** → a_spec 26.72999973, `R_ct = 4.805944516`.  명시적 1 % 의 값은 **4.805944467** 이어야 한다.\n⇒ **API 단위 계약을 명시 전달**해야 한다.  *'값이 작으면 fraction'* 은 단위 식별 규칙이 아니다.\n\n**수정** `63d17bd5`: `porosity_to_fraction(v, unit)` 신설 · `physics_eis` 에 `porosity_unit='pct'` (화면·API·CLI 가 전부 %) · 범위 밖(pct 0-100 / frac 0-1)과 모르는 단위는 **거부**.  크기 추측을 없앴다.\n★ **재현 (수정 전)**: porosity **1** → a_spec 1e-6 · `R_ct = 128462895.60746863` · **1.000001** → `4.805944515715439`.  **수정 후 1 % 가 `4.805944467170544`** = 판정문이 말한 `4.805944467` 과 일치하고 1 에서 **연속**이다 (0.99 → 4.80545906726476).\n★ **같이 잡은 것 (내가 찾음, SELF)**: `porosity or 0.15` 의 falsy 함정 — porosity **0.0** 이 `None` 과 **출력이 완전히 같았다** (a_spec 22.949999999999996 · R_ct 5.597511791175105 = 15 %).  `_step3_params_from_metrics` 의 `m.get('porosity_mpm_pct') or ...` 도 같은 함정이라 같이 고쳤다.\n⚠ **생산 수치는 안 움직인다** — 리포 안 호출자는 전부 % 이고 값이 ≤1 인 경로가 없다 (CLI 기본 8.0 · metrics 키가 `_pct`).  움직이는 구간은 **API 가 허용하는 0.1-1.0** 이고 거기서는 옛 읽기가 틀렸다 ('0.5 %' → 50 %).  기본 8 % 대조를 selftest 에 상주시켰다.\n★ **판별력 확인**: 옛 휴리스틱으로 되돌리면 이 검사가 **8건 빨간불**을 낸다.",
    "evidence_tests": [
     "scripts/eis_drt_ica.py"
-   ]
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   },
   {
    "id": "L5-01",
@@ -2832,6 +2837,34 @@
    "evidence_tests": [
     "docs/data/phase_a_h015_arms/resid_from_runner_log_20260912.tsv"
    ]
+  },
+  {
+   "id": "SELF-26",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "claude (L3-12 를 고치다 같은 부류를 더 강한 형태로 발견)",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "전자 σ 캐시 둘은 **키가 아예 없었다** (L3-12 의 더 강한 형태)",
+   "note": "L3-12 는 이온 bootstrap 캐시의 키가 **중간 y 를 안 본다**는 지적이다.  그 자리를 고치다 같은 파일의 `_ELECTRONIC_GLOBAL_FIT_CACHE`·`_ELECTRONIC_BOOTSTRAP_CACHE` 에는 **키가 아예 없다**는 것을 봤다 — `if _CACHE is not None: return _CACHE`.  두 함수는 자기가 디스크를 walk 해 코퍼스를 만드는데, 그 코퍼스가 바뀌어도 **첫 결과를 그대로** 돌려준다.\n⇒ 요약값 지문(L3-12)보다 약한 것이 아니라 **지문이 없는** 쪽이다.\n**수정** `63d17bd5`: 캐시 검사를 코퍼스를 읽은 **뒤**로 옮기고 `_array_fingerprint` 로 건다 (X · y_resid · logsf · log_offset · fit_mask + 폼 버전 + LOCK 여부).  비싼 것은 디스크 walk 가 아니라 적합/bootstrap 이므로 **절약분은 그대로 남는다**.\n⚠ L3-12 와 같은 한정어 — **동일 프로세스 한정**이다.  웹 요청이 새 subprocess 로 돈다면 이 경로로는 오염되지 않는다.  주장하는 것은 *'한 프로세스가 두 코퍼스를 보는 경로가 실재하고 거기서 조용히 앞 결과가 나온다'* 까지다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
+  },
+  {
+   "id": "SELF-27",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "claude (L4-11 을 재현하다 같은 줄에서 발견)",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "`porosity or 0.15` — **porosity 0 이 결측과 같은 값**을 냈다",
+   "note": "L4-11(크기로 단위를 추측) 을 재현하려고 `physics_eis` 를 여러 porosity 로 돌리다 **0.0 과 `None` 의 출력이 완전히 같다**는 것을 봤다: a_spec `22.949999999999996` · R_ct `5.597511791175105`.  같은 줄의 `(porosity or 0.15)` 가 **0 을 결측으로** 읽어 기본 15 % 를 넣는다.  porosity 0 % 는 유효한 값(완전 치밀)이고, 그것이 조용히 15 % 가 되면 a_spec 이 바뀌어 R_ct 가 통째로 달라진다.\n★ 같은 함정이 `_step3_params_from_metrics` 에도 있었다 — `m.get('porosity_mpm_pct') or m.get('porosity_settled_pct')` 는 앞의 값이 **0 이면** 뒤로 넘어간다.\n**수정** `63d17bd5`: `porosity_to_fraction` 이 `None` 만 기본값으로 보내고 숫자는 전부 단위 계약으로 읽는다 · metrics 어댑터는 `is not None` 으로 고쳤다.  회귀는 `eis_drt_ica --selftest` 에 *'0 이 None 과 같은 값을 내면 실패'* 로 상주한다.",
+   "evidence_tests": [
+    "scripts/eis_drt_ica.py"
+   ],
+   "claimed_fixed_sha": "63d17bd5f1fc40b1176101ccc4f5b2741aaf1811"
   }
  ]
 }
