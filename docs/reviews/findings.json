@@ -2385,6 +2385,178 @@
    "evidence_tests": [
     "docs/voxel_contact_free_gap.md"
    ]
+  },
+  {
+   "id": "L3-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "**정상 Stage-E 0 을 raw 양수로 대체**한다 — 세 채널 전부",
+   "note": "(Codex 라벨: **P1-L3-01**)\n우선순위가 **첫 양수**다: 이온·열 `Stage-E P → raw P → Stage-E H → raw H` (`G:4222-4232` · `G:6716-6720`/`:6783-6788`), 전자 `Stage-E H → raw H → Stage-E P → raw P` (`G:5816-5827`).  **source 를 읽지 않는다.**\n★ Codex 실행: 이온·열에서 `Stage-E P = 0, raw P = 0.7` → target **0.7** (grade getter 는 0), 전자에서 `Stage-E H = 0, raw H = 20` → strict fit `sig_act = **20**` 이고 plot 의 빨간 *'σ_e Stage E target'* 계열과 Stage-E CSV 열에 20 이 들어간다.\n★ fallback 도 들어간다: 이온·열은 `0.825` 가 그대로 fit 배열에 들어가고, 전자는 거부 조건이 **두 source 의 AND** 라 `selected H = fallback(4) / 반대 P = solver` 인 행이 target 4 로 strict fit·plot 에 남는다 ⇒ **선택하지 않은 분기가 선택한 값의 신뢰성을 대신 보증**한다.\n⚠ 정확히 하면 *'모든 0 이 무조건 양수로 된다'* 가 아니다 — **다른 열에 양수가 있으면 다른 해로 승격, 없으면 제외**다.  양성 대조: 양쪽 다 fallback 인 전자 행은 strict fit 에서 빠진다.\n⛔ **L2 에서 0 을 보존하도록 고쳐도 이 소비자가 다시 양수로 바꾼다** — L2 수정만으로 안 닫힌다.\n처방: 값만 반환하지 말고 **value/status/target_key/source_kind/reason** 을 함께 선택하고 **선택된 열 자신의 source** 를 검사한다.  ⚠ *'log fit 에 0 을 못 넣는다'* 는 **다른 모델의 양수를 같은 정답 열에 넣을 근거가 아니다**.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "이온 T1 의 **AM power gate 가 주 생산 호출에 전달되지 않는다** (요인분해만 씀)",
+   "note": "(Codex 라벨: **P1-L3-02**)\n`G:4341` `_sat_g_smooth` 는 AM 두 크기가 모두 None 이면 **옛 조성 sigmoid** 로 돌아간다.\n★ **이 리포에서 전수 확인**: `_sat_baselog` 생산 호출 네 곳이 **인자 6개 · AM 반경 전달 없음** — parity `G:4585` · 전역 배열 `G:4694` · per-config `G:4868` · outlier `G:5185` (여섯째는 r_SE 이지 r_AM 이 아니다).  반면 요인분해 `G:2314` 는 `_sat_g_smooth(p_amp[i], r_AM_S[i], r_AM_P[i])` 로 **AM 반경을 넘긴다**.\n★ Codex 반례: p=.5, phi_SE=.21, r_SE=1 고정하고 AM 반경만 (2,4) → (4,10) um 로 바꾸면 주 생산 base_log 가 **-0.707892914583 로 비트 단위 불변**이고 P2 도 0.00005625 불변인데, 같은 frozen 상수의 size-aware base 는 -0.410863556762 → -0.932442161037 (배수 **1.684685**).\n⚠ P2 extras `G:4719-4724` 는 AM 크기 인수를 **받지도 않고** g_010 을 다시 하드코딩한다 ⇒ **base 만 고쳐도 P2 에 옛 규약이 남는다**.\n★ 같은 부류 하나 더 (별도 P1 로 세지 않음): Cronau 도 생산 `G:4319` piecewise vs 보조 `nested_cv_sat.py:211` smooth sigmoid 로 **다른 함수**다 (r_SE 0.1/0.3/0.5 에서 0.650000/0.900000/1.000000 vs 0.490011/0.774990/0.949989).\n⇒ 무너지는 결론: parity·예측·요인분해가 **같은 T1 을 표현**한다는 것.  어느 규약을 정본으로 택하든 지금 두 호출군이 다르다는 반례는 남는다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "**cov_Hertz 가 없거나 0 이면 Physics 로 대체**된다 — \"Hertz 전용\" 계약이 없다",
+   "note": "(Codex 라벨: **P1-L3-03**)\n`G:4235` `_cov_frac` 는 대상 열 중 **양수만** 평균한다 ⇒ **정상 Hertz = 0 도 None 처럼 사라진다**.  그리고 생산 호출이 전부 **`native or Physics`** 다 (요인분해 `G:2287` · parity `G:4578` · 전역 `G:4689` · per-config `G:4862` · outlier `G:5179`/`:5209`).\n★ Codex 반례 (native .12 / Physics .36): native 존재 → base_log **-0.707892914583**, native 부재 **또는 전부 0** → **-0.158586770249** ⇒ 같은 고정식 base 가 **sqrt(3) = 1.732051배**.\n⇒ **내가 L1 회신에 쓴 '이온은 Hertz 라 Physics 수정의 영향을 절대 안 받는다' 는 현재 코드에서 성립하지 않는다** (`SELF-23`·`L1-07` 에 이어 세 번째 좁힘).\n⚠ 양수 Hertz 가 있을 때의 우선순위(T1 채택분)는 **살아 있다** — 결손/0 조건부 결함이다.\n⚠ phi_c scan `G:4500` · formtest `G:4985` · refit `G:5063` 이 Physics 를 우선하지만 Codex 는 이들을 **진단 코드로 구분**했고 *'생산이 매번 phi_c 를 재선택한다'* 고 판정하지 **않았다**.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-04",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "보조 검증 스크립트의 **점수가 현행 생산식을 식별하지 않는다**",
+   "note": "(Codex 라벨: **P2-L3-04**)\n이온 `nested_cv_sat.py:61`·`:103` 는 `input_1mAh_9`·`input_particulate_12_S3` 를 제외하는데 G 전역 loader `G:7129` 와 배열 `G:4686` 에는 **같은 필터가 없다** (Codex: 같은 임시 JSON 둘을 읽히면 보조 1행 / 생산 2행).\n전자 `electronic_nested_cv.py:254` 의 실제 base 는 **50·phi_AM^1.5·CN^2·cov^.5·f_p^3** 로 **현행 22.5 와 다르고**, `:278`/`:359` 는 고정 base 의 **plain LOO** 이며 outer 선택 평가 루프가 없고 EXCL 도 **6명**(생산 25명과 차집합 19).\n⇒ **그 파일의 점수를 현행 T1/22.5 의 nested 검증으로 인용하면 안 된다.**  ⚠ 생산 EXCL 이 작동하지 않는다는 뜻도, plain LOO 자체가 무조건 부적절하다는 뜻도 아니다.\n처방: 검증 아티팩트에 **target 규약 · feature 함수 · EXCL/코호트 · 선택 절차 ID** 를 박는다.",
+   "evidence_tests": [
+    "scripts/nested_cv_sat.py",
+    "scripts/electronic_nested_cv.py"
+   ]
+  },
+  {
+   "id": "L3-05",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "SAT nested 의 **결측 반경 대체가 보류점을 읽는다** (fold 밖 imputation)",
+   "note": "(Codex 라벨: **P2-L3-05**)\n`nested_cv_sat.py:346` 이 **제공된 전체 배열**의 AM 반경 중앙값을 쓰고, outer `:489`·inner `:461` 가 **전체 base 를 만든 뒤** train 을 자른다.\n★ Codex 반례: 학습행 하나의 r_S = NaN, **보류행 하나의 r_S 만 1 → 20** 으로 바꾸면 다른 학습 입력·y 가 그대로인데 전체 median 4 → 5 가 되어 **학습행 base -.0566580738 → -.0724783898**.  train-only 계산은 불변.\n⚠ **결측 조건부** 누설이고 실코퍼스 발생률·점수 변화는 미측정.  ⚠ 보조 size-gate 검증기의 결함이지 주 생산 label-gate 와 **같은 경로가 아니다**.",
+   "evidence_tests": [
+    "scripts/nested_cv_sat.py"
+   ]
+  },
+  {
+   "id": "L3-06",
+   "severity": "P2",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "**EXCL 이 23 이 아니라 25개**다 (문서·report 가 낡음)",
+   "note": "(Codex 결론 §0 · §3)\n★ **이 리포에서 전수 확인**: `G:5661` 의 `_EXCLUDED_NAMES_EL = frozenset([...])` 를 괄호 균형으로 세면 **25개**다.  `CLAUDE.md:1979` 와 `generate_fitting_report.py` 는 **23** 이라고 적고 있었다.\n★ Codex 가 EXCL **효과 자체는 CONFIRMED**: 합성 32행 중 EXCL 2행 → n_fit 30, 그 행들의 log target 에 +100 을 줘도 **계수 변화 0**.  열도 25개 이름 각각 **25/25 제외** 재현.\n⚠⚠ **이름 25개 != 현재 코퍼스에서 실제 탈락한 행 수**.  사유의 정당성·현재 교집합 수는 재승인되지 않았다.\n처치: `CLAUDE.md` 를 25 로 정정 (규율 ④, 같은 커밋).  ⬜ `generate_fitting_report.py` 의 23 은 `L3-11` 과 함께 처리.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ],
+   "claimed_fixed_sha": "ea11cdaf7"
+  },
+  {
+   "id": "L3-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "반환 CV 가 **배포 blend 의 CV 가 아니다** (max-of-two 보고)",
+   "note": "(Codex 라벨: **P2-L3-07**)\n`predictor_engine.py:583` 은 GPR/RF 점수의 **max** 를 보고하는데 배포 예측 `:712` 은 **가중 blend** 다.  Codex 합성 실행: GPR = .854192822 · RF = -1.062218172 · **보고 .854** 인데 저장된 가중치 .895199379/.104800621 로 같은 OOF 예측을 합치면 **.826989101**.\n⚠ 그 .8270 조차 **global selection 을 쓴 차이 진단**이지 unbiased nested 점수가 아니다.\n★ 부수 정정: `predictor.html:693` 에 **실제 화면 toast 경고가 있다** ⇒ 내가 기록한 *'경고가 주석뿐'* 은 틀렸다.  다만 `app.py:10637` 학습 API 는 numeric cv_scores 를 그대로 반환하므로 **경고·표시 분리이지 기계적 비교 차단 계약은 아니다**.\n⚠ GPR 누설 자체(scaler 를 12행 전체에 적합 · 커널 6개를 같은 CV 로 선택 · 별도 outer 없음)는 **기존 기록대로 확인**됐고 신규 P1 으로 중복 계상하지 않았다 (첫 fold 학습 X 가 train-only 표준화와 최대 .350076 차이).",
+   "evidence_tests": [
+    "webapp/predictor_engine.py"
+   ]
+  },
+  {
+   "id": "L3-08",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "EXCL 후 **n_fit = 0 인데 유한 예측·R² = LOO = 0** 을 반환한다",
+   "note": "(Codex 라벨: **P2-L3-08**)\n`G:6027` 은 **EXCL 전** 최소 8행만 보고, `G:6155` 의 mask 이후에는 **최소 행수·랭크 검사가 없다**.  Codex: 8행이 전부 EXCL 이면 `n_fit = 0` 인데 유한 예측과 `R2 = LOO = 0` 이 나온다.\n⇒ 무너지는 결론: *'적합에 성공한 모델'*.  ⚠ 현재 전 코퍼스가 0행이라는 주장은 아니다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-09",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "`frac_intact_force_pct = 0` 을 **1.0 으로** 바꿔 전파괴와 전건전이 같아진다",
+   "note": "(Codex 라벨: **P2-L3-09**)\n`G:6004` 가 0 을 1.0 으로 치환한다 ⇒ LIVE 열 `ln f_intact` 에서 **0 % = 100 % = 결측 = 0** 이고, 0.01 %/5 % 는 -2.995732 다.\n⇒ **확정 전파괴와 전건전이 같은 feature 값**을 갖는다.  ⚠ 실제 incidence·효과량 미측정.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-10",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "열 plot CLI 가 **PNG 를 만든 뒤 KeyError 로 rc=1** (desc ↔ description)",
+   "note": "(Codex 라벨: **P2-L3-10**)\n열 registry `G:6911`·`G:6986`·`G:7063` 는 키 `desc` 를 쓰는데 main `G:7350` 은 `description` 을 요구한다.  Codex 가 **실제 CLI subprocess** 로 `thermal_fit_final` 을 돌려 **PNG 생성 후 KeyError, rc=1, 최종 metadata 없음** 을 재현했다.\n⇒ *'계산 성공 → 게시 완료'* 가 성립하지 않는다.  ⚠ fit 자체는 실행됐고 Flask/브라우저 전체는 미실행이다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "L3-11",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "**설명 세대가 셋**이다 — 그림·CSV·report 를 전사하면 다른 모델을 보고하게 된다",
+   "note": "(Codex 라벨: **P2-L3-11**)\n★ **이 리포에서 확인**:\n· 전자 plot 제목 `G:2855`/`:2858` 에 **드롭된 네 항**(`beta_AC` · `beta_v` · `beta_fpth`)이 살아 있다 ⇒ 계산은 **8 LIVE** 인데 제목을 옮기면 **12항 모델**이 된다.\n· CSV 예측 열 `G:2877` 은 **`Stage_15_form`** 인데 값은 현행 **22.5** 예측이다.\n· 열: 실제 `_THERMAL_T1_FEATURES` = **14**, `_thermal_fit` 기본 alpha = **0.05** (호출 3곳 전부 기본값) 인데 설명은 `G:6703` 주석 **18 features** · `G:6911` registry **16 특징 / alpha 0.1** · `G:7039` 제목 **alpha 0.1** · `G:6694` 주석 **alpha 0.1** 이다.\n★★ **세 번째 세대(18)는 판정문도 안 짚었다** — Codex 는 16 까지만 봤다.\n· `generate_fitting_report.py:370` 이후는 Stage22/12 LIVE 로 설명하면서 앞에서 현행 fit 을 부른다.\n처방: **설명을 상수·활성열에서 생성**하게 만든다.  ⚠ 이것은 계수/지수 선택 변경이 아니다.\n⚠ 전자 bootstrap 의 12-LIVE residual / 8-LIVE resample 혼합(`G:2548`·`G:2565`)은 Codex 가 **정적으로만 보고 실행 재현을 안 해** finding 수에 넣지 않았다 — 점예측 CONFIRMED 를 **PI 보증으로 넓히지 말 것**.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py",
+    "scripts/generate_fitting_report.py"
+   ]
+  },
+  {
+   "id": "L3-12",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "이온 bootstrap **캐시 키가 중간 y 를 안 본다** (동일 프로세스 한정)",
+   "note": "(Codex 라벨: **P2-L3-12**)\n`G:4771` 의 키가 `n/B/seed/첫·끝 y/sum(base)` 뿐이라 **중간 y 하나를 x10 해도 이전 객체를 재사용**한다.  Codex: stale residual SE = **.04488437**, cache clear 후 **.56962704**.\n⚠ **동일 프로세스 한정** — 보통 새 subprocess 인 웹 요청 간 누적 오염을 주장하는 것은 아니다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
+  },
+  {
+   "id": "SELF-25",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L3_20260913.md",
+   "title": "**엉성한 정규식으로 판정문을 반박할 뻔했다**",
+   "note": "L3 판정의 `EXCL 25` · `열 특징 14` 를 확인하려고 정규식을 썼는데 `_EXCLUDED_NAMES_EL` 을 **0개**로, `_THERMAL_T1_FEATURES` 를 **16개**로 읽었다.  전자는 `frozenset([` 형태라 내 패턴이 안 걸린 것이고 후자는 **다른 상수를 잡은 것**이었다.  괄호 균형으로 다시 세니 **25 · 14** 로 판정문과 정확히 같다.\n⇒ 하마터면 *'판정문의 숫자가 우리 트리와 다르다'* 고 적을 뻔했다.  **검증 도구가 틀리면 검증이 아니라 오보다** — `SELF-02~05`(부분집합 필터가 조용히 초록이 된다)의 같은 부류인데 이번엔 **내가 대조하는 쪽**이었다.\n처방: 상수 개수를 셀 때 정규식 대신 **괄호 균형 파싱 또는 실제 import** 를 쓴다.",
+   "evidence_tests": [
+    "scripts/generate_comparison_plots.py"
+   ]
   }
  ]
 }
