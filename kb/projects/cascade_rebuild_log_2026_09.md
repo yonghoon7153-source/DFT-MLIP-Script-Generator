@@ -33,9 +33,9 @@ feedsInto: db/properties/cascade_rebuild_estimand_card_v4_2026_09_13.json
 |---|---|
 | **무엇을 하려는가** | Cl-rich 아지로다이트에서 **16e 자리 S→O 치환**이 Li 수송·탄성에 주는 효과를, **모델 안에서** 재는 파일럿 |
 | **왜 재건인가** | 옛 cascade(v23, 3,615행)는 **탐색 자료로 강등**됐다. 4축·Pareto front·`de_post_anneal` 로 판정하지 않는다 |
-| **지금 상태** | 정적대조 **완료·리뷰 인정** · 파일럿 **조건부 GO** · ⛔ **선결조건 1건 미충족으로 실행 전** |
-| **막고 있는 것** | 카드 §1b 의 *"O 3개가 서로 다른 P 에"* 규칙이 **빌더에 없다** |
-| **비준 대기** | 카드 v4 + 7건 (1저자) |
+| **지금 상태** | 정적대조 **완료·리뷰 인정** · 카드 v4 **비준 완료(active)** · 선결조건 **전부 충족** · 파일럿 **실행 가능** |
+| **막고 있는 것** | (코드·거버넌스 쪽은 없다) 남은 것은 BO #3 의 hop 정의 대조 · webapp 시험 미실행 |
+| **비준** | 2026-09-13 완료 — `D-2026-09-13-cascade-pilot-estimand-v4` **active**, 기록 8건 ratified |
 
 ---
 
@@ -192,15 +192,27 @@ selftest 14/14 — 음성 5건 중 하나가 *"두 갈래가 실제로 다른 �
 
 ---
 
-## 6. 지금 막고 있는 것 — 딱 하나
+## 6. 막고 있던 것 — 해소 (2026-09-13)
 
 **카드 §1b**: O 3개는 **서로 다른 P 에 붙은 S** 자리에 들어가야 한다.
 
 **왜**: 3개가 같은 PS₄ 에 몰리면 **PS₁O₃ 한 덩어리**가 생긴다. 그건 희석된 O 치환이 아니라
 **한 사면체만 심하게 산화된 것**이고 화학이 다르다. 세 개의 서로 다른 P 에 하나씩 가면 **PS₃O 세 개**.
 
-**지금**: `substitute_compound.py` 가 그 제약을 안 본다(grep 0건). seed 에 따라 몰릴 수 있다.
-⇒ **빌더 강제** 또는 **`planA.json` 수동 확인 절차 확정** — 1저자 선택.
+**그때**: `substitute_compound.py` 가 그 제약을 안 봤다(grep 0건). seed 에 따라 몰릴 수 있었다.
+
+**해소 — 빌더 강제 쪽을 골랐다** (수동 확인은 사람이 한 번 건너뛰면 끝난다):
+
+| 넣은 것 | 무엇 |
+|---|---|
+| `anion_parent_map()` | S 각각의 부모 P 를 2.6 Å 안에서 찾는다. 부모가 **0개거나 2개 이상이면 예외** — 조용히 하나를 고르지 않는다 |
+| `select_distinct_parent_sites()` | 부모별로 묶고 **묶음을 먼저 뽑은 뒤** 묶음 안에서 자리를 뽑는다 (seed 재현) |
+| `assert_distinct_parents()` | 치환 직전 **마지막 관문**. 계획이 어디서 왔든 여기서 다시 센다 |
+| `placement_log` | `distinct_parent_rule` · `parent_map` · `parent_cutoff_A` 를 남긴다 — 나중에 "그 런이 규칙을 켰었나" 를 물을 수 있다 |
+
+CLI: `--distinct_anion_parent` · `--anion_parent_symbol` · `--anion_parent_cutoff`.
+selftest **16 → 25** (음성 5개 추가). 그중 하나는 **"규칙을 끄면 같은 계획이 통과한다"** 를 친다 —
+거부가 *규칙 때문* 이지 다른 우연 때문이 아님을 그 시험 하나가 보증한다.
 
 ---
 
@@ -214,11 +226,42 @@ selftest 14/14 — 음성 5건 중 하나가 *"두 갈래가 실제로 다른 �
 
 ---
 
-## 8. 다음 (2026-09-13 기준)
+## 8. 비준 — 2026-09-13
 
-1. **1저자 비준** — 카드 v4 + `cell_policy_gap` + `bo_conditions_audit` + `static_pair_dft` + 이전 4건
-2. **§6 선택** — 빌더 강제 vs 수동 확인
-3. 파일럿 30런 (최대) → 4결과 종결 (효과확인 / 실질동등 / 정밀도부족 미결 / 방법상 무효 — **넷 다 정상 종결**)
+1저자 구두 지시(*"비준 ㄱㄱ"*)로 **일괄 비준**. 무엇이 어떻게 됐는지:
+
+| | 전 | 후 |
+|---|---|---|
+| `D-2026-09-13-cascade-pilot-estimand-v4` | proposed | **active** |
+| `cascade_rebuild_estimand_card_v4` · `cell_policy_gap` · `bo_conditions_audit` · `static_pair_dft` · `cascade_axis_global_audit` · `b2o3_mechanism_correction` | proposed | **ratified** |
+| `static_pair_uma` · `cascade_reanchor_comp1k444` | measured | measured **유지** + 비준 블록 |
+
+- 결정 레코드에 `actor_id` · `role: scientific_owner` · 커밋해시 · `decision_digest` · `evidence_digest` ·
+  `max_release_status: internal_diagnostic` 을 박았다.
+- 기록 8건 각각에 **승인 범위**를 박았다 — *"UMA 내부 진단 한정 (최대 30런 + 정적대조 2 SCF)"*.
+  이 범위 밖(원고·발표 절대값·문헌 비교)은 **이 비준으로 열리지 않는다.**
+- ⚠ **정직하게 적어 둔 것**: 구두 **일괄** 지시였고, 1저자가 카드 v4 전문을 축자 검토했다는
+  기록은 없다. 그 문장이 비준 블록 `note` 에 그대로 들어 있다 —
+  나중에 *"비준했으니 검토된 것"* 으로 읽히지 않게.
+- `proposed` 남은 수 **16 → 12** (남은 12는 다른 캠페인 기록, 손대지 않았다).
+
+**검증기가 내 실수 둘을 잡았다** (둘 다 고쳤다):
+
+| 내가 한 것 | 원장이 원하는 것 |
+|---|---|
+| `supersedes` 에 **파일 경로**를 넣었다 | 그 필드는 **결정 ID** 를 받는다 → dangling 경고. `[]` 로 두고 카드 계보는 별도 필드로 뺐다 |
+| `decision_digest` 를 `ratification` **과 `decision_state`** 를 빼고 계산했다 | canonical 정의는 **`ratification` 만** 뺀다 (`decision_state` 는 digest 안에 있어야 한다 — 상태가 바뀌면 digest 도 바뀌는 게 맞다). `webapp/canonical.py` 의 함수로 재계산 |
+
+---
+
+## 9. 다음 (비준 후)
+
+1. 파일럿 30런 (최대) → 4결과 종결 (효과확인 / 실질동등 / 정밀도부족 미결 / 방법상 무효 — **넷 다 정상 종결**)
+2. **BO #3 잔여** — 카드의 *독립 hop 사건* 정의(|Δr|>2.5 Å · 이동 t_ref · 원점 비중첩 · 런당 ≥50)를
+   기존 `hops_per_ion_msd` / `tools/ionic/hops_per_ion.py` 와 **아직 대조 안 했다.**
+   같은 이름으로 다른 셈을 하고 있으면 파일럿 산포 해석이 갈린다
+3. **webapp 시험 미실행** — 이 컨테이너에 flask·pytest 가 없다. 음성시험(`test_v3_surfaces.py`)이
+   새 표면 `/cascade/rebuild` 를 실제로 무는지 **확인 못 했다**
 4. 결과 뒤 회신 BQ — *"이 산포로 뭘 말해도 되나"*
 
 ---

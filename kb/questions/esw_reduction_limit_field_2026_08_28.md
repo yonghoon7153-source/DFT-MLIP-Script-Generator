@@ -1,7 +1,7 @@
 ---
 title: "`reduction_limit_V` 는 환원한계가 아닌 것 같다 — breakpoint 하나 아래를 가리킨다"
 date: 2026-08-28
-updated: 2026-08-28
+updated: 2026-09-13
 tags: [esw, oxidation, grand-potential, cascade, convention, question]
 status: open
 confidence: medium
@@ -88,15 +88,21 @@ chempot 을 잰다. Li 를 더하면 μ_Li 가 **올라가고**, `V = μ_ref −
 
 | | 우리 | 문헌 | 우리 다음 breakpoint |
 |---|---:|---:|---:|
-| 환원한계 | 1.24 | 1.71 (Zhu) · 1.78 (Wang) | **1.72** ✓ |
-| 산화한계 | 2.14 | 2.31 (Zhu) · 2.30 (Wang) | **2.36** |
+| 환원한계 | 1.24 | 1.71 (Zhu) · 1.78 (Wang) · **1.7 (Nolan p.2031)** | **1.72** ✓ |
+| 산화한계 | 2.14 | 2.31 (Zhu) · 2.30 (Wang) · **2.4 (Nolan p.2031)** | **2.36** |
 
 둘 다 문헌값이 **우리 값과 다음 breakpoint 사이**에 있다. 한쪽만이면 우연일 수 있는데
 **양쪽이 같은 방향**이라 규약 차이로 읽는 게 자연스럽다.
 
-⚠ 다만 산화 쪽은 환원만큼 깨끗하지 않다 — 문헌 2.30 이 우리 2.14 와 2.36 의 **중간**이라
-"한 칸 위" 로 딱 떨어지지 않는다. 그리고 우리 canonical 산화 onset 은 이 파일의 2.14 가
-아니라 **2.256 V** 다(다른 파일). **산화 쪽은 별도로 봐야 한다** — 이 카드는 환원만 닫는다.
+**★ 2026-09-13 추가 — 세 번째 문헌 점, 그리고 산화 쪽이 나아졌다.**
+계보 #7 digest(`nolan2018_computation_accelerated_design_review.md`)가 p. 2031 에서
+**`Li₆PS₅Cl` 를 이름으로 들어** *"undergoing reduction at 1.7 V and oxidation at 2.4 V"* 라고 적는다
+(원출처 ref 63 [Zhu15] · ref 71 [Rich16] — **2차 인용이라 우리 db 이식은 금지**, 방향 판단용).
+**2.4 는 우리 2.36 쪽에 붙는다** — Wang 의 2.30 이 2.14 와 2.36 의 중간이라 애매했던 자리를 메운다.
+
+⚠ 그래도 산화 쪽을 **닫지 않는다**: 우리 canonical 산화 onset 은 이 파일의 2.14 가 아니라
+**2.256 V** 다(다른 파일, phase-set 해시 고정 + `LiS₄`·`SCl₃`·`Li₅PS₄Cl₂` 제외). 규약이 한 겹 더 있다.
+**이 카드는 환원만 닫는다.**
 
 ## Evidence Against — ⛔ 그런데 단정 못 하는 이유
 
@@ -128,6 +134,16 @@ chempot 을 잰다. Li 를 더하면 μ_Li 가 **올라가고**, `V = μ_ref −
   확인해 §2 추론이 맞음을 확인(§4.5) — 규약은 각 경계의 **아래쪽**을 취한다.
   ⛔ **사람 승인 대기**: 필드 이름/분할을 바꾸는 것은 cascade 하류 전체에 걸리므로
   1저자 판단 없이 손대지 않는다.
+- **2026-09-13** — 계보 digest 충돌을 가르다가 이 카드로 되돌아왔다
+  (`kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` 충돌 1).
+  · 세 번째 문헌 점 확보 — Nolan 2018 p. 2031 이 **`Li₆PS₅Cl` 를 이름으로** 1.7 / 2.4 V.
+    **양쪽 다 "한 칸 위" 를 지지**한다(§4.5 표 갱신).
+  · `citation_hazards.json` 에 **`HZ-esw-reduction-limit-facet-convention`**(CONDITIONAL) 신설 —
+    지금까지 이 카드의 경고가 **원장에 없어서** 인용 전 30초 절차에 안 걸렸다.
+  · ⛔ **결속 실패를 확인했다** — 이 세 필드는 `canonical_registry.json` 에 **없다**(43항목 어디에도).
+    그래서 hazard 에 `claim` 을 못 걸고 `prohibition_axis` 도 죽은 선언이 된다.
+    **레지스트리 등록이 새 선결조건**이다.
+  · 여전히 **정본 수치·필드명은 안 건드렸다** — 위 승인 대기는 그대로다.
 
 ## 연결
 

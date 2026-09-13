@@ -100,7 +100,7 @@ def ideal_beta(n_hop, cage_A2, tau_ps=1.0, prod_ps=200.0, d_hop=3.0,
                lo=2.0, hi=50.0, dt_ps=0.1):
     """잡음 0 인 이상 곡선 MSD(t)=2·cage_A2·(1−e^{−t/τ})+6Dt 의 창내 log-log 기울기.
 
-    n_hop 은 hops_per_ion.py 규약(= MSD@prod / d_hop², 상한 추정)으로 D 를 역산한다.
+    n_hop 은 hops_per_ion.py 규약(= MSD@prod / d_hop² = f·n, 이벤트 수의 **하한**)으로 D 를 역산한다.
     OU 케이지의 장시간 절편은 2·cage_A2 다 (분산 감쇠 항등식) — cage_A2 가 아니라.
     """
     if n_hop <= 0:

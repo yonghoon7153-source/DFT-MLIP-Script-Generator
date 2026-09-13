@@ -247,7 +247,7 @@ def run_verdict(t, y, beta=None, windows=DINC_WINDOWS):
         return NO_VALUE, why
     n_hop = hops_per_ion_msd(y)
     if n_hop is not None and n_hop < HOPS_MIN_PER_ION:
-        return HOLD, [f"홉 {n_hop:.1f}/이온 < {HOPS_MIN_PER_ION} (상한 추정) — "
+        return HOLD, [f"홉 {n_hop:.1f}/이온 < {HOPS_MIN_PER_ION} (유효 홉 f·n, 이벤트 수의 하한) — "
                       f"값은 있으나 정밀도 부족"]
     return CITABLE, [f"D_inc plateau (산포 {pl['spread']:.0%}) · 홉 "
                      + (f"{n_hop:.1f}/이온" if n_hop is not None else "—")]
@@ -2243,7 +2243,7 @@ def main():
             #   잡음 범위(−0.12) 안이면 '절편+통계로 설명됨'이고, 그보다 한참 아래일
             #   때만 진짜 sub-diffusion 신호다.
             lf = lin_fit(t, y, lo, hi)
-            n_hop = (max(y) / D_HOP_A ** 2) if y else float("nan")   # MSD@end/d²(상한)
+            n_hop = (max(y) / D_HOP_A ** 2) if y else float("nan")   # MSD@end/d² = f·n (이벤트 수의 하한)
             b_imp = None
             if lf and lf[1] > 0:
                 xx = [x for x in t if lo <= x <= hi and x > 0]

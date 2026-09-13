@@ -411,6 +411,30 @@
    "binding_scope_why": "금지 대상이 값이 아니라 **방법**(UMA × Li₃N)이라 문자열로 다 못 덮는다. 지금 덮는 것은 철회된 세 수치의 축자 표기뿐이고, 앞으로 UMA 로 새로 뽑는 Li₃N 수는 자동으로 안 걸린다. 레지스트리에 Li₃N 항목이 0건이라 숫자 결속도 없다.",
    "added": "2026-09-09",
    "근거": "CLAUDE.md (UMA-Li₃N 금지) · db/properties/diffusion.json CAVEAT_2026-06-06 · kb/projects/li_neb_anode_free.md ('인용은 항상 diffusion.json 기준')"
+  },
+  {
+   "file": "db/properties/oxidation_stability.json",
+   "source_path": "db/properties/oxidation_stability.json",
+   "level": "CONDITIONAL",
+   "what": "`reduction_limit_V` 1.242 V · `oxidation_limit_V` 2.14 V · `window_V` 0.898 V — **문헌의 reduction/cathodic limit 옆에 단서 없이 놓지 않는다**",
+   "why": "pymatgen `PhaseDiagram` 의 `get_element_profile` 이 각 경계의 **Li-rich(저전압) 쪽 facet** 을 보고한다(임계조성에 Li 를 1e-5 더해 chempot 을 잰다 — gabia 소스 확인 2026-08-28). 그래서 우리 값은 경계가 아니라 **경계 한 칸 아래**를 집는다. 문헌 세 점이 전부 우리 다음 breakpoint(1.72) 쪽에 있고 1.24 근처에는 아무도 없다: Zhu 2015 1.71 · Wang 2026 1.78 · **Nolan 2018 p. 2031 이 `Li₆PS₅Cl` 를 이름으로 들어 1.7/2.4 V**. 산화 쪽도 같은 방향이다(우리 2.14 → 다음 2.36 vs 문헌 2.30–2.4) — **양쪽이 같은 방향인 것이 규약 차이의 증거**다.",
+   "fix": "① 인용할 때 규약을 밝힌다 — *'grand-potential 경계의 Li-rich facet 값'*. ② 문헌 대응을 말해야 하면 **다음 breakpoint(환원 1.72 · 산화 2.36)** 를 나란히 적고 두 수가 같은 경계의 양끝임을 밝힌다. ③ `window_V` 0.898 V 를 *'우리 ESW 폭'* 으로 단독 인용하지 않는다 (같은 규약으로 재면 0.42 V, 문헌 0.52–0.70 V). ④ 필드 개명·분할은 **1저자 승인 전 금지** — cascade 하류(`tools/cascade/rebuild_pool_inputs.py:131` 의 `red_V`)가 이 필드를 쓴다.",
+   "id": "HZ-esw-reduction-limit-facet-convention",
+   "added": "2026-09-13",
+   "binding_scope": "partial",
+   "binding_scope_why": "`reduction_limit_V`·`ocv_self_decomposition_V`·`oxidation_limit_V` 는 **canonical_registry 에 없다**(43항목 전부 gap/V/Ea/E_coh/sdcp 계열). 그래서 `claim` 을 걸 자리가 없고 `prohibition_axis` 도 레지스트리의 무엇도 못 덮어 죽은 선언이 된다 — 둘 다 비웠다. 지금은 id 로 이름만 댈 수 있다. ⇒ **이 값들을 레지스트리에 올리는 것이 결속의 선결조건**이다.",
+   "pending_forbidden_phrases": [
+    "1.242",
+    "0.898",
+    "환원한계 1.24"
+   ],
+   "⚠_pending_인_이유": "집행 안 함. 표면 실측(소스 grep, 2026-09-13): `1.242` 8파일 17회 · `1.717` 13파일 25회 — 전부 kb 마크다운이고 아직 data-claim 을 안 단다. 지금 forbidden_phrases 로 켜면 무관용 결속 시험이 깨진다. ⚠ 이 수는 **렌더 전 소스 grep** 이라 원장 규약(렌더 후 세기)을 못 지켰다 — 이 컨테이너에 flask 가 없다. 화면이 선언을 달 때 렌더해서 다시 세고 옮긴다.",
+   "관련": [
+    "kb/questions/esw_reduction_limit_field_2026_08_28.md (원 카드 · 코드·소스 확인 완료 · 필드 분할 제안 3안)",
+    "kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md 충돌 1",
+    "litdb/papers/nolan2018_computation_accelerated_design_review.md §7b (1.717 함정)",
+    "litdb/papers/honrao2021_interpretable_ml_sse_anode_coatings.md (Fig. S2 Li-uptake=0 정의)"
+   ]
   }
  ],
  "_history": [
@@ -430,7 +454,7 @@
    "note": "묶음 J — 25행 전부에 영구 id(HZ-…)와 binding_scope 부여, 새 위험 4건 등재 (σ 비 non_citable · 단일시드 1.33× 철회 · Nd 어닐 UMA 순위 · UMA-Li₃N 금지). complete 는 0건이다 — 오늘 그 자격이 있는 행이 없다. 새 forbidden_phrases 는 전 표면 스캔에서 미결속 0 을 확인한 것만 켰고, 진짜로 걸리는 문구는 pending_forbidden_phrases 에 건수와 함께 남겼다. 미결속 실측(문구를 넣고 32개 표면 재렌더): 1.33× 4건 · Nd 순위 4건 — 둘 다 오탐이 아니라 화면이 선언을 안 단 것이다. σ 짧은 표기 4건은 오탐이라 거부했다."
   }
  ],
- "updated": "2026-09-09",
+ "updated": "2026-09-13",
  "_schema_note": {
   "claim": "화면 결속용 claim id (`<metric>@<system>`, canonical_registry 파생). 이 위험이 **어느 정본 주장**에 대한 것인지 이름을 대면, /governance 표에서 근접성 없이 결속이 성립한다 (회신 BG ②).",
   "id": "안정 hazard 식별자. 화면·handoff 가 `data-claim=\"<id>\"` 로 이 위험을 선언한다 (회신 BG ②).",

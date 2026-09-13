@@ -58,6 +58,53 @@ inbox #104 `Bai2026`(실제 Cronk)·#112 `Banerjee2020`(실제 Xiao) 두 번의 
 ⚠ **숫자 일치가 우연인 사례가 이미 확인됐다**(#7). 그러니 *"값이 비슷하니 같은 양"* 논증은 이 자리에서 금지다.
 `citation_hazards.json` 에 항목을 세울지도 같이 판단한다.
 
+### ✅ 해소 (2026-09-13) — **두 digest 가 몰랐던 카드가 이미 있었다**
+
+`kb/questions/esw_reduction_limit_field_2026_08_28.md` — 2026-08-28 에 열린 카드다.
+거기서 코드와 **pymatgen 소스까지** 이미 확인돼 있었다.
+
+**우리 두 값이 각각 무슨 연산인가** (`tools/oxidation/esw_grand_potential.py:104-110`):
+
+```python
+pos     = [s for s in s_byV if s["evolution_Li"] >  1e-6]   # Li 흡수 = 환원
+neutral = [s for s in s_byV if abs(s["evolution_Li"]) <= 1e-6]
+reduction_limit = max(s["V_vs_Li"] for s in pos)      # → 1.242
+v_neutral       = min(s["V_vs_Li"] for s in neutral)  # → 1.717
+```
+
+comp1 breakpoint 표에서 **1.24 와 1.72 사이에 breakpoint 가 없다.** 즉 1.24 에서 시작한
+Li-흡수 평형이 1.72 까지 이어지고 거기서 중성으로 넘어간다 ⇒ *"이 아래로는 환원된다"* 는
+**경계는 1.72** 이고, 1.242 는 그 경계의 **아래쪽 facet** 이다.
+그 이유가 pymatgen 규약이다 — `get_element_profile` 이 임계조성에 Li 를 `1e-5` 더해
+chempot 을 재므로 **모든 항목이 자기 경계의 저전압 쪽**을 가리킨다 (gabia 소스 확인, 원 카드 §4.5).
+
+**⇒ 판정**
+
+| | |
+|---|---|
+| **#6 Honrao 의 배치가 맞다** | *"Li uptake = 0 평탄구간"* 은 우리 `ocv_self_decomposition_V` **1.717** 이고, 그 값이 **동시에 환원 경계**다 |
+| **#7 의 *"우연"* 은 반만 맞다** | `Fig. 6A` 의 1.72 는 **LGPS** 것이라 우리 `Li₆PS₅Cl` 1.717 과 나란히 쓰면 안 된다 — **물질이 다르다**. 그 경고는 유효하다. 그러나 *"양이 다르다 · 이 편에 대응 개념이 없다"* 는 **틀렸다** — 양은 같고 우리 **필드 이름**이 한 칸 아래를 가리킬 뿐이다 |
+| **#7 이 오히려 결정적 증거를 준다** | p. 2031 이 **`Li₆PS₅Cl` 를 이름으로 들어 1.7 / 2.4 V** 라고 적는다. 같은 물질이다. 우리 "한 칸 위" 읽기 **1.72 / 2.36** 과 양쪽 다 맞는다 |
+
+**양쪽이 같은 방향인 것이 핵심이다** — 한쪽만이면 우연일 수 있다:
+
+| | 우리 필드값 | 우리 다음 breakpoint | 문헌 |
+|---|---:|---:|---|
+| 환원 | 1.242 | **1.72** | Zhu 2015 **1.71** · Wang 2026 **1.78** · **Nolan p.2031 (LPSCl) 1.7** |
+| 산화 | 2.14 | **2.36** | Zhu 2015 2.31 · Wang 2026 2.30 · **Nolan p.2031 (LPSCl) 2.4** |
+
+⚠ 원 카드 §4.5 는 *"산화 쪽은 환원만큼 깨끗하지 않다"* 고 적었다(문헌 2.30 이 2.14 와 2.36 의 중간이라).
+**Nolan 의 2.4 는 2.36 쪽에 붙는다** — 산화 쪽 근거가 이번에 하나 강해졌다. 그래도 *닫지는 않는다*
+(원 카드가 산화는 범위 밖이라고 못박았고, 우리 canonical 산화 onset 은 이 파일의 2.14 가 아니라 **2.256** 이다).
+
+**한 것**: `citation_hazards.json` 에 **`HZ-esw-reduction-limit-facet-convention`**(CONDITIONAL) 을 세웠다.
+**안 한 것**: 정본 수치·필드 이름은 **안 건드렸다.** 원 카드가 *"cascade 하류 전체에 걸리므로 1저자 판단 없이
+손대지 않는다"* 고 이미 적어 두었고, 그 판단은 아직 없다.
+
+⛔ **결속이 안 된다** — 이 세 값(`reduction_limit_V`·`ocv_self_decomposition_V`·`oxidation_limit_V`)은
+**canonical_registry 에 없다.** hazard 에 `claim` 을 걸 자리가 없어 id 로 이름만 댄다.
+**레지스트리 등록이 결속의 선결조건**이고, 그게 이 충돌이 남긴 진짜 숙제다.
+
 ---
 
 ## 충돌 2 — #7 카드가 *"정의 문장이 있는 유일한 편"* 이라 적었는데 #8 에도 있다
@@ -118,9 +165,12 @@ inbox #104 `Bai2026`(실제 Cronk)·#112 `Banerjee2020`(실제 Xiao) 두 번의 
 
 ## 결정 실험
 
-1. `db/properties/canonical_registry.json` 에서 `reduction_limit_V` · `ocv_self_decomposition_V` 두 항목의
-   `method` · `source_path` 를 읽고 **각각 어떤 연산인지** 적는다. (계산 0 · 원장 읽기만)
-2. 그 결과로 충돌 1 을 닫거나, 못 닫으면 `citation_hazards.json` 에 CONDITIONAL 항목을 세운다.
+1. ~~`canonical_registry.json` 에서 두 항목의 `method`·`source_path` 를 읽는다~~ → **2026-09-13 완료.**
+   ⚠ 전제가 틀렸다 — **두 값은 레지스트리에 없다.** `db/properties/oxidation_stability.json` 과
+   `tools/oxidation/esw_grand_potential.py:104-110` 이 정의 원본이다.
+2. ~~충돌 1 을 닫거나 CONDITIONAL 항목을 세운다~~ → **2026-09-13 둘 다.** 충돌 1 은 위 §해소 로 닫았고
+   `HZ-esw-reduction-limit-facet-convention` (CONDITIONAL) 을 세웠다. **남은 숙제 = 세 값의 레지스트리 등록**
+   (등록 전에는 hazard 가 `claim` 으로 결속되지 않는다).
 3. 충돌 2 는 #7·#8 digest 의 해당 절을 나란히 놓고 계보 카드 #7 행을 편집한다.
 4. 충돌 3 은 계보 카드 "흐름 한 줄" 과 #7·#8 행에 이미 반영됐다 — 추가 작업 없음.
 
@@ -129,3 +179,4 @@ inbox #104 `Bai2026`(실제 Cronk)·#112 `Banerjee2020`(실제 Xiao) 두 번의 
 | 날짜 | 무슨 일 |
 |---|---|
 | 2026-09-13 | 계보 #7·#8·#9 digest 를 공유 파일에 MERGE 하면서 세 자리가 갈린 것을 발견 — **합치지 않고 이 카드로 뺐다.** 아무것도 해소하지 않았다. |
+| 2026-09-13 | **충돌 1 해소.** 계산 0 — `esw_grand_potential.py` 와 2026-08-28 카드를 읽었을 뿐이다. 두 digest 가 그 카드를 몰랐다. 결론: #6 의 배치가 맞고, #7 의 *"우연"* 경고는 **물질 차이로는 유효**하나 *"다른 양"* 은 틀렸다. #7 의 p.2031 (LPSCl 1.7/2.4) 이 오히려 "한 칸 위" 읽기를 양쪽에서 지지한다. hazard `HZ-esw-reduction-limit-facet-convention` 신설. **정본 수치·필드명은 안 건드렸다.** |

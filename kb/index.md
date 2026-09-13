@@ -1,6 +1,6 @@
 # kb 카탈로그 (생성물 — 손으로 고치지 말 것)
 
-> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-12 · managed-files: 405
+> `python3 tools/kb_wiki.py index` 가 만든다 · 2026-09-13 · managed-files: 405
 
 규칙: kb/SCHEMA.md · 코드 체계: kb/CODES.md · 열린 질문: kb/questions/ · 논지 카드: kb/syntheses/ · 원장: kb/open_items.md · 문헌: litdb/INDEX.md
 
@@ -11,6 +11,7 @@
 - 2026-09-13 · `kb/reviews/codex_BP_reply_static_pair_result_2026_09_13.md` — 회신 BP 접수 — 조건 1 이행 인정 · 파일럿 조건부 GO (셀 정책 구현 불일치로 즉시 실행 승인은 아님) · 접수
 - 2026-09-13 · `kb/projects/cascade_rebuild_log_2026_09.md` — cascade 재건 일지 — 2026-09 (누적) · open
 - 2026-09-13 · `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` — 코팅 계보 #6·#7·#8 digest 가 서로 다른 말을 하는 세 자리 — 우리 값이 문헌의 어느 양인가 · open [open]
+- 2026-09-13 · `kb/questions/esw_reduction_limit_field_2026_08_28.md` — `reduction_limit_V` 는 환원한계가 아닌 것 같다 — breakpoint 하나 아래를 가리킨다 · open [open]
 - 2026-09-12 · `kb/methodology/qe_disk_reclaim_2026_09_12.md` — QE 디스크 회수 절차 — 파동함수는 스크래치, 정본은 텍스트 (kgy 2026-09-12, 306 GB) · 채택
 - 2026-09-12 · `kb/reviews/codex_BM_prompt_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 프롬프트 — LPSCl@Li₂S 1층: 비정질 밀도 게이트의 기준을 무엇에 두는가 · 발송대기
 - 2026-09-12 · `kb/reviews/codex_BM_reply_li2s_layer1_density_gate_2026_09_12.md` — 리뷰 BM 회신 원문 — 1층 밀도 게이트: G4 재설계 필요, 그러나 seed1 합격·2층 진행은 반대 · 수령
@@ -26,7 +27,6 @@
 - 2026-09-09 · `kb/results/README.md` — kb/results 지도 — 계별로 지금 유효한 것 / 마감 근거 / 접힌 역사 · 운영중
 - 2026-09-09 · `kb/reviews/cascade_preflight_audit_2026_09_09.md` — cascade_preflight_audit_2026_09_09 · 진행
 - 2026-09-09 · `kb/reviews/codex_BI4_reply_2026_09_09.md` — 리뷰 BI-4 회신 — P0 셋 전면 수용 · 지적의 공통 축을 우리가 못 봤다 · 초안
-- 2026-09-09 · `kb/reviews/codex_BI_reply_2026_09_09.md` — 리뷰 BI 회신 — NO-GO 전면 수용 · 규모 주장 넷 정정 · 우리가 먼저 올리는 넷 · 초안
 
 ⚠ frontmatter 없는 레거시 문서는 이 목록에 안 뜬다 (날짜를 기계로 읽을 수 없다 — SCHEMA 상 소급하지 않는다).
 
@@ -369,7 +369,7 @@
 ## questions/ (12)
 - `kb/questions/coating_lineage_sibling_conflicts_2026_09_13.md` — 코팅 계보 #6·#7·#8 digest 가 서로 다른 말을 하는 세 자리 — 우리 값이 문헌의 어느 양인가 [open]  (2026-09-13 · open)
 - `kb/questions/doped_declared_state_feasibility_2026_08_29.md` — doped E_ads 를 '상태 선언' 으로 살릴 수 있나 — NUPDOWN 은 홀 위치를 안 묶는다 [open]  (2026-08-29 · open)
-- `kb/questions/esw_reduction_limit_field_2026_08_28.md` — `reduction_limit_V` 는 환원한계가 아닌 것 같다 — breakpoint 하나 아래를 가리킨다 [open]  (2026-08-28 · open)
+- `kb/questions/esw_reduction_limit_field_2026_08_28.md` — `reduction_limit_V` 는 환원한계가 아닌 것 같다 — breakpoint 하나 아래를 가리킨다 [open]  (2026-09-13 · open)
 - `kb/questions/li3nd_pristine_reconstruction_2026_09_02.md` — Li₃Nd pristine 3×3×3 이 0.65 eV 재구성한다 — NEB 기반 구조도 같은가? [open]  (2026-09-02 · open)
 - `kb/questions/lpsocl_low_beta_mechanism.md` — 저β 런의 정체 — 케이지 절편인가, 진짜 sub-diffusion인가, 느린 전이인가 ⚠disputed [active]  (2026-08-12 · active)
 - `kb/questions/polaron_seed_localized_basis_cannot_express_ring_pi.md` — 폴라론 seed 가 안 먹는 이유 — 국재 기저에 '고리 π' 궤도가 없다 [open]  (2026-09-06 · open)
@@ -468,4 +468,4 @@
 ## elements/ — 118개 (생성물/템플릿, 목록 생략)
 ## templates/ — 3개 (생성물/템플릿, 목록 생략)
 
-## litdb/ — digest 264개 (정본 목록: litdb/INDEX.md)
+## litdb/ — digest 265개 (정본 목록: litdb/INDEX.md)
