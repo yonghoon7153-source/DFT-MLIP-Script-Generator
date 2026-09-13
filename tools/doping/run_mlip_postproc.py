@@ -91,8 +91,9 @@ def _eos_branch(atoms_ref, calc, fractions, fmax, relax_steps, continuation):
       실측: P2_Al2S3_B 시드 3개에서 r² 0.79 / 0.998 / 0.90.
       질서 있는 H0 만 r² 0.99997 로 깨끗했다 — 무질서가 원인이라는 증거다.
     """
-    V, E = [], []
+    V, E, conv = [], [], []
     prev = None
+    final = None
     for f in fractions:
         if continuation and prev is not None:
             atoms = prev.copy()                      # 앞 점의 **완화된** 구조에서
@@ -103,10 +104,22 @@ def _eos_branch(atoms_ref, calc, fractions, fmax, relax_steps, continuation):
         atoms.calc = calc
         opt = FIRE(atoms, logfile=None)              # 고정셀 · 원자만
         opt.run(fmax=fmax, steps=relax_steps)
+        # ⛔⛔ 회신 BQ P0-1 (2026-09-13) — 종전에는 `opt.run(...)` 의 결과를 **버렸다.**
+        #   그래서 점마다 **수렴했는지·최종 최대힘이 얼마인지** 기록이 없었고,
+        #   두 갈래의 에너지 차이를 보고 *"다른 국소최소"* 라고 말할 근거가 없었다
+        #   (셋 다 미수렴이어도 같은 모양이 나온다). 이제 남긴다 — 이 기록이 없으면
+        #   이 곡선으로 **아무 기전 판정도 하지 않는다.**
+        _fm = float(np.linalg.norm(atoms.get_forces(), axis=1).max())
+        _ns = int(opt.get_number_of_steps())
+        conv.append({'fraction': float(f), 'n_steps': _ns,
+                     'final_fmax_eV_A': _fm,
+                     'converged': bool(_fm <= fmax and _ns < relax_steps),
+                     'hit_step_limit': bool(_ns >= relax_steps)})
         V.append(atoms.get_volume())
         E.append(atoms.get_potential_energy())
         prev, prev_f = atoms, f
-    return np.array(V), np.array(E)
+        final = atoms
+    return np.array(V), np.array(E), conv, final
 
 
 def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
@@ -131,18 +144,39 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
     n = len(atoms_ref)
     fr = list(fractions)
     hyst = None
+    branch_state = None
+    conv_log = None
     if continuation:
-        V_up, E_up = _eos_branch(atoms_ref, calc, fr, fmax, relax_steps, True)
-        V_dn, E_dn = _eos_branch(atoms_ref, calc, fr[::-1], fmax, relax_steps, True)
+        V_up, E_up, c_up, s_up = _eos_branch(atoms_ref, calc, fr, fmax, relax_steps, True)
+        V_dn, E_dn, c_dn, _ = _eos_branch(atoms_ref, calc, fr[::-1], fmax, relax_steps, True)
         V_dn, E_dn = V_dn[::-1], E_dn[::-1]          # 오름차순으로 되돌린다
+        # ⛔⛔ 회신 BQ P0-2 (2026-09-13) — 종전에는 점마다 `min(E_up, E_down)` 을 골라
+        #   적합했다. 그건 **하나의 연속된 가지가 아니다** — 두 곡선이 교차하면 서로 다른
+        #   가지를 이어 붙인다(하위 포락선). docstring 은 "연속으로 이어진 가지" 라고
+        #   적어 놓고 코드는 다른 일을 하고 있었다.
+        #   ⇒ **올라가는 갈래 하나를 보고 곡선으로 쓴다.** 내려오는 갈래는 비교용으로만
+        #     남기고, 둘의 차이는 이력현상 진단에서 본다. 섞지 않는다.
+        # ⚠ 회신 BQ Q2 — 높이 차와 모양 차를 **분리해서** 낸다. E_dn = E_up + C 면
+        #   V₀·곡률·압력이 완전히 같은데도 옛 dE/span 은 크게 나왔다.
+        _d = E_up - E_dn
+        _shape = _d - _d.mean()                      # 평행이동 성분 제거 = 모양 차이만
         hyst = {'E_up': E_up.tolist(), 'E_down': E_dn.tolist(),
-                'max_abs_dE_eV': float(np.abs(E_up - E_dn).max()),
+                'reported_branch': 'up',
+                'max_abs_dE_eV': float(np.abs(_d).max()),
+                'level_offset_eV': float(_d.mean()),
+                'shape_max_abs_dE_eV': float(np.abs(_shape).max()),
                 'E_span_eV': float(max(E_up.max() - E_up.min(),
                                        E_dn.max() - E_dn.min())),
-                'tol_V0_rel': float(hysteresis_tol)}
-        V, E = V_up, np.minimum(E_up, E_dn)          # 보고 곡선: 갈래별 더 낮은 쪽
+                'tol_V0_rel': float(hysteresis_tol),
+                '⚠_dE_over_span_는_창에_의존한다': ('분모(E_span)가 부피창에 딸려 줄어든다. '
+                                              '창이 다른 조건끼리 같은 문턱으로 비교하지 마라 '
+                                              '— 회신 BQ Q2. 창 비교는 절대값(shape_max_abs_dE_eV)으로 한다'),
+                'convergence_up': c_up, 'convergence_down': c_dn}
+        V, E = V_up, E_up                            # **한 갈래만** 보고한다
+        branch_state = s_up
     else:
-        V, E = _eos_branch(atoms_ref, calc, fr, fmax, relax_steps, False)
+        V, E, conv_log, branch_state = _eos_branch(atoms_ref, calc, fr, fmax,
+                                                    relax_steps, False)
     # 3rd-order Birch-Murnaghan fit
     try:
         from scipy.optimize import curve_fit
@@ -223,6 +257,11 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
                 'fractions': list(fractions),
                 'continuation': bool(continuation),
                 'hysteresis': hyst,
+                'convergence': conv_log,
+                # ⛔ 회신 BQ P0-3 — V₀ **숫자**만 넘기면 그 V₀ 를 정의한 **상태**가 안 간다.
+                #   보고 곡선(올라가는 갈래)의 마지막 구조를 같이 돌려준다.
+                #   ⚠ JSON 직렬화 전에 `process_one` 이 pop 한다 (Atoms 는 직렬화 불가).
+                '_branch_atoms': branch_state,
                 'V0': float(V0) if fit_ok else None,
                 'V0_per_atom': float(V0) / n if fit_ok else None,
                 'E0': float(E0) if fit_ok else None,
@@ -236,8 +275,17 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
                                             f"r2={r2:.4f} / V0 / B0'={Bp:.2f} "
                                             f"unphysical (need r2>=0.95, 0<B0'<15)"))}
     except Exception as e:
+        # ⛔ 2026-09-13 — 종전에는 적합이 터지면 **수렴 기록·이력 기록까지 통째로 버렸다.**
+        #   그래서 *"왜 실패했나"* 를 볼 자료가 실패한 경우에만 없어졌다 — 정확히 반대다.
+        #   진단은 실패했을 때 더 필요하다. 그대로 싣는다.
         return {'V_points': V.tolist(), 'E_points': E.tolist(),
                 'fractions': list(fractions),
+                'continuation': bool(continuation),
+                'hysteresis': hyst,
+                'convergence': conv_log,
+                '_branch_atoms': branch_state,
+                'fit_quality_ok': False,
+                'fit_quality_reason': f'BM3 적합이 예외로 실패했다: {type(e).__name__}: {e}',
                 'fit_error': str(e)}
 
 
@@ -333,9 +381,17 @@ def stress_report(atoms):
     import numpy as _np
     v = _np.asarray(atoms.get_stress(voigt=True), dtype=float) * EV_A3_TO_GPA
     sig = _np.array([[v[0], v[5], v[4]], [v[5], v[1], v[3]], [v[4], v[3], v[2]]])
-    p = float(_np.trace(sig) / 3.0)
-    dev = sig - p * _np.eye(3)
+    # ⛔ 회신 BQ P1 (2026-09-13) — ASE `get_stress()` 는 **인장 양수** 규약이다.
+    #   실측(EMT/Cu): 0.95 로 압축한 셀에서 trace(σ)/3 = **−7.649 GPa**.
+    #   압축 상태의 물리적 압력은 양수여야 하므로 **P = −trace(σ)/3** 이 맞다.
+    #   종전에는 +trace/3 을 압력이라 적어 **부호가 뒤집혀 있었다.**
+    #   ⚠ 편차응력은 정의상 `σ − (trace σ/3)·I` 이므로 **거기까지 뒤집지 않는다.**
+    _tr3 = float(_np.trace(sig) / 3.0)
+    p = -_tr3
+    dev = sig - _tr3 * _np.eye(3)
     return {'sigma_GPa': sig.tolist(), 'P_mean_GPa': p,
+            'trace_over_3_GPa': _tr3,
+            '⚠_부호': 'P = −trace(σ)/3 (압축 양수). ASE 는 인장 양수 규약이다',
             'deviatoric_max_abs_GPa': float(_np.abs(dev).max()),
             '⚠': '목표 평균압 0 과 별개로 **실제** 값이다. 영응력 판정 아님'}
 
@@ -391,7 +447,17 @@ def maybe_apply_eos_v0(atoms, record, args, calc):
     no_eos = bool(getattr(args, 'no_eos', False))
     if getattr(args, 'apply_eos_v0', False) and not no_eos:
         v0 = (record.get('eos') or {}).get('V0')
-        atoms, rep = apply_v0_fixed_shape(atoms, v0, calc,
+        # ⛔⛔ 회신 BQ P0-3 (2026-09-13) — 종전에는 **원본 구조**에서 다시 완화했다.
+        #   V₀ 라는 **숫자**는 넘어가도 그 V₀ 를 정의한 **상태**(어느 가지의 어느 배치인가)는
+        #   승계되지 않았다. 무질서계에서는 그 상태가 곧 골짜기라, 숫자만 맞추고 다른
+        #   골짜기에서 완화하면 V₀ 를 적용했다고 말할 수 없다.
+        #   ⇒ 보고 곡선의 마지막 구조에서 출발한다. 없으면 **그 사실을 적고** 원본을 쓴다.
+        _bs = (record.get('eos') or {}).get('_branch_atoms')
+        _start = _bs if _bs is not None else atoms
+        pol['v0_start_state'] = ('EOS 보고 가지의 마지막 구조 (승계함)' if _bs is not None
+                                 else '⚠ 원본 구조 — EOS 가지 구조가 없다(연쇄 미사용 또는 적합 실패). '
+                                      'V₀ 를 정의한 상태를 승계하지 못했다')
+        atoms, rep = apply_v0_fixed_shape(_start, v0, calc,
                                           fmax=getattr(args, 'eos_fmax', 0.05),
                                           relax_steps=getattr(args, 'relax_steps', 500))
         pol['eos_v0_applied'] = bool(rep.get('applied'))
@@ -522,7 +588,10 @@ def process_one(xyz_path, calc, out_dir, args):
                                  relax_steps=args.relax_steps)
         record['anneal'] = log
     record['E_post_anneal_per_atom'] = atoms.get_potential_energy() / len(atoms)
-    write(work / 'post_anneal.xyz', atoms)
+    # ⛔ 회신 BQ P0-3 — 이 파일은 **V₀ 적용 전** 구조다. 이름이 그 사실을 말하게 한다.
+    #   (종전 이름 `post_anneal.xyz` 는 하류가 "최종 구조" 로 집어가기 쉬웠다.
+    #    MD 에 넘길 구조는 아래 `final_v0_applied.xyz` 다.)
+    write(work / 'stage1_before_eos.xyz', atoms)
 
     # 2. EOS (optionally an ensemble of N rattled seeds, best BM3 fit kept)
     if not args.no_eos:
@@ -549,6 +618,15 @@ def process_one(xyz_path, calc, out_dir, args):
 
     # 2b. EOS V₀ 를 **실제로** 적용한다 (GAP-3). 기본은 과거 동작 유지.
     atoms, record['cell_policy'] = maybe_apply_eos_v0(atoms, record, args, calc)
+    # ⛔ 회신 BQ P0-3 — Atoms 는 직렬화 불가. **V₀ 적용에 쓴 뒤** 기록에서 뺀다.
+    (record.get('eos') or {}).pop('_branch_atoms', None)
+    # MD·후속이 집어갈 구조는 **이것**이다 (V₀ 적용 후).
+    write(work / 'final_v0_applied.xyz', atoms)
+    record['structures_written'] = {
+        'stage1_before_eos.xyz': '⚠ EOS·V₀ 적용 **전** 구조. 하류가 집어가면 안 된다',
+        'final_v0_applied.xyz': '✅ 셀 정책이 적용된 최종 구조 — MD·탄성이 실제로 쓴 것',
+        'eos_v0_applied': bool((record.get('cell_policy') or {}).get('eos_v0_applied')),
+    }
 
     # 3. Elastic
     if not args.no_elastic:
@@ -632,12 +710,31 @@ def _selftest():
     chk('⛔경고' not in pol_noeos, "no_eos → 경고 없음 (V₀ 가 애초에 없다)")
 
     # ⑥ 응력 보고: 평균압과 편차가 **따로** 나오고 산술이 맞는다
+    #   ⛔ 2026-09-13 회신 BQ P1 — 이 시험이 **틀린 규약을 굳히고 있었다.**
+    #     `chk(P_mean == trace/3)` 이었는데, ASE 는 **인장 양수** 규약이라
+    #     압력은 `−trace/3` 이다. 시험이 버그를 지켰다.
     sr = stress_report(at)
     sig = _np.array(sr['sigma_GPa'])
-    chk(abs(sr['P_mean_GPa'] - _np.trace(sig) / 3) < 1e-9, "P_mean = trace/3")
-    dev = sig - sr['P_mean_GPa'] * _np.eye(3)
-    chk(abs(sr['deviatoric_max_abs_GPa'] - _np.abs(dev).max()) < 1e-9, "편차 최대성분")
+    chk(abs(sr['P_mean_GPa'] + _np.trace(sig) / 3) < 1e-9, "P_mean = **−**trace/3 (압축 양수)")
+    dev = sig - (_np.trace(sig) / 3) * _np.eye(3)      # 편차는 정의대로 trace/3 을 뺀다
+    chk(abs(sr['deviatoric_max_abs_GPa'] - _np.abs(dev).max()) < 1e-9,
+        "편차 최대성분 — 편차는 부호를 **안 뒤집는다** (정의가 σ − (trσ/3)I 다)")
     chk('영응력 판정 아님' in sr['⚠'], "응력 보고에 '영응력 판정 아님' 이 박혀 있다")
+
+    # ⛔음성: **압축한 셀의 압력이 양수인가** — 규약이 뒤집히면 여기서 잡힌다
+    _sq = bulk('Cu', 'fcc', a=3.59, cubic=True) * (2, 2, 2)
+    _sq.set_cell(_sq.cell.array * 0.95 ** (1 / 3), scale_atoms=True)
+    _sq.calc = EMT()
+    _sr = stress_report(_sq)
+    chk(_sr['P_mean_GPa'] > 0,
+        "⛔음성: **압축한 셀의 압력이 양수**다 (부호가 뒤집히면 음수가 나온다)")
+    chk(_sr['trace_over_3_GPa'] < 0,
+        "⛔음성: 같은 셀에서 trace/3 은 **음수**다 (ASE 인장 양수 규약을 그대로 남긴다)")
+    _ex = bulk('Cu', 'fcc', a=3.59, cubic=True) * (2, 2, 2)
+    _ex.set_cell(_ex.cell.array * 1.05 ** (1 / 3), scale_atoms=True)
+    _ex.calc = EMT()
+    chk(stress_report(_ex)['P_mean_GPa'] < 0,
+        "⛔음성: **팽창한 셀은 음압**이다 (부호가 방향을 실제로 따라간다)")
 
     # ⑦ ⛔음성: step0 정책이 기록에 남는가 (두 값이 달라야 한다)
     chk(maybe_apply_eos_v0(at, {}, A(no_eos=True), EMT())[1]['step0_relax'] !=
@@ -751,6 +848,52 @@ def _selftest():
     _eos_branch(_cu, _Spy(), (1.00, 1.02), 0.05, 5, False)
     chk(_n_cont > 0 and len(_seen) > 0,
         "⛔음성: 두 갈래 모두 실제로 계산기를 부른다 (빈 경로가 아니다)")
+
+    # ⑪ 회신 BQ P0-1 · P0-2 · P0-3 (2026-09-13)
+    _bq = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                    continuation=True, hysteresis_tol=1.0, hysteresis_span_tol=1.0)
+    _h = _bq.get('hysteresis') or {}
+
+    # P0-1 — 점마다 수렴·최종 최대힘이 남는가
+    _cu_log = _h.get('convergence_up') or []
+    chk(len(_cu_log) == len(_fr)
+        and all({'final_fmax_eV_A', 'converged', 'n_steps'} <= set(r) for r in _cu_log),
+        "P0-1: 부피점마다 **수렴 여부·최종 최대힘**이 남는다 (없으면 기전 판정 불가)")
+    # ⛔음성: 스텝을 굶기면 **미수렴으로 표시**돼야 한다 (조용히 통과하면 안 된다)
+    #   ⚠ 픽스처 주의: **완벽한 Cu 결정은 대칭 때문에 힘이 정확히 0** 이라 굶겨도
+    #     '수렴' 으로 찍힌다. 흔들어서 실제 힘을 만들어야 이 시험이 뜻을 갖는다.
+    _rough = _cu.copy(); _rough.rattle(stdev=0.08, seed=11)
+    _starved = eos_sweep(_rough, EMT(), fractions=_fr, fmax=1e-9, relax_steps=1,
+                         continuation=True, hysteresis_tol=1.0, hysteresis_span_tol=1.0)
+    _sl = (_starved.get('hysteresis') or {}).get('convergence_up') or []
+    chk(_sl and all(not r['converged'] for r in _sl),
+        "⛔음성: fmax 1e-9·steps 1 로 굶기면 **전부 미수렴**으로 찍힌다")
+    chk(_sl and all(r['hit_step_limit'] for r in _sl),
+        "⛔음성: 스텝 한도에 걸린 사실이 따로 기록된다")
+
+    # P0-2 — 보고 곡선이 **한 갈래**인가 (min 섞기가 아닌가)
+    chk(_h.get('reported_branch') == 'up'
+        and _bq['E_points'] == _h['E_up'],
+        "P0-2: 보고 곡선이 **올라가는 갈래 그대로**다 (min(up,down) 섞기 아님)")
+    _mixed = [min(a, b) for a, b in zip(_h['E_up'], _h['E_down'])]
+    chk(_bq['E_points'] != _mixed or _h['E_up'] == _mixed,
+        "⛔음성: 하위 포락선과 다르다 (두 갈래가 실제로 갈린 경우)")
+    chk('level_offset_eV' in _h and 'shape_max_abs_dE_eV' in _h,
+        "Q2: 높이 차(level_offset)와 모양 차(shape_max)가 **따로** 기록된다")
+    chk('창에' in ''.join(k for k in _h if '창' in k),
+        "Q2: dE/span 이 창 의존이라는 경고가 기록에 박혀 있다")
+
+    # P0-3 — V₀ 를 정의한 **상태**를 승계하는가
+    chk(_bq.get('_branch_atoms') is not None,
+        "P0-3: 보고 가지의 **마지막 구조**가 같이 돌아온다 (숫자만 넘기지 않는다)")
+    _rec = {'eos': dict(_bq)}
+    _a2, _pol = maybe_apply_eos_v0(at, _rec, A(apply_eos_v0=True, fixed_shape_relax=True), EMT())
+    chk('승계함' in (_pol.get('v0_start_state') or ''),
+        "P0-3: 승계 여부가 기록에 남는다 (승계함)")
+    _rec2 = {'eos': {k: v for k, v in _bq.items() if k != '_branch_atoms'}}
+    _a3, _pol2 = maybe_apply_eos_v0(at, _rec2, A(apply_eos_v0=True, fixed_shape_relax=True), EMT())
+    chk('⚠' in (_pol2.get('v0_start_state') or '') and '승계하지 못했다' in _pol2['v0_start_state'],
+        "⛔음성: 가지 구조가 없으면 **원본을 썼다고 경고**한다 (조용히 넘어가지 않는다)")
 
     print(f"  selftest: ⭕ {ok} · ⛔ {fail}")
     return 0 if fail == 0 else 1
