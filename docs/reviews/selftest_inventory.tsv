@@ -58,6 +58,7 @@ scripts/design_performance_dataset.py	--selftest	fast	none	claude	초록 0.3s (�
 scripts/eis_drt_ica.py	--selftest	fast	both	claude	초록 1.2s (실측) — L4-11 porosity 단위 계약(1 % 불연속·falsy 0) 회귀가 여기 산다
 scripts/extract_se_network_diagnostics.py	--selftest	fast	both	claude	초록 0.6s (실측) — L4-06 내용 지문 중복제거 + L4-07 메타 병합·충돌 거부
 scripts/grade_engine.py	--selftest	fast	both	claude	초록 0.2s (실측) — A군 라벨↔계산 정합 (L4-09 C_AM·L4-04 τ·L2-07 CF/FULL·L2-08 비가중)
+scripts/audit_constriction_deleted.py	--selftest	fast	both	claude	초록 0.6s (실측) — 면적 계약 S0: 협착 삭제 판정식이 솔버 산술과 한 출처인가 + tabor 대조
 scripts/env_db.py	--selftest	fast	none	claude	초록 0.1s (실측)
 scripts/fibre_1d_network.py	--selftest	fast	none	claude	초록 0.7s (실측)
 scripts/fibre_segment_raster.py	--selftest	fast	none	claude	초록 2.0s (실측)

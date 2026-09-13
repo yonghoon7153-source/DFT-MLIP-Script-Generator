@@ -86,6 +86,9 @@ jobs:
       - name: 등급 축 라벨 ↔ 계산 정합 (L4-09 · L4-04 · L2-07 · L2-08)
         run: python scripts/grade_engine.py --selftest
 
+      - name: 면적 계약 S0 — 협착 삭제 판정 (SELF-28)
+        run: python scripts/audit_constriction_deleted.py --selftest
+
       - name: σ_grain(T) 흡수 규약 (selftest — 어느 레인에도 없었다)
         run: python scripts/generate_comparison_plots.py --selftest-temp
 
