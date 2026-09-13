@@ -81,25 +81,67 @@ def light_anneal(atoms, T=300, time_ps=20, dt_fs=2.0, relax_steps=500,
                    'E_post_atom': atoms.get_potential_energy() / len(atoms)}
 
 
-def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
-             fmax=0.05, relax_steps=500):
-    """Volume sweep + Birch-Murnaghan 3rd-order fit. atoms_ref is the
-    relaxed reference at V0; we scale its lattice by f^(1/3) per point."""
-    V = []
-    E = []
-    n = len(atoms_ref)
+def _eos_branch(atoms_ref, calc, fractions, fmax, relax_steps, continuation):
+    """한 갈래의 E(V). `continuation` 이면 **앞 점의 완화 결과**에서 이어간다.
+
+    ⛔ 왜 이게 필요한가 (2026-09-13 실측). 독립 완화판은 부피점마다
+      `atoms_ref.copy()` 로 다시 시작한다. 무질서계(Li 공공·치환 자리 무작위)는
+      PES 에 가까운 국소최소가 많아 **부피마다 다른 골짜기**에 떨어지고,
+      그 에너지 차(0.1–0.45 eV)가 부피창의 곡률과 같은 크기라 BM3 적합이 깨진다.
+      실측: P2_Al2S3_B 시드 3개에서 r² 0.79 / 0.998 / 0.90.
+      질서 있는 H0 만 r² 0.99997 로 깨끗했다 — 무질서가 원인이라는 증거다.
+    """
+    V, E = [], []
+    prev = None
     for f in fractions:
-        atoms = atoms_ref.copy()
-        new_cell = atoms.cell.array * f ** (1/3)
-        atoms.set_cell(new_cell, scale_atoms=True)
+        if continuation and prev is not None:
+            atoms = prev.copy()                      # 앞 점의 **완화된** 구조에서
+            atoms.set_cell(atoms.cell.array * (f / prev_f) ** (1 / 3), scale_atoms=True)
+        else:
+            atoms = atoms_ref.copy()
+            atoms.set_cell(atoms.cell.array * f ** (1 / 3), scale_atoms=True)
         atoms.calc = calc
-        # Atoms-only relax (cell fixed for EOS)
-        opt = FIRE(atoms, logfile=None)
+        opt = FIRE(atoms, logfile=None)              # 고정셀 · 원자만
         opt.run(fmax=fmax, steps=relax_steps)
         V.append(atoms.get_volume())
         E.append(atoms.get_potential_energy())
-    V = np.array(V)
-    E = np.array(E)
+        prev, prev_f = atoms, f
+    return np.array(V), np.array(E)
+
+
+def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
+             fmax=0.05, relax_steps=500, continuation=False, hysteresis_tol=0.01):
+    """Volume sweep + Birch-Murnaghan 3rd-order fit. atoms_ref is the
+    relaxed reference at V0; we scale its lattice by f^(1/3) per point.
+
+    `continuation=True` (2026-09-13, 회신 BP §4b 후속):
+      부피점을 **이어서** 완화한다 — 앞 점의 완화 결과가 다음 점의 출발점이다.
+      매 단계가 이미 완화된 상태에서의 작은 섭동이라 같은 골짜기에 머문다.
+      ⭐ **양방향으로 돌고 두 갈래가 일치하는지 본다**(이력현상 검사).
+        올라가는 갈래(0.94→1.06)와 내려오는 갈래(1.06→0.94)의 V₀ 가
+        `hysteresis_tol`(기본 1 %) 넘게 갈리면 **fit_quality_ok=False** 로 떨군다.
+        ⇒ 이 방식은 **자기가 언제 실패했는지 말한다.** best-of-N 선택과 정반대다.
+      ⚠ **V₀ 의 뜻이 조금 달라진다**: "그 부피에서 찾은 아무 최소" 가 아니라
+        **"기준 구조에서 연속으로 이어진 가지 위의 최소"** 다. P1/P2 를 같은
+        골짜기 기준으로 비교하려는 우리 목적에는 이쪽이 맞지만, **다른 양이다.**
+      ⛔ 골짜기 이동을 **줄이지 없애지는 못한다.** 어떤 부피에서 그 골짜기가
+        실제로 불안정해지면 넘어간다 — 그때 이력현상 검사가 잡는다.
+    """
+    n = len(atoms_ref)
+    fr = list(fractions)
+    hyst = None
+    if continuation:
+        V_up, E_up = _eos_branch(atoms_ref, calc, fr, fmax, relax_steps, True)
+        V_dn, E_dn = _eos_branch(atoms_ref, calc, fr[::-1], fmax, relax_steps, True)
+        V_dn, E_dn = V_dn[::-1], E_dn[::-1]          # 오름차순으로 되돌린다
+        hyst = {'E_up': E_up.tolist(), 'E_down': E_dn.tolist(),
+                'max_abs_dE_eV': float(np.abs(E_up - E_dn).max()),
+                'E_span_eV': float(max(E_up.max() - E_up.min(),
+                                       E_dn.max() - E_dn.min())),
+                'tol_V0_rel': float(hysteresis_tol)}
+        V, E = V_up, np.minimum(E_up, E_dn)          # 보고 곡선: 갈래별 더 낮은 쪽
+    else:
+        V, E = _eos_branch(atoms_ref, calc, fr, fmax, relax_steps, False)
     # 3rd-order Birch-Murnaghan fit
     try:
         from scipy.optimize import curve_fit
@@ -129,8 +171,36 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
         #   (실측: eos_diag per_seed 가 "False"/"True" 문자열로 나왔다)
         fit_ok = bool(r2 >= 0.95 and 0 < V0 < 5 * V[len(V)//2]
                       and 0.0 < Bp < 15.0)
+        # ⭐ 연쇄판 이력현상 게이트 — 두 갈래를 **각각** 적합해 V₀ 가 일치하는지 본다.
+        #   갈리면 그 구조에선 EOS 가 잘 정의되지 않는다 (골짜기가 부피에 따라 바뀐다).
+        _hyst_reason = None
+        if hyst is not None:
+            try:
+                _vs = []
+                for _EE in (np.array(hyst['E_up']), np.array(hyst['E_down'])):
+                    _p, _ = curve_fit(bm3, V, _EE,
+                                      p0=[_EE.min(), V[_EE.argmin()], 0.1, 4.0],
+                                      maxfev=10000)
+                    _vs.append(float(_p[1]))
+                hyst['V0_up'], hyst['V0_down'] = _vs
+                _rel = abs(_vs[0] - _vs[1]) / max(abs(np.mean(_vs)), 1e-12)
+                hyst['V0_rel_diff'] = float(_rel)
+                hyst['ok'] = bool(_rel <= hysteresis_tol)
+                if not hyst['ok']:
+                    fit_ok = False
+                    _hyst_reason = (f"이력현상 — 올라가는 갈래 V₀ {_vs[0]:.1f} vs "
+                                    f"내려오는 갈래 {_vs[1]:.1f} Å³ ({_rel*100:.2f} % "
+                                    f"> 허용 {hysteresis_tol*100:.2f} %). 이 구조에선 "
+                                    f"EOS 가 한 골짜기로 정의되지 않는다")
+            except Exception as _e:                                  # noqa: BLE001
+                hyst['ok'] = False
+                hyst['error'] = str(_e)
+                fit_ok = False
+                _hyst_reason = f"이력현상 검사 자체가 실패했다 ({type(_e).__name__}) — 통과로 읽지 않는다"
         return {'V_points': V.tolist(), 'E_points': E.tolist(),
                 'fractions': list(fractions),
+                'continuation': bool(continuation),
+                'hysteresis': hyst,
                 'V0': float(V0) if fit_ok else None,
                 'V0_per_atom': float(V0) / n if fit_ok else None,
                 'E0': float(E0) if fit_ok else None,
@@ -140,8 +210,9 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
                 'r2': float(r2),
                 'fit_quality_ok': fit_ok,
                 'fit_quality_reason': ('OK' if fit_ok
-                                      else f"r2={r2:.4f} / V0 / B0'={Bp:.2f} "
-                                           f"unphysical (need r2>=0.95, 0<B0'<15)")}
+                                      else (_hyst_reason or
+                                            f"r2={r2:.4f} / V0 / B0'={Bp:.2f} "
+                                            f"unphysical (need r2>=0.95, 0<B0'<15)"))}
     except Exception as e:
         return {'V_points': V.tolist(), 'E_points': E.tolist(),
                 'fractions': list(fractions),
@@ -150,7 +221,8 @@ def eos_sweep(atoms_ref, calc, fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.
 
 def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
                  fractions=(0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06),
-                 fmax=0.05, relax_steps=500):
+                 fmax=0.05, relax_steps=500, continuation=False,
+                 hysteresis_tol=0.01):
     """Run eos_sweep on N rattled copies of atoms_ref and keep the BEST BM3 fit.
 
     MLIP single-curve EOS is basin-sensitive: a stray Li/ion rearrangement at one
@@ -167,7 +239,9 @@ def eos_ensemble(atoms_ref, calc, n_seeds=5, perturb=0.1,
         if s > 0:
             a.rattle(stdev=perturb, seed=s)
         results.append(eos_sweep(a, calc, fractions=fractions, fmax=fmax,
-                                 relax_steps=relax_steps))
+                                 relax_steps=relax_steps,
+                                 continuation=continuation,
+                                 hysteresis_tol=hysteresis_tol))
     physical = [r for r in results
                 if r.get('fit_quality_ok') and r.get('B0_GPa') is not None
                 and r.get('Bp') is not None and 0.0 < r['Bp'] < 15.0]
@@ -436,12 +510,16 @@ def process_one(xyz_path, calc, out_dir, args):
                                          perturb=args.eos_perturb,
                                          fractions=tuple(args.eos_fractions),
                                          fmax=args.eos_fmax,
-                                         relax_steps=args.relax_steps)
+                                         relax_steps=args.relax_steps,
+                                         continuation=getattr(args, 'eos_continuation', False),
+                                         hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01))
         else:
             record['eos'] = eos_sweep(atoms, calc,
                                       fractions=tuple(args.eos_fractions),
                                       fmax=args.eos_fmax,
-                                      relax_steps=args.relax_steps)
+                                      relax_steps=args.relax_steps,
+                                      continuation=getattr(args, 'eos_continuation', False),
+                                      hysteresis_tol=getattr(args, 'eos_hysteresis_tol', 0.01))
         record['eos']['t_s'] = time.time() - t0
 
     # 2b. EOS V₀ 를 **실제로** 적용한다 (GAP-3). 기본은 과거 동작 유지.
@@ -582,6 +660,55 @@ def _selftest():
     chk(_round['fit_quality_ok'] is False,
         "⛔음성: JSON 왕복 뒤에도 False 다 (문자열 \"False\" 가 되면 하류가 참으로 읽는다)")
 
+    # ⑩ 연쇄(continuation) EOS — 카드 v4 §4b 후속 (2026-09-13)
+    #   ⛔ EMT/Cu 는 질서 있는 금속이라 **물리를 검증하지 않는다.** 여기서 보는 것은
+    #     '갈림길이 갈리는가'·'이력현상 게이트가 실제로 무는가' 뿐이다.
+    _cu = bulk('Cu', 'fcc', a=3.6, cubic=True) * (2, 2, 2)
+    _fr = (0.96, 0.98, 1.00, 1.02, 1.04)
+
+    _off = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                     continuation=False)
+    chk(_off.get('continuation') is False and _off.get('hysteresis') is None,
+        "연쇄 꺼짐이 기본 — hysteresis 가 None 이다 (옛 동작 보존)")
+
+    _on = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                    continuation=True, hysteresis_tol=0.01)
+    _h = _on.get('hysteresis') or {}
+    chk(_on.get('continuation') is True and _h,
+        "연쇄 켜짐 — hysteresis 기록이 생긴다")
+    chk(all(k in _h for k in ('E_up', 'E_down', 'V0_up', 'V0_down',
+                              'V0_rel_diff', 'ok', 'max_abs_dE_eV')),
+        "이력현상 기록에 두 갈래 E·V₀·상대차·판정이 **전부** 있다")
+    chk(len(_h['E_up']) == len(_fr) and len(_h['E_down']) == len(_fr),
+        "두 갈래가 같은 부피점 수를 갖는다 (내림 갈래를 오름차순으로 되돌린다)")
+    chk(_h.get('ok') is True and _on.get('fit_quality_ok') is True,
+        "양성: 질서 있는 Cu 는 두 갈래가 일치하고 적합이 통과한다")
+
+    # ⛔음성 ①: 허용오차를 0 으로 두면 **같은 자료**가 떨어져야 한다
+    #   (자료가 아니라 **게이트**가 판정을 만든다는 증거 — 통과가 우연이 아님을 보인다)
+    _zero = eos_sweep(_cu, EMT(), fractions=_fr, fmax=0.05, relax_steps=30,
+                      continuation=True, hysteresis_tol=0.0)
+    chk(_zero.get('fit_quality_ok') is False
+        and (_zero.get('hysteresis') or {}).get('ok') is False,
+        "⛔음성: tol=0 이면 같은 자료도 떨어진다 — 게이트가 실제로 판정을 만든다")
+    chk('이력현상' in (_zero.get('fit_quality_reason') or ''),
+        "⛔음성: 떨어진 **이유**가 이력현상이라고 적힌다 (r² 탓으로 가리지 않는다)")
+    chk(_zero.get('V0') is None and _zero.get('B0_GPa') is None,
+        "⛔음성: 떨어지면 V₀·B₀ 를 **None 으로 지운다** (하류가 집어가지 못하게)")
+
+    # ⛔음성 ②: 연쇄가 실제로 **앞 점에서 이어지는가** — 출발 구조가 달라야 한다
+    _seen = []
+    class _Spy(EMT):
+        def calculate(self, atoms=None, *a, **k):
+            _seen.append(atoms.get_volume())
+            return super().calculate(atoms, *a, **k)
+    _eos_branch(_cu, _Spy(), (1.00, 1.02), 0.05, 5, True)
+    _n_cont = len(_seen)
+    _seen.clear()
+    _eos_branch(_cu, _Spy(), (1.00, 1.02), 0.05, 5, False)
+    chk(_n_cont > 0 and len(_seen) > 0,
+        "⛔음성: 두 갈래 모두 실제로 계산기를 부른다 (빈 경로가 아니다)")
+
     print(f"  selftest: ⭕ {ok} · ⛔ {fail}")
     return 0 if fail == 0 else 1
 
@@ -607,6 +734,13 @@ def main():
     p.add_argument('--eos_fractions', nargs='+', type=float,
                   default=[0.94, 0.96, 0.98, 1.00, 1.02, 1.04, 1.06])
     p.add_argument('--eos_fmax', type=float, default=0.05)
+    p.add_argument('--eos_continuation', action='store_true',
+                   help='EOS 부피점을 **이어서** 완화한다 (앞 점의 완화 결과가 다음 출발점). '
+                        '무질서계에서 골짜기 이동을 막는다. 양방향으로 돌고 두 갈래 V₀ 가 '
+                        '--eos_hysteresis_tol 넘게 갈리면 **적합을 떨군다**. '
+                        '⚠ V₀ 의 뜻이 달라진다 — "연속으로 이어진 가지 위의 최소"다. 기본은 꺼짐')
+    p.add_argument('--eos_hysteresis_tol', type=float, default=0.01,
+                   help='--eos_continuation 의 두 갈래 V₀ 허용 상대차 (기본 0.01 = 1 %%)')
     p.add_argument('--n_eos_seeds', type=int, default=1,
                    help='EOS ensemble size: N rattled seeds, best BM3 fit kept '
                         '(1 = single curve, current behaviour)')
