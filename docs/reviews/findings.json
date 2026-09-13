@@ -2170,11 +2170,11 @@
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L1_20260913.md",
    "title": "`contact_area` 는 **기하 교차면적**인데 `hertz` 채널로 읽힌다 (1.9875배)",
-   "note": "(Codex 라벨: **L1-CX-04**)\n`parse_liggghts.py:47` 이 `c_cpl[22]` 를 `contact_area` 로 보존하고 `coverage_physics_vs_hertzian.py:206` 이 그것을 **Hertz 채널**로 쓴다.  공식 LIGGGHTS 문서·구현(`compute_pair_gran_local.cpp#L509-L517`)은 이를 **역학 해가 아닌 기하학적 교차 원판**으로 구분한다.\n★ **재현**: `A_LIGG/A_Hertz = 2 - d/(2r)` — r=0.5 um · d/R*=0.05 에서 **1.987500** (해석·실측 일치, 판정문 1.9875).\n또 `plastic_coverage.py:273` 의 elastic 반환은 LIGG floor 를 안 쓴다 ⇒ *'Physics 는 항상 DEM-native 보다 크다'* 도 전 구간 계약이 아니다 (비 0.50003536).\n⇒ 무너지는 결론: `hertz` 를 `pi R* d` 로 읽거나 두 열 차이를 *'추가 소성면적'* 으로만 읽는 것.\n처치(부분): 새 수확기 `lhs_descriptor_harvest.py` 가 매 행에 `area_channel` 을 박는다 (`dem_geometric_c_cpl22 … Hertz 탄성이 아니다; 비 = 2 - d/(2r)`) + selftest ⑬b 회귀.\n⛔ **미해결**: 웹앱/스케일링법칙 쪽 키 이름은 **그대로다** — 판정문이 *'기존 키와 frozen feature 를 세대 표시 없이 바꾸면 안 된다'* 고 했으므로 `A_dem_geometric`/`A_hertz_elastic`/`A_plastic_model` 로의 개명은 **세대 표시와 함께** 별건으로 해야 한다.",
+   "note": "(Codex 라벨: **L1-CX-04**)\n`parse_liggghts.py:47` 이 `c_cpl[22]` 를 `contact_area` 로 보존하고 `coverage_physics_vs_hertzian.py:206` 이 그것을 **Hertz 채널**로 쓴다.  공식 LIGGGHTS 문서·구현(`compute_pair_gran_local.cpp#L509-L517`)은 이를 **역학 해가 아닌 기하학적 교차 원판**으로 구분한다.\n★ **재현**: `A_LIGG/A_Hertz = 2 - d/(2r)` — r=0.5 um · d/R*=0.05 에서 **1.987500** (해석·실측 일치, 판정문 1.9875).\n또 `plastic_coverage.py:273` 의 elastic 반환은 LIGG floor 를 안 쓴다 ⇒ *'Physics 는 항상 DEM-native 보다 크다'* 도 전 구간 계약이 아니다 (비 0.50003536).\n⇒ 무너지는 결론: `hertz` 를 `pi R* d` 로 읽거나 두 열 차이를 *'추가 소성면적'* 으로만 읽는 것.\n처치(부분): 새 수확기 `lhs_descriptor_harvest.py` 가 매 행에 `area_channel` 을 박는다 (`dem_geometric_c_cpl22 … Hertz 탄성이 아니다; 비 = 2 - d/(2r)`) + selftest ⑬b 회귀.\n⛔ **미해결**: 웹앱/스케일링법칙 쪽 키 이름은 **그대로다** — 판정문이 *'기존 키와 frozen feature 를 세대 표시 없이 바꾸면 안 된다'* 고 했으므로 `A_dem_geometric`/`A_hertz_elastic`/`A_plastic_model` 로의 개명은 **세대 표시와 함께** 별건으로 해야 한다.\n\n**추가 수정 (설명만)** `62e67e02`: 남아 있던 *'웹앱/스케일링법칙 쪽'* 중 **설명 층**을 닫았다 — `parse_liggghts.py` 의 `c_cpl[22]` 매핑 주석과 `coverage_physics_vs_hertzian.py` 의 독스트링·`am_se_hertz` 주석에 *'LIGGGHTS `contact_area` = **기하학적 교차 원판**, Hertz 탄성 해가 아니다 (`A_LIGG/A_Hertz = 2 − d/(2r)`, r=0.5 µm·δ/R*=0.05 에서 **1.9875배**)'* 와 **무너지는 읽기 두 가지**(π R* δ 환산 · 차이를 추가 소성면적으로만 읽기, 비 0.50003536 구간 존재)를 적었다.\n⛔ **키 개명은 여전히 미해결**이고 그대로 둔다 (`coverage_*_hertz_pct` 등) — 판정문의 *'세대 표시 없이 바꾸면 안 된다'* 를 지킨다.",
    "evidence_tests": [
     "scripts/lhs_descriptor_harvest.py"
    ],
-   "claimed_fixed_sha": "a9db0c15d"
+   "claimed_fixed_sha": "62e67e0206473dc854425d36be448f14dea438a8"
   },
   {
    "id": "L1-05",
@@ -2323,29 +2323,31 @@
   {
    "id": "L2-07",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
    "title": "`CONTACT_FREE/FULL` 을 **Bruggeman 대 실측**으로 설명한다 (다른 비다)",
-   "note": "(Codex 라벨: **P2-L2-07**)\n`network_conductivity.py:1095` · `grade_engine.py:340` · `webapp/app.py:8763` · `templates/single.html:1960` 의 설명 문구.\n★ Codex 반례 (실제 `run_decomposition`, 4구 r=1 거리 1.9 delta 0.1, sigma_bulk 0.003 S/cm): FULL **0.034749** · CONTACT_FREE **0.126754** · Bruggeman **0.009630** mS/cm ⇒ `CF/FULL = 3.6477` 인데 `Bruggeman/FULL = 0.2771` — **하나는 1보다 크고 하나는 작다**.\n⇒ *'간단한 이론식이 실제보다 몇 배 과대'* 라는 설명은 **분자와 분모를 모두 바꿔 읽는다**.\n★ 연산 자체는 **조건부 CONFIRMED**: CF 는 **같은 접촉 그래프의 bulk-only** 다 (접촉이 있어야 그래프에 들어오므로 *'접촉망을 없앤 모델'* 이 아니다).  단 `:593-610` 이 mode 마다 전극 conductance 를 다시 계산하므로 **고정 전극 정리를 그대로 인용할 수 없고**, 증강 망의 단조성으로만 상한 관계를 설명할 수 있다.\n⛔ **우리 원장 CL-81 의 문헌 삼각측량이 여기 걸린다** — `R_brug_over_full` n=157 중앙값 4.04x/6.69x 를 kim2025 EIS GB-only 3.75x 와 *'8 % 안에서 만난다'* 고 적었는데, 그 키는 **CF/FULL** 이고 **그 접촉 모델·그래프 내부의 민감도**이지 실험 오차 분포가 아니다.  산포가 크다고 **하나의 보정 배수로 다른 MPM/voxel 솔버에 이식할 수 없다**.\n⚠ 다만 CL-81 의 **구조적 결론**(복셀 FV 가 CONTACT_FREE 가지 위에 있다)은 부정되지 않았다.",
+   "note": "(Codex 라벨: **P2-L2-07**)\n`network_conductivity.py:1095` · `grade_engine.py:340` · `webapp/app.py:8763` · `templates/single.html:1960` 의 설명 문구.\n★ Codex 반례 (실제 `run_decomposition`, 4구 r=1 거리 1.9 delta 0.1, sigma_bulk 0.003 S/cm): FULL **0.034749** · CONTACT_FREE **0.126754** · Bruggeman **0.009630** mS/cm ⇒ `CF/FULL = 3.6477` 인데 `Bruggeman/FULL = 0.2771` — **하나는 1보다 크고 하나는 작다**.\n⇒ *'간단한 이론식이 실제보다 몇 배 과대'* 라는 설명은 **분자와 분모를 모두 바꿔 읽는다**.\n★ 연산 자체는 **조건부 CONFIRMED**: CF 는 **같은 접촉 그래프의 bulk-only** 다 (접촉이 있어야 그래프에 들어오므로 *'접촉망을 없앤 모델'* 이 아니다).  단 `:593-610` 이 mode 마다 전극 conductance 를 다시 계산하므로 **고정 전극 정리를 그대로 인용할 수 없고**, 증강 망의 단조성으로만 상한 관계를 설명할 수 있다.\n⛔ **우리 원장 CL-81 의 문헌 삼각측량이 여기 걸린다** — `R_brug_over_full` n=157 중앙값 4.04x/6.69x 를 kim2025 EIS GB-only 3.75x 와 *'8 % 안에서 만난다'* 고 적었는데, 그 키는 **CF/FULL** 이고 **그 접촉 모델·그래프 내부의 민감도**이지 실험 오차 분포가 아니다.  산포가 크다고 **하나의 보정 배수로 다른 MPM/voxel 솔버에 이식할 수 없다**.\n⚠ 다만 CL-81 의 **구조적 결론**(복셀 FV 가 CONTACT_FREE 가지 위에 있다)은 부정되지 않았다.\n\n**수정 (라벨만 — 계산 불변)** `62e67e02`: 네 자리의 설명을 실제 계산과 맞췄다 — 솔버 주석(`network_conductivity.py`) · grade 축 라벨을 **`CONTACT_FREE / FULL (협착 민감도)`** 로 · 앱 쉬운말 · `single.html` 해설.  *'같은 접촉 그래프 안에서 협착 항만 뺀 가지와의 비'* 라고 적고, Codex 반례(**CF/FULL 3.6477 ↔ Brug/FULL 0.2771**)를 설명에 남겼다.\n⛔ **키 이름은 안 바꾼다** — `R_brug_over_full[_physics]` 는 frozen feature 이고 판정문이 세대 표시 없는 개명을 금했다.  개명은 별건.\n⛔ **CL-81 의 문헌 삼각측량은 이미 철회했다** (SELF-24 · 커밋 `ea11cdaf7` 계열): `R_brug_over_full` n=157 중앙값을 kim2025 EIS GB-only 와 *'8 % 안에서 만난다'* 고 적은 문장은 CLAUDE.md 에서 제거됐다.  ⚠ CL-81 의 **구조적 결론**(복셀 FV 가 CONTACT_FREE 가지 위에 있다)은 부정되지 않았다.\n회귀 `grade_engine.py --selftest` ③a-c (라벨을 'Bruggeman overestimation' 으로 되돌리면 FAIL).",
    "evidence_tests": [
     "scripts/network_conductivity.py",
     "scripts/grade_engine.py"
-   ]
+   ],
+   "claimed_fixed_sha": "62e67e0206473dc854425d36be448f14dea438a8"
   },
   {
    "id": "L2-08",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L2_20260913.md",
    "title": "**\"협착이 전체 저항의 45 %\"** 는 전력 기여도가 아니다 (실제 8.1818 %)",
-   "note": "(Codex 라벨: **P2-L2-08**)\n`network_conductivity.py:1010` · `webapp/app.py:2483` · `:8765` 의 통계는 간선별 `R_bulk/(R_bulk+R_c)` 의 **비가중 산술평균**이다.\n★ **이 리포에서 재현 (자리 일치)**: 두 병렬 경로 x 2 직렬 간선, 모든 R_bulk=1, A 의 R_c=9 · B 의 R_c=0 ⇒ 화면 통계 **45 %**, 실제 `sum(I^2 R_c)/sum(I^2 R_total)` = **8.1818 %** (판정문과 동일).  **5.5배** 차이다.  Codex 추가: 가상 전극까지 분모에 넣으면 8.1008 %, CF 로 바꾸면 A 경로 전류 몫이 9.09 % → 50 % (단순 배수 변경이 아니다).\n처방: 통계를 유지하려면 **'접촉별 협착 저항 비율의 비가중 평균'** 으로 명명.  거시 기여도를 쓰려면 같은 FULL field 에서 **I^2 R 원장**을 계산하고 전극 포함 여부를 명시.",
+   "note": "(Codex 라벨: **P2-L2-08**)\n`network_conductivity.py:1010` · `webapp/app.py:2483` · `:8765` 의 통계는 간선별 `R_bulk/(R_bulk+R_c)` 의 **비가중 산술평균**이다.\n★ **이 리포에서 재현 (자리 일치)**: 두 병렬 경로 x 2 직렬 간선, 모든 R_bulk=1, A 의 R_c=9 · B 의 R_c=0 ⇒ 화면 통계 **45 %**, 실제 `sum(I^2 R_c)/sum(I^2 R_total)` = **8.1818 %** (판정문과 동일).  **5.5배** 차이다.  Codex 추가: 가상 전극까지 분모에 넣으면 8.1008 %, CF 로 바꾸면 A 경로 전류 몫이 9.09 % → 50 % (단순 배수 변경이 아니다).\n처방: 통계를 유지하려면 **'접촉별 협착 저항 비율의 비가중 평균'** 으로 명명.  거시 기여도를 쓰려면 같은 FULL field 에서 **I^2 R 원장**을 계산하고 전극 포함 여부를 명시.\n\n**수정 (라벨만 — 계산 불변)** `62e67e02`: 솔버 출력 두 줄 · grade 축 · 앱 쉬운말 · `single.html` 해설을 **'접촉별 비율의 비가중 평균'** 으로 고치고 반례(**45 % ↔ 8.1818 %**, 5.5배)를 설명에 남겼다.  식도 `100 × (1 − mean_edge[R_bulk/(R_bulk+R_c)])` 로 적는다.\n⚠ **행 이름 문자열은 조회 키다** — `webapp/app.py:1909`·`:2077` 와 `templates/single.html:1966`·`:2543` 가 같은 문자열로 찾는다.  처음에 이름을 바꿨다가 그 연결이 끊기는 것을 보고 되돌렸고, 설명 쪽에서 고쳤다 (판정문의 '세대 표시 없는 개명 금지' 와 같은 자리).\n⛔ **남은 것**: 거시 기여도를 쓰려면 같은 FULL field 에서 **I²R 원장**을 계산하고 가상 전극 포함 여부를 명시해야 한다 — **미구현**이다 (판정문 처방의 후반부).",
    "evidence_tests": [
     "scripts/network_conductivity.py"
-   ]
+   ],
+   "claimed_fixed_sha": "62e67e0206473dc854425d36be448f14dea438a8"
   },
   {
    "id": "L2-09",
@@ -2606,15 +2608,16 @@
   {
    "id": "L4-04",
    "severity": "P2",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "τ 의 **분모·온도·라벨이 소비자마다 다르다** (grade 가 σ_grain 3.0 고정)",
-   "note": "(Codex 라벨: **P2-L4-04**)\ngrade `tau_eff = sqrt(phi_SE * **3.0** / sigma_selected)` (`grade_engine.py:893`·`:913`) 인데 앱은 **baseline 온도에 맞춘 sigma_grain** 을 쓴다 (`webapp/app.py:2503`·`:6705`).\n★ Codex: 모든 이온 sigma 와 대응 grain 을 **x4** 하면 앱 tau_eff 는 **3.464101615 그대로**인데 grade 는 **3.464101615 → 1.732050808**, 등급 **B- → A**.  공통 스케일 불변성 검사다.\n그리고 grade overhead = 2 vs 앱 eff/Dijkstra = 2.309401 — **서로의 대체 열이 아니고** 등록 Dijkstra target 도 아니다.  ⚠ grade overhead 는 **저항비의 제곱근**이라 저항비 자체로 설명하면 틀린다.\n⚠ `:340` Bruggeman overestimation 과 `:921` constriction fraction 은 **L2-07·L2-08 의 소비자**다 (1-f 로 옮길 뿐 소산 분율을 새로 재지 않는다).  신규 P1 으로 재계상하지 않았다.",
+   "note": "(Codex 라벨: **P2-L4-04**)\ngrade `tau_eff = sqrt(phi_SE * **3.0** / sigma_selected)` (`grade_engine.py:893`·`:913`) 인데 앱은 **baseline 온도에 맞춘 sigma_grain** 을 쓴다 (`webapp/app.py:2503`·`:6705`).\n★ Codex: 모든 이온 sigma 와 대응 grain 을 **x4** 하면 앱 tau_eff 는 **3.464101615 그대로**인데 grade 는 **3.464101615 → 1.732050808**, 등급 **B- → A**.  공통 스케일 불변성 검사다.\n그리고 grade overhead = 2 vs 앱 eff/Dijkstra = 2.309401 — **서로의 대체 열이 아니고** 등록 Dijkstra target 도 아니다.  ⚠ grade overhead 는 **저항비의 제곱근**이라 저항비 자체로 설명하면 틀린다.\n⚠ `:340` Bruggeman overestimation 과 `:921` constriction fraction 은 **L2-07·L2-08 의 소비자**다 (1-f 로 옮길 뿐 소산 분율을 새로 재지 않는다).  신규 P1 으로 재계상하지 않았다.\n\n**수정 (라벨만 — 계산 불변)** `62e67e02`: 세 τ 축의 라벨·식·뜻에 **`σ_grain 3.0 고정`** 을 박고, 옛 문구 *\"app.py 표시값과 동일 공식\"* 을 걷어냈다.  Codex 의 공통 스케일 불변성 반례(모든 σ_ion·grain 을 ×4 → 앱 τ **3.464101615** 그대로, grade 는 **3.464101615 → 1.732050808**, 등급 **B− → A**)를 설명에 적었다.  overhead 는 **√(σ_bulk_net/σ_full)** = **저항비의 제곱근**이라고 명시하고(저항비 자체로 읽으면 틀린다), τ_bulk 가 **τ_Dijkstra 의 대체 열이 아니라는** 것도 적었다 (grade overhead 2 ↔ 앱 eff/Dijkstra 2.309401).\n★ 회귀 ②e 는 **라벨이 말하는 3.0 이 실제 코드에 있는지**까지 본다 — 라벨만 고치면 그것도 거짓말이 되기 때문이다.\n⚠ 판정문의 한정어 보존 — `:340`·`:921` 은 **L2-07·L2-08 의 소비자**이지 신규 P1 이 아니다.",
    "evidence_tests": [
     "scripts/grade_engine.py"
-   ]
+   ],
+   "claimed_fixed_sha": "62e67e0206473dc854425d36be448f14dea438a8"
   },
   {
    "id": "L4-05",
@@ -2674,15 +2677,16 @@
   {
    "id": "L4-09",
    "severity": "P3",
-   "status": "open",
+   "status": "claimed_fixed",
    "owner": "claude",
    "found_by": "codex",
    "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
    "title": "`Q_gravimetric` 의 **표시식이 실제 175 를 190 으로** 설명한다",
-   "note": "(Codex 라벨: **P3-L4-09**)\n`grade_engine.py:356`·`:969`.  85:15 의 실제 Q = **148.75 = 0.85 x 175** 인데 반환 formula/meaning 은 190 계열을 설명해 161.5 를 뜻한다.\n⚠ **175 를 190 으로 바꾸라는 권고가 아니다** — 선택한 175 를 **설명까지 동일하게** 쓰라는 것.",
+   "note": "(Codex 라벨: **P3-L4-09**)\n`grade_engine.py:356`·`:969`.  85:15 의 실제 Q = **148.75 = 0.85 x 175** 인데 반환 formula/meaning 은 190 계열을 설명해 161.5 를 뜻한다.\n⚠ **175 를 190 으로 바꾸라는 권고가 아니다** — 선택한 175 를 **설명까지 동일하게** 쓰라는 것.\n\n**수정** `62e67e02`: L3-11 에서 배운 대로 **설명을 상수에서 생성**한다.  `C_AM_MAHG = 175` · `RHO_AM_G_CC = 4.8` 를 모듈 최상단에 두고 네 군데 리터럴을 거둬들였다 (⚠ 네 자리 **전부 이미 175** 였다 = 값 불변).  formula/meaning 이 f-string 으로 생성되므로 85:15 → **148.75** 로 실제 반환과 일치한다 (옛 설명은 162 = 190 계열).\n⚠ 판정문의 한정어 보존 — **175 를 190 으로 바꾸라는 권고가 아니다**.\n회귀 `grade_engine.py --selftest` ①: 실제 반환값과 설명 문자열을 **동시에** 보고, 설명이 리터럴이 아니라 `C_AM_MAHG` 에서 생성되는지 소스로 확인하며, 계산부에 리터럴 175 가 남았는지 **AST 로** 센다 (정규식은 자기 자신까지 세어 거짓 빨간불을 냈다 — SELF-25 재현).",
    "evidence_tests": [
     "scripts/grade_engine.py"
-   ]
+   ],
+   "claimed_fixed_sha": "62e67e0206473dc854425d36be448f14dea438a8"
   },
   {
    "id": "L4-10",
