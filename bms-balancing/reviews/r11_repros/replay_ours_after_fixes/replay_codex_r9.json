@@ -277,4 +277,3 @@
   "closed": true,
   "rc_reason": "모든 요청 probe 가 자기 반례 assertion 에서 멈췄다 / positive closure 가 섰다"
 }
-rc=0

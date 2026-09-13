@@ -254,9 +254,14 @@ def test_d10_05_an_error_cell_cannot_switch_off_row_validation(tmp_path):
     그 묶음은 승격 대상이 아니다."""
     ci, digest = _receipt()
     row = {k: "1" for k in S.MATRIX_ROW}
+    # 자체 리뷰 C05: matrix 도 모집단을 행에 봉인한다 — 한 행 묶음의 정직한 주장
+    row["combo_roster"] = json.dumps({"authority": 1, "requested": 1, "succeeded": 1,
+                                      "missing_input": [], "failed": [], "absent": []})
     row.update(half_cell="GITT", si="Li", w_dqdv="0", run_id="r10", inputs_sha=digest, ref_inputs_sha=digest,
                consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(ci),
-               scale_audit_target="", scale_audit_ref="", bounds="-", ref_bounds="-")
+               # 자체 리뷰 C33: `scale_audit_*` 는 더 이상 빈 칸이 허용되지 않는다 (`MAY_BE_EMPTY` 와 `ROW_SKIP`
+               #   양쪽에 있어서 정본에 있고 재실행에 없어도 "전부 같다" 였다 — 감사 없이 돌면 그것이 문제다)
+               scale_audit_target="{}", scale_audit_ref="{}", bounds="-", ref_bounds="-")
     ok = {k: row[k] for k in S.MATRIX_ROW}
     assert not S.check_rows("matrix", [ok], list(S.MATRIX_ROW)), "대조군(정상 행)은 통과해야 한다"
     attacked = dict(ok, error="skip all validation", inputs_sha="", ref_inputs_sha="",
@@ -318,7 +323,7 @@ def test_d10_07_promotion_requires_the_same_environment_and_present_controls(tmp
         m.write_text(json.dumps(meta), encoding="utf-8")
         return _cli("check_u14.py", "--new", new, "--old", old)
 
-    rc, out, _ = pair("env", lambda m: m.update(env={"python": "9.9", "numpy": "999", "scipy": "999", "platform": "alien"}))
+    rc, out, _ = pair("env", lambda m: m.update(env={"python": "9.9", "numpy": "999", "scipy": "999", "pandas": "9.9", "platform": "alien"}))
     assert rc == 2 and "전부 같다" not in out, (rc, out[-500:])
     assert "env" in out and ("환경" in out or "numpy" in out), out[-700:]
     rc, out, _ = pair("controls", lambda m: [m.pop("state", None), m.pop("starts", None)])
@@ -354,12 +359,17 @@ def test_d10_09_subset_is_not_a_success_exit_and_says_so_machine_readably(tmp_pa
     """[Codex R10 P2-1 · P2] `--subset` 이 "부분 · 승격 아님" 을 **글자로만** 말하고 rc 0 이었다 — 자동 소비자는 full
     equality 와 구분할 구조가 없다. rc 3 과 typed `promotion_eligible: false`."""
     old, new = tmp_path / "old", tmp_path / "new"
+    # ⚠ 자체 리뷰 C02 뒤: 정본과 재실행의 run id 는 달라야 한다 (같으면 같은 시도의 사본 = alias).
+    #   본문의 `run_id` 열과 사이드카가 **같은 id** 여야 하므로(묶음 검사) 둘을 함께 바꾼다.
     for st in ("100", "200"):
-        rows = _full_matrix_rows(f"sub-{st}")
+        rid = f"sub-{st}-old"
+        rows = _full_matrix_rows(rid)
         d = old; d.mkdir(parents=True, exist_ok=True)
-        f = d / f"matrix_{st}.csv"; verify.atomic_write_csv(f, rows, list(rows[0])); _sign(f, f"sub-{st}", st, full=True)
-    rows = _full_matrix_rows("sub-100"); new.mkdir(parents=True, exist_ok=True)
-    f = new / "matrix_100.csv"; verify.atomic_write_csv(f, rows, list(rows[0])); _sign(f, "sub-100", "100", full=True)
+        f = d / f"matrix_{st}.csv"; verify.atomic_write_csv(f, rows, list(rows[0]))
+        _sign(f, rid, st, full=True)
+    rows = _full_matrix_rows("sub-100-new"); new.mkdir(parents=True, exist_ok=True)
+    f = new / "matrix_100.csv"; verify.atomic_write_csv(f, rows, list(rows[0]))
+    _sign(f, "sub-100-new", "100", full=True)
     rc, out, _ = _cli("check_u14.py", "--new", new, "--old", old, "--subset")
     assert rc == 3, (rc, out[-600:])
     line = next((l for l in out.splitlines() if l.startswith("PROMOTION ")), "")
@@ -490,8 +500,10 @@ def test_d10_13_closure_runners_seal_the_bytes_they_execute(tmp_path):
     planted.write_bytes(b"planted-ignored-bytes")
     try:
         rc, out, err = _run_runner("r9", "--probes", "P2-3", "--keep-materialized", str(snap))
-        assert rc == 0, (rc, err[-500:])
+        # ⚠ 자체 리뷰 C19 뒤: 종료 코드가 `evidence_eligible` 을 반영한다 (증거면 0, 아니면 3) —
+        #   개발 중 트리에서는 도구 자신이 HEAD 의 blob 과 달라 eligible false 가 정상이다.
         d = json.loads(out)
+        assert rc == (0 if d["evidence_eligible"] else 3), (rc, err[-500:])
         assert d["materialized"]["head"] == _head(), d["materialized"]
         assert pathlib.Path(d["materialized"]["path"]) != ROOT
         # 증거 자격 = 격리 snapshot + 패키지 digest + **도구 자신도 그 커밋의 bytes** (러너가 아직 커밋 전이면 false —
@@ -529,7 +541,8 @@ def test_d10_14_package_byte_corruption_stops_the_runner_and_the_regression_sees
     finally:
         victim.write_bytes(backup)
     rc, out, _ = _run_runner("r7", "--probes", "R7-06", "--allow-dirty")
-    assert rc == 0 and json.loads(out)["package_digest_ok"] is True
+    _d = json.loads(out)
+    assert rc == (0 if _d["evidence_eligible"] else 3) and _d["package_digest_ok"] is True
 
 
 # ── P2-7 ─────────────────────────────────────────────────────────────────────────────────────
@@ -543,18 +556,29 @@ def test_d10_15_a_production_wrapper_consumes_the_typed_shape_status(tmp_path):
     assert any("ne_shape" in ln for ln in live), "production wrapper 에 ne_shape 소비 경로가 없다"
 
     def shim(rc, status):
-        """producer 흉내. ⚠ Codex R11 P2-2 뒤 계약: 자기가 쓴 **경로·run_id·status** 를 `SHAPE_RESULT` 로 말한다
-        (전 판은 wrapper 가 `ls | head -1` 로 훑어 옆의 stale canonical 을 읽었다)."""
-        s = tmp_path / f"shim{rc}.py"
+        """producer 흉내 — **실행 시점에** 자기 산출·사이드카를 쓰고 `SHAPE_RESULT` 로 경로·run_id·status 를 말한다.
+
+        ⚠ Codex R11 P2-2: 전 판은 wrapper 가 `ls | head -1` 로 훑어 옆의 stale canonical 을 읽었다.
+        ⚠ 자체 리뷰 C15: 이제 `shape_step` 이 `BMS_RUN_ID` 를 주입하고 다른 세 단계와 같은 묶음 검사를 건다 —
+          진짜 producer 가 그 환경값을 쓰므로 shim 도 같게 해야 그 축을 잰다 (전 판은 미리 써 둔 한 줄이었다).
+        """
+        sfile = tmp_path / f"shim{rc}.py"
         d = tmp_path / f"w{rc}"
         (d / "partial").mkdir(parents=True, exist_ok=True)
         art = (d / "partial" / "ne_shape_GITT_Li.csv") if status != "complete" else (d / "ne_shape_GITT_Li.csv")
-        art.write_text("state\n100\n", encoding="utf-8")
-        art.with_name(art.name + ".meta.json").write_text(
-            json.dumps({"status": status, "run_id": f"rid-{rc}"}), encoding="utf-8")
-        result = json.dumps({"status": status, "artifact": str(art), "run_id": f"rid-{rc}"}, ensure_ascii=False)
-        s.write_text(f"import sys\nprint({('SHAPE_RESULT ' + result)!r})\nsys.exit({rc})\n", encoding="utf-8")
-        return s, d
+        sfile.write_text(
+            "import hashlib, json, os, pathlib, sys\n"
+            f"art = pathlib.Path({str(art)!r})\n"
+            "rid = os.environ.get('BMS_RUN_ID', '')\n"
+            "art.parent.mkdir(parents=True, exist_ok=True)\n"
+            "art.write_text(f'state,run_id\\n100,{rid}\\n', encoding='utf-8')\n"
+            f"meta = {{'status': {status!r}, 'run_id': rid, 'artifact': art.name,\n"
+            "        'sha256': hashlib.sha256(art.read_bytes()).hexdigest()}\n"
+            "art.with_name(art.name + '.meta.json').write_text(json.dumps(meta), encoding='utf-8')\n"
+            f"print('SHAPE_RESULT ' + json.dumps({{'status': {status!r}, 'artifact': str(art), 'run_id': rid}},\n"
+            "                                   ensure_ascii=False))\n"
+            f"sys.exit({rc})\n", encoding="utf-8")
+        return sfile, d
 
     # rc 1(none) 은 게시된 산출이 없다 — producer 가 artifact: null 을 말한다 (아래 별도)
     for rc_in, status, word in ((3, "partial", "부분"), (0, "complete", "complete")):
@@ -564,10 +588,7 @@ def test_d10_15_a_production_wrapper_consumes_the_typed_shape_status(tmp_path):
         assert f"STEP_RC={rc_in}" in text, (rc_in, text[-500:])            # 종료 코드를 그대로 전파한다
         assert status in text or word in text, (rc_in, text[-500:])        # typed status 를 읽는다
     # none: 산출이 없다고 말하는 producer 도 rc 를 그대로 전파한다 (모르는 채 넘기지 않는다)
-    none_sh = tmp_path / "shim_none.py"
-    none_sh.write_text("import sys\nprint('SHAPE_RESULT ' + %r)\nsys.exit(1)\n"
-                       % json.dumps({"status": "none", "artifact": None, "run_id": None}), encoding="utf-8")
-    dn = tmp_path / "wnone"; (dn / "partial").mkdir(parents=True)
+    none_sh, dn = shim(1, "none")
     p = _shell(f'shape_step "{dn}" python3 {none_sh}; echo "STEP_RC=$?"', {"OUT": str(dn)})
     assert "STEP_RC=1" in (p.stdout + p.stderr), (p.stdout + p.stderr)[-500:]
 

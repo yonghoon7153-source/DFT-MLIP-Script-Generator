@@ -282,6 +282,9 @@ def _full_matrix(path, gamma, ref=.15, rid="synthetic-matrix"):
     rci = {"half_cell": {"path": "pristine.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"],
            "literature": ci["literature"]}
     row = {k: "1.0" for k in _S.MATRIX_ROW}
+    # 자체 리뷰 C05: matrix 도 모집단을 행에 봉인한다 (이 fixture 는 행이 곧 모집단이다)
+    row["combo_roster"] = json.dumps({"authority": 1, "requested": 1, "succeeded": 1,
+                                      "missing_input": [], "failed": [], "absent": []})
     row.update(half_cell="GITT", si="Li", w_dqdv="0", run_id=rid, bounds="-", ref_bounds="-",
                gamma_Si=str(gamma), ref_gamma_Si=str(ref), scale_audit_target="{}", scale_audit_ref="{}",
                consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),

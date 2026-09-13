@@ -180,6 +180,7 @@ def _write_csv(d: pathlib.Path, a, rows, cap, base_cap, cwhere, headroom=None, c
     #   run_id·sha256 이 없어 두 시도가 끼어들면 CSV=B · meta(consumed_inputs)=A 가 남고 verify_unit 은 '옛 meta'.
     #   run_states 의 게시 규약과 같게: 시도별 임시 → 잠금 안 교체 → 같은 잠금 안에서 sha256 을 meta 에.
     rid = os.environ.get("BMS_RUN_ID") or uuid.uuid4().hex
+    globals()["LAST_RUN_ID"] = rid          # 자체 리뷰 C29: 보고는 **이 프로세스가 만든 id** 로 한다
     fh = tempfile.NamedTemporaryFile("w", dir=d, prefix=art.name + ".", suffix=".part", delete=False,
                                      newline="", encoding="utf-8")
     with fh as f:
@@ -320,7 +321,21 @@ def main() -> int:
           f"{'(c) |블렌드−측정|':>19}")
     print(f"{'':10}{'':9}{'':8}{'max mV':>13}{'max mV':>11}{'':9}"
           f"{'max mV':>13}{'rms mV':>6}")
-    infos = {s: fitted_pair_info(out_dir, s, a.source, a.si_source) for s in states if s != "pristine"}
+    # ⚠ 자체 리뷰 C17: reader 가 공용 validator 를 쓰게 되면서(R11 P1-7) 옛 스키마 matrix 는 RuntimeError 다.
+    #   그 예외가 `main` 밖으로 나가면 (a) sidecar 에 그 사실이 안 남고 (b) wrapper 메시지가 "SHAPE_RESULT 를
+    #   내지 않았다" 라 원인을 안 가린다. 거부된 matrix 는 그 상태의 **짝 없음**으로 세고 이유를 남긴다 —
+    #   그러면 typed status 가 정직하게 partial 로 나오고 무엇 때문인지도 붙는다.
+    infos, rejected = {}, {}
+    for s in states:
+        if s == "pristine":
+            continue
+        try:
+            infos[s] = fitted_pair_info(out_dir, s, a.source, a.si_source)
+        except RuntimeError as e:
+            infos[s], rejected[s] = None, str(e)
+    if rejected:
+        for s, why in rejected.items():
+            print(f"  ! {s}: matrix 를 과학 입력으로 쓸 수 없다 — {why}", file=sys.stderr)
     consumed = {s: {"matrix": ({k: v for k, v in i.items() if k not in ("gamma_target", "gamma_ref")} if i else None),
                     "half_cell": hb[s].identity()}
                 for s, i in infos.items()}
@@ -419,8 +434,12 @@ def main() -> int:
         status = "partial"
     pairing = {"authority": authority, "requested": requested, "requested_from": requested_from, "available": available,
                "missing_input": missing_input, "paired": paired, "missing": missing_pairs,
+               # ⚠ 자체 리뷰 C17: 공용 validator 가 거부한 matrix 는 "짝 없음" 인데 **왜** 없는지가 산출에 남아야
+               #   한다 (옛 스키마라 거부된 것과 파일이 없는 것은 다른 얘기다).
+               "rejected_matrix": rejected,
                "note": "measured_* 는 available(입력 있는 requested) 전부에서, gamma_*·ratio 는 paired 에서만 계산한 값이다; "
-                       "missing_input 은 측정조차 없다 (Codex R8-03 · R9-04)"}
+                       "missing_input 은 측정조차 없다 (Codex R8-03 · R9-04); rejected_matrix 는 공용 validator 가 "
+                       "거부한 상태다 (자체 리뷰 C17)"}
     published = None
     if a.write:
         dest = pathlib.Path(a.write) if status == "complete" else pathlib.Path(a.write) / "partial"   # subset 포함
@@ -433,8 +452,9 @@ def main() -> int:
     import json as _json
     print("SHAPE_RESULT " + _json.dumps(
         {"status": status, "artifact": str(published) if published else None,
-         "run_id": (_json.loads((published.with_name(published.name + ".meta.json")).read_text(encoding="utf-8"))
-                    .get("run_id") if published else None),
+         # ⚠ 자체 리뷰 C29: 전 판은 run_id 를 `<산출>.meta.json` 에서 **읽어서** 보고했고 wrapper 가 같은 파일을
+         #   다시 읽어 비교했다 — 항진명제라 그 축은 아무것도 재지 않았다. 이 프로세스가 만든 id 를 낸다.
+         "run_id": globals().get("LAST_RUN_ID"),
          "authority": authority, "requested": requested, "paired": paired}, ensure_ascii=False))
 
     print()

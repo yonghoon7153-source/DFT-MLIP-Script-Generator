@@ -71,7 +71,7 @@ def _sign(art, rid, state, full=False):
     meta = {"artifact": art.name, "state": state, "run_id": rid, "sha256": prov.sha256_file(art), "starts": 24}
     if full:        # check_u14 의 META_KEYS + 실행 조건 + argv·roster (Codex R11 P1-6: 실제 `write_meta` 가 쓰는 전부)
         from bms_balancing import schema as _S
-        meta |= {"env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
+        meta |= {"env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "pandas": "2.2.0", "platform": "test-fixture"},
                  "started_utc": "2026-09-12T00:00:00Z", "half_cell_source": "GITT", "si_source": "Li", "seed": 0,
                  "git_commit_at_start": "0" * 40, "git_state_changed_during_run": False, "git_dirty": False,
                  "git_modified_code": [], "argv": ["python3", "-m", "bms_balancing.verify", "fixture"],
@@ -215,7 +215,11 @@ def test_d7_04_check_u14_does_not_prefer_a_versioned_sibling_in_a_current_direct
     B = _deg("100", "B", {"LAM_PE": 1.0, "LAM_NE": 2.0, "LLI": 1.5736895850554351}, schema=True)
     for d, obj, rid in ((cur, A, "A"), (rerun, B, "B")):
         f = d / "degeneracy_100_Li.json"; verify.atomic_write_json(f, obj); _sign(f, rid, "100", full=True)
-    stale = cur / "degeneracy_100_Li_v2.json"; verify.atomic_write_json(stale, B); _sign(stale, "B", "100", full=True)
+    # ⚠ 자체 리뷰 C02 뒤: 역사 리비전의 정본(`_v2`)과 재실행은 **독립 실행**이다 — 숫자는 같아도 run id 는 다르다
+    #   (같으면 같은 시도의 사본이라 alias 로 막힌다). 전 판 fixture 는 둘 다 `"B"` 였다.
+    B_hist = _deg("100", "B-hist", {"LAM_PE": 1.0, "LAM_NE": 2.0, "LLI": 1.5736895850554351}, schema=True)
+    stale = cur / "degeneracy_100_Li_v2.json"
+    verify.atomic_write_json(stale, B_hist); _sign(stale, "B-hist", "100", full=True)
     r = _u14(rerun, cur)
     assert "정책" in r.stdout and "current" in r.stdout, r.stdout          # 어느 규칙으로 골랐는지 말한다
     assert "쓰지 않았다" in r.stdout and "degeneracy_100_Li_v2.json" in r.stdout, r.stdout

@@ -651,7 +651,7 @@ def _u14_dirs(tmp_path, *, schema=True, bump=None):
     ⚠ R9-03 뒤: new 는 producer 스키마(`schema.DEGENERACY_KEYS`·`MATRIX_ROW`)를 **전부** 갖추고 receipt 는 진짜 모양이다 —
       열 이름만 맞는 부분집합 fixture 는 checker 가 내용을 안 본다는 사실을 가리고 있었다."""
     from bms_balancing import schema as S
-    old, new = tmp_path / "out", tmp_path / "out_u14"
+    old, new = tmp_path / "out", tmp_path / "out_u14"   # new 만 새 스키마 (옛 정본은 meta 가 없다)
     old.mkdir(parents=True); new.mkdir(parents=True)
     ci = {"half_cell": {"path": "h.xlsx", "sha256": "1" * 64}, "full_cell": {"path": "f.xlsx", "sha256": "2" * 64},
           "literature": {"gr": {"path": "g.xlsx", "sha256": "3" * 64}, "si": {"path": "s.csv", "sha256": "4" * 64}}}
@@ -672,11 +672,15 @@ def _u14_dirs(tmp_path, *, schema=True, bump=None):
                      ref_inputs_sha=S.inputs_digest(rci), consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
                      scale_seed="0", n_scale_samples="50", scale_pocv_target="1.0", scale_dvdq_target="1.0",
                      scale_dqdv_target="1.0", scale_pocv_ref="1.0", scale_dvdq_ref="1.0", scale_dqdv_ref="1.0",
-                     scale_audit_target="", scale_audit_ref="", obj="1.5", rmse_pocv="0.002", a_PE="1.0", b_PE="0.0",
+                     # 자체 리뷰 C33: `scale_audit_*` 는 빈 칸이 허용되지 않는다 (감사 없이 돌면 그것이 문제다)
+                     scale_audit_target="{}", scale_audit_ref="{}", obj="1.5", rmse_pocv="0.002", a_PE="1.0", b_PE="0.0",
                      a_NE="1.1", b_NE="0.0", gamma_Si="0.3", c_cell="1.0", bounds="-", ref_a_PE="1.0", ref_b_PE="0.0",
                      ref_a_NE="1.0", ref_b_NE="0.0", ref_gamma_Si="0.2", ref_obj="1.0", ref_rmse_pocv="0.002",
                      ref_c_cell="1.0", ref_bounds="-", LAM_PE_pct="1.0", LAM_NE_pct="2.0",
-                     LLI_pct=str(3.0 + (bump or 0.0) * is_new))
+                     LLI_pct=str(3.0 + (bump or 0.0) * is_new),
+                     # 자체 리뷰 C05: matrix 도 모집단을 행에 봉인한다 (한 행 묶음 → authority 1)
+                     combo_roster=json.dumps({"authority": 1, "requested": 1, "succeeded": 1,
+                                              "missing_input": [], "failed": [], "absent": []}))
             verify.atomic_write_csv(d / "matrix_100.csv", [{k: v[k] for k in S.MATRIX_ROW}], list(S.MATRIX_ROW))
         else:
             cols = ["half_cell", "si", "w_dqdv", "obj", "LLI_pct"]
@@ -685,6 +689,7 @@ def _u14_dirs(tmp_path, *, schema=True, bump=None):
         if is_new and schema:
             # ⚠ Codex R8-02 뒤: meta 는 **진짜** 묶음이어야 한다 (전 판 fixture 는 sha256="v" 인 가짜 meta 였고, 그것이
             #   "data 와 meta 를 따로 읽는" checker 를 가려 주고 있었다 — fixture 가 진실을 가린 통로)
+            # ⚠ 자체 리뷰 C02 뒤: 정본과 재실행은 **독립 실행**이므로 run id 가 달라야 한다 (같으면 alias).
             for name in ("degeneracy_100_Li.json", "matrix_100.csv"):
                 _u14_sign(d / name, "rid")
     return old, new
@@ -695,7 +700,7 @@ def _u14_sign(art, rid):
     (art.parent / (art.name + ".meta.json")).write_text(json.dumps(
         {"run_id": rid, "sha256": _prov().sha256_file(art), "artifact": art.name,
          # Codex R10 P1-7: 실제 `write_meta` 가 쓰는 실행 조건·환경을 그대로 — 없으면 승격 gate 가 **비교를 못 한다**
-         "env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "platform": "test-fixture"},
+         "env": {"python": "3.12.3", "numpy": "2.5.3", "scipy": "1.18.1", "pandas": "2.2.0", "platform": "test-fixture"},
          "state": "100", "half_cell_source": "GITT", "si_source": "Li", "starts": 24, "seed": 0,
          "started_utc": "2026-09-12T00:00:00Z", "git_commit_at_start": "0" * 40,
          "git_state_changed_during_run": False, "git_dirty": False, "git_modified_code": [],
@@ -717,7 +722,9 @@ def test_i6u_14_check_script_separates_schema_from_moved_numbers(tmp_path):
     다름 · 2 스키마 누락."""
     old, new = _u14_dirs(tmp_path)
     ok = _u14_run(old, new)
-    assert ok.returncode == 0 and "전부 갖췄다" in ok.stdout and "전부 같다" in ok.stdout, (ok.returncode, ok.stdout)
+    # ⚠ 자체 리뷰 C11 뒤: 정본이 옛 스키마라 입력 identity 를 댈 수 없으면 **승격 자격이 없다** → rc 4.
+    #   숫자·스키마 판정은 그대로 나온다 (그것이 이 시험의 주제다).
+    assert ok.returncode == 4 and "전부 갖췄다" in ok.stdout and "전부 같다" in ok.stdout, (ok.returncode, ok.stdout)
 
     old2, new2 = _u14_dirs(tmp_path / "b", bump=1e-9)          # 스키마는 맞고 숫자만 1e-9 움직였다
     moved = _u14_run(old2, new2)
@@ -865,7 +872,9 @@ def test_i6w_03_check_u14_uses_the_versioned_baseline_and_separates_new_fields(t
         encoding="utf-8")
     _u14_sign(new / "degeneracy_300_0009_Li.json", "r")                 # R8-02: 진짜 묶음 (가짜 meta 는 이제 미완이다)
     r = _u14_run(old, new, "--baseline-policy", "historical")        # 옛 커밋의 out/ 을 손으로 푼 경우 (Codex R7-04)
-    assert r.returncode == 0, (r.returncode, r.stdout)               # v2 와 같으므로 숫자는 안 움직였다
+    # ⚠ 자체 리뷰 C11 뒤: 숫자는 안 움직였지만(그것이 이 시험의 주제다) 정본이 옛 스키마라 입력 identity 를
+    #   댈 수 없다 → 승격 자격 없음(rc 4). 계약 위반(2)도 숫자 차이(1)도 아니다.
+    assert r.returncode == 4, (r.returncode, r.stdout)
     assert "_v2" in r.stdout and "정본에 없던 필드" in r.stdout, r.stdout
     # 같은 디렉터리라도 **현행 정책**(기본)에서는 `_v2` 를 쓰지 않는다 — 그래서 v1 과 대조해 숫자가 움직인다
     cur = _u14_run(old, new)

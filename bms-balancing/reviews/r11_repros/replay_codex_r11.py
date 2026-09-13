@@ -13,9 +13,23 @@ R11 의 네 스크립트는 assert 하지 않고 **field 로** 보고한다 — 
     python3 reviews/r11_repros/replay_codex_r11.py --target . --expected-head <40-hex> [--output x.json]
 """
 from __future__ import annotations
-import argparse, contextlib, importlib.util, io, json, os, pathlib, subprocess, sys, tempfile, traceback
+import argparse, contextlib, importlib.util, io, json, os, pathlib, shutil, subprocess, sys, tempfile, traceback
 
 # ⚠ Codex R11 P1-10 반례 A: gate 를 **import 하기 전에** bytecode 캐시를 돌린다.
+# ⚠ 자체 리뷰 C08: 그것은 bytecode 만 막았다 — `sys.path[0]`(이 러너가 든 저장소 안 디렉터리)에 놓인 untracked
+#   `traceback.py` 하나가 gate 보다 먼저 실행되고 `INSTRUMENT` 밖이라 봉인에 안 걸렸다. `-P -E` 로 재실행한다.
+# ⚠ 재실행은 **스크립트로 직접 돌 때만** 한다. 회귀(`test_e11_11`·`test_e11_12`)는 이 파일을 `exec` 해서
+#   `child_ok`·`_classify` 를 직접 부르는데, module level 에서 `execv` 하면 **그 테스트 프로세스가 갈아치워진다**
+#   (실측: pytest 가 26 번째 항목에서 조용히 죽었다).
+if globals().get("__name__") == "__main__" and not sys.flags.safe_path:
+    # ⚠ `-E` 는 `PYTHONOPTIMIZE` 도 무시한다 — 그냥 재실행하면 R10 P2-4 의 "`-O` 에서는 증거를 만들지 않는다" 가
+    #   **조용히 사라진다** (거부도 준수도 아닌 정규화). 재실행 **전에** 그 요청을 보고 거부한다.
+    if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
+        print("! 이 러너는 `python -O`(PYTHONOPTIMIZE) 에서 증거를 만들지 않는다 — 보관한 probe 의 반례는 "
+              "`assert` 로 쓰여 있고 optimize 모드는 그것을 통째로 지운다 (Codex R10 P2-4)", file=sys.stderr)
+        raise SystemExit(2)
+    os.environ.pop("PYTHONPATH", None)
+    os.execv(sys.executable, [sys.executable, "-P", "-E", "-B", os.path.abspath(__file__), *sys.argv[1:]])
 _PYC = tempfile.mkdtemp(prefix="evidence-pycache-")
 sys.pycache_prefix = _PYC
 os.environ["PYTHONPYCACHEPREFIX"] = _PYC
@@ -336,13 +350,16 @@ def main() -> int:
         # ── (3) publish/checker/shape_step: 인자를 안 받고 `../work/harness-r11-target-wsl/bms-balancing` 를 본다.
         #        그 자리를 **이 단계에서만** 만든다 — 트리 안에 자기 자신을 가리키는 symlink 를 남기면 다른 probe 의
         #        copytree 가 무한히 돈다 (실측).
-        wsl = PKG.parent / WSL_REL
+        # ⚠ 자체 리뷰 C35: 전 판은 트리 **안에** 자기참조 symlink 를 만들었다. `finally` 는 파이썬 예외만 덮으므로
+        #   SIGTERM 이면 남고, `.gitignore` 가 그것을 `git status` 에서 감춘다 — 그 뒤 `copytree` 를 쓰는 probe 들이
+        #   무한 재귀로 터진다 (실측). 패키지 사본을 임시 디렉터리에 두고 거기서 상대 경로를 맞춘다.
+        ws = pathlib.Path(tempfile.mkdtemp(prefix="r11-replay-ws-"))
+        shutil.copytree(PKG, ws / "codex")
+        wsl = ws / WSL_REL
         wsl.parent.mkdir(parents=True, exist_ok=True)
-        if wsl.is_symlink() or wsl.exists():
-            wsl.unlink()
         wsl.symlink_to(target, target_is_directory=True)
         try:
-            pub = _load("r11c_publish", PKG / "r11_publish_schema_repros.py")
+            pub = _load("r11c_publish", ws / "codex" / "r11_publish_schema_repros.py")
             with tempfile.TemporaryDirectory(prefix="r11-replay-publish-") as td:
                 tmp = pathlib.Path(td)
                 for group, fn in (("publication", lambda: pub.publication_repros(tmp)),
@@ -364,16 +381,24 @@ def main() -> int:
                         R[k] = _judge(k, rec)
                 R["publish:shape_step"] = _judge("publish:shape_step", pub.shape_step_repro())
         finally:
-            if wsl.is_symlink():
-                wsl.unlink()
+            shutil.rmtree(ws, ignore_errors=True)
 
         # ── (4) evidence gate: 원본 기법이 pycache 기본 자리를 쓰므로 우리 prefix 를 **빼고** 자식으로 돌린다
-        ev_env = {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}
+        # ⚠ 자체 리뷰 C30: 전 판은 **모든** evidence 자식의 env 에서 `PYTHONPYCACHEPREFIX` 를 벗겼고, 그 결과
+        #   실행이 끝난 snapshot 에 `__pycache__` 가 7 개 남았다 (P1-10 A 가 쓰던 `reviews/__pycache__/` 포함).
+        #   그런데 그것을 **전부** 다른 prefix 로 바꾸면 안 된다 — `early-gate-pyc` 는 `cache_from_source` 의
+        #   **기본 자리**에 위조 pyc 를 놓는 것이 기법 자체라 prefix 가 있으면 성립하지 않는다 (실측: ValueError).
+        #   기법이 그 자리를 요구하는 case 만 벗기고, 나머지는 우리 임시 prefix 로 보낸다.
+        NEEDS_DEFAULT_PYCACHE = {"early-gate-pyc"}
+        _child_pyc = tempfile.mkdtemp(prefix="evidence-child-pycache-")
+        ev_env_clean = {k: v for k, v in os.environ.items() if k != "PYTHONPYCACHEPREFIX"}
+        ev_env_isolated = dict(os.environ, PYTHONPYCACHEPREFIX=_child_pyc)
         for case in EVIDENCE_CASES:
             key = f"evidence:{case}"
             proc = subprocess.run([sys.executable, str(PKG / "r11_evidence_gate_repros.py"),
                                    "--target", str(target), "--case", case],
-                                  cwd=str(target), capture_output=True, text=True, env=ev_env, timeout=1800)
+                                  cwd=str(target), capture_output=True, text=True, timeout=1800,
+                                  env=(ev_env_clean if case in NEEDS_DEFAULT_PYCACHE else ev_env_isolated))
             payload = _payload(proc)
             rec = (payload or {}).get("cases", {}).get(case)
             if not child_ok(proc) or rec is None:         # ⚠ Codex R11 P1-11: payload 를 읽기 전에 rc 를 본다
@@ -400,6 +425,10 @@ def main() -> int:
     print(text)
     if a.output:
         a.output.write_text(text + "\n", encoding="utf-8")
+    # ⚠ 자체 리뷰 C19: `evidence_eligible: false` 인 실행이 rc 0 으로 끝났다 — P1-11 이 자식에게 요구한 규율
+    #   ("payload 를 읽기 전에 rc 를 본다")을 러너 자신이 어긴 것이다. 증거가 아닌 실행은 성공 코드로 끝나지 않는다.
+    if not out["evidence_eligible"]:
+        return 3
     return 0 if out["closed"] else 1
 
 

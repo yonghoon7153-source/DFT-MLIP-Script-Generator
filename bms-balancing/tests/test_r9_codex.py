@@ -270,11 +270,14 @@ def test_d9_08_r7_runner_rejects_unknown_empty_or_duplicate_probes_and_wrong_hea
     # ⚠ Codex R10 P2-5 로 계약이 바뀌었다: dirty 를 **거부**하는 대신 expected commit 의 격리 snapshot 에서 돈다
     #   (working tree 가 어떻든 실행 bytes 는 그 커밋이다). dirty 여부는 결과에 그대로 기록된다.
     rc, out, err = run("--probes", "R7-06", "--expected-head", head)
-    assert rc == 0, (rc, err[-400:])
     snap = json.loads(out)
+    # ⚠ 자체 리뷰 C19 뒤: 종료 코드가 `evidence_eligible` 을 반영한다 — 증거가 아닌 실행은 0 이 아니다 (3).
+    #   개발 중 트리에서는 도구 자신이 HEAD 의 blob 과 달라 eligible false 가 정상이므로 계약으로 단언한다.
+    assert rc == (0 if snap["evidence_eligible"] else 3), (rc, snap["evidence_eligible"], err[-400:])
     assert snap["ran_in"] == "격리 snapshot" and snap["materialized"]["head"] == head, snap.get("materialized")
     rc, out, err = run("--probes", "R7-06", "--expected-head", head, "--allow-dirty")   # 시험 중 트리는 dirty 다 — 명시하고 기록
-    assert rc == 0, (rc, err[-400:])
+    # ⚠ 자체 리뷰 C19 뒤: 종료 코드가 `evidence_eligible` 을 반영한다 (증거면 0, 아니면 3)
+    assert rc == (0 if json.loads(out)["evidence_eligible"] else 3), (rc, err[-400:])
     d = json.loads(out)
     assert list(d["probes"]) == ["R7-06"] and d["expected_head"] == head and d["package_digest_ok"] is True, d.keys()
     assert d["dirty_allowed"] is True and isinstance(d["dirty"], bool) and isinstance(d["dirty_paths"], list), d.keys()

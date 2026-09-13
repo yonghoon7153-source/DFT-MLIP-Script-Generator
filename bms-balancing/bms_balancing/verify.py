@@ -1476,6 +1476,9 @@ def cmd_matrix(args):
         requested += combos
         (available if D.half_cell_path(root, hc, args.state).is_file() else missing_input).extend(combos)
     subset = sorted(requested) != sorted(authority)       # 진단 selector 가 authority 를 줄였다
+    # ⚠ 자체 리뷰 C05: 모집단 주장을 **행마다** 봉인한다 (profile 의 `gamma_roster` 와 같은 축). 전 판은 stdout
+    #   `SUMMARY` 한 줄에만 있어 소비자가 0 이었고, 축소된 묶음을 canonical 자리에 놓으면 게이트가 못 알아봤다.
+    #   실패 목록은 아래 루프가 채우므로 여기서는 자리만 잡고 루프 뒤에 한 번에 적는다.
     for hc, si, w in available:
         try:
             ro = build(root, hc, "pristine", si, w_dqdv=w, scale_seed=args.seed)
@@ -1519,7 +1522,9 @@ def cmd_matrix(args):
             "ref_bounds": ",".join(active_bounds(rp)) or "-",
             "LAM_PE_pct": m["LAM_PE"] * 100,
             "LAM_NE_pct": m["LAM_NE"] * 100,
-            "LLI_pct": m["LLI"] * 100})
+            "LLI_pct": m["LLI"] * 100,
+            # 자체 리뷰 C05: 자리를 스키마 순서 끝에 잡아 두고 루프 뒤에 실패 목록까지 확정해 채운다
+            "combo_roster": None})
         assert tuple(rows[-1]) == S.MATRIX_ROW, (tuple(rows[-1]), S.MATRIX_ROW)   # producer == schema (Codex R9-03)
         print(json.dumps(rows[-1], ensure_ascii=False, default=float),
               flush=True)
@@ -1530,13 +1535,20 @@ def cmd_matrix(args):
               else ("none" if not ok else "partial"))
     if subset and status != "none":
         status = "subset"                                 # 축소한 진단 실행은 완전성 주장을 하지 않는다 (R11 P1-2)
+    combo_roster = {"authority": len(authority), "requested": len(requested),
+                    "succeeded": len(ok),
+                    "missing_input": [f"{h}|{s}|{w:g}" for h, s, w in missing_input],
+                    "failed": [f"{r['half_cell']}|{r['si']}|{float(r['w_dqdv']):g}" for r in failed],
+                    #: 알려진 부재(`D.HALF_CELL_ABSENT`) — 분모에서 뺀 이유를 산출이 스스로 말한다
+                    "absent": [f"{h}|{args.state}" for h in sorted(D.HALF_FILE)
+                               if (h, args.state) in getattr(D, "HALF_CELL_ABSENT", frozenset())]}
+    for r in ok:
+        r["combo_roster"] = json.dumps(combo_roster, ensure_ascii=False)
     summary = {"state": args.state, "n_combinations": len(rows),
                "status": status,
-               # Codex R10 P1-4: 축소 전 모집단을 산출이 스스로 말한다 (요청·입력 있음·입력 없음·실패)
-               "combo_roster": {"authority": len(authority), "requested": len(requested), "available": len(available),
-                                "missing_input": [f"{h}|{s}|{w:g}" for h, s, w in missing_input],
-                                "failed": [f"{r['half_cell']}|{r['si']}|{float(r['w_dqdv']):g}" for r in failed],
-                                "succeeded": len(ok)},
+               # Codex R10 P1-4: 축소 전 모집단을 산출이 스스로 말한다 (요청·입력 있음·입력 없음·실패).
+               # 자체 리뷰 C05 뒤로 같은 주장이 **행에도** 봉인된다 — 여기 요약은 사람용이고 정본은 행이다.
+               "combo_roster": dict(combo_roster, available=len(available)),
                "n_ok": len(ok),
                "n_with_active_bound": sum(1 for r in ok if r["bounds"] != "-"),
                "n_negative_LAM": sum(1 for r in ok if min(r["LAM_PE_pct"],

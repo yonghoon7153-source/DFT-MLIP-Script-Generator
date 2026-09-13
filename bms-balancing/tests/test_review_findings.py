@@ -2655,11 +2655,17 @@ def test_r5_04_result_and_metadata_are_published_as_one_attempt(tmp_path):
     root = tmp_path / "repo"; _fixture_repo(root, outputs=())
     worker, pauser = _r5_meta_race_scripts(tmp_path)
     out = root / "out" / "profile.csv"
+    # ⚠ 자체 리뷰 C09 뒤 production heredoc 은 `python3 -I -P -` 다 (cwd 에서 import 하지 않으려고).
+    #   `$1 = "-"` 로만 보던 전 판 shim 은 그 순간을 놓쳐 A 가 멈추지 않았다 — 인자 어디에든 `-` 하나가
+    #   오면 그것이 heredoc 이다.
     override = '''
 python3 () {
-  if [ "$1" = "-" ] && [ "$ROLE" = "A" ]; then
-    "$REAL_PY" "$PAUSER" "$FIXTURE/A.meta.ready" "$FIXTURE/B.done"
-  fi
+  for _a in "$@"; do
+    if [ "$_a" = "-" ] && [ "$ROLE" = "A" ]; then
+      "$REAL_PY" "$PAUSER" "$FIXTURE/A.meta.ready" "$FIXTURE/B.done"
+      break
+    fi
+  done
   "$REAL_PY" "$@"
 }
 '''
@@ -2739,9 +2745,25 @@ def matrix_row(**over):
              consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
              inputs_sha=S.inputs_digest(ci), ref_inputs_sha=S.inputs_digest(rci),
              scale_audit_target="{}", scale_audit_ref="{}")
+    v["combo_roster"] = json.dumps({"authority": 1, "requested": 1, "succeeded": 1,
+                                    "missing_input": [], "failed": [], "absent": []})
     v.update({k: str(x) for k, x in over.items()})
     assert set(v) == set(S.MATRIX_ROW), set(v) ^ set(S.MATRIX_ROW)
     return {k: v[k] for k in S.MATRIX_ROW}
+
+
+def seal_combo(rows, authority=None):
+    """행 목록에 **일관된** `combo_roster` 를 찍는다 — 같은 dict 를 전 행에.
+
+    ⚠ 자체 리뷰 C05 뒤로 matrix 도 profile 처럼 모집단을 행에 봉인하고, 그 주장이 본문과 맞아야 한다
+      (성공 수 = 행 수, canonical 주장이면 requested == authority). 한 행짜리 기본값을 그대로 쓰면 여러 행
+      fixture 가 "성공 1인데 행 3" 으로 깨진다 — 그것이 정상이고, 여기서 맞춰 준다.
+    """
+    n = len(rows)
+    d = json.dumps({"authority": authority if authority is not None else n,
+                    "requested": authority if authority is not None else n,
+                    "succeeded": n, "missing_input": [], "failed": [], "absent": []})
+    return [dict(r, combo_roster=d) for r in rows]
 
 
 def _r5_matrix(path, gamma, reference=0.15, run_id="fixture-run", **over):

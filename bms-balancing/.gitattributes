@@ -1,3 +1,9 @@
+# ⚠ 자체 리뷰 C10: 아래 확장자별 규칙은 `.md`·codex 밖 `.txt`·이 파일 자신을 안 덮었고, `core.autocrlf=true`
+#   (git for Windows 설치 기본값) 체크아웃에서 **121/415 파일**이 CRLF 로 풀렸다. R11 P1-10 B 의
+#   `verify_snapshot_bytes` 가 그것을 잡아 닫힘 재생기 **넷이 전부 rc 2** 였다 — `git status` 는 0 줄인데
+#   증거가 하나도 안 나온다. catch-all 로 전 파일의 줄끝을 고정한다 (아래 `-text` 예외는 뒤라서 그대로 이긴다).
+* text=auto eol=lf
+
 # shell 은 LF 로 고정 — 리뷰어의 Windows 작업사본(autocrlf)에서 CRLF 로 구문 오류가 났다 (R4)
 *.sh text eol=lf
 *.py text eol=lf

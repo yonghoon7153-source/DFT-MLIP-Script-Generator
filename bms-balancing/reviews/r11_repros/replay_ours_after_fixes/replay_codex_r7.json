@@ -108,4 +108,3 @@
   "closed": true,
   "rc_reason": "모든 요청 probe 가 자기 반례 assertion 에서 멈췄다 (전제가 바뀐 것은 그렇게 적었다)"
 }
-rc=0

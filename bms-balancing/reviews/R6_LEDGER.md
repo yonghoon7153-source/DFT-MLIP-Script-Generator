@@ -661,3 +661,76 @@ R6 적응판 `"mode": "full"` 6/6 · R7 5+1(전제 변경) · R9 12/12 · R10 20
 - **부재 allowlist**: 코드 상수는 과도기다. versioned dataset-side manifest 로 옮겨야 한다 (모순 hard-fail 은 이번에 넣었다).
 - **`evidence_eligible` 의 run receipt**: 코드 commit/tree + 러너·gate digest + 패키지 + 런타임을 한 receipt 로 묶는 것은 다음 라운드.
 - **partial 수명**: `partial/<producer>/<attempt-id>/` 불변 단위 + 보존/GC 정책. 지금은 이름이 겹치면 덮인다.
+
+## 자체 적대적 리뷰 (2026-09-13, 대상 `fbc52bb` · 코드 정본 `4185955`) — **Codex 토큰 소진 뒤 내부 6 렌즈**, 35 건
+
+Codex 를 더 못 쓰게 되어 `/self-review` 로 6 렌즈(sig-완전성 · validator-우회 · 순서-TOCTOU · 파생-보고서 ·
+archive-이식성 · 공정성-의미)를 병렬로 돌렸다. 원시 45 건 → 중복 합쳐 **35 건**, 그중 `결론이_바뀜` **14 건**.
+**같은 축을 여러 렌즈가 독립으로 친 것이 셋**이다 (C01 3회 · C04 3회 · C11 3회) — 10 차에서도 그것이 진짜
+구멍의 신호였다. 전부 실행된 반례가 붙어 있고, 회귀는 `tests/test_r12_selfreview.py` (f01~f28).
+
+### 이 라운드가 드러낸 것: **직전 라운드(R11)가 "닫았다" 고 적은 것의 절반이 반쪽이었다**
+
+| R11 에 적은 것 | 실제 |
+|---|---|
+| P1-1 입력 identity 비교 | 파일당 한 벌만 만들어 **마지막 행만** 비교 (C01) |
+| P1-3 정본 격자 21 | `authority` 칸만 봄 — 행 수·requested 와 안 댐 (C04) |
+| P1-5 hardlink alias 차단 | inode 만 봐서 `cp` 사본은 통과 (C02) |
+| P1-8 유한성 | JSON 쪽은 문자열 `"1e999"` 통과 (C06) |
+| P1-9 "신고된 위험을 값으로 소비" | 실은 "**키가 있을 때만** 값으로" — 지우면 통과 (C03) |
+| P1-10 A import 전 격리 | pyc 만. gate 앞에 106 모듈이 저장소에서 해결 (C08) |
+| P1-10 B snapshot bytes 재대조 | `instrument_sealed` 은 `--no-filters` 를 안 씀 (C07) |
+| P2-2 "네 축 대조" | run_id 축은 항진명제 (C29) |
+
+### 결론이_바뀜 14 건 — 수정
+
+| ID | 발견 (괄호 = 독립 재현 렌즈 수) | 수정 | 테스트 |
+|---|---|---|---|
+| **C01** (3) | `_receipts_of` 가 행별 receipt 를 `dict.update()` 로 뭉쳐 마지막 행만 비교. production 은 행마다 입력이 다르다 (`verify.build` 가 반쪽전지 소스별 `hb.identity()` + Si 소스별 `lit_id` 를 담는다 → state 100 의 32 행에 half_cell sha 2 종 · literature.si 8 종). 양방향으로 틀렸다 — 앞 31 행이 달라도 통과하고, 순서만 뒤집힌 정당한 재실행은 거짓 불일치로 막혔다 | 행 key(`S.matrix_key`/`profile_key`) 별 `{역할: sha}` 를 만들어 key 끼리 댄다 (순서 무관) | `test_f01` |
+| **C02** (2) | alias 가 inode 만 봐서 `cp -a` 바이트 동일 사본이 rc 0 · promotion true — 계산을 한 번도 안 하고 승격 증명서 | `run_id` 가 같으면 alias (독립 실행이면 시도마다 uuid4 라 같을 수 없다) | `test_f04` |
+| **C03** (2) | `if k in meta` 라 위험 필드를 **지우면** 검사가 안 돌았다 — 정직하게 신고한 실행만 rc 2, 침묵한 실행은 rc 0 (게이트가 침묵에 보상) | `meta.get(k, "(없음)") != want` — 부재를 안전값으로 읽지 않는다 | `test_f05` |
+| **C04** (3) | `check_gamma_roster` 가 본문과 한 번도 안 댔다 — 3 행이 "21/21" 로, 21 행이 "성공 1" 로, "γ=0.5 실패" 인데 그 행이 있어도 통과. `isinstance(True, int)` 라 bool 도 개수로 셌다 | `succeeded == len(rows)` · `requested == authority` · `missing ∩ 본문 γ == ∅` · bool 배제 | `test_f09` |
+| **C05** (2) | matrix 의 모집단(`combo_roster`)이 stdout `SUMMARY` 전용 — 소비자 0, 2/32 행 묶음이 "전부 갖췄다". `out/matrix_300_0147.csv` 의 분모가 16 인 이유가 산출에 없다 | `combo_roster` 를 `MATRIX_ROW` 에 추가해 **행마다** 봉인하고 `check_combo_roster` 로 본문과 대조 (뺀 조합은 `absent` 로 명시) | `test_f10` |
+| **C06** (1) | `_finite_problems` 가 `str` 을 통과 — degeneracy 의 `"1e999"`·`"Infinity"`·`"nan"` 이 문제 0. `_num_diff` 도 `float()` 라 양쪽 같으면 `inf == inf` 로 숫자 차이도 0 | 문자열도 CSV 와 같은 규칙 (파싱되면 유한해야 한다) | `test_f11` |
+| **C07** (1) | `instrument_sealed` 이 `--no-filters` 없이 해싱 — committed `.gitattributes` + clean 드라이버로 **주입 코드가 든 러너**가 ok 로 봉인되고 실제로 돌았다 (`verify_snapshot_bytes` 는 이미 쓰고 있었다 = 한쪽만 닫은 비대칭) | 같은 플래그로 | `test_f12` |
+| **C08** (1) | 네 러너가 gate import **전에** 106 모듈을 `sys.path[0]`(저장소 안)에서 해결 — untracked `traceback.py` 하나가 gate 보다 먼저 돌고 `INSTRUMENT` 밖. shim 이 gate 를 선주입하면 tracked 러너가 수정된 채로도 `dirty_paths: []` · `instrument: ok` · eligible true | `-P -E -B` 로 한 번 재실행 (봉인을 import 앞에). `-E` 가 `PYTHONOPTIMIZE` 를 무시하므로 재실행 **전에** `-O` 요청을 거부해 R10 P2-4 를 지킨다. 재실행은 `__main__` 일 때만 (회귀가 `exec` 로 부른다) | `test_f13` |
+| **C09** (1) | 같은 구멍이 production `write_meta` 에도 — heredoc 의 `sys.path[0]` 이 `''`(cwd) 라 저장소 루트 untracked `hashlib.py` 가 `from provenance import` 보다 먼저 실행되고, 그러면 meta 에 `git_dirty: false` 가 찍힌다 (P1-9 반례 재개방) | 세 heredoc 을 `python3 -I -P -` 로 | `test_f14` |
+| **C10** (1) | `.gitattributes` 가 확장자별이라 `core.autocrlf=true`(Windows 기본값)에서 **121/415 파일**이 CRLF 로 풀리고 `verify_snapshot_bytes` 가 재생기 넷을 전부 rc 2 로 — 리뷰어가 절차대로 clone 하면 증거가 하나도 안 나온다 | 맨 앞에 `* text=auto eol=lf` (보관 패키지의 `-text` 는 뒤라 그대로 이긴다) | `test_f17` |
+| **C11** (3) | `rc 0` 인데 `promotion_eligible: false` 인 경로가 둘 생겼는데 `WORKING_STATE.md` 의 U18 런북은 **"0 이었을 때만 정본 교체"** — 실제 `out/` baseline 12/12 대조가 정확히 그 상태다 (`inputs_uncomparable: 16`). 오늘 U18 을 돌리면 승격 경로가 전부 여기로 온다 | 승격 자격 없음에 전용 rc **4**. 단 `--schema-only` 는 승격을 **묻지 않은** 진단이므로 0 을 유지하고 `promotion_eligible`·`baseline_absent` 가 말한다. 런북과 docstring 을 고쳤다 | `test_f18` |
+| **C12** (1) | 후보 디렉터리의 `_vN` 이 명부에서 조용히 빠지고 `blocked_by` 에 `stale` 이 없었다 — 진짜 재실행(LLI 99.0)을 무시하고 옛 사본만 대조해 rc 0 · promotion true | `stale_new` 를 blocker 로 (정본 쪽 `_vN` 은 경고 그대로) | `test_f06` |
+| **C13** (1) | degeneracy receipt 가 **JSON 문자열**이면 `receipt_map` 이 `{}` — 양쪽 `{}` 라 비교가 조용히 잠들고 `inputs_uncomparable` 조차 안 찍혔다 (`check_degeneracy` 도 `[]`) | `receipt_text` 로 정규화를 한 자리에 (`validate_receipt` 와 같은 규칙) | `test_f02` |
+| **C14** (2) | 명부가 세 glob 만 써서 서명된 13 개 중 12 개만 셌다 — `ne_shape_*.csv` 가 게이트 밖 | 허용목록 → **배제목록** (`ARTIFACT_SUFFIXES`). "사이드카 있는 것만" 으로 좁히지 **않는다** — 서명 없는 산출이 조용히 빠지는 것은 같은 부류의 버그다 | `test_f07` |
+
+### 숫자가_바뀜 6 건 · 서술만_바뀜 15 건 (요지)
+
+`shape_step` 만 묶음 검사·`BMS_RUN_ID` 가 없었다(C15 → `run` 과 같게) · candidate 쪽 receipt 누락이 "정본이 옛
+스키마" 사면을 받았다(C16 → 그쪽은 계약 위반) · P1-7 이 현행 정본을 reader 가 못 읽게 만든 것이 산출에 안 남았다
+(C17 → `rejected_matrix` 로 남기고 짝 없음으로 센다) · `env.pandas` 를 서명에만 적고 안 댔다(C18 → `ENV_KEYS` 에)
+· 러너 rc 가 `evidence_eligible` 을 안 봤다(C19 → 아니면 3) · 문서 숫자 셋이 어긋났다(C20·C26·C27) ·
+docstring 의 rc 계약(C21) · `blocked_by.schema` 가 사람용에 없는 합계였다(C22 → `schema`+`provenance_cols` 로 분리)
+· 보고 블록 8 개가 표시 없이 잘렸다(C23 → `_show` helper 한 자리) · 증거 `.json` 다섯 개가 유효 JSON 이 아니었다
+(C24 → rc 를 `.rc.txt` 로) · `test_d10_15` 의 none 이 모순 감지 가지를 쟀다(C28) · SHAPE_RESULT 의 run_id 가
+항진명제였다(C29 → 프로세스의 id) · evidence 자식이 snapshot 에 `__pycache__` 를 남겼다(C30 → 기법이 기본 자리를
+요구하는 case 만 벗기고 나머지는 별도 prefix) · `bootstrap_pycache` 가 호출자 0 이었다(C31 → 삭제) ·
+오류 분기가 선언한 모양을 안 지켰다(C32) · `scale_audit_*` 가 두 carve-out 에 동시에 있었다(C33) ·
+재생기 workspace 가 트리 안이었다(C35 → `mkdtemp`).
+
+### fixture 감사 — **일곱 번째**
+
+`combo_roster` 추가와 `run_id` alias 검사, `scale_audit` carve-out 제거, `ENV_KEYS` 확장으로 **기존 fixture 20 곳
+가까이가 깨졌다.** 전부 "이제야 실제 invariant 를 만족하게" 고쳤다. 특히 반복된 패턴 하나:
+
+> 정본과 재실행 fixture 가 **같은 `run_id`** 를 쓰고 있었다 (`_matrix_unit`·`_u14_dirs`·`_deg`·d7_04·d8_02·d10_09).
+> C02 를 닫기 전에는 그것이 아무 의미도 없었으므로 아무도 안 봤다. 독립 실행이면 run id 가 달라야 한다.
+
+C01 을 R11 의 회귀가 못 잡은 이유도 같은 종류다 — `_matrix_unit` 이 `_full_matrix_rows` 를 만든 뒤 **모든 행에
+같은 receipt 를 덮어썼다**. 행별 분기를 구조적으로 만들 수 없는 fixture 였다.
+
+### 닫지 않은 것
+
+- **C34** `receipt_paths` 에 production 소비자가 0 이다 — 원장·요청문이 "역할별 path 를 드러낸다" 고 적은 것보다
+  실제 범위가 좁다. 경로를 identity 에서 빼는 것은 R6 F1/F4 의 **의도된** 결정이므로 digest 에 넣는 것이 답이
+  아니고, 소비자를 붙이는 것(locator 변화를 정보 줄로)이 다음 라운드 작업이다.
+- **C25** 수정 전 증거 넷 중 둘에 40-hex 커밋 id 가 없다 (그 스크립트들이 안 적는다 — 보관 패키지라 안 고친다).
+- R11 답변이 지목한 다섯 축(export 공통 snapshot · dataset manifest · run receipt · partial 수명 · locator 무결성)은
+  그대로 열려 있다.

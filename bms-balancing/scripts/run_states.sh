@@ -52,7 +52,10 @@ write_meta () {  # write_meta <산출파일> <state> <src>   (LAST_RUN_ID 는 �
     say '   %s: run id (%s) 가 산출물의 필드에 없다 — 이번 시도의 산출이 아니므로 meta 를 쓰지 않는다\n' "$art" "${rid:-없음}"
     return 1
   fi
-  if ! python3 - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" \
+  # ⚠ 자체 리뷰 C09: `python3 -` 는 `sys.path[0]` 이 `''`(cwd) 라 저장소 루트의 untracked `hashlib.py` 가
+  #   `from provenance import …` 보다 **먼저** 실행됐다 (실측: 그것이 provenance 를 선주입하면 meta 에
+  #   `git_dirty: false` 가 찍힌다 — R11 P1-9 반례 재개방). `-I`(격리) `-P`(cwd 를 path 에 안 넣음)로 부른다.
+  if ! python3 -I -P - "$art" "$st" "$src" "$STARTS" "$SI" "${BMS_DATA_ROOT}" "$rid" "${OUT:-out}" \
         "${LAST_PRE_PV:-{\}}" "${LAST_STARTED_UTC:-}" "${LAST_ARGV_JSON:-[]}" <<'PYMETA'
 import csv, fcntl, hashlib, io, json, os, sys, datetime, pathlib, tempfile
 art, st, src, starts, si, root, rid, out_dir, pre_json, started = sys.argv[1:11]
@@ -211,11 +214,16 @@ shape_step () {    # shape_step <write-dir> <명령...>
   # ⚠ Codex R11 P2-2: 전 판은 namespace 를 `ls | head -1` 로 훑어 옆에 있던 **stale canonical** 의 status 를 읽었고,
   #   rc 3 도 바깥에서 성공으로 세탁됐다. 이제 producer 가 `SHAPE_RESULT {…}` 로 **자기가 쓴 경로·run_id·status** 를
   #   말하고, wrapper 는 rc ↔ status ↔ namespace ↔ run_id 를 대조한다. 못 대조하면 실패다 (모르는 채 넘기지 않는다).
+  # ⚠ 자체 리뷰 C15: 네 production 단계 중 여기만 `BMS_RUN_ID` 를 안 주고 묶음 검사(`verify_unit_or_say`)도 안
+  #   불렀다 — `read_unit` 이 False 인 섞인 묶음에 `STEP_RC=0 complete` 가 나왔다 (R8-02 가 닫은 "data B / meta A"
+  #   축이 거기만 열려 있었다). `run` 과 같이 이번 시도의 id 를 만들어 넘기고, 대조 뒤 묶음 검사를 부른다.
+  local rid; rid="$(python3 -c 'import uuid;print(uuid.uuid4().hex)')"
+  LAST_RUN_ID="$rid"
   local log; log="$(mktemp "${TMPDIR:-/tmp}/shape_step.XXXXXX")"
-  out="$("$@" 2>&1)" || rc=$?
+  out="$(BMS_RUN_ID="$rid" "$@" 2>&1)" || rc=$?
   printf '%s\n' "$out" >&2
   printf '%s\n' "$out" > "$log"     # ⚠ heredoc 이 stdin 을 쓰므로 producer 출력은 **파일로** 넘긴다
-  python3 - "$rc" "$write" "$log" <<'PYSHAPE'
+  python3 -I -P - "$rc" "$write" "$log" <<'PYSHAPE'
 import json, pathlib, sys
 rc, write = int(sys.argv[1]), pathlib.Path(sys.argv[2])
 captured = pathlib.Path(sys.argv[3]).read_text(encoding="utf-8", errors="replace")
@@ -253,6 +261,16 @@ sys.exit(rc)
 PYSHAPE
   local prc=$?
   rm -f "$log"
+  # ⚠ 자체 리뷰 C15: 대조를 통과했어도 **묶음 검사**는 따로다 (data 와 meta 가 이번 시도의 한 묶음인가).
+  #   producer 가 게시한 산출의 경로는 위 python 이 확인했으므로, 그 자리에서 다른 세 단계와 같은 검사를 건다.
+  if [ "$prc" -eq 0 ] || [ "$prc" -eq 3 ]; then
+    local art
+    art="$(printf '%s\n' "$out" | sed -n 's/^SHAPE_RESULT .*"artifact": "\([^"]*\)".*/\1/p' | head -1)"
+    if [ -n "$art" ] && ! verify_unit_or_say "$art" "$rid"; then
+      say '   ne_shape: 묶음 검사 실패 — data 와 meta 가 이번 시도의 한 묶음이 아니다 (자체 리뷰 C15)\n'
+      return 1
+    fi
+  fi
   return $prc
 }
 

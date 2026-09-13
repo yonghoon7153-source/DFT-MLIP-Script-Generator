@@ -88,7 +88,10 @@ def _full_matrix_rows(rid, lli=1.0):
                  scale_dvdq_ref="1.0", scale_dqdv_ref="1.0", scale_audit_target="{}", scale_audit_ref="{}", obj="0.01",
                  rmse_pocv="0.002", a_PE="1.0", b_PE="0.0", a_NE="1.1", b_NE="0.0", gamma_Si="0.3", c_cell="1.0", bounds="-",
                  ref_a_PE="1.0", ref_b_PE="0.0", ref_a_NE="1.0", ref_b_NE="0.0", ref_gamma_Si="0.2", ref_obj="0.01",
-                 ref_rmse_pocv="0.002", ref_c_cell="1.0", ref_bounds="-", LAM_PE_pct="1.0", LAM_NE_pct="2.0", LLI_pct=str(lli + i))
+                 ref_rmse_pocv="0.002", ref_c_cell="1.0", ref_bounds="-", LAM_PE_pct="1.0", LAM_NE_pct="2.0", LLI_pct=str(lli + i),
+                 # 자체 리뷰 C05: matrix 도 모집단을 행에 봉인한다 — 주장이 본문(행 수)과 맞아야 한다
+                 combo_roster=json.dumps({"authority": 2, "requested": 2, "succeeded": 2,
+                                          "missing_input": [], "failed": [], "absent": []}))
         assert set(v) == set(S.MATRIX_ROW), set(v) ^ set(S.MATRIX_ROW)
         rows.append({k: v[k] for k in S.MATRIX_ROW})
     return rows
@@ -102,9 +105,12 @@ def test_d8_02_check_u14_consumes_only_the_verified_unit_and_requires_the_proven
     닫힘 조건(Codex): 검증된 동일 data/meta snapshot 만으로 검사하고 묶음 불일치는 nonzero; producer 스키마와 checker
     의 required 스키마를 한 정본에서 대조; 현행 정본은 provenance-incomplete 로 **명시적으로** 제한한다."""
     old, new = tmp_path / "old", tmp_path / "new"; old.mkdir(); new.mkdir()
-    a = _deg("100", "r8-unit-A", {"LAM_PE": 1.0, "LAM_NE": 2.0, "LLI": 0.5}, schema=True)
-    for d in (old, new):
-        f = d / "degeneracy_100_Li.json"; verify.atomic_write_json(f, a); _sign(f, "r8-unit-A", "100", full=True)
+    # ⚠ 자체 리뷰 C02 뒤: 두 **독립 실행**은 run id 가 달라야 한다 (같으면 같은 시도의 사본 = alias).
+    #   전 판 fixture 는 양쪽에 `r8-unit-A` 를 줘서 그 축을 구조적으로 못 쟀다.
+    for d, rid in ((old, "r8-unit-A"), (new, "r8-unit-B0")):
+        a = _deg("100", rid, {"LAM_PE": 1.0, "LAM_NE": 2.0, "LLI": 0.5}, schema=True)
+        f = d / "degeneracy_100_Li.json"; verify.atomic_write_json(f, a); _sign(f, rid, "100", full=True)
+    a = _deg("100", "r8-unit-B0", {"LAM_PE": 1.0, "LAM_NE": 2.0, "LLI": 0.5}, schema=True)
     rc, out, _ = _cli("check_u14.py", "--new", new, "--old", old)
     assert rc == 0 and "전부 같다" in out, (rc, out)
     newf = new / "degeneracy_100_Li.json"
@@ -305,7 +311,10 @@ def test_d8_07_r7_closure_runner_records_whether_each_probe_reached_its_countere
     r = subprocess.run([sys.executable, str(runner), "--target", str(ROOT), "--probes", "R7-01,R7-06",
                         "--expected-head", head, "--allow-dirty"],              # R9 P2-2: 대상 SHA 를 명시, 시험 중 트리는 dirty
                        cwd=ROOT, capture_output=True, text=True, timeout=600)
-    assert r.returncode == 0, r.stderr[-800:]
+    # ⚠ 자체 리뷰 C19 뒤: 종료 코드가 `evidence_eligible` 을 반영한다 — 개발 중 트리에서는 도구 자신이
+    #   HEAD 의 blob 과 달라 eligible false 가 정상이다. 계약으로 단언한다 (증거면 0, 아니면 3).
+    _d = json.loads(r.stdout)
+    assert r.returncode == (0 if _d["evidence_eligible"] else 3), (r.returncode, r.stderr[-800:])
     d = json.loads(r.stdout)
     assert d["target_head"] and d["pinned_sha"].startswith("521be85") and d["pin_bypassed"] is True
     for pid in ("R7-01", "R7-06"):

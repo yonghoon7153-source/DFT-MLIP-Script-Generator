@@ -70,8 +70,10 @@ def test_e11_01_promotion_compares_the_input_identity_of_both_runs(tmp_path):
     assert p and p["promotion_eligible"] is False and p["blocked_by"].get("inputs"), p
     assert "입력" in out and ("half_cell" in out or "full_cell" in out), out[-800:]
     # 대조군: 같은 입력 bytes 면 통과한다
+    # ⚠ 자체 리뷰 C02 뒤: **독립 실행이면 run id 가 달라야 한다** (같으면 같은 시도의 사본이라 alias 다).
+    #   전 판 fixture 는 양쪽에 같은 `"r"` 을 줘서 그 축을 구조적으로 못 쟀다.
     old2, new2 = tmp_path / "o2", tmp_path / "n2"
-    _matrix_unit(old2, "r", "same", "same"); _matrix_unit(new2, "r", "same", "same")
+    _matrix_unit(old2, "r-old", "same", "same"); _matrix_unit(new2, "r-new", "same", "same")
     rc, out, _ = _cli("check_u14.py", "--new", new2, "--old", old2)
     assert rc == 0 and _promotion(out)["promotion_eligible"] is True, (rc, out[-500:])
 
@@ -446,26 +448,40 @@ def test_e11_14_shape_step_reads_the_artifact_it_just_wrote_and_partial_is_not_s
     d = tmp_path / "w"
     (d / "partial").mkdir(parents=True)
     # 옆에 놓인 **stale canonical** — 이번 시도의 산출이 아니다. 어떤 경로로도 이것을 읽으면 안 된다.
-    (d / "ne_shape_A_Li.csv").write_text("state\n100\n", encoding="utf-8")
-    (d / "ne_shape_A_Li.csv.meta.json").write_text(json.dumps({"status": "complete", "run_id": "stale"}),
-                                                   encoding="utf-8")
+    (d / "ne_shape_A_Li.csv").write_text("state,run_id\n100,stale\n", encoding="utf-8")
+    (d / "ne_shape_A_Li.csv.meta.json").write_text(json.dumps(
+        {"status": "complete", "run_id": "stale", "artifact": "ne_shape_A_Li.csv",
+         "sha256": hashlib.sha256((d / "ne_shape_A_Li.csv").read_bytes()).hexdigest()}), encoding="utf-8")
 
-    def _shim(name, rc, result, art=None, meta=None):
-        """producer 흔내: `SHAPE_RESULT` 를 찍고 rc 를 낸다. art/meta 가 있으면 그 직전에 산출도 놓는다."""
-        if art is not None:
-            art.parent.mkdir(parents=True, exist_ok=True)
-            art.write_text("state\n100\n", encoding="utf-8")
-            art.with_name(art.name + ".meta.json").write_text(json.dumps(meta or {}), encoding="utf-8")
+    def _shim(name, rc, result, art=None, status=None):
+        """producer 흉내 — **실행 시점에** 자기 산출과 사이드카를 쓰고 `SHAPE_RESULT` 를 찍는다.
+
+        ⚠ 자체 리뷰 C15 뒤: `shape_step` 이 이번 시도의 `BMS_RUN_ID` 를 주입하고 다른 세 단계처럼 묶음 검사를
+          건다. 진짜 producer(`ne_shape._write_csv`)가 그 환경값을 쓰므로 shim 도 같게 해야 그 축을 잰다 —
+          전 판 shim 은 테스트가 미리 써 둔 `state\n100\n` 이라 구조적으로 못 쟀다.
+        """
         f = tmp_path / name
-        f.write_text("import sys\nprint({!r})\nsys.exit({})\n".format(
-            "SHAPE_RESULT " + json.dumps(result, ensure_ascii=False), rc), encoding="utf-8")
+        f.write_text(
+            "import hashlib, json, os, pathlib, sys\n"
+            f"art = pathlib.Path({str(art)!r}) if {art is not None!r} else None\n"
+            "rid = os.environ.get('BMS_RUN_ID', '')\n"
+            "if art is not None:\n"
+            "    art.parent.mkdir(parents=True, exist_ok=True)\n"
+            "    art.write_text(f'state,run_id\\n100,{rid}\\n', encoding='utf-8')\n"
+            f"    meta = {{'status': {status!r}, 'run_id': rid, 'artifact': art.name,\n"
+            "            'sha256': hashlib.sha256(art.read_bytes()).hexdigest()}\n"
+            "    art.with_name(art.name + '.meta.json').write_text(json.dumps(meta), encoding='utf-8')\n"
+            f"r = dict({result!r})\n"
+            "r['run_id'] = rid or r.get('run_id')\n"
+            "print('SHAPE_RESULT ' + json.dumps(r, ensure_ascii=False))\n"
+            f"sys.exit({rc})\n", encoding="utf-8")
         return f
 
     # (1) 정직한 partial: rc 3 · status partial · partial/ 네임스페이스 · run_id 일치 → STEP_RC=3, 모순 없음
     fresh = d / "partial" / "ne_shape_GITT_Li.csv"
-    ok = _shim("ok.py", 3, {"status": "partial", "artifact": str(fresh), "run_id": "r1",
+    ok = _shim("ok.py", 3, {"status": "partial", "artifact": str(fresh),
                             "authority": 2, "requested": 2, "paired": 1},
-               art=fresh, meta={"status": "partial", "run_id": "r1"})
+               art=fresh, status="partial")
     p = _shell(f'shape_step "{d}" python3 {ok}; echo "STEP_RC=$?"', {"OUT": str(d)})
     text = p.stdout + p.stderr
     assert "STEP_RC=3" in text, text[-800:]
@@ -473,7 +489,7 @@ def test_e11_14_shape_step_reads_the_artifact_it_just_wrote_and_partial_is_not_s
     assert "ne_shape_A_Li" not in text, "stale canonical 을 읽었다:\n" + text[-800:]
 
     # (2) rc 0 인데 status 는 partial — 모순이다 (전 판은 "complete" 로 찍었다)
-    lie = _shim("lie.py", 0, {"status": "partial", "artifact": str(fresh), "run_id": "r1"})
+    lie = _shim("lie.py", 0, {"status": "partial", "artifact": str(fresh)}, art=fresh, status="partial")
     p = _shell(f'shape_step "{d}" python3 {lie}; echo "STEP_RC=$?"', {"OUT": str(d)})
     text = p.stdout + p.stderr
     assert "STEP_RC=0" not in text, text[-800:]
@@ -487,15 +503,26 @@ def test_e11_14_shape_step_reads_the_artifact_it_just_wrote_and_partial_is_not_s
     assert "SHAPE_RESULT" in text, text[-800:]
 
     # (4) rc 0 인데 canonical 이 아니라 partial/ 을 가리킨다 — namespace 모순
-    ns = _shim("ns.py", 0, {"status": "complete", "artifact": str(fresh), "run_id": "r1"})
+    ns = _shim("ns.py", 0, {"status": "complete", "artifact": str(fresh)}, art=fresh, status="complete")
     p = _shell(f'shape_step "{d}" python3 {ns}; echo "STEP_RC=$?"', {"OUT": str(d)})
     text = p.stdout + p.stderr
     assert "STEP_RC=0" not in text and "모순" in text, text[-800:]
 
     # (5) meta 의 run_id 가 보고한 것과 다르면 — 이번 시도의 산출이 아니다
     other = d / "partial" / "ne_shape_GITT_other.csv"
-    rid = _shim("rid.py", 3, {"status": "partial", "artifact": str(other), "run_id": "r2"},
-                art=other, meta={"status": "partial", "run_id": "다른-시도"})
+    # meta 의 run_id 가 보고한 것과 다르면 — 이번 시도의 산출이 아니다 (shim 이 일부러 어긋나게 쓴다)
+    rid = tmp_path / "rid.py"
+    rid.write_text(
+        "import hashlib, json, os, pathlib, sys\n"
+        f"art = pathlib.Path({str(other)!r})\n"
+        "art.parent.mkdir(parents=True, exist_ok=True)\n"
+        "art.write_text('state,run_id\\n100,다른-시도\\n', encoding='utf-8')\n"
+        "meta = {'status': 'partial', 'run_id': '다른-시도', 'artifact': art.name,\n"
+        "        'sha256': hashlib.sha256(art.read_bytes()).hexdigest()}\n"
+        "art.with_name(art.name + '.meta.json').write_text(json.dumps(meta), encoding='utf-8')\n"
+        "print('SHAPE_RESULT ' + json.dumps({'status': 'partial', 'artifact': str(art),\n"
+        "                                    'run_id': os.environ.get('BMS_RUN_ID', '')}, ensure_ascii=False))\n"
+        "sys.exit(3)\n", encoding="utf-8")
     p = _shell(f'shape_step "{d}" python3 {rid}; echo "STEP_RC=$?"', {"OUT": str(d)})
     text = p.stdout + p.stderr
     assert "STEP_RC=3" not in text and "run_id" in text, text[-800:]
@@ -535,16 +562,21 @@ def test_e11_16_gamma_roster_is_parsed_not_just_non_empty(tmp_path):
     base = {k: "1.0" for k in S.PROFILE_ROW}
     base.update(consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(ci), inputs_sha=dg,
                 ref_inputs_sha=dg, bounds="-", run_id="p", profile_scale="global")
-    ok = dict(base, gamma_roster=json.dumps({"authority": 21, "requested": 21, "succeeded": 21, "missing": []}))
-    assert not S.check_rows("profile", [ok], list(S.PROFILE_ROW)), S.check_rows("profile", [ok], list(S.PROFILE_ROW))
-    bad = dict(base, gamma_roster="not-json")
-    assert S.check_rows("profile", [bad], list(S.PROFILE_ROW)), "JSON 이 아닌 roster 를 통과시켰다"
-    wrong = dict(base, gamma_roster=json.dumps({"authority": 21, "requested": 21, "succeeded": 5, "missing": []}))
-    assert S.check_rows("profile", [wrong], list(S.PROFILE_ROW)), "산술이 안 맞는 roster 를 통과시켰다"
-    a = dict(base, gamma_roster=json.dumps({"authority": 21, "requested": 21, "succeeded": 21, "missing": []}))
-    b = dict(base, gamma_Si="2.0",
-             gamma_roster=json.dumps({"authority": 21, "requested": 21, "succeeded": 20, "missing": [0.1]}))
-    assert S.check_rows("profile", [a, b], list(S.PROFILE_ROW)), "행마다 다른 roster 를 통과시켰다"
+    # ⚠ 자체 리뷰 C04 뒤: roster 는 **본문과 묶인다** — 성공 수 = 행 수여야 하므로 전수 fixture 는 21 행이다
+    #   (전 판은 1 행에 "21 성공" 을 적어 두고 통과했고, 그 사실이 이 시험에 가려져 있었다).
+    n = S.CANONICAL_GAMMA_GRID_N
+    full = json.dumps({"authority": n, "requested": n, "succeeded": n, "missing": []})
+    rows_ok = [dict(base, gamma_Si=str(i / (n - 1)), gamma_roster=full) for i in range(n)]
+    assert not S.check_rows("profile", rows_ok, list(S.PROFILE_ROW)), S.check_rows("profile", rows_ok, list(S.PROFILE_ROW))
+    bad = [dict(r, gamma_roster="not-json") for r in rows_ok]
+    assert S.check_rows("profile", bad, list(S.PROFILE_ROW)), "JSON 이 아닌 roster 를 통과시켰다"
+    wrong = [dict(r, gamma_roster=json.dumps({"authority": n, "requested": n, "succeeded": 5, "missing": []}))
+             for r in rows_ok]
+    assert S.check_rows("profile", wrong, list(S.PROFILE_ROW)), "산술이 안 맞는 roster 를 통과시켰다"
+    mixed = list(rows_ok)
+    mixed[0] = dict(mixed[0], gamma_roster=json.dumps({"authority": n, "requested": n, "succeeded": n - 1,
+                                                       "missing": [0.1]}))
+    assert S.check_rows("profile", mixed, list(S.PROFILE_ROW)), "행마다 다른 roster 를 통과시켰다"
 
 
 # ── P2-5 ─────────────────────────────────────────────────────────────────────────────────────

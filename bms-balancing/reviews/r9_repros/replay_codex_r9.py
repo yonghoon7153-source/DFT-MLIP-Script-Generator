@@ -22,6 +22,24 @@ import argparse, contextlib, csv, hashlib, importlib.util, io, json, os, pathlib
 # ⚠ Codex R11 P1-10 반례 A: gate 를 **import 하기 전에** bytecode 캐시를 돌린다. 전 판은 gate 안에서
 #   `isolate_bytecode()` 를 불렀는데, 그때는 이미 ignored `reviews/__pycache__/evidence_gate…pyc` (timestamp·size 를
 #   맞춘 위조본)가 load 된 뒤였다 — 봉인 함수 자체가 위조본이었고 결과는 eligible true 였다.
+#
+# ⚠ 자체 리뷰 C08: 그것은 **bytecode 만** 막았다. 그보다 먼저 위의 `import argparse, …, traceback` 이 돌고
+#   `sys.path[0]` 은 이 러너가 든 **저장소 안 디렉터리**다 — untracked `traceback.py` 하나면 gate 보다 먼저 실행되고
+#   `INSTRUMENT` 밖이라 봉인에 안 걸린다. shim 이 gate 를 `sys.modules` 에 선주입하면 tracked 러너가 수정된
+#   채로도 `dirty_paths: []` · `instrument: ok` · eligible true 가 나왔다 (실측). 봉인을 import 보다 앞에 두는
+#   방법은 하나뿐이다 — `-P`(sys.path[0] 삽입 끔) · `-E`(PYTHON* 환경변수 무시)로 **한 번 재실행**한다.
+# ⚠ 재실행은 **스크립트로 직접 돌 때만** 한다. 회귀(`test_e11_11`·`test_e11_12`)는 이 파일을 `exec` 해서
+#   `child_ok`·`_classify` 를 직접 부르는데, module level 에서 `execv` 하면 **그 테스트 프로세스가 갈아치워진다**
+#   (실측: pytest 가 26 번째 항목에서 조용히 죽었다).
+if globals().get("__name__") == "__main__" and not sys.flags.safe_path:
+    # ⚠ `-E` 는 `PYTHONOPTIMIZE` 도 무시한다 — 그냥 재실행하면 R10 P2-4 의 "`-O` 에서는 증거를 만들지 않는다" 가
+    #   **조용히 사라진다** (거부도 준수도 아닌 정규화). 재실행 **전에** 그 요청을 보고 거부한다.
+    if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
+        print("! 이 러너는 `python -O`(PYTHONOPTIMIZE) 에서 증거를 만들지 않는다 — 보관한 probe 의 반례는 "
+              "`assert` 로 쓰여 있고 optimize 모드는 그것을 통째로 지운다 (Codex R10 P2-4)", file=sys.stderr)
+        raise SystemExit(2)
+    os.environ.pop("PYTHONPATH", None)
+    os.execv(sys.executable, [sys.executable, "-P", "-E", "-B", os.path.abspath(__file__), *sys.argv[1:]])
 _PYC = tempfile.mkdtemp(prefix="evidence-pycache-")
 sys.pycache_prefix = _PYC
 os.environ["PYTHONPYCACHEPREFIX"] = _PYC
@@ -164,6 +182,9 @@ def _full_row(agg, rid, gamma):
     rci = {"half_cell": {"path": "pristine.xlsx", "sha256": "5" * 64}, "full_cell": ci["full_cell"],
            "literature": ci["literature"]}
     row = {k: "1.0" for k in _S.MATRIX_ROW}
+    # 자체 리뷰 C05: matrix 도 모집단을 행에 봉인한다 (이 fixture 는 행이 곧 모집단이다)
+    row["combo_roster"] = json.dumps({"authority": 1, "requested": 1, "succeeded": 1,
+                                      "missing_input": [], "failed": [], "absent": []})
     row.update(half_cell="GITT", si="Li", w_dqdv="0", run_id=rid, bounds="-", ref_bounds="-",
                gamma_Si=gamma, ref_gamma_Si="0.2", scale_audit_target="{}", scale_audit_ref="{}",
                consumed_inputs=json.dumps(ci), ref_consumed_inputs=json.dumps(rci),
@@ -181,13 +202,19 @@ def r9_05_adapted(agg, _shape_harness, _pair):
             #   (`agg.matrix_row`)는 열의 부분집합이라 중복 판정에 닿기 전에 스키마에서 멈춘다 — 그것은 이 발견의
             #   닫힘이 아니라 "이 fixture 로는 더 못 잰다" 이다. 중복 key(γ 0.10 ↔ 0.40)는 그대로, 열만 온전히 쓴다.
             rows = [_full_row(agg, "shape-dup", "0.10"), _full_row(agg, "shape-dup", "0.40")]
+            combo = json.dumps({"authority": 2, "requested": 2, "succeeded": 2,
+                                "missing_input": [], "failed": [], "absent": []})
+            rows = [dict(r, combo_roster=combo) for r in rows]     # 행 수와 맞춘다 (자체 리뷰 C05)
             if order == "reversed":
                 rows = list(reversed(rows))
             agg.write_csv_unit(matrix / "matrix_100.csv", _full_fields(), rows, "shape-dup")
             ns = agg.load_ne_shape()
+            # ⚠ 자체 리뷰 C17 뒤: reader 의 거부가 `main()` 에서 잡혀 그 상태의 **짝 없음**으로 기록된다
+            #   (예외가 밖으로 나가면 산출에 이유가 안 남고 wrapper 메시지가 원인을 안 가렸다). 그래서 이
+            #   probe 는 wrapper 대신 **reader 자체**를 부른다 — 재는 축(중복 key 를 소비하는가)은 그대로다.
             try:
-                agg.run_shape(ns, base, ["pristine", "100"], {"pristine", "100"}, matrix, base / "out")
-                results[order] = "소비했다 (예외 없음)"
+                got = ns.fitted_pair_info(matrix, "100", "GITT", "Li")
+                results[order] = f"소비했다 (예외 없음): {got}"
             except RuntimeError as e:
                 results[order] = f"RuntimeError: {str(e)[:120]}"
     closure = 'assert all("중복" in v for v in results.values())'
@@ -444,6 +471,10 @@ def main() -> int:
     print(text)
     if a.output:
         a.output.write_text(text + "\n", encoding="utf-8")
+    # ⚠ 자체 리뷰 C19: `evidence_eligible: false` 인 실행이 rc 0 으로 끝났다 — P1-11 이 자식에게 요구한 규율
+    #   ("payload 를 읽기 전에 rc 를 본다")을 러너 자신이 어긴 것이다. 증거가 아닌 실행은 성공 코드로 끝나지 않는다.
+    if not out["evidence_eligible"]:
+        return 3
     return 0 if out["closed"] else 1
 
 

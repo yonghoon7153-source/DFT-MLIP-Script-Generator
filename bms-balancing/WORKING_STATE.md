@@ -24,7 +24,33 @@
 
 ---
 
-## 지금 상태 — **Codex 11차 NO-GO (P1 12 · P2 6) 열여덟 건 전부 닫음 · 12차 요청문 준비됨 · 현행 정본은 provenance-incomplete**
+## 지금 상태 — **자체 적대적 리뷰 35 건 닫음 (Codex 토큰 소진 → 내부 6 렌즈) · 현행 정본은 provenance-incomplete**
+
+2026-09-13 Codex 를 더 못 쓰게 되어 `/self-review` 로 6 렌즈를 병렬로 돌렸다 (sig-완전성 · validator-우회 ·
+순서-TOCTOU · 파생-보고서 · archive-이식성 · 공정성-의미). 원시 45 건 → 중복 합쳐 **35 건**, `결론이_바뀜` 14 건.
+**같은 축을 여러 렌즈가 독립으로 친 것이 셋**이다 (C01·C04·C11 각 3회).
+
+요지는 하나다 — **직전 라운드(R11)가 "닫았다" 고 적은 것의 절반이 반쪽이었다.** 입력 identity 비교는 파일당 한 벌만
+만들어 마지막 행만 봤고(C01), alias 는 inode 만 봐서 `cp` 사본이 통과했고(C02), "신고된 위험을 값으로 소비" 는 실은
+"키가 있을 때만" 이었고(C03), 정본 격자 검사는 본문과 한 번도 안 댔고(C04), matrix 의 모집단은 stdout 에만
+있었고(C05), 유한성은 JSON 문자열을 통과시켰고(C06), 도구 봉인은 checkout filter 를 안 막았고(C07), import 격리는
+bytecode 만 막았고(C08·C09), `rc 0` 인데 승격 불가인 상태를 런북이 "0 이면 교체" 로 읽었다(C11).
+
+35 건 전부 RED(`tests/test_r12_selfreview.py` f01~f28) → 수정 → GREEN. 원장은 `reviews/R6_LEDGER.md` "자체 적대적
+리뷰" 절. **fixture 는 일곱 번째로 깨졌다** — 정본과 재실행 fixture 가 같은 `run_id` 를 쓰고 있었고, C02 를 닫기
+전에는 그것이 아무 의미도 없었으므로 아무도 안 봤다.
+
+**새 규약(자체 리뷰에서 더한 것)**: 입력 identity 는 **행 key 별로** 댄다 · 독립 baseline 은 run id 가 달라야 한다 ·
+부재는 안전값이 아니다 · roster 는 본문에 묶인다 (`combo_roster` 가 matrix 행에도) · 과학 값은 문자열이어도 유한해야
+한다 · 도구 봉인과 snapshot 검증은 **같은 플래그**(`--no-filters`) · 러너는 `-P -E` 로 재실행해 봉인을 import 앞에
+둔다 · production heredoc 은 `-I -P` · 줄끝은 catch-all 로 고정 · 승격 불가는 rc **4** (단 `--schema-only` 는 승격을
+묻지 않은 진단이라 0) · 명부는 배제목록 · 러너 rc 는 `evidence_eligible` 을 반영한다.
+
+**정본 범위 (변화 없음)**: `check_u14 --new out --schema-only` rc 2 · `promotion_eligible: false`. 새 검사가 늘면서
+수치가 커졌다 — 스키마 누락 59 (sidecar `argv`·`roster` 26 + `gamma_roster` 4 + `combo_roster` 등) · 출처 열 27 ·
+내용 5 · provenance 1. **숫자는 하나도 안 움직였다**; 늘어난 것은 요구하는 축이다. U18 재실행이 새 규칙으로 서명한다.
+
+## 직전 상태 — Codex 11차 NO-GO (P1 12 · P2 6) 열여덟 건 전부 닫음 (닫힘)
 
 2026-09-13 Codex 11차(대상 `2add074`, `reviews/R11_CODEX.md`, 패키지 `reviews/r11_repros/codex/` sha256 13/13)의 요지:
 R10 의 열다섯 수정은 **각 산출 안에서는** 참이 됐지만 세 축이 열려 있다 — (a) 두 실행 **사이**의 입력 identity 를
@@ -193,7 +219,7 @@ U14 가 드러낸 다섯 건(U14-01 줄끝로 서명이 fresh clone 에서 깨�
 # ── 0. 받기 · 확인 (몇 분) ────────────────────────────────────────────────────────────────────────
 cd ~/dd/bms-balancing && git pull --rebase origin claude/bms-alpha-beta-verify
 source .venv/bin/activate && export BMS_DATA_ROOT='/mnt/d/가형 관련/degradation mode'
-python3 -m pytest tests/ -q                       # 202 passed 기대 (원자료 불필요)
+python3 -m pytest tests/ -q                       # 236 passed 기대 (원자료 불필요)
 
 # ── 1. 배관 확인 — 새 스키마가 붙는지만 (몇 분, STARTS=6 이라 수치는 못 쓴다) ─────────────────────
 STARTS=6 STATES=100 OUT=out_u14_smoke ./scripts/run_states.sh
@@ -206,7 +232,11 @@ rm -rf out_u14_smoke
 OUT=out_u14 STATES='100 200 300_0009 300_0147' ./scripts/run_states.sh 2>&1 | tee out_u14.log
 
 # ── 3. 대조 — 새 스키마 + 정본과 같은 숫자인가 ───────────────────────────────────────────────────
-python3 scripts/check_u14.py --new out_u14        # 0 = 스키마 갖췄고 숫자 동일 · 1 = 숫자가 다름 · 2 = 스키마 누락
+python3 scripts/check_u14.py --new out_u14        # 0 = 승격 가능 · 1 = 숫자가 다름 · 2 = 계약 위반 · 3 = 부분 · 4 = 승격 불가
+#    ⚠ 자체 리뷰 C11: **rc 만 보고 승격하지 말 것.** 정본이 옛 스키마라 입력 identity 를 댈 수 없으면 계약은 안
+#      깨졌지만 승격 자격이 없다 (지금 `out/` 이 정확히 그 상태다). 정본은 마지막 줄의 `PROMOTION` JSON 이다:
+#         python3 scripts/check_u14.py --new out_u14 --old out | tail -1 \
+#           | sed 's/^PROMOTION //' | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['promotion_eligible'], d['blocked_by'])"
 #    out/ 을 이미 덮었으면 정본을 git 에서 읽는다 (손으로 `git show` 를 엮지 말 것 — `--name-only` 는 트리가 아니다):
 #      python3 scripts/check_u14.py --new out --old-rev <재실행 커밋>^
 #    ★ 1 이면 그것이 발견이다. 계산 경로는 안 고쳤으니 같아야 한다. 출력과 함께 이것도 붙여 줘:
@@ -218,7 +248,7 @@ python3 -c "import json;print(json.load(open('out_u14/matrix_100.csv.meta.json')
 #    bytes 의 줄끝 변형과 맞을 때만 다시 서명하고(=내용이 같다는 증명), 아니면 손대지 않는다.
 python3 scripts/check_u14.py --new out --renormalize
 
-# ── 4. 0 이었을 때만 정본 교체 ───────────────────────────────────────────────────────────────────
+# ── 4. `promotion_eligible: true` 였을 때만 정본 교체 (rc 0 **이면서** 그 줄이 true, 자체 리뷰 C11) ──────
 for f in out_u14/*; do mv "$f" out/; done && rmdir out_u14
 python3 scripts/ne_shape.py                       # 소비 입력이 바뀌었으니 (d) 표도 다시 (초 단위)
 python3 scripts/compare_states.py out             # §1-10 표 재생 — '묶음 불일치' 경고가 없어야 한다

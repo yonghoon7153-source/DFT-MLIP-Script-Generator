@@ -142,7 +142,10 @@ def instrument_sealed(target, rel_paths) -> tuple:
         if not f.is_file():
             detail[rel] = "없음"; continue
         try:
-            have = _git(target, "hash-object", "--", str(f)).strip()
+            # ⚠ 자체 리뷰 C07: `--no-filters` 없이 해싱하면 committed `.gitattributes` + `clean` 드라이버 하나로
+            #   **주입 코드가 든 러너**가 ok 로 봉인된다 (아래 `verify_snapshot_bytes` 는 이미 쓰고 있었다 —
+            #   한쪽만 닫은 비대칭이었다). index·filter 를 안 거치는 bytes 를 댄다.
+            have = _git(target, "hash-object", "--no-filters", "--", str(f)).strip()
             want = _git(target, "rev-parse", f"HEAD:./{rel}").strip()
         except EvidenceError:
             detail[rel] = "커밋에 없음"; continue
@@ -226,6 +229,4 @@ def tree_of(target, head: str) -> str:
     return _git(target, "rev-parse", f"{head}^{{tree}}").strip()
 
 
-def bootstrap_pycache() -> str:
-    """이 모듈을 **import 하기 전에** 러너가 부르는 것과 같은 격리 (호출 뒤 재호출은 무해하다)."""
-    return isolate_bytecode()
+

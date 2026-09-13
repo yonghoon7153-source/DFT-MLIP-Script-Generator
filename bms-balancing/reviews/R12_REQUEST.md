@@ -27,9 +27,9 @@ HEAD=$(git rev-parse HEAD)                 # ⚠ 러너는 **40 자 full object 
 
 python3 reviews/r6_repros/codex_r6_mutation_audit.py                              # 8/8 CAUGHT · MISSED 0
 python3 reviews/r6_repros/codex/mutation_adapted.py                               # 5/5 CAUGHT
-python3 reviews/r7_repros/replay_codex_r7.py  --target . --expected-head "$HEAD"  # 6/6
+python3 reviews/r7_repros/replay_codex_r7.py  --target . --expected-head "$HEAD"  # 6 슬롯 (5 소멸 + 1 전제 변경)
 python3 reviews/r9_repros/replay_codex_r9.py  --target . --expected-head "$HEAD"  # 12/12
-python3 reviews/r10_repros/replay_codex_r10.py --target . --expected-head "$HEAD" # 22/22
+python3 reviews/r10_repros/replay_codex_r10.py --target . --expected-head "$HEAD" # 22 슬롯 (20+1 우리 코드 밖+1 전제 변경)
 python3 reviews/r11_repros/replay_codex_r11.py --target . --expected-head "$HEAD" # 35 슬롯 (§3)
 python3 scripts/check_u14.py --new out --schema-only            # rc 2: provenance-incomplete (§4)
 ```
@@ -79,8 +79,8 @@ python3 reviews/r11_repros/codex/r11_evidence_gate_repros.py --target . --case <
 `reviews/r11_repros/replay_codex_r11.py` 는 네 스크립트를 계약 그대로 돌리되 **case 마다 봉인한 술어**로만 닫힘을
 센다 (표에 없는 case 는 닫힘이 아니다 — P1-12 가 R10 러너에서 지적한 규율을 처음부터 적용). 35 슬롯:
 
-- **반례 소멸 32** — root 6 (assert 계약: 자기 반례 assertion 에서 멈춤) · data 5 · checker 12 · publish 1(`shape_step`) ·
-  evidence 8.
+- **반례 소멸 32** — root 5 (assert 계약: 자기 반례 assertion 에서 멈춤) · data 6 · check 12 · publish 1(`shape_step`) ·
+  evidence 8. (자체 리뷰 C20: 전 판은 root/data 를 뒤집어 적었고 같은 절의 다음 불릿과 모순이었다.)
 - **전제 변경 2** (fingerprint 를 봉인해 아무 예외나 이렇게 읽히지 않게 했다):
   - `publish:*` — 좁힌 matrix 를 canonical 자리에 안 쓰므로 원본 probe 가 그 파일을 열다 죽는다
     (`FileNotFoundError: …/publish/matrix_100.csv`). 같은 축은 `data:matrix_subset`·`data:profile_grid`·
@@ -132,7 +132,7 @@ python3 reviews/r11_repros/codex/r11_evidence_gate_repros.py --target . --case <
 
 ## 7. 실측 첨부
 
-- `reviews/R11_CODEX.md` · `reviews/r11_repros/codex/` (패키지 13 파일, sha256 13/13) ·
+- `reviews/R11_CODEX.md` · `reviews/r11_repros/codex/` (패키지 14 파일 = 서명된 13 + `HARNESS_R11_SHA256SUMS.txt`, sha256 13/13) ·
   `reviews/r11_repros/replay_ours_2add074_before/` (수정 전 재현) · `reviews/r11_repros/replay_ours_after_fixes/` (수정 뒤).
 - `reviews/r11_repros/replay_codex_r11.py` (닫힘 재생기 — case 별 봉인 술어) · `reviews/evidence_gate.py` (러너 공용 봉인) ·
   `bms_balancing/schema.py` (스키마·역할·환경·명부 정본) · `reviews/R6_LEDGER.md` "Codex R11" 절.

@@ -14,7 +14,12 @@ MATRIX_ROW = (
     "scale_pocv_ref", "scale_dvdq_ref", "scale_dqdv_ref", "scale_audit_target", "scale_audit_ref",
     "obj", "rmse_pocv", "a_PE", "b_PE", "a_NE", "b_NE", "gamma_Si", "c_cell", "bounds",
     "ref_a_PE", "ref_b_PE", "ref_a_NE", "ref_b_NE", "ref_gamma_Si", "ref_obj", "ref_rmse_pocv", "ref_c_cell", "ref_bounds",
-    "LAM_PE_pct", "LAM_NE_pct", "LLI_pct")
+    "LAM_PE_pct", "LAM_NE_pct", "LLI_pct",
+    #: ⚠ 자체 리뷰 C05 (렌즈 2곳): 실패·부재 조합은 행에서 빠지므로 **행만 보면 모집단을 알 수 없다**.
+    #:   profile 의 `gamma_roster` 와 같은 축인데 matrix 는 stdout `SUMMARY` 한 줄에만 있었다 (소비자 0) —
+    #:   `out/matrix_300_0147.csv` 의 분모가 16 인 이유(`HALF_CELL_ABSENT`)가 산출물에 없었고, 2/32 행 묶음이
+    #:   canonical 자리에서 "전부 갖췄다" 였다. 행마다 봉인한다.
+    "combo_roster")
 PROFILE_ROW = (
     "gamma_Si", "obj", "obj_ratio_to_best", "rmse_pocv", "a_PE", "b_PE", "a_NE", "b_NE", "bounds",
     "LAM_PE_pct", "LAM_NE_pct", "LLI_pct", "n_ok", "n_tried", "run_id", "profile_scale",
@@ -35,7 +40,10 @@ PROVENANCE_COLS = ("ref_inputs_sha", "consumed_inputs", "ref_consumed_inputs")
 #: 역할이 끼면 그것은 다른 계산이다; decoy 하나로 provenance 를 참칭할 수 없다.
 REQUIRED_ROLES = ("full_cell", "half_cell", "literature.gr", "literature.si")
 #: 승격 판정에서 **같아야 하는** 환경 축 (R6 내부 F3: scipy 1.11↔1.17 에서 최적점이 갈린다)
-ENV_KEYS = ("python", "numpy", "scipy", "platform")
+#: 비교하는 실행 환경 축 — `provenance.env_signature()` 가 **적는 것 전부**여야 한다.
+#: ⚠ 자체 리뷰 C18: 전 판은 pandas 를 서명에는 적고 비교 축에서 뺐다. 과학 입력이 전부 `pd.read_excel` 로
+#:   읽히므로 pandas 는 입력 파싱을 바꿀 수 있는 축이다 — 적고 안 대면 그 서명은 무엇을 고정하는지 말할 수 없다.
+ENV_KEYS = ("python", "numpy", "scipy", "pandas", "platform")
 #: sidecar 가 반드시 담아야 하는 실행 조건 — **양쪽에 있어야** 비교가 성립한다 (Codex R10 P1-7: 지우면 검사가 잠들었다)
 META_CONTROLS = ("state", "half_cell_source", "si_source", "starts", "seed")
 #: success 행에는 없어야 하는 열 — 있으면 그 행은 error 행이고 묶음은 승격 대상이 아니다 (Codex R10 P1-5)
@@ -43,11 +51,15 @@ ERROR_COL = "error"
 #: 산출 version — digest 규칙이 바뀌면 올린다 (옛 digest 와 새 digest 가 섞여 보이지 않게)
 RECEIPT_SCHEMA_VERSION = "r10.1"
 #: 비어 있어도 되는 열 — producer 가 감사 dict 가 없으면 "" 를 쓴다 (`cmd_matrix` 의 scale_audit_*)
-MAY_BE_EMPTY = frozenset({"scale_audit_target", "scale_audit_ref"})
+#: ⚠ 자체 리뷰 C33: `scale_audit_*` 는 `MAY_BE_EMPTY` 와 `ROW_SKIP` **양쪽**에 있었다 — 정본에는 R5-06 의 동치
+#:   감사가 있고 재실행에는 빈 칸이어도 "전부 같다 · rc 0 · promotion true" 였다. 한쪽 carve-out 은 이유가 있어도
+#:   둘 다면 그 열은 존재하지 않는 것과 같다. 빈 칸 허용을 뺀다 — producer 가 감사 없이 돌면 그것이 문제다.
+MAY_BE_EMPTY: frozenset = frozenset()
 #: 숫자가 **아닌** 열 (라벨·출처·감사 문자열). 나머지는 전부 유한한 숫자여야 한다 — 목록을 반대로 두면 새 숫자 열이
 #: 생겼을 때 검사에서 조용히 빠진다 (Codex R11 P1-8: `a_NE="not-a-number"` 가 통과했다).
 MATRIX_NON_NUMERIC = ("half_cell", "si", "run_id", "inputs_sha", "ref_inputs_sha", "consumed_inputs",
-                      "ref_consumed_inputs", "scale_audit_target", "scale_audit_ref", "bounds", "ref_bounds")
+                      "ref_consumed_inputs", "scale_audit_target", "scale_audit_ref", "bounds", "ref_bounds",
+                      "combo_roster")
 PROFILE_NON_NUMERIC = ("bounds", "run_id", "profile_scale", "inputs_sha", "ref_inputs_sha",
                        "consumed_inputs", "ref_consumed_inputs", "gamma_roster")
 MATRIX_NUMERIC = tuple(c for c in MATRIX_ROW if c not in MATRIX_NON_NUMERIC)
@@ -93,16 +105,32 @@ def receipt_leaves(consumed, problems: list | None = None) -> list:
     return out
 
 
+def receipt_text(consumed):
+    """receipt 를 **한 모양으로** 정규화한다 — `validate_receipt` 와 같은 규칙 (JSON 문자열이면 한 겹 decode).
+
+    ⚠ 자체 리뷰 C13: `validate_receipt` 는 str 을 `json.loads` 하는데 `receipt_map` 은 안 했다. degeneracy JSON 의
+      `consumed_inputs` 가 문자열로 들어오면 `receipt_map` 이 `{}` 를 내고, 양쪽 다 `{}` 라 입력 비교가 "둘 다
+      receipt 가 없다" 로 **조용히 잠들었다** — `inputs_uncomparable` 조차 안 찍혔고 `check_degeneracy` 도 `[]`
+      였다. 서로 다른 반쪽전지를 먹은 두 실행이 승격 가능이었다. 정규화를 한 자리에 둔다.
+    """
+    if isinstance(consumed, str):
+        try:
+            return json.loads(consumed)
+        except json.JSONDecodeError:
+            return None
+    return consumed
+
+
 def receipt_map(consumed) -> dict:
     """`{역할: sha256}` — 두 실행의 **입력 identity** 를 이것으로 댄다 (Codex R11 P1-1)."""
     return {role: (str(leaf.get("sha256", "")) if isinstance(leaf, dict) else "")
-            for role, leaf in receipt_leaves(consumed)}
+            for role, leaf in receipt_leaves(receipt_text(consumed))}
 
 
 def receipt_paths(consumed) -> dict:
     """`{역할: path}` — digest 에는 안 들어가지만 역할별 locator 가 바뀌면 그것도 말한다 (Codex R11 Q1)."""
     return {role: (str(leaf.get("path", "")) if isinstance(leaf, dict) else "")
-            for role, leaf in receipt_leaves(consumed)}
+            for role, leaf in receipt_leaves(receipt_text(consumed))}
 
 
 def inputs_digest(consumed: dict) -> str:
@@ -243,6 +271,8 @@ def check_rows(kind: str, rows: list, header: list) -> list:
                  f"아니다; success 행에 `{ERROR_COL}` 칸이 있으면 그것도 error 행이다, Codex R10 P1-5)")
     if kind == "profile" and "gamma_roster" in header:
         p += check_gamma_roster([r for r in rows if not str(r.get(ERROR_COL) or "").strip()])
+    if kind == "matrix" and "combo_roster" in header:            # 자체 리뷰 C05 — profile 과 같은 축
+        p += check_combo_roster([r for r in rows if not str(r.get(ERROR_COL) or "").strip()])
     _, dup, _ = unique_rows([r for r in rows if not str(r.get(ERROR_COL) or "").strip()],
                             matrix_key if kind == "matrix" else profile_key)
     p += [f"중복 key {k}" for k in dup]
@@ -270,6 +300,45 @@ def body_roster(name: str, data: bytes) -> dict:
     return r
 
 
+def check_combo_roster(rows: list) -> list:
+    """matrix 의 `combo_roster` — `gamma_roster` 와 같은 계약 (자체 리뷰 C05).
+
+    exact key · 개수는 정수(bool 아님) · 산술(`succeeded + |missing_input| + |failed| == requested`) ·
+    행마다 같은 roster · **본문과의 결속**(성공 수 = 행 수, canonical 주장이면 requested == authority).
+    """
+    p, seen = [], set()
+    keys = {"authority", "requested", "succeeded", "missing_input", "failed", "absent"}
+    for i, r in enumerate(rows):
+        raw = r.get("combo_roster")
+        try:
+            d = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError) as e:
+            p.append(f"행 {i}: combo_roster 가 JSON 이 아니다 ({e})"); continue
+        if not isinstance(d, dict) or set(d) != keys:
+            p.append(f"행 {i}: combo_roster 의 key 가 계약과 다르다 — "
+                     f"{sorted(d) if isinstance(d, dict) else type(d).__name__} (요구: {' · '.join(sorted(keys))})")
+            continue
+        if not all(isinstance(d[k], list) and all(isinstance(x, str) for x in d[k])
+                   for k in ("missing_input", "failed", "absent")):
+            p.append(f"행 {i}: combo_roster 의 목록이 문자열 목록이 아니다 ({d!r})"); continue
+        if not all(isinstance(d[k], int) and not isinstance(d[k], bool) for k in ("authority", "requested", "succeeded")):
+            p.append(f"행 {i}: combo_roster 의 개수가 정수가 아니다 ({d!r})"); continue
+        if d["succeeded"] + len(d["missing_input"]) + len(d["failed"]) != d["requested"]:
+            p.append(f"행 {i}: combo_roster 산술이 안 맞는다 — 성공 {d['succeeded']} + 입력 없음 "
+                     f"{len(d['missing_input'])} + 실패 {len(d['failed'])} ≠ 요청 {d['requested']}")
+        seen.add(json.dumps(d, sort_keys=True))
+    if len(seen) > 1:
+        p.append(f"combo_roster 가 행마다 다르다 ({len(seen)} 가지) — 한 실행의 모집단은 하나다")
+    if seen and len(seen) == 1 and not p:
+        d = json.loads(next(iter(seen)))
+        if d["succeeded"] != len(rows):
+            p.append(f"combo_roster.succeeded {d['succeeded']} ≠ 실제 행 수 {len(rows)} — 모집단 주장이 본문과 다르다")
+        if d["requested"] != d["authority"]:
+            p.append(f"combo_roster.requested {d['requested']} ≠ authority {d['authority']} — 좁힌 실행은 정본이 "
+                     f"아니다 (subset 이고 canonical 자리에 있으면 안 된다)")
+    return p
+
+
 def check_gamma_roster(rows: list) -> list:
     """`gamma_roster` 는 **파싱되는 계약**이다 (Codex R11 P2-4: `"not-json"` 이 비어 있지 않다는 이유로 통과했다).
 
@@ -288,7 +357,9 @@ def check_gamma_roster(rows: list) -> list:
         miss = d["missing"]
         if not isinstance(miss, list) or not all(isinstance(x, (int, float)) and math.isfinite(x) for x in miss):
             p.append(f"행 {i}: gamma_roster.missing 이 유한 숫자 목록이 아니다 ({miss!r})"); continue
-        if not all(isinstance(d[k], int) for k in ("authority", "requested", "succeeded")):
+        # ⚠ 자체 리뷰 C04: `isinstance(True, int)` 이 참이라 bool 이 개수로 셌다.
+        if not all(isinstance(d[k], int) and not isinstance(d[k], bool)
+                   for k in ("authority", "requested", "succeeded")):
             p.append(f"행 {i}: gamma_roster 의 개수가 정수가 아니다 ({d!r})"); continue
         if d["succeeded"] + len(miss) != d["requested"]:
             p.append(f"행 {i}: gamma_roster 산술이 안 맞는다 — 성공 {d['succeeded']} + 누락 {len(miss)} ≠ 요청 {d['requested']}")
@@ -297,6 +368,20 @@ def check_gamma_roster(rows: list) -> list:
         seen.add(json.dumps(d, sort_keys=True))
     if len(seen) > 1:
         p.append(f"gamma_roster 가 행마다 다르다 ({len(seen)} 가지) — 한 실행의 모집단은 하나다")
+    # ⚠ 자체 리뷰 C04 (렌즈 3곳): 전 판은 roster 를 **본문과 한 번도 대보지 않았다** — 행 3 개짜리가
+    #   "requested 3 · authority 21" 로 통과했고(좁힌 격자가 canonical 자리로), 21 행인데 "성공 1 · 누락 20" 도,
+    #   "γ=0.5 는 실패했다" 면서 본문에 그 행이 있는 것도 전부 문제 0 이었다. 방어가 producer 한 자리뿐이었다.
+    if seen and len(seen) == 1 and not p:
+        d = json.loads(next(iter(seen)))
+        if d["succeeded"] != len(rows):
+            p.append(f"gamma_roster.succeeded {d['succeeded']} ≠ 실제 행 수 {len(rows)} — 모집단 주장이 본문과 다르다")
+        if d["requested"] != d["authority"]:
+            p.append(f"gamma_roster.requested {d['requested']} ≠ authority {d['authority']} — 좁힌 격자는 정본이 "
+                     f"아니다 (그 실행은 subset 이고 canonical 자리에 있으면 안 된다)")
+        body = {float(r["gamma_Si"]) for r in rows if r.get("gamma_Si") not in (None, "")}
+        ghost = sorted(body & {float(x) for x in d["missing"]})
+        if ghost:
+            p.append(f"gamma_roster.missing 이 본문에 있는 γ 를 누락이라 한다 ({ghost}) — 둘 중 하나가 거짓이다")
     return p
 
 
@@ -310,6 +395,16 @@ def _finite_problems(x, where: str) -> list:
         return [m for k, v in x.items() for m in _finite_problems(v, f"{where}.{k}")]
     if isinstance(x, (list, tuple)):
         return [m for i, v in enumerate(x) for m in _finite_problems(v, f"{where}[{i}]")]
+    if isinstance(x, str):
+        # ⚠ 자체 리뷰 C06: 전 판은 str 을 그냥 통과시켜 손으로 쓴 JSON 의 `"1e999"`·`"Infinity"`·`"nan"` 이
+        #   문제 0 이었다 (CSV 쪽은 `float()` 로 강제 파싱하는데 JSON 쪽만 비대칭). `_num_diff` 도 `float()` 를
+        #   쓰므로 양쪽 다 `"1e999"` 면 `inf == inf` 로 숫자 차이까지 0 이 된다. 같은 규칙을 적용한다 —
+        #   숫자로 **파싱되면** 유한해야 하고, 애초에 숫자가 아닌 라벨은 이 검사의 대상이 아니다.
+        try:
+            v = float(x)
+        except (TypeError, ValueError):
+            return []
+        return [] if math.isfinite(v) else [f"{where}: 유한하지 않은 값 ({x!r})"]
     return []
 
 
