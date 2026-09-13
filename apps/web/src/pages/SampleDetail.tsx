@@ -1294,6 +1294,16 @@ function RunRow({ run, onChanged }: { run: Run; onChanged: () => void }) {
         <a className="tiny" href={api.exportRawUrl(run.id)}>
           raw CSV
         </a>
+        {/* 계측기가 뽑아 주던 그 표.  랩에는 이 열 순서를 전제로 짜 둔 매크로가
+            이미 있고, 워크벤치가 원본을 들고 있으면서 이것을 못 내주면 .wrd 를
+            도로 내려받아 계측기 PC 에서 다시 뽑는 왕복이 남는다. */}
+        <a
+          className="tiny"
+          href={api.exportReportUrl(run.id)}
+          title="계측기의 '일반 데이터 보고서' 와 같은 열·같은 순서 (탭 구분)"
+        >
+          보고서 TXT
+        </a>
         <button
           type="button"
           className="ghost sm"

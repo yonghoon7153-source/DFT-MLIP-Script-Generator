@@ -12,8 +12,13 @@ from wrdkit import (
     extract_profile,
     profiles_csv_string,
     raw_csv_string,
+    read_wrd_bytes,
+    report_txt_string,
     summarize_cycles,
 )
+from wrdkit.export import REPORT_COLUMNS, REPORT_UNSOURCED
+
+import synthetic
 
 
 @pytest.fixture
@@ -247,3 +252,124 @@ def test_the_csv_carries_the_value_not_a_rounded_one():
 
     # 그러면서 없던 자리는 지어내지 않는다 -- float 잡음이 새어 나오면 안 된다.
     assert "0000000000" not in row, f"부동소수 잡음이 새어 나왔다: {row}"
+
+
+# --- 계측기 형식의 "일반 데이터 보고서" ------------------------------------------
+#
+# 랩에는 이 표를 받는 매크로가 이미 있다.  워크벤치가 원본을 들고 있으면서 이
+# 표를 못 내주면 `.wrd` 를 도로 내려받아 계측기 PC 에서 다시 뽑는 왕복이 남고,
+# 중추 서버를 둔 이유가 거기서 깨진다.
+#
+# 파생 열의 규칙은 실측 보고서(`260823_PE#1 ... _005_DC.txt`, 22만 행)에서
+# 확인했다.  아래 숫자는 그 파일에서 그대로 따온 것이다.
+
+
+def _report(text):
+    head, _, body = text.partition("\n\n")
+    lines = body.rstrip("\n").split("\n")
+    return head.split("\n"), lines[0].split("\t"), [r.split("\t") for r in lines[1:]]
+
+
+def test_the_header_row_is_the_instrument_s_own_columns(synthetic_wrd):
+    _, header, _ = _report(report_txt_string(synthetic_wrd))
+    assert header == list(REPORT_COLUMNS)
+
+
+def test_one_row_per_sample(synthetic_wrd):
+    _, _, rows = _report(report_txt_string(synthetic_wrd))
+    assert len(rows) == len(synthetic_wrd)
+    assert [r[0] for r in rows[:3]] == ["1", "2", "3"]
+
+
+def test_time_is_the_instrument_s_duration_shape_not_seconds(synthetic_wrd):
+    """헤더는 `(s)` 라고 적혀 있지만 값은 `d:hh:mm:ss.fff` 다.
+
+    실측 파일이 그렇다 (`0:00:10:00.350`).  이름을 믿고 초로 파싱하면 이미
+    틀리므로, 우리도 이름이 아니라 **값의 모양**을 맞춘다.
+    """
+    _, _, rows = _report(report_txt_string(synthetic_wrd))
+    assert rows[0][1].count(":") == 3
+    assert rows[0][1].split(".")[-1].isdigit() and len(rows[0][1].split(".")[-1]) == 3
+
+
+def test_numbers_carry_a_three_digit_exponent(synthetic_wrd):
+    """`3.85406E-004` — 파이썬 기본은 두 자리(`E-04`) 라 그대로 두면 어긋난다."""
+    _, _, rows = _report(report_txt_string(synthetic_wrd))
+    voltage = rows[0][7]
+    assert "E" in voltage
+    assert len(voltage.split("E")[1]) == 4        # 부호 + 세 자리
+
+
+def test_power_is_current_times_voltage(synthetic_wrd):
+    _, header, rows = _report(report_txt_string(synthetic_wrd))
+    i, v, p = (header.index(c) for c in ("Current(A)", "Voltage(V)", "Power(W)"))
+    row = next(r for r in rows if float(r[i]) != 0.0)
+    assert float(row[p]) == pytest.approx(float(row[i]) * float(row[v]), rel=1e-4)
+
+
+def test_load_is_voltage_over_current_and_zero_at_rest(synthetic_wrd):
+    """휴지 구간에서 보고서는 0 을 쓴다 — 무한대가 아니라.
+
+    나눗셈을 그대로 두면 `inf` 가 되고, 그 칸을 읽는 쪽에서 숫자가 아니게 된다.
+    """
+    _, header, rows = _report(report_txt_string(synthetic_wrd))
+    i, v, load = (header.index(c) for c in ("Current(A)", "Voltage(V)", "Load(Ohm)"))
+    moving = next(r for r in rows if float(r[i]) != 0.0)
+    assert float(moving[load]) == pytest.approx(float(moving[v]) / float(moving[i]), rel=1e-4)
+    resting = next(r for r in rows if float(r[i]) == 0.0)
+    assert float(resting[load]) == 0.0
+
+
+def test_accumulated_charge_does_not_reset_at_a_cycle_boundary():
+    """`Acc.Q` 는 시험 전체에 걸친 부호 있는 누적이다.
+
+    실측: 1사이클 끝 1.86033E-004 → 2사이클 첫 행 1.86076E-004 로 **이어진다.**
+    계측기의 `CHARGE Q`/`DISCHARGE Q` 는 사이클마다 0 이 되므로(§3), 지나간
+    사이클의 순증분을 더해 이어 붙이지 않으면 여기서 톱니가 생긴다.
+    """
+    wrd = read_wrd_bytes(synthetic.build_wrd(synthetic.make_cycles(3, 20)))
+    _, header, rows = _report(report_txt_string(wrd))
+    acc = header.index("Acc.Q(Ah)")
+    cyc = header.index("Cycle_No.")
+    starts = [n for n, r in enumerate(rows) if n and r[cyc] != rows[n - 1][cyc]]
+    assert starts, "사이클이 하나뿐이면 이 시험이 아무것도 안 본다"
+    for n in starts:
+        before, after = float(rows[n - 1][acc]), float(rows[n][acc])
+        # 경계에서 0 으로 떨어지지 않는다.  방전으로 끝났으므로 값 자체는
+        # 작지만, 그 작은 값이 **이어져야** 한다.
+        assert after == pytest.approx(before, abs=1e-6), f"{n} 행에서 누적이 끊겼다"
+
+
+def test_step_charge_restarts_at_every_step():
+    """`|Q|` 는 그 스텝 안에서 움직인 전하다.  스텝이 바뀌면 0 부터 다시 센다."""
+    wrd = read_wrd_bytes(synthetic.build_wrd(synthetic.make_cycles(2, 20)))
+    _, header, rows = _report(report_txt_string(wrd))
+    q = header.index("|Q|(Ah)")
+    step = header.index("Step_No.")
+    starts = [n for n, r in enumerate(rows) if n and r[step] != rows[n - 1][step]]
+    assert starts
+    for n in starts:
+        # 스텝의 첫 행은 경계에서 그 표본까지 흐른 만큼이지 0 이 아니다 --
+        # 0 으로 두면 첫 표본의 몫이 표에서 사라진다 (실측 보고서는 스텝 첫
+        # 행에 1.07095E-007 을 적는다).  직전 스텝의 총량보다는 작아야 한다.
+        assert abs(float(rows[n][q])) < abs(float(rows[n - 1][q])) + 1e-12
+
+
+def test_columns_the_wrd_cannot_source_are_blank_not_zero(synthetic_wrd):
+    """0 을 적으면 "쟀는데 0 이었다" 로 읽힌다 — §0.4 가 금지하는 짓이다.
+
+    계측기의 보고서도 `IR(ohm)` 을 빈칸으로 두므로 빈칸은 이 형식의 어휘 안에
+    있다.
+    """
+    head, header, rows = _report(report_txt_string(synthetic_wrd))
+    for name in REPORT_UNSOURCED:
+        assert rows[0][header.index(name)] == "", f"{name} 이 비어 있지 않다"
+    # 왜 비었는지도 적는다.  안 적으면 "빠뜨렸나" 로 읽힌다.
+    assert any("빈 열" in line for line in head)
+
+
+def test_the_header_block_says_how_many_rows(synthetic_wrd):
+    """계측기는 `데이터 개수 : -1` 을 적는다 (세지 않는다).  우리는 센다."""
+    head, _, rows = _report(report_txt_string(synthetic_wrd))
+    line = next(line for line in head if "데이터 개수" in line)
+    assert line.endswith(str(len(rows)))

@@ -300,6 +300,8 @@ export const api = {
    *  measured it. */
   exportOriginalUrl: (runId: number) => `/api/export/runs/${runId}/original.wrd`,
   exportRawUrl: (runId: number) => `/api/export/runs/${runId}/raw.csv`,
+  /** 계측기의 '일반 데이터 보고서' 와 같은 표 — 그 표를 받는 매크로가 이미 있다. */
+  exportReportUrl: (runId: number) => `/api/export/runs/${runId}/report.txt`,
   /** 임피던스·GITT 원본.  중앙에 모아 두는 이유가 "각자 노트북에서 원본이
    *  사라지지 않게" 인데, 다시 못 받으면 올리는 것이 편도 여행이 된다. */
   spectrumOriginalUrl: (id: number) => `/api/export/spectra/${id}/original`,

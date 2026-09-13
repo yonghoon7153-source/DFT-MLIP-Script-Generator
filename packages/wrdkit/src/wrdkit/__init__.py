@@ -34,11 +34,13 @@ from .export import (
     dvdq_csv_string,
     profiles_csv_string,
     raw_csv_string,
+    report_txt_string,
     write_cycles_csv,
     write_dqdv_csv,
     write_dvdq_csv,
     write_profiles_csv,
     write_raw_csv,
+    write_report_txt,
     write_xlsx,
 )
 from .gitt import (
@@ -109,6 +111,7 @@ __all__ = [
     "write_profiles_csv", "raw_csv_string", "cycles_csv_string",
     "profiles_csv_string", "write_dqdv_csv", "dqdv_csv_string",
     "write_dvdq_csv", "dvdq_csv_string", "write_xlsx",
+    "write_report_txt", "report_txt_string",
     "DiffusionPoint",
     "DiffusionResult",
     "PseudoOcv",

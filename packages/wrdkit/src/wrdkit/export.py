@@ -29,8 +29,9 @@ from .wrd import WrdFile
 
 __all__ = [
     "write_raw_csv", "write_cycles_csv", "write_profiles_csv", "write_dqdv_csv",
-    "write_dvdq_csv", "raw_csv_string", "cycles_csv_string",
-    "profiles_csv_string", "dqdv_csv_string", "dvdq_csv_string", "write_xlsx",
+    "write_dvdq_csv", "write_report_txt", "raw_csv_string", "cycles_csv_string",
+    "profiles_csv_string", "dqdv_csv_string", "dvdq_csv_string",
+    "report_txt_string", "REPORT_COLUMNS", "REPORT_UNSOURCED", "write_xlsx",
 ]
 
 _UNIX_OFFSET = 62_135_596_800.0
@@ -274,9 +275,211 @@ def _fmt(value: float | None) -> str:
     return "" if value is None else f"{value:.12g}"
 
 
+#: Smart Interface 의 "일반 데이터 보고서" 열, 그 순서 그대로.
+#:
+#: 순서를 바꾸면 안 된다.  이 표를 받는 쪽은 헤더 이름이 아니라 **열 번호**로
+#: 읽는 매크로일 때가 많다 (실측 파일의 헤더에는 `Test_Time(s)` 라고 적혀
+#: 있는데 값은 `0:00:10:00.350` 이다 — 이름을 믿고 읽으면 이미 틀린다).
+REPORT_COLUMNS = (
+    "Index", "Test_Time(s)", "Cycle_No.", "Cycle_Time(s)", "Step_No.",
+    "Step_Time(s)", "Current(A)", "Voltage(V)", "IR(ohm)", "AuxV1(V)",
+    "AuxV2(V)", "AuxV3(V)", "Temp.('C)", "OCP(V)", "Power(W)", "Load(Ohm)",
+    "Acc.Q(Ah)", "|Q|(Ah)", "Range",
+)
+
+#: `.wrd` 에 대응하는 값이 없는 열.  **0 으로 채우지 않고 비운다.**
+#:
+#: 계측기의 보고서도 `IR(ohm)` 을 빈칸으로 둔다 — 빈칸은 이 형식의 어휘 안에
+#: 있다.  0 을 적으면 "쟀는데 0 이었다" 로 읽히고, 그것은 §0.4 가 금지하는
+#: 짓이다.  `AuxV1` 은 `.wrd` 의 `aux_voltage` 로 채우고, 두 번째·세 번째
+#: 보조 전압과 전류 레인지는 이 파일에 없다.
+REPORT_UNSOURCED = ("IR(ohm)", "AuxV2(V)", "AuxV3(V)", "Range")
+
+
+def _report_duration(seconds: float) -> str:
+    """`d:hh:mm:ss.fff` — 보고서가 쓰는 시간 표기.
+
+    헤더는 `(s)` 라고 적혀 있지만 값은 초가 아니라 이 꼴이다.  실측 파일에서
+    확인한 그대로 따른다 (`0:00:10:00.350`).
+    """
+    if not np.isfinite(seconds) or seconds < 0:
+        seconds = 0.0
+    # 밀리초에서 반올림한다.  초에서 자르고 나중에 밀리초를 붙이면 59.9996 초가
+    # `0:00:00:59.1000` 처럼 나온다.
+    total_ms = int(round(seconds * 1000.0))
+    days, rest = divmod(total_ms, 86_400_000)
+    hours, rest = divmod(rest, 3_600_000)
+    minutes, rest = divmod(rest, 60_000)
+    secs, ms = divmod(rest, 1000)
+    return f"{days}:{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}"
+
+
+def _report_number(value: float) -> str:
+    """`3.85406E-004` — 지수 세 자리.
+
+    파이썬의 `%E` 는 지수를 두 자리로 낸다 (`3.85406E-04`).  이 형식을 읽는
+    쪽이 고정폭을 가정할 수 있으므로 자릿수까지 맞춘다.
+    """
+    if value is None or not np.isfinite(value):
+        return ""
+    text = f"{value:.5E}"
+    mantissa, _, exponent = text.partition("E")
+    sign, digits = exponent[0], exponent[1:]
+    return f"{mantissa}E{sign}{int(digits):03d}"
+
+
+def write_report_txt(wrd: WrdFile, stream: TextIO, *, cycle_offset: int = 0,
+                     step_count: int | None = None) -> None:
+    """Smart Interface 의 "일반 데이터 보고서" 와 같은 모양으로 쓴다.
+
+    사람들이 이미 이 표를 받는 매크로와 스크립트를 갖고 있다.  워크벤치가
+    원본을 들고 있으면서 그 표를 못 내주면, `.wrd` 를 도로 내려받아 계측기
+    PC 에서 다시 뽑는 왕복이 남는다 — 중추 서버를 둔 이유가 거기서 깨진다.
+
+    파생 열은 실측 보고서에서 규칙을 확인하고 맞췄다
+    (`260823_PE#1 ... _005_DC.txt`, 22만 행):
+
+    ``Power(W)``    ``I × V``.  601행: 3.85406E-004 × 3.12971 = 1.20621E-003 ✓
+    ``Load(Ohm)``   ``V / I``.  같은 행: 3.12971 / 3.85406E-004 = 8.12055E+003 ✓
+                    전류가 0 이면 0 이다 (보고서가 그렇게 쓴다 — 무한대가 아니라).
+    ``Acc.Q(Ah)``   **시험 전체에 걸친 부호 있는 누적**이다.  스텝에서도
+                    사이클에서도 안 리셋된다 (실측: 1사이클 끝 1.86033E-004 →
+                    2사이클 첫 행 1.86076E-004 로 이어진다).  계측기의
+                    ``CHARGE Q``/``DISCHARGE Q`` 는 사이클마다 0 이 되므로
+                    (§3), 지나간 사이클의 순증분을 더해 이어 붙인다.
+    ``|Q|(Ah)``     **그 스텝 안에서** 움직인 전하의 절댓값.  스텝이 바뀌면
+                    0 부터 다시 센다 (실측으로 확인).
+
+    적분하지 않고 계측기의 누적값을 쓴다.  같은 파일에서 사다리꼴 적분은
+    44.590 mAh, 계측기는 49.942 mAh 였다 — 샘플링이 고르지 않아서다.  둘 중
+    맞는 것은 계측기 쪽이다 (§"항상 charge_mah()/discharge_mah() 를 거친다").
+    """
+    data = wrd.data
+    rows = len(wrd)
+
+    def column(name: str):
+        values = data.get(name)
+        return values if values is not None else None
+
+    test_s = wrd.seconds("test_time") if "test_time" in data else None
+    step_s = wrd.seconds("step_time") if "step_time" in data else None
+    cycle_s = wrd.seconds("cycle_time") if "cycle_time" in data else None
+    current = column("current")
+    voltage = column("voltage")
+    temperature = column("temperature")
+    ocp = column("ocp")
+    aux = column("aux_voltage")
+    total_step = column("total_step")
+    cycle_index = column("cycle_index")
+    charge = wrd.charge_mah() if "charge_q" in data else None
+    discharge = wrd.discharge_mah() if "discharge_q" in data else None
+
+    _write_report_header(wrd, stream, rows, step_count)
+    stream.write("\t".join(REPORT_COLUMNS) + "\n")
+
+    #: 사이클마다 0 이 되는 누적값을 이어 붙이기 위한 받침 (mAh).
+    base_mah = 0.0
+    previous_cycle = None if cycle_index is None else int(cycle_index[0])
+    #: |Q| 를 재기 시작하는 자리 (mAh).  **직전 스텝의 마지막 값**이지 이 스텝의
+    #: 첫 행이 아니다 — 첫 표본은 이미 스텝 경계에서 얼마쯤 흐른 뒤에 찍히므로,
+    #: 이 행에서 0 을 쓰면 그 몫이 사라진다 (실측 보고서는 스텝 첫 행에
+    #: 1.07095E-007 을 적는다).
+    step_base = 0.0
+    previous_step = None if total_step is None else int(total_step[0])
+    previous_net = 0.0
+
+    for i in range(rows):
+        net = 0.0
+        if charge is not None and discharge is not None:
+            net = float(charge[i]) - float(discharge[i])
+        if cycle_index is not None:
+            here = int(cycle_index[i])
+            if here != previous_cycle:
+                # 새 사이클이 시작됐다.  직전 사이클이 남긴 순증분을 받침에
+                # 더하고 나서 이 행을 센다 — 안 그러면 사이클 경계마다
+                # 누적이 0 으로 떨어진다 (계측기의 보고서는 이어서 올라간다).
+                base_mah += previous_net
+                previous_cycle = here
+                # 사이클이 바뀌면 누적값도 0 부터 다시 세므로 스텝 받침도 그렇다.
+                previous_net = 0.0
+        if total_step is not None:
+            step_here = int(total_step[i])
+            if step_here != previous_step:
+                step_base = previous_net
+                previous_step = step_here
+
+        amps = float(current[i]) if current is not None else 0.0
+        volts = float(voltage[i]) if voltage is not None else 0.0
+        row = [
+            str(i + 1),
+            _report_duration(float(test_s[i])) if test_s is not None else "",
+            str(int(cycle_index[i]) + 1 + cycle_offset) if cycle_index is not None else "",
+            _report_duration(float(cycle_s[i])) if cycle_s is not None else "",
+            str(int(total_step[i])) if total_step is not None else "",
+            _report_duration(float(step_s[i])) if step_s is not None else "",
+            _report_number(amps),
+            _report_number(volts),
+            "",                                            # IR(ohm) — 없는 값
+            _report_number(float(aux[i])) if aux is not None else "",
+            "",                                            # AuxV2 — 없는 값
+            "",                                            # AuxV3 — 없는 값
+            f"{float(temperature[i]):.2f}" if temperature is not None else "",
+            _report_number(float(ocp[i])) if ocp is not None else "",
+            _report_number(amps * volts),
+            # 전류가 0 인 휴지 구간에서 보고서는 0 을 쓴다.  나눗셈을 그대로
+            # 두면 inf 가 되고, 그 칸을 읽는 쪽에서 숫자가 아니게 된다.
+            _report_number(volts / amps if amps else 0.0),
+            _report_number((base_mah + net) / 1000.0),
+            _report_number(abs(net - step_base) / 1000.0),
+            "",                                            # Range — 없는 값
+        ]
+        stream.write("\t".join(row) + "\n")
+        previous_net = net
+
+
+def _write_report_header(wrd: WrdFile, stream: TextIO, rows: int,
+                         step_count: int | None) -> None:
+    """보고서 머리 — 계측기가 쓰는 그 여덟 줄.
+
+    `데이터 개수` 만 다르다.  계측기는 거기에 `-1` 을 적는데(세지 않는다),
+    우리는 실제 행 수를 적는다 — 그 칸의 이름이 곧 그 뜻이고, 빈 자리를
+    거짓말로 채울 이유가 없다.
+
+    `step_count` 는 스케줄 객체 없이 부를 때를 위한 것이다.  API 는 캐시된
+    컬럼으로 `WrdFile` 을 짓는데 그 껍데기에는 스케줄이 안 들어 있고, 스텝
+    개수는 `schedule_json` 에 따로 남아 있다.
+    """
+    meta = wrd.metadata
+    schedule = meta.schedule
+    started = meta.start_time.strftime("%Y-%m-%d %H:%M:%S") if meta.start_time else ""
+    if step_count is None:
+        step_count = len(schedule.steps) if schedule else 0
+    condition = meta.schedule_path or (schedule.source_path if schedule else "") or ""
+    stream.write("일반 데이터 보고서\n")
+    stream.write(f"  * 시험 데이타 파일 : {meta.instrument_path or meta.source_name}\n")
+    stream.write(f"  * 테스트 기간 : {started}~\n")
+    stream.write(f"  * 데이터 개수 : {rows}\n")
+    stream.write("  * 시험자 성명 : \n")
+    stream.write("  * 상품 번호 : \n")
+    stream.write(f"  * 메모 : {meta.memo or ''}\n")
+    stream.write(f"  * 조건 파일명 : {condition}\n")
+    stream.write(f"  * 단계 개수 : {step_count}\n")
+    # 빈 열이 있으면 그 사실을 적는다.  같은 `  * 이름 : 값` 꼴이라 표를 읽는
+    # 쪽(빈 줄 다음부터 읽는다)은 그대로고, 파일을 열어 본 사람은 그 칸이 왜
+    # 비었는지 여기서 안다 — 안 적으면 "빠뜨렸나" 로 읽힌다.
+    stream.write(f"  * 빈 열 : {', '.join(REPORT_UNSOURCED)} — 이 .wrd 에 없는 값입니다\n")
+    stream.write("\n")
+
+
 def raw_csv_string(wrd: WrdFile, **kwargs) -> str:
     buffer = io.StringIO()
     write_raw_csv(wrd, buffer, **kwargs)
+    return buffer.getvalue()
+
+
+def report_txt_string(wrd: WrdFile, **kwargs) -> str:
+    buffer = io.StringIO()
+    write_report_txt(wrd, buffer, **kwargs)
     return buffer.getvalue()
 
 

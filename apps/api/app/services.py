@@ -808,6 +808,15 @@ def _metadata_stub(run: Run):
         file_size=run.size_bytes,
         unit_coulomb=run.unit_coulomb,
         row_count=run.row_count,
+        # 계측기 형식으로 다시 내보낼 때 머리글이 쓰는 것들.  파싱할 때 이미
+        # 읽어 뒀으므로 원본을 다시 열 이유가 없다.
+        start_time=run.start_time,
+        end_time=run.end_time,
+        instrument_path=run.instrument_path or None,
+        schedule_path=run.schedule_path or None,
+        model=run.device_model or None,
+        serial_no=run.serial_no or None,
+        channel=run.channel,
     )
 
 

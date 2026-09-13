@@ -8,6 +8,7 @@ opened in Excel.
 from __future__ import annotations
 
 import io
+import json
 import re
 from datetime import datetime
 
@@ -27,6 +28,7 @@ from wrdkit import (
     extract_profile,
     profiles_csv_string,
     raw_csv_string,
+    report_txt_string,
     write_xlsx,
 )
 from wrdkit.ica import (  # noqa: E402
@@ -174,6 +176,36 @@ def export_run_raw(run_id: int, session: Session = Depends(get_session)):
     wrd = WrdFile(_metadata_stub(run), columns)
     stem = _safe(run.original_name.rsplit(".", 1)[0])
     return _csv_response(raw_csv_string(wrd), f"{stem}_raw.csv")
+
+
+@router.get("/runs/{run_id}/report.txt")
+def export_run_report(run_id: int, session: Session = Depends(get_session)):
+    """계측기의 "일반 데이터 보고서" 와 같은 모양으로.
+
+    사람들이 이미 그 표를 받는 매크로를 갖고 있다.  워크벤치가 원본을 들고
+    있으면서 그 표를 못 내주면 `.wrd` 를 도로 내려받아 계측기 PC 에서 다시
+    뽑는 왕복이 남고, 중추 서버를 둔 이유가 거기서 깨진다.
+
+    UTF-8 BOM 으로 낸다.  계측기는 CP949 로 쓰지만, 그 인코딩으로 내면 이
+    저장소의 다른 내보내기와 달라지고 한국어 Windows 가 아닌 곳에서 깨진다.
+    BOM 이 있으면 Excel 이 UTF-8 로 연다 (이 모듈 머리말과 같은 이유).
+    """
+    run = get_run(session, run_id)
+    columns = load_wrd_columns(run)
+    wrd = WrdFile(_metadata_stub(run), columns)
+    # 스텝 개수는 캐시된 컬럼에 없다 -- 파싱할 때 schedule_json 에 남겼다.
+    steps = None
+    if run.schedule_json:
+        listed = json.loads(run.schedule_json).get("steps")
+        if isinstance(listed, list):
+            steps = len(listed)
+    text = report_txt_string(wrd, cycle_offset=run.cycle_offset, step_count=steps)
+    stem = _safe(run.original_name.rsplit(".", 1)[0])
+    return Response(
+        content=(_BOM + text).encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{stem}_DC.txt"'},
+    )
 
 
 @router.get("/samples/{sample_id}/cycles.csv")

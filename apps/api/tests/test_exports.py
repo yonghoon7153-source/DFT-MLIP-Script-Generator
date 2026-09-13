@@ -42,6 +42,50 @@ def test_raw_csv_has_a_row_per_sample(client, loaded):
     assert len(rows) > 100
 
 
+# --- 계측기 형식의 보고서 --------------------------------------------------------
+
+
+def _report(response):
+    head, _, body = response.content.decode("utf-8-sig").partition("\n\n")
+    lines = body.rstrip("\n").split("\n")
+    return head.split("\n"), lines[0].split("\t"), [r.split("\t") for r in lines[1:]]
+
+
+def test_the_report_export_matches_the_instrument_s_columns(client, loaded):
+    """랩에는 이 표를 열 번호로 읽는 매크로가 이미 있다.
+
+    워크벤치가 원본을 들고 있으면서 이 표를 못 내주면, `.wrd` 를 도로 내려받아
+    계측기 PC 에서 다시 뽑는 왕복이 남는다 — 중추 서버를 둔 이유가 거기서
+    깨진다.
+    """
+    _, run_id = loaded
+    response = client.get(f"/api/export/runs/{run_id}/report.txt")
+    assert response.status_code == 200
+    _, header, rows = _report(response)
+    assert header[:8] == ["Index", "Test_Time(s)", "Cycle_No.", "Cycle_Time(s)",
+                          "Step_No.", "Step_Time(s)", "Current(A)", "Voltage(V)"]
+    assert header[-3:] == ["Acc.Q(Ah)", "|Q|(Ah)", "Range"]
+    assert len(rows) > 100
+
+
+def test_the_report_header_carries_what_the_instrument_wrote(client, loaded):
+    """머리글의 경로·시각은 파싱할 때 이미 읽어 뒀다 — 원본을 다시 열지 않는다."""
+    _, run_id = loaded
+    head, _, rows = _report(client.get(f"/api/export/runs/{run_id}/report.txt"))
+    assert head[0] == "일반 데이터 보고서"
+    assert any(line.startswith("  * 시험 데이타 파일 : ") for line in head)
+    # 계측기는 `데이터 개수 : -1` 을 적는다 (세지 않는다).  우리는 센다.
+    assert any(line == f"  * 데이터 개수 : {len(rows)}" for line in head)
+
+
+def test_the_report_is_a_txt_download_named_like_the_instrument_s(client, loaded):
+    _, run_id = loaded
+    response = client.get(f"/api/export/runs/{run_id}/report.txt")
+    assert response.content.startswith(b"\xef\xbb\xbf")
+    assert "text/plain" in response.headers["content-type"]
+    assert response.headers["content-disposition"].endswith('_DC.txt"')
+
+
 def test_csv_is_utf8_with_a_bom_so_excel_reads_it(client, loaded):
     _, run_id = loaded
     response = client.get(f"/api/export/runs/{run_id}/raw.csv")
