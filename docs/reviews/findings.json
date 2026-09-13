@@ -2557,6 +2557,275 @@
    "evidence_tests": [
     "scripts/generate_comparison_plots.py"
    ]
+  },
+  {
+   "id": "L4-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**정상 미전도·결측이 총 저항에서 0 Ω 처럼** 취급된다",
+   "note": "(Codex 라벨: **P1-L4-01**)\n`grade_engine.py:934`·`:997`·`:1023`·`:1526`: sigma_ion <= 0 → ASR_ionic = None → `(asr_i or 0) + (asr_e or 0)` ⇒ **비전도와 저항 0 이 합산에서 같은 효과**.\n★ Codex 실행 (두께 100 um, sigma_e 5 mS/cm): sigma_ion 0.1 → ASR_total **102 (B)** · 분극 33.66 mV 인데, **sigma_ion = 0 → ASR_total 2 (A) · 1/ASR 0.5 (A) · 분극 0.66 mV (A)**.  이온 값 전부 결측이면 종합이 오히려 **B+ / 89.5**.\n⚠ 정확히: **종합이 A 가 된다는 뜻은 아니다** — 잘못 좋아지는 것은 **파생 축**이고 결측은 종합 분모에서도 빠진다 (21 → 18 → 17 채점).  직접 sigma 축은 `:1288` 의 None 검사라 정상 0 을 raw 양수로 승격하지 **않는다** (L3-01 과 다른 자리다).\n⇒ 정상 0 = **유효 비전도/무한 저항**, 미확인 = **UNKNOWN** 으로 갈라야 한다.  숫자 None 하나로 합친 뒤 산술 기본값 0 을 넣는 구조로는 안 된다.",
+   "evidence_tests": [
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L4-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**source·실패 flag 가 등급을 막지 않고** 상세화면 정리도 한 조합에서 샌다",
+   "note": "(Codex 라벨: **P1-L4-02**)\n반례 1 (`grade_engine.py:715`·`:741`·`:1118`·`:1239`): 같은 sigma = 0.825 에 source 만 `solver` ↔ `fallback_weighted_factor` 로 바꿔도 **전체 grade 결과가 동일**.  `solver_input_intact = False` · `trustworthy_overall = False` 도 다른 축을 중단시키지 않는다 — 신뢰 축은 **낮은 가중치의 점수**일 뿐이다.  Stage E 보정 축은 **키 존재만으로 A**.\n반례 2 (`webapp/app.py:5803`·`:5836`): Hertz = solver · Physics = fallback 인 **혼합** 에서 raw Physics 는 None 이 되고 **잘못된 이름**들을 새로 None 처리하는데 **정식 키 `electronic_sigma_full_mScm_stage_e_physics = 5` 는 남아 A 등급**이 된다 (원인: raw key 뒤에 suffix 를 붙이는 5813-5814 의 조립 순서).\n⚠ *'모든 fallback 이 샌다'* 로 넓히지 말 것 — 둘 다 fallback 이면 Hertz 반복이 정식 Physics 키도 지운다.  **혼합 source 가 결정적 반례**다.  열 kappa 에도 같은 조립 구조가 있다.\n처방: 소비자별 문자열 조립이 아니라 **canonical 필드명 + 상태 계약의 공통 조회**.  등급은 source 적격성을 **가중 평균으로 상쇄하면 안 된다**.",
+   "evidence_tests": [
+    "scripts/grade_engine.py",
+    "webapp/app.py"
+   ]
+  },
+  {
+   "id": "L4-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "audit 가 **자기신고의 모순을 통과**시킨다 (3/3 trustworthy)",
+   "note": "(Codex 라벨: **P1-L4-03**)\n`audit_validation_flags.py:117`·`:140`·`:180`.  Codex 가 합성 디렉터리 넷을 **실제 main** 에 넣었다: ① `solver_input_intact = False` 인데 `trustworthy_overall = True` ② 개별 게이트 전부 부재 + overall True ③ 개별 전부 False 인데 overall 이 **문자열 'false'** ④ JSON 깨짐.\n결과: JSON 오류는 **분모에서 빠지고** 나머지는 **3/3 trustworthy (100 %)**, fail 파일 미생성, LaTeX 는 *'all assessable gates True'* 로 기록.  ⇒ **코드가 읽은 flag 와 그 요약이 모순**이다.\n⚠ 이 도구가 self-reported audit 인 것은 맞다 — 원 물리의 독립 검증을 기대한 것이 아니다.  그보다 **약한** 자체 기록의 **bool 타입 · conjunction · 누락 집계**도 검증하지 않는다는 반례다.\n처방: UNKNOWN/파싱 실패를 **분모에 보존**하고 최소 증거 수·정확한 bool·개별 conjunction 을 별도 계산해야 요약문이 참이 된다.",
+   "evidence_tests": [
+    "scripts/audit_validation_flags.py"
+   ]
+  },
+  {
+   "id": "L4-04",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "τ 의 **분모·온도·라벨이 소비자마다 다르다** (grade 가 σ_grain 3.0 고정)",
+   "note": "(Codex 라벨: **P2-L4-04**)\ngrade `tau_eff = sqrt(phi_SE * **3.0** / sigma_selected)` (`grade_engine.py:893`·`:913`) 인데 앱은 **baseline 온도에 맞춘 sigma_grain** 을 쓴다 (`webapp/app.py:2503`·`:6705`).\n★ Codex: 모든 이온 sigma 와 대응 grain 을 **x4** 하면 앱 tau_eff 는 **3.464101615 그대로**인데 grade 는 **3.464101615 → 1.732050808**, 등급 **B- → A**.  공통 스케일 불변성 검사다.\n그리고 grade overhead = 2 vs 앱 eff/Dijkstra = 2.309401 — **서로의 대체 열이 아니고** 등록 Dijkstra target 도 아니다.  ⚠ grade overhead 는 **저항비의 제곱근**이라 저항비 자체로 설명하면 틀린다.\n⚠ `:340` Bruggeman overestimation 과 `:921` constriction fraction 은 **L2-07·L2-08 의 소비자**다 (1-f 로 옮길 뿐 소산 분율을 새로 재지 않는다).  신규 P1 으로 재계상하지 않았다.",
+   "evidence_tests": [
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L4-05",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**0면적 edge 가 bottleneck 집계에서 사라진다**",
+   "note": "(Codex 라벨: **P2-L4-05**)\n`viewer3d_data.py:547`·`:650` · `grade_engine.py:817`.  5 SE 노드 4-edge chain 중 1개 면적만 0 ⇒ 위상은 4 edge 로 5 입자를 관통 성분으로 보는데 bottleneck 집계는 area <= 0 을 제외해 `n_perc_edges = 3`, below-threshold **0**, grade burden **0**.\n⚠ 0면적에서 위상 접촉을 유지하는 규약 자체를 부정하는 것이 아니다 — **'좁은 접점 비율' 을 재면서 최소 면적 edge 를 분자·분모에서 지우는 것**이 문제다.  실코퍼스 발생률 미측정.",
+   "evidence_tests": [
+    "scripts/viewer3d_data.py",
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L4-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "진단 코퍼스 **중복제거가 바이트 수만 본다**",
+   "note": "(Codex 라벨: **P2-L4-06**)\n`extract_se_network_diagnostics.py:82`·`:92`.  서로 다른 atoms 내용·SHA 인 두 사례의 파일 크기를 atoms 97 B · contacts 85 B 로 맞추면 **case_a 만 남는다**.  동일 크기는 동일 자료의 증거가 아니다.  grade 의 **corpus-percentile 기준**에도 전파될 수 있다.",
+   "evidence_tests": [
+    "scripts/extract_se_network_diagnostics.py"
+   ]
+  },
+  {
+   "id": "L4-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "`input_params` 가 있으면 **meta 의 명시적 상 지도를 무시**한다",
+   "note": "(Codex 라벨: **P2-L4-07**)\n`extract_se_network_diagnostics.py:107`·`:133` 이 **첫 JSON 을 읽자마자 break** 한다.  input_params 에 scale 만, meta 에 `1:AM_P, 2:SE` 가 있고 실제 입자가 type2 인 배치에서 3-type 기본 지도를 써 **실제 SE 5개 → 추론 SE 0개**.\n⚠ 모든 mono 가 잘못된다고 일반화하지 않는다.  **정상적으로 표현 가능한 메타데이터 배치에서 상이 사라진다**는 반례다.  처방: 필드별 병합 + 충돌 거부.",
+   "evidence_tests": [
+    "scripts/extract_se_network_diagnostics.py"
+   ]
+  },
+  {
+   "id": "L4-08",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "`cycle_stable` 이 **교집합이 아니라 marginal 곱**이다",
+   "note": "(Codex 라벨: **P2-L4-08**)\n`grade_engine.py:833`·`:1045`.  이온 활성 50 % · 전자 활성 50 % · 심한 파괴 0 % → 코드는 **25 %**.  그러나 두 활성 집합이 **일치하면 50 %**, **겹치지 않으면 0 %** 다 — 같은 주변 비율로 둘을 식별할 수 없다.  파괴 입력이 **전부 부재**여도 '심한 파괴 0 % / A' 가 된다.\n⇒ **독립성을 가정한 marginal-product proxy** 로 라벨하거나 입자별 교집합으로 대체해야 한다.  숫자 버그 하나를 고쳐 실제 cycle life 측정으로 만드는 것은 **불가능**하다.",
+   "evidence_tests": [
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L4-09",
+   "severity": "P3",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "`Q_gravimetric` 의 **표시식이 실제 175 를 190 으로** 설명한다",
+   "note": "(Codex 라벨: **P3-L4-09**)\n`grade_engine.py:356`·`:969`.  85:15 의 실제 Q = **148.75 = 0.85 x 175** 인데 반환 formula/meaning 은 190 계열을 설명해 161.5 를 뜻한다.\n⚠ **175 를 190 으로 바꾸라는 권고가 아니다** — 선택한 175 를 **설명까지 동일하게** 쓰라는 것.",
+   "evidence_tests": [
+    "scripts/grade_engine.py"
+   ]
+  },
+  {
+   "id": "L4-10",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "EIS 의 **HF/DC 표지가 자기 스펙트럼 극한과 불일치**한다",
+   "note": "(Codex 라벨: **P2-L4-10** · L4-d 범주 정정 포함)\n`eis_drt_ica.py:83`·`:124`·`:129`·`:388`.  Codex 실행 (sigma_e 2 S/cm, sigma_ion 2e-4, L 72 um, R_int 50, a_spec 20, R_w 30): 표지 `R0_hf = 0.0036` 인데 실제 고주파 ReZ → **12.0036 Ohm cm^2** (상수 직렬 R_ion/3 추가), 표지 `R_dc_total = 98.426745` 인데 실제 저주파 ReZ → **78.426745**.  Wo 허수부는 omega→0 에서 **발산**하므로 유한 복소 DC 자체가 없다.\n★ **L4-d 범주 정정**: `eis_fit.py:114` 는 **실험 f,Z 를 별도 회로에 역적합**한다 — STEP3/STEP4 에서 **유도하지 않는다**.  `eis_drt_ica.py:53` 은 별도 **순방향 근사**이고, 실험 앵커 옵션(`app.py:4258`)이 C_dl/R_w 를 공급하므로 **같은 실험에 대한 독립 예측 검증이 아니다**.  CPE→유효 C 환산도 항등식이 아니다 (peak -ImZ: CPE **30.6400** vs 이상 C **50.0000**).\n⇒ 쓸 수 있는 문구: *'실험 EIS 는 독립 등가회로로 적합하였다.  별도 순방향 회로는 시뮬레이션 수송계수와 명시된 계면·확산 가정을 입력으로 사용하였다.'*\n⚠ `R_dc` 정의는 cycle-N helper·내보내기에도 쓰여 **사문서 문제가 아니다**.",
+   "evidence_tests": [
+    "scripts/eis_drt_ica.py",
+    "scripts/eis_fit.py"
+   ]
+  },
+  {
+   "id": "L4-11",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "`porosity` 를 **값 크기로 %/fraction 추측**해 1 에서 불연속",
+   "note": "(Codex 라벨: **P2-L4-11**)\n`eis_drt_ica.py:92` 가 *값이 1 초과면 %* 로 해석한다.  화면은 porosity(%) 이고 API 는 0.1-60 을 허용한다.\n★ porosity = **1** → a_spec 1e-6, `R_ct = 1.284628956e8` · porosity = **1.000001** → a_spec 26.72999973, `R_ct = 4.805944516`.  명시적 1 % 의 값은 **4.805944467** 이어야 한다.\n⇒ **API 단위 계약을 명시 전달**해야 한다.  *'값이 작으면 fraction'* 은 단위 식별 규칙이 아니다.",
+   "evidence_tests": [
+    "scripts/eis_drt_ica.py"
+   ]
+  },
+  {
+   "id": "L5-01",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**σ 를 y 에서 빼도 σ 로 구조 코호트를 선별**한다",
+   "note": "(Codex 라벨: **P1-L5-01**)\n`design_performance_dataset.py:112` 가 `predictor_engine.load_training_data` 를 재사용하는데 `predictor_engine.py:269` 가 **raw `sigma_full_mScm < 0.01` 이면 행 전체를 제외**한다 (`tau <= 0` / `tau > 8` / `porosity > 30` 도 전체 행 제외).  **구조 y 의 개별 품질 판정이 아니다.**\n★ Codex: 같은 phi_SE .3 · phi_AM .55 · tau 1.5 에 raw sigma 만 결측/0/.009 로 주면 **세 행 모두 사라진다**.  실제 build 호출에서도 같은 4/7행만 남았다.\n⇒ 무너지는 결론: *'y 가 구조량이므로 L2 수송 경로와 무관하게 코퍼스를 만들 수 있다'*.  정확히는 **y 목록에 sigma 가 없지만 selection 은 sigma 에 조건부**다 ⇒ 원고의 전체 DEM 설계영역·저퍼콜 영역 성능으로 **일반화 불가**.\n★ 신규 LHS 수확기는 이 loader 를 **우회**하지만 기존 build 에 합치면 **다시 선별된다**.",
+   "evidence_tests": [
+    "scripts/design_performance_dataset.py",
+    "webapp/predictor_engine.py"
+   ]
+  },
+  {
+   "id": "L5-02",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "구조 target 의 **0 과 결측을 양수/관측 0 으로 변조**한다 (coverage 0.20)",
+   "note": "(Codex 라벨: **P1-L5-02**)\n`predictor_engine.py:314`, 특히 `:326`.  **양수 상 평균만** 골라 평균내고 비면 **0.20** 을 넣는다.\n★ Codex 실행: `P=0 %, S=0 %` → ML coverage **0.20** · `P=0 %, S=40 %` → **0.40** · 둘 다 결측 → **0.20**.  CN/AM-CN/percolation 의 결측은 실제 **0** 으로 채워진다.\n⇒ 정상 zero 소실 + 존재 상의 가중 변화.  ⚠ 이것은 DESC 의 *'평균 정의를 고정하라'* 와 별개로 **ML loader 가 관측값을 실제로 변조하는 실행 경로**다 — *'원본 full_metrics 와 같은 y 를 학습한다'* 를 깨뜨린다.",
+   "evidence_tests": [
+    "webapp/predictor_engine.py"
+   ]
+  },
+  {
+   "id": "L5-03",
+   "severity": "P1",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**금지 target `use_porosity_pct` 를 학습하고 추천에 쓴다**",
+   "note": "(Codex 라벨: **P1-L5-03**)\n`ml_design_structure.py:63`·`:847` · `structure_predictor.py:152`·`:252`.\n★ Codex: 합성 60행으로 그 열만 예측 가능하게 만들면 실제 train 이 **USABLE, nested R^2 0.999998319**.  status/predict 는 숨기고 surface 는 거부하는데 **`suggest_batch(target=use_porosity_pct)` 가 `error=None` 으로 추천 2개를 낸다**.\n⚠ 높은 R^2 가 혼합상태 porosity 를 정당화한다는 뜻이 **아니다** — **금지가 모든 소비자에서 동일하지 않다**는 증명이다.  그리고 *'학습에서 제외했다'* 는 우리 기록은 **현재 사실과 다르다**.\n⇒ CLAUDE.md 의 *'use_porosity_pct 는 학습·노출 금지 열'* 을 코드가 지키지 않는다.",
+   "evidence_tests": [
+    "scripts/ml_design_structure.py",
+    "webapp/structure_predictor.py"
+   ]
+  },
+  {
+   "id": "L5-04",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "닫힘 ε 의 **\"폴드 밖 오차띠\" 가 누출**되고 다른 학습기를 채점한다",
+   "note": "(Codex 라벨: **P2-L5-04**)\n`ml_design_structure.py:783`·`:889` · `structure_predictor.py:169`.\n(a) 두 phi 는 OOF 인데 `C = mean(phi_SE + phi_AM + eps/100)` 이 **heldout eps 까지 포함**한다.  합성 64행/4fold 에서 heldout 16행의 eps 만 +.8 %p 바꾸면 두 phi 예측은 그대로인데 **그 heldout 유도 eps 예측이 +.2 %p** 변한다 (train-only C 면 변화 0).\n(b) `closure_test` 는 nested_cv 기본 **full/False** 를, 생산 train 은 **auto/True** 를 쓴다.  같은 C·fold 고정 대조에서도 유도 OOF 차이 최대 **.5208118964 %p**, 잔차 SD **.7359459938 vs .7504307628 %p**.\n⇒ 두 값이 bundle 에 붙어 배포 phi 예측의 **띠·'nested' 표지**로 쓰인다.  **기본 nested 함수가 맞다는 사실이 이 파생 검증을 구제하지 못한다.**",
+   "evidence_tests": [
+    "scripts/ml_design_structure.py"
+   ]
+  },
+  {
+   "id": "L5-05",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**대조 전용 `--derived-products` 산물이 일반 배포 모델로** 들어간다",
+   "note": "(Codex 라벨: **P2-L5-05**)\n`ml_design_structure.py:1356`·`:1431` · `structure_predictor.py:94`.\n★ Codex: 실제 `main --derived-products --out` 을 합성 96행에 돌리면 선택항 `[[],[6,12]]`, `free_products=False`, nested R^2 **.9896169693**, PI90 coverage **.8854166667**, **USABLE** 이고 실제 `load_bundle → predict_structure` 가 **ready=True**, *'ML (ridge, nested-CV 검증)'* 로 출력.\n⚠ 유도량 곱 모델의 높은 합성 성능이 잘못된 것이 아니다 — **'대조 전용' 이 출력 목적·생산 계약에 강제되지 않는 것**이 결함이다.  `--interactions` 의 별도 경고·종료 분기와 혼동 말 것.\n⇒ CLAUDE.md 의 *'되돌리려면 --derived-products (대조 전용).  ★DO NOT 되돌리지 말 것'* 이 **코드로 강제되지 않는다**.",
+   "evidence_tests": [
+    "scripts/ml_design_structure.py",
+    "webapp/structure_predictor.py"
+   ]
+  },
+  {
+   "id": "L5-06",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "모델은 같은데 **UI 가 다른 `d_am` 을 보낸다**",
+   "note": "(Codex 라벨: **P2-L5-06**)\n학습·기존 getParams 는 `d_am = max(d_am_p, d_am_s)` (`predictor_engine.py:300`) 인데 구조 패널 `_structDesign` 은 **d_am_p 만** 쓴다 (`predictor.html:704`·`:1330`·`:1421`).  P=3 · S=8 을 실제 JS 에 주면 d_am **8 vs 3**, 같은 phi 모델 예측이 **.309999362 vs .210001029**.\n★ **통과 범위**: 같은 6 노브·유한값에서는 `P.derive_features` 와 `M.derive_features` 의 13값이 모두 같고 `M.predict` 와 배포 `S.predict` 값·원 PI 가 **bitwise 동일** ⇒ **scaler 직렬화를 원인으로 지목하면 틀린다**.  결함은 **UI 입력 변환**이다.",
+   "evidence_tests": [
+    "webapp/predictor_engine.py",
+    "webapp/templates/predictor.html"
+   ]
+  },
+  {
+   "id": "L5-07",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**비유한 입력이 정상 배포 표지**로 반환된다 (NaN 이 가드를 통과)",
+   "note": "(Codex 라벨: **P2-L5-07**)\n`ml_design_structure.py:525`·`:540`·`:312` · `structure_predictor.py:145`.  실제 `predict_structure` 에 `am_pct = NaN` 을 주면 **ready=True · USABLE · any_extrapolation=False · value_out_of_bounds=False** 인데 **value 와 leverage 는 비유한**이다 — NaN 비교가 False 라 범위·외삽 가드를 통과한다.\n`load_corpus` 에서도 y 문자열 `'nan'` 이 float 변환을 통과해 target 배열에 남았다 (60행 중 X 59 · y 58 에 nonfinite 1).\n⇒ **유한성은 float 변환과 별개의 입력 계약**이어야 한다.",
+   "evidence_tests": [
+    "scripts/ml_design_structure.py",
+    "webapp/structure_predictor.py"
+   ]
+  },
+  {
+   "id": "HARV-01",
+   "severity": "P1",
+   "status": "claimed_fixed",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "**내 수확기의 τ 가 주기·비주기를 섞어 좌표 원점에 의존**했다",
+   "note": "(Codex 라벨: **P1-HARV-01**)\n`lhs_descriptor_harvest.py:325`·`:358` 이 간선 가중치와 경로 길이를 **raw 좌표차**로 계산했는데, `lhs_perc_extract._pairs_within` 은 **xy 최소영상**으로 이웃을 찾는다.\n★ **이 리포에서 그대로 재현**: 상자 10x10, SE 5개 r .55, z 1..5, x = .1/9.9 교대 → τ **9.850888284819803**.  **평행이동만** 한 (x+5 mod 10) → **1.0198039027185568**.  minimum-image 독립 계산 = **1.019803903** (판정문과 일치) ⇒ **9.6596배**, 옮긴 쪽이 옳다.\n⚠ area/물성/수렴/랜덤 표본 문제가 **아니다** — 두 단계가 같은 규약을 써야 한다.\n**수정 (규율 ②: 회귀 먼저)**: `_mi_dist(p,q,lx,ly)` 신설, 간선 `distance` 와 경로 길이 합을 둘 다 교체, docstring §τ 에 규약 명시, selftest **⑬a**(평행이동 불변 + minimum-image 해석값 1.019803903 일치) 추가.  수정 전이면 9.85 != 1.02 로 반드시 깨진다.  selftest 31/31.\n⛔ **남은 것**: τ 함수가 `plate_z` 를 **안 받는다**(`:409`) ⇒ 벽과 떨어진 덩어리도 자기 점유 영역의 τ 를 갖는다.  *'점유 고체 영역의 경로 descriptor'* 로는 방어 가능하나 **'두 실제 전극 벽 사이 관통' 의 증서가 아니다** — 이름/경계를 그렇게 보존하거나 plate_z 를 넘기도록 고쳐야 한다.\n★ **CONFIRMED**: fallback source 승격 없음 · 같은 성분 안에서만 쌍 (`:332`).  `area_channel` 도 *'필요한 정정'* 이나 **소비자에게도 강제**해야 한다.",
+   "evidence_tests": [
+    "scripts/lhs_descriptor_harvest.py"
+   ],
+   "claimed_fixed_sha": "eceee518b"
+  },
+  {
+   "id": "Q7-01",
+   "severity": "P2",
+   "status": "open",
+   "owner": "claude",
+   "found_by": "codex",
+   "opened_in": "docs/reviews/codex_verdict_dem_stack_L45_20260913.md",
+   "title": "Phase A `Q7` — batch 잔차는 **수치가 아니라 대응(bijection)이 막는다**",
+   "note": "(Codex 별건 2 답)\n★ **수치 반올림은 blocker 가 아니다**: `mpm_webapp_payload.py:1875` 가 resid 를 `.1e` 로 찍으므로 최대 표시 1.0e-8 의 상단을 **1.05e-8** 로 잡아도 `run_contract.py:29` 의 한계 **1e-6** 보다 충분히 작다 ⇒ 다른 flag 가 적격이면 `conv_ok(0, False, 1.05e-8)` 는 통과한다.\n⛔ **막는 것은 집합 증명**: 32줄 · n_dof 32개 유일만으로 **bijection 이 성립하지 않는다**.  반례 — 팔 0..30 로그 + 팔 0 재시도 1개도 32줄이고, 재시도에서 입력이 달라지면 dof 도 달라질 수 있으며 **팔 31 의 인증이 빠진다**.  ⚠ 그 일이 있었다는 주장이 아니라 **현재 표가 그 가능성을 배제하지 못한다**는 뜻.\n권고 순서: ① 원 로그 전수·receipt·restart/SKIP·job 기록으로 **완전한 대응 복구** (팔별 정확한 잔차 숫자는 불필요) ② 그 대응 + `cg_info=0`/`unconverged=False` conjunction 을 입증하면 **별도 batch certificate**(residual_upper_bound · 출처 · 수집 규칙 · 적용 32 ID)가 가능하다 — ⛔ **per-arm `cg_resid` 에 관측한 척 수치를 복사하지 않는다**.  현행 `conv_ok` 는 scalar 계약이라 typed certificate 수용 변경·동등성 시험이 별도 필요 ③ 끝내 입증 못 한 팔은 **UNKNOWN** — 구분조차 안 되면 그때 32팔 전체 재실행 ④ `--show-results` 는 **이미 가려져 기록된 과거 로그 문자열을 복원하지 못한다**.\n★ 재계수: 32행 · wall 합 **81,463 s = 22.628611 h** · TSV SHA256 `3094994100aef98eb0d88c47ec032db562d84ec4f5800a101da92a23c095c2e8` (⚠ **TSV 의 해시**이지 원 로그의 완전성 증명이 아니다).\n⚠ 원격 kgy 의 원 로그·운영 기록은 미접근 ⇒ ①의 **복구 가능성 자체가 미판정**.",
+   "evidence_tests": [
+    "docs/data/phase_a_h015_arms/resid_from_runner_log_20260912.tsv"
+   ]
   }
  ]
 }

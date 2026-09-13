@@ -698,3 +698,80 @@ CF/FULL **3.6477** 인데 Bruggeman/FULL **0.2771** — 부등호 방향이 반�
 
 `L4` 전체 · `L5` 전체 · LHS130 수확기 · Phase A `Q7` — 전부 미판정.
 ⚠ 판정문: *"이번 L3 HOLD 는 L1/L2 의 미해결 물리 문제를 해제하지 않는다."*
+
+---
+
+## 17. Codex 적대 리뷰 ⑥ — **L4 · L5 판정 + 별건 둘** (2026-09-13)
+
+정본 = `docs/reviews/codex_verdict_dem_stack_L45_20260913.md`.  원장 `L4-01`~`L4-11` ·
+`L5-01`~`L5-07` · `HARV-01` · `Q7-01`.  기준 `e68d2b23a`.
+
+**L4 HOLD · L5 end-to-end HOLD.  ★ 그러나 구조 ML 의 `nested_cv` 핵심은 CONFIRMED.**
+
+### ★★ 내가 쓴 코드에 P1 이 나왔고 같은 날 고쳤다 (`HARV-01`, 커밋 `eceee518b`)
+
+수확기의 τ 가 **쌍 찾기는 주기인데 길이는 raw 좌표차**였다.  판정문 fixture 를 그대로
+돌리니 **평행이동만으로 9.850888284819803 → 1.0198039027185568 (9.6596배)**.
+minimum-image 독립 계산이 후자와 일치하므로 **원래 쪽이 틀린 것**이다.
+⇒ `_mi_dist` 신설, 간선·경로 둘 다 교체, selftest ⑬a 로 회귀 고정 (31/31).
+⛔ 남은 것: τ 가 `plate_z` 를 안 받아 **"두 전극 벽 사이 관통" 의 증서가 아니다**.
+
+### ★★★ `L5-d` — 내 질문에 정면 답이 왔다
+
+> **원 dump 의 독립 수확·정의 검사·탐색은 병렬 가능.
+> 현행 build 로 291 에 append 해 최종 학습하는 것은 안 된다.**
+
+★ *"σ 가 y 에 없다"* 는 내 이해는 **CONFIRMED** (12 y 에 σ 열 없음).
+⛔ 그런데 `design_performance_dataset.py:112` → `predictor_engine.py:269` 가
+**raw `sigma_full_mScm < 0.01` 이면 행 전체를 버린다** (τ≤0 · τ>8 · porosity>30 도).
+⇒ **y 에는 σ 가 없지만 selection 은 σ 에 조건부**다.  내 수확기는 그 loader 를 우회하지만
+**기존 build 에 합치면 다시 선별된다.**
+⚠ 그리고 등록 7열을 현행 `load_corpus` 에 주면 **φ 둘만 y 로 읽힌다** — adapter 필요.
+
+### L4 의 P1 셋
+
+| ID | 무너지는 보장 |
+|---|---|
+| `L4-01` | **정상 미전도가 총 저항에서 0 Ω** — σ_ion=0 이면 ASR_total 102(B) → **2(A)**, 분극 33.66 → **0.66 mV(A)**.  직접 σ 축은 D 인데 **파생 축이 좋아진다** |
+| `L4-02` | source 를 solver ↔ fallback 으로 바꿔도 **등급 동일**.  혼합 source 에서 상세화면 suppression 이 **정식 Physics 키를 못 지워 A 등급**이 남는다 |
+| `L4-03` | audit 가 `solver_input_intact=False` · 문자열 `"false"` · JSON 깨짐을 통과시켜 **3/3 trustworthy (100 %)** 를 내고 LaTeX 에 *"all assessable gates True"* 를 적는다 |
+
+★ `L4-04`: grade 가 σ_grain 을 **3.0 고정**으로 써서 모든 σ 를 ×4 해도 앱 τ_eff 는 불변인데
+grade 는 **B− → A** 로 바뀐다 (공통 스케일 불변성 파괴).
+
+### L5 의 P1 셋
+
+`L5-01`(σ 로 코호트 선별) · `L5-02`(coverage 정상 0 → **0.20**, CN·percolation 결측 → 0) ·
+`L5-03`(**금지 열 `use_porosity_pct` 가 학습되고 `suggest_batch` 로 나간다**).
+
+⛔ **`L5-03` 과 `L5-05` 는 CLAUDE.md 의 DO-NOT 두 줄이 코드로 강제되지 않는다는 뜻**이다
+(*"학습·노출 금지 열"* · *"`--derived-products` 는 대조 전용, DO NOT 되돌리지 말 것"*).
+
+### ★ CONFIRMED — 다 폐기가 아니다
+
+`nested_cv` 핵심(outer train 안에서 표준화·항·λ·기저족 재선택, 독립 outer 와 **1.78e−15**,
+hat-LOO 와 oracle **2.00e−15**, **median imputation 없음**) · `free_products` 후보 제한
+(105→35, 곱 91→21) · 같은 6노브에서 학습↔배포 변환 **bitwise 동일** · `se_material` 내부
+Arrhenius·단위 함수 정확.
+
+### `Q7` 답 (`Q7-01`)
+
+★ **수치 반올림은 blocker 가 아니다** — 표시 상단 `1.05e-8` 도 한계 `1e-6` 보다 훨씬 작다.
+⛔ 막는 것은 **집합 증명**이다: 32줄·dof 32 유일만으로 **bijection 이 성립하지 않는다**
+(반례: 팔 0..30 + 팔 0 재시도도 32줄이고 **팔 31 인증이 빠진다**).
+⇒ 원 로그 전수·receipt·restart 기록으로 **대응을 복구**하면 별도 batch certificate 가 가능하고,
+**팔별 정확한 잔차 숫자는 불필요**하다.  ⛔ per-arm `cg_resid` 에 관측한 척 복사 금지.
+⚠ kgy 원 로그 미접근 ⇒ **복구 가능성 자체가 미판정**.
+
+### 다섯 층이 끝났다 — 다음은 저자 결정
+
+L1 HOLD → L2 HOLD → L3 HOLD → L4 HOLD → L5 HOLD.  판정문들이 반복해 말한 순서:
+
+1. **L1↔L2 면적/수송 접촉 계약을 먼저 정한다** (원판 / 막 / 표면 구분)
+2. boundary · state · 0R 계약 복구 + 회귀
+3. Stage-E 의 계산과 추정 분리
+4. consumer 를 명시적 선택으로 (정상 0 · 실패 · estimate 를 같은 양수 getter에 섞지 않기)
+5. 대표 raw case 고정 → **수정 전후 재추출**, 세대를 나눈다
+6. **그 다음에야** 별도 사전등록된 재적합
+
+⚠ 다섯 판정 전부 *"LIVE 계수 재적합도, LOCKED 지수·EXCL·φ_c 변경도 승인하지 않았다"* 를 적었다.
