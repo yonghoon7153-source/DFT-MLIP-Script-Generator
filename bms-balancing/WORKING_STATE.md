@@ -50,6 +50,26 @@ bytecode 만 막았고(C08·C09), `rc 0` 인데 승격 불가인 상태를 런�
 수치가 커졌다 — 스키마 누락 59 (sidecar `argv`·`roster` 26 + `gamma_roster` 4 + `combo_roster` 등) · 출처 열 27 ·
 내용 5 · provenance 1. **숫자는 하나도 안 움직였다**; 늘어난 것은 요구하는 축이다. U18 재실행이 새 규칙으로 서명한다.
 
+### 다음 — Codex 토큰 복구, 리뷰 요청 3 건 대기 (2026-09-13)
+
+Codex 를 다시 쓸 수 있게 되어 요청문 셋을 썼다. **보내는 순서도 이 순서다.**
+
+| 순 | 요청문 | 대상 | 왜 이 순서 |
+|---|---|---|---|
+| 1 | `reviews/REQ_MPH_MICROSHORT.md` | 규진팀 마이크로 쇼츠 COMSOL 모델 분석 (`docs/MICROSHORT_MPH_REVIEW.md`) | 지금 제일 뜨겁고 반증 가능성이 명확하다 — `cEeqref` 가 SOC 분모라는 전제(A1) 하나가 무너지면 M1 이 통째로 무너진다. COMSOL 미실행 |
+| 2 | `reviews/R13_REQUEST.md` | 하네스 13차 — 자체 리뷰 35 건 닫음 (`c7217c0` 코드 · `85038ee` 증거) | 쌓인 빚. R11 이후 외부 눈이 한 번도 없었다. 핵심 물음은 "§2 의 반쪽으로 닫음 패턴이 이번 35 건에도 있는가" |
+| 3 | `reviews/REQ_FIT_RAILS.md` | α·β 적합 출력의 난간·축퇴 (xlsx 37 행) | MATLAB 원본을 봐야 결론이 나서 Codex 혼자로는 절반만 답한다 (B3 = `a_PE` 상한 존재가 유일한 약점) |
+
+`reviews/R12_REQUEST.md` 는 **보내지 못한 문서**로 배너를 달아 보관했다 (R13 이 대신한다).
+
+검증 재실행 (2026-09-13, `26c477c`): `236 passed in 200.29s` · `git diff c7217c0 HEAD -- '*.py' '*.sh'` **0 개** ·
+`replay_codex_r7.py --expected-head 26c477c…` rc 0 · `evidence_eligible: true` · `closed: true` ·
+`check_u14 --schema-only` rc 2 (59 · 27 · 5 · 1, 보관 증거와 일치).
+⚠ `expected_tree` 는 커밋을 따라간다 — 보관 증거는 `ae9e4847…`, `26c477c` 재실행은 `16d44946…`. 불일치가 아니다.
+
+---
+
+
 ## 직전 상태 — Codex 11차 NO-GO (P1 12 · P2 6) 열여덟 건 전부 닫음 (닫힘)
 
 2026-09-13 Codex 11차(대상 `2add074`, `reviews/R11_CODEX.md`, 패키지 `reviews/r11_repros/codex/` sha256 13/13)의 요지:
